@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lexnis Campaign Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              obsidian: '#080a0d',
+              cyanpulse: '#20d4ff',
+              violetcore: '#7c3aed'
+            },
+            boxShadow: {
+              glow: '0 0 30px rgba(32, 212, 255, 0.25)'
+            }
+          }
+        }
+      };
+    </script>
+  </head>
+  <body class="min-h-screen bg-obsidian text-slate-100">
+    <main class="mx-auto max-w-7xl px-6 py-10">
+      <header class="mb-8">
+        <p class="text-sm uppercase tracking-[0.3em] text-cyanpulse">Lexnis Technologies</p>
+        <h1 class="mt-2 text-4xl font-semibold text-white">Lexnis Campaign Studio</h1>
+        <p class="mt-2 text-slate-400">Generate industrial AI campaign visuals and B2B social copy in seconds.</p>
+      </header>
+
+      <section class="rounded-2xl border border-slate-800 bg-slate-950/70 p-6 shadow-glow">
+        <label for="campaignPrompt" class="mb-3 block text-sm font-medium text-slate-200">Campaign Prompt</label>
+        <textarea
+          id="campaignPrompt"
+          rows="6"
+          placeholder="Industrial IoT predictive maintenance launch for Lexnis"
+          class="w-full resize-y rounded-xl border border-slate-700 bg-slate-900/80 p-4 text-slate-100 outline-none ring-cyanpulse/0 transition focus:border-cyanpulse focus:ring-2"
+        ></textarea>
+        <p class="mt-2 text-xs text-slate-500">Set <code>window.OPENROUTER_API_KEY</code> in the browser before generating.</p>
+
+        <div class="mt-5 flex flex-wrap items-center gap-3">
+          <button
+            id="generateButton"
+            class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyanpulse to-violetcore px-5 py-2.5 font-medium text-slate-950 transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            <span id="buttonText">Generate Campaign</span>
+            <span id="buttonSpinner" class="hidden h-4 w-4 animate-spin rounded-full border-2 border-slate-950 border-t-transparent"></span>
+          </button>
+          <span id="status" class="text-sm text-slate-400"></span>
+        </div>
+      </section>
+
+      <section id="resultsSection" class="mt-8 hidden grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <article class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+          <h2 class="mb-3 text-lg font-semibold text-white">Generated Visual Asset</h2>
+          <div class="overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
+            <img id="generatedImage" alt="Generated campaign visual" class="h-auto w-full object-cover" />
+          </div>
+        </article>
+
+        <article class="rounded-2xl border border-slate-800 bg-slate-950/70 p-6">
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <h2 class="text-lg font-semibold text-white">Marketing Copy & Caption</h2>
+            <button id="copyButton" class="rounded-lg border border-cyanpulse/60 px-3 py-1.5 text-sm text-cyanpulse hover:bg-cyanpulse/10">Copy Caption</button>
+          </div>
+          <pre id="captionOutput" class="whitespace-pre-wrap break-words rounded-xl border border-slate-700 bg-slate-900/70 p-4 text-sm leading-6 text-slate-100"></pre>
+        </article>
+      </section>
+    </main>
+
+    <script>
+      const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+      const OPENROUTER_MODEL = 'google/gemini-2.5-flash';
+      const OVERLAY_TEXT = 'LEXNIS%20TECHNOLOGIES%0AINDUSTRIAL%20AI';
+      const SYSTEM_PROMPT =
+        "You are the Lead Copywriter for Lexnis Technologies, an industrial AI and automation firm. Generate a professional B2B marketing caption, key technical highlights, and high-converting Instagram hashtags based on the user's prompt.";
+
+      const promptEl = document.getElementById('campaignPrompt');
+      const generateButton = document.getElementById('generateButton');
+      const buttonText = document.getElementById('buttonText');
+      const buttonSpinner = document.getElementById('buttonSpinner');
+      const statusEl = document.getElementById('status');
+      const resultsSection = document.getElementById('resultsSection');
+      const generatedImage = document.getElementById('generatedImage');
+      const captionOutput = document.getElementById('captionOutput');
+      const copyButton = document.getElementById('copyButton');
+
+      function setLoadingState(isLoading) {
+        generateButton.disabled = isLoading;
+        buttonSpinner.classList.toggle('hidden', !isLoading);
+        buttonText.textContent = isLoading ? 'Generating…' : 'Generate Campaign';
+      }
+
+      function buildVisualPrompt(userPrompt) {
+        return `${userPrompt}, high-end industrial AI command center, dark industrial IoT dashboard, cyan data streams, autonomous robotics systems, cinematic lighting, ultra-detailed, enterprise branding`;
+      }
+
+      function buildImageUrl(visualPrompt) {
+        return `https://image.pollinations.ai/prompt/${encodeURIComponent(
+          visualPrompt
+        )}?width=1080&height=1350&nologo=true&private=true&text=${OVERLAY_TEXT}`;
+      }
+
+      function fallbackCaption(userPrompt) {
+        return `🚀 Lexnis Technologies | Industrial AI Rollout\n\n${userPrompt}\n\n• Predictive analytics for asset uptime\n• Automated workflows for operations teams\n• Secure real-time industrial telemetry\n\n#IndustrialAI #Automation #IIoT #PredictiveMaintenance #SmartManufacturing #LexnisTechnologies`;
+      }
+
+      async function generateCaption(userPrompt) {
+        const apiKey = window.OPENROUTER_API_KEY || '';
+        if (!apiKey) {
+          throw new Error('Missing OpenRouter API key. Set window.OPENROUTER_API_KEY and try again.');
+        }
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+        try {
+          const response = await fetch(OPENROUTER_URL, {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer ' + apiKey,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: OPENROUTER_MODEL,
+              messages: [
+                { role: 'system', content: SYSTEM_PROMPT },
+                { role: 'user', content: userPrompt }
+              ]
+            }),
+            signal: controller.signal
+          });
+
+          if (!response.ok) {
+            throw new Error(`OpenRouter request failed (${response.status})`);
+          }
+
+          const data = await response.json();
+          return data?.choices?.[0]?.message?.content?.trim() || fallbackCaption(userPrompt);
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      }
+
+      async function handleGenerate() {
+        const userPrompt = promptEl.value.trim();
+        if (!userPrompt) {
+          statusEl.textContent = 'Please enter a campaign prompt first.';
+          return;
+        }
+
+        setLoadingState(true);
+        statusEl.textContent = 'Generating copy and visual…';
+
+        const imageUrl = buildImageUrl(buildVisualPrompt(userPrompt));
+
+        try {
+          const caption = await generateCaption(userPrompt);
+          generatedImage.src = imageUrl;
+          captionOutput.textContent = caption;
+          resultsSection.classList.remove('hidden');
+          statusEl.textContent = 'Campaign generated successfully.';
+        } catch (error) {
+          generatedImage.src = imageUrl;
+          captionOutput.textContent = fallbackCaption(userPrompt);
+          resultsSection.classList.remove('hidden');
+          statusEl.textContent = error.name === 'AbortError' ? 'Request timed out. Showing fallback copy.' : `Using fallback copy: ${error.message}`;
+        } finally {
+          setLoadingState(false);
+        }
+      }
+
+      generateButton.addEventListener('click', handleGenerate);
+      copyButton.addEventListener('click', async () => {
+        const text = captionOutput.textContent.trim();
+        if (!text) {
+          statusEl.textContent = 'Nothing to copy yet. Generate a campaign first.';
+          return;
+        }
+
+        try {
+          await navigator.clipboard.writeText(text);
+          statusEl.textContent = 'Caption copied to clipboard.';
+        } catch {
+          statusEl.textContent = 'Clipboard copy failed. Please copy manually.';
+        }
+      });
+    </script>
+  </body>
+</html>
