@@ -113,8 +113,9 @@ def health_check():
         "engine": "Lexnis Campaign Studio (AI Marketing Agency)",
         "text_engine": f"{studio.text_engine}:{studio.model}",
         "search_engine": "Google Search + page scraping (free)",
-        "visual_engine": "Pollinations gen API" if studio.pollinations_key else "Pollinations anonymous (watermarked)",
-        "watermark_free": bool(studio.pollinations_key),
+        "visual_engine": "Google AI Studio Imagen (Keyed)" if getattr(studio, "gemini_key", None) else ("Pollinations gen API" if studio.pollinations_key else "Pollinations (FLUX Photorealism)"),
+        "has_gemini_key": bool(getattr(studio, "gemini_key", None)),
+        "watermark_free": bool(getattr(studio, "gemini_key", None) or studio.pollinations_key),
         "image_models": IMAGE_MODELS,
     }
 

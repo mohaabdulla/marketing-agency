@@ -1,0 +1,1 @@
+{"status":503,"success":false,"error":{"code":"SERVICE_UNAVAILABLE","message":"The Classic API is at its limit right now. Retry after 10s, or get full access to every model with a pollen key at https://enter.pollinations.ai/?ref=classic","timestamp":"2026-10-29T13:27:22.293Z","fixUrl":"https://enter.pollinations.ai/?ref=classic"}}

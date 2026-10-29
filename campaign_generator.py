@@ -27,6 +27,7 @@ import ast
 import json
 import math
 import random
+import base64
 import hashlib
 import urllib.parse
 from typing import Dict, Any, Optional, List, Tuple
@@ -104,11 +105,12 @@ LEGACY_IMAGE_BASE = "https://image.pollinations.ai/prompt"
 GEMINI_OPENAI_BASE = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 DEFAULT_TEXT_MODEL = os.getenv("TEXT_MODEL", "openai/gpt-5.4-mini")
-DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
-DEFAULT_IMAGE_MODEL = os.getenv("IMAGE_MODEL", "black-forest-labs/flux.1.1-pro")
+DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+DEFAULT_IMAGE_MODEL = os.getenv("IMAGE_MODEL", "gemini-image")
 
-# Image models available on the Pollinations gen API (FLUX is the gold-standard for photorealism)
+# Image models available (Google AI Studio Imagen + FLUX photorealism)
 IMAGE_MODELS = {
+    "gemini-image": "Google AI Studio Imagen (Gemini Image)",
     "black-forest-labs/flux.1.1-pro": "FLUX 1.1 Pro (Apple/Studio Photorealism)",
     "flux-realism": "FLUX Realism (Hardware Macro & Textures)",
     "black-forest-labs/flux.1-schnell": "FLUX Schnell (High-Speed Packshot)",
@@ -895,6 +897,31 @@ def create_fallback_graphic(width: int = POST_WIDTH, height: int = POST_HEIGHT) 
     return buf.getvalue()
 
 
+def is_pollinations_error_card(img_bytes: bytes) -> bool:
+    """Detect if an image is Pollinations' yellow rate-limit card ('Free limit reached') or an error payload."""
+    if not img_bytes or len(img_bytes) < 1000:
+        return True
+    # Check for JSON error payload disguised as 200 OK
+    stripped = img_bytes[:200].strip()
+    if stripped.startswith(b"{") or b'"error"' in stripped or b"SERVICE_UNAVAILABLE" in stripped:
+        return True
+    try:
+        import io
+        import numpy as np
+        from PIL import Image
+        im = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+        arr = np.array(im)
+        # Pollinations rate-limit card background is bright yellow: R > 220, G > 180, B < 160
+        r, g, b = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2]
+        yellow = (r > 220) & (g > 180) & (b < 160)
+        frac = float(np.mean(yellow))
+        if frac > 0.30:
+            return True
+    except Exception:
+        pass
+    return False
+
+
 # ==========================================
 # Agency engine
 # ==========================================
@@ -909,13 +936,13 @@ class LexnisCampaignStudio:
         model: Optional[str] = None
     ):
         self.pollinations_key = os.getenv("POLLINATIONS_API_KEY", "")
-        gemini_key = os.getenv("GEMINI_API_KEY", "")
+        self.gemini_key = os.getenv("GEMINI_API_KEY", "")
 
         # Explicit overrides > Gemini > Pollinations (keyed) > anonymous legacy endpoint
         if api_key and base_url:
             self.api_key, self.base_url, self.model, self.text_engine = api_key, base_url, model or DEFAULT_TEXT_MODEL, "custom"
-        elif gemini_key:
-            self.api_key, self.base_url, self.model, self.text_engine = gemini_key, GEMINI_OPENAI_BASE, model or DEFAULT_GEMINI_MODEL, "gemini"
+        elif self.gemini_key:
+            self.api_key, self.base_url, self.model, self.text_engine = self.gemini_key, GEMINI_OPENAI_BASE, model or DEFAULT_GEMINI_MODEL, "gemini"
         elif self.pollinations_key:
             self.api_key, self.base_url, self.model, self.text_engine = self.pollinations_key, f"{POLLINATIONS_GEN_BASE}/v1", model or DEFAULT_TEXT_MODEL, "pollinations"
         else:
@@ -1134,9 +1161,13 @@ class LexnisCampaignStudio:
         messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
         extra = {"response_format": {"type": "json_object"}} if json_mode else {}
 
-        # Fallback models if using anonymous Pollinations endpoint
+        # Fallback models if using Gemini or Pollinations endpoint
         models_to_try = [self.model]
-        if "pollinations" in getattr(self, "base_url", "").lower() or getattr(self, "text_engine", "") == "pollinations-anonymous":
+        if getattr(self, "text_engine", "") == "gemini":
+            for m in ["gemini-3.5-flash-lite", "gemini-3.5-flash"]:
+                if m not in models_to_try:
+                    models_to_try.append(m)
+        elif "pollinations" in getattr(self, "base_url", "").lower() or getattr(self, "text_engine", "") == "pollinations-anonymous":
             for m in ["mistral", "deepseek", "qwen"]:
                 if m not in models_to_try:
                     models_to_try.append(m)
@@ -1390,7 +1421,67 @@ class LexnisCampaignStudio:
 
         encoded = urllib.parse.quote(clean_prompt)
 
-        # 1. Keyed Pollinations API
+        # 1. Google AI Studio Imagen / Gemini Image (keyed with GEMINI_API_KEY)
+        if self.gemini_key:
+            # 1a. Try official google-genai SDK
+            try:
+                from google import genai
+                from google.genai import types
+                client = genai.Client(api_key=self.gemini_key)
+                for g_model in ["gemini-3.1-flash-image", "gemini-3-pro-image-preview", "gemini-2.5-flash-image"]:
+                    try:
+                        res = client.models.generate_content(
+                            model=g_model,
+                            contents=clean_prompt,
+                            config=types.GenerateContentConfig(
+                                response_modalities=[types.Modality.IMAGE]
+                            )
+                        )
+                        if res.candidates and res.candidates[0].content and res.candidates[0].content.parts:
+                            for part in res.candidates[0].content.parts:
+                                if hasattr(part, "inline_data") and part.inline_data and part.inline_data.data:
+                                    img_bytes = part.inline_data.data
+                                    if len(img_bytes) > 2000 and not is_pollinations_error_card(img_bytes):
+                                        if console:
+                                            console.print(f"[bold green]✓ Generated visual via Google AI Studio ({g_model})[/bold green]")
+                                        return img_bytes, True
+                    except Exception as eg:
+                        if console and "RESOURCE_EXHAUSTED" in str(eg):
+                            console.print("[dim yellow]Google AI Studio image quota: 0 on Free Tier (link billing in AI Studio to enable). Fallback to FLUX Studio...[/dim yellow]")
+                        pass
+            except Exception:
+                pass
+
+            # 1b. Try direct REST API for Google AI Studio
+            gemini_image_models = [
+                "gemini-3.1-flash-image",
+                "gemini-3-pro-image-preview",
+                "gemini-2.5-flash-image",
+                "nano-banana-pro-preview"
+            ]
+            for g_model in gemini_image_models:
+                try:
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{g_model}:generateContent?key={self.gemini_key}"
+                    payload = {
+                        "contents": [{"parts": [{"text": clean_prompt}]}],
+                        "generationConfig": {"responseModalities": ["IMAGE"]}
+                    }
+                    resp = requests.post(url, json=payload, timeout=35)
+                    if resp.ok:
+                        data = resp.json()
+                        cand = data.get("candidates", [{}])[0]
+                        parts = cand.get("content", {}).get("parts", [])
+                        for p in parts:
+                            if "inlineData" in p and p["inlineData"].get("data"):
+                                img_bytes = base64.b64decode(p["inlineData"]["data"])
+                                if len(img_bytes) > 2000 and not is_pollinations_error_card(img_bytes):
+                                    if console:
+                                        console.print(f"[bold green]✓ Generated visual via Google AI Studio ({g_model})[/bold green]")
+                                    return img_bytes, True
+                except Exception:
+                    pass
+
+        # 2. Keyed Pollinations API (if POLLINATIONS_API_KEY is provided in .env)
         if self.pollinations_key:
             try:
                 resp = requests.get(
@@ -1399,39 +1490,44 @@ class LexnisCampaignStudio:
                     headers={"Authorization": f"Bearer {self.pollinations_key}"},
                     timeout=45,
                 )
-                if resp.ok and len(resp.content) > 1000:
+                if resp.ok and len(resp.content) > 1000 and not is_pollinations_error_card(resp.content):
                     return resp.content, True
             except Exception:
                 pass
 
-        # 2. Free Pollinations Image endpoint with model rotation (flux -> turbo -> flux-realism -> default)
-        # We request 864x1080 (native 4:5 FLUX aspect ratio) for 3x faster generation, then fit_cover upscales & sharpens to 1080x1350
-        models_to_try = ["flux", "turbo", "flux-realism", None]
+        # 3. Free Pollinations Image endpoint with model rotation (flux-realism -> flux -> turbo -> default)
+        # We check every image to ensure it is NOT Pollinations' yellow rate-limit card!
+        models_to_try = ["flux-realism", "flux", "turbo", None]
         for m in models_to_try:
             params = {"width": 864, "height": 1080, "seed": seed, "nologo": "true"}
             if m:
                 params["model"] = m
             try:
-                resp = requests.get(f"{LEGACY_IMAGE_BASE}/{encoded}", params=params, timeout=50)
-                if resp.ok and len(resp.content) > 2000:
+                resp = requests.get(f"{LEGACY_IMAGE_BASE}/{encoded}", params=params, timeout=40)
+                if resp.ok and len(resp.content) > 2000 and not is_pollinations_error_card(resp.content):
                     return resp.content, False
+                elif resp.ok and is_pollinations_error_card(resp.content):
+                    if console:
+                        console.print(f"[dim yellow]Model {m} returned Pollinations cooldown card. Trying next model...[/dim yellow]")
             except Exception:
                 continue
 
-        # 3. Gen API Schnell endpoint (public free tier fallback)
+        # 4. Gen API Schnell endpoint (public free tier fallback)
         try:
             resp = requests.get(
                 f"{POLLINATIONS_GEN_BASE}/image/{encoded}",
                 params={"model": "black-forest-labs/flux.1-schnell", "width": 864, "height": 1080, "seed": seed},
-                timeout=45,
+                timeout=40,
             )
-            if resp.ok and len(resp.content) > 2000:
+            if resp.ok and len(resp.content) > 2000 and not is_pollinations_error_card(resp.content):
                 return resp.content, True
         except Exception:
             pass
 
-        # 4. If all external image servers are 503 / down, generate an elegant synthetic graphic
+        # 5. If all external public image servers are rate-limited (45s cooldown) or 503, render luxury synthetic studio visual
         if HAS_PIL:
+            if console:
+                console.print("[bold cyan]✓ External image APIs busy: Generated studio visual via Lexnis Graphic Engine[/bold cyan]")
             return create_fallback_graphic(POST_WIDTH, POST_HEIGHT), True
 
         raise RuntimeError("Image rendering servers are currently experiencing 503 high load. Please retry.")

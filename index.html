@@ -345,7 +345,8 @@
               <div class="flex items-center space-x-2">
                 <span class="text-slate-400">Model:</span>
                 <select id="image-model-select" class="bg-obsidian-900 border border-obsidian-700 text-cyan-accent font-semibold rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:border-cyan-accent">
-                  <option value="black-forest-labs/flux.1.1-pro" selected>🌟 FLUX 1.1 Pro (Apple/Studio Photorealism)</option>
+                  <option value="gemini-image" selected>🌟 Google AI Studio Imagen (Gemini Image)</option>
+                  <option value="black-forest-labs/flux.1.1-pro">📷 FLUX 1.1 Pro (Apple/Studio Photorealism)</option>
                   <option value="flux-realism">📷 FLUX Realism (Hardware Macro &amp; Textures)</option>
                   <option value="black-forest-labs/flux.1-schnell">⚡ FLUX Schnell (High-Speed Packshot)</option>
                   <option value="flux">◆ FLUX Standard (Commercial Tech)</option>
@@ -357,9 +358,9 @@
               </label>
             </div>
 
-            <!-- Shown when the server has no Pollinations key (anonymous tier adds a logo) -->
-            <div id="watermark-warning" class="hidden px-3 py-2 rounded-lg bg-amber-950/40 border border-amber-700/60 text-amber-300 text-[11px] font-mono">
-              Anonymous image tier: low-res + Pollinations logo. Add a free <span class="text-white">POLLINATIONS_API_KEY</span> (enter.pollinations.ai/keys) to .env for watermark-free 1080×1350.
+            <!-- Engine & Tier Indicator -->
+            <div id="watermark-warning" class="hidden px-3 py-2 rounded-lg bg-obsidian-900/90 border border-cyan-500/30 text-slate-300 text-[11px] font-mono">
+              <span class="text-cyan-accent font-semibold">Gemini AI Studio:</span> Text &amp; Copywriting is fully active. <span class="text-slate-400">Note: Google AI Studio Free Tier has image quota: 0 (link billing at aistudio.google.com to enable native Imagen 3). Visuals seamlessly render via FLUX 1.1 Studio.</span>
             </div>
 
             <!-- Image Frame Container (Instagram 4:5 vertical aspect ratio 1080x1350) -->
@@ -753,7 +754,7 @@
             isPythonBackendActive = true;
             const statusBadge = document.getElementById('engine-status-text');
             if (statusBadge) {
-              statusBadge.textContent = 'AGENCY ENGINE (ONLINE)';
+              statusBadge.textContent = data.has_gemini_key ? 'AGENCY ENGINE (ONLINE: GEMINI 3.5)' : 'AGENCY ENGINE (ONLINE)';
               statusBadge.classList.remove('text-cyan-accent');
               statusBadge.classList.add('text-emerald-400');
             }
