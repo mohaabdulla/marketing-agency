@@ -1,124 +1,78 @@
-# Lexnis Campaign Studio
+# Lexnis Campaign Studio — improved pipeline
 
-> **Industrial AI & Automation B2B Marketing Engine**  
-> Complete system powered by **Free OpenAI Models** for technical copywriting, **Free Google Search** for real-time market/technical intelligence, and **FLUX Realism AI** for cinematic visual asset synthesis. **Zero API keys required.**
+Product research → creative brief → copywriting → creative review → photographic asset → separately typeset advertising copy.
 
----
+## Run
 
-## 🧠 How the agency pipeline works (v2)
-
-1. **Research**: scrapes any product URL you paste in the prompt, then researches the product with Gemini + Google Search grounding (if `GEMINI_API_KEY` is set) or keyless search scraping as a fallback.
-2. **Strategist**: turns the research into a creative brief (audience, pain points, benefits, verified proof points, angle).
-3. **Copywriter**: writes the post as strict JSON: hook, caption, 3 benefits, CTA, 10-14 hashtags, on-image headline, alt text and an art-directed image prompt. Output is cleaned for Instagram (no `**markdown**`) and kept under 2,200 chars.
-4. **Art director**: renders the image on the Pollinations gen API, crops it to exactly 1080×1350, sharpens it and adds a headline + brand tag overlay. Both the post and the clean image are saved.
-
-### 🔑 Watermark-free images
-
-Without a key, Pollinations serves its anonymous tier: a low-res image (686×858) from a weak model, with the Pollinations logo added. To fix that:
-
-1. Create a free account at **https://enter.pollinations.ai/keys** and copy the **secret key (`sk_...`)**.
-2. Put it in `.env`: `POLLINATIONS_API_KEY=sk_...` (see `.env.example`).
-3. Restart `python server.py`. The amber warning in the dashboard disappears when the key is active.
-
-> 💡 **Tip:** to get the most accurate copy, paste the product page URL in the prompt, e.g. `Launch post for our new serum https://yourshop.com/products/serum`.
-
----
-
-## ⚡ Key Highlights
-
-- **100% Free — No API Key Required**: Powered by the official `openai` Python library connected to free OpenAI-compatible inference endpoints.
-- **Superior AI Image Generation (FLUX Realism)**:
-  - Upgraded to **`flux-realism`** (Black Forest Labs fine-tuned photorealism model), far superior to standard diffusion for industrial machinery, hardware, and physical materials.
-  - Automatic **`enhance=true`** neural prompt optimization.
-  - Camera-lens cinematography injection (e.g., *Hasselblad H6D-100c 85mm f/1.4, volumetric specular lighting, 8k UHD*).
-  - Model Switcher in the dashboard: choose between **🌟 FLUX Realism** (Photorealistic), **⚡ FLUX.1 Flagship**, and **🚀 SDXL Turbo**.
-- **Free Unlimited Google Search Research**:
-  - Automatically queries Google for your prompt/concept using native scraping and `googlesearch-python`.
-  - Injects real-time search intelligence into the copywriter AI so B2B copy is grounded in real specs, competitor data, and live industry benchmarks.
-  - No Google API key, no custom search engine ID, and zero linter warnings.
-- **Dual-Mode Engine**: Run via standalone browser client ([`index.html`](file:///c:/Users/mohamed%20redha/Desktop/marketing-agency/index.html)) or high-performance Python FastAPI backend ([`server.py`](file:///c:/Users/mohamed%20redha/Desktop/marketing-agency/server.py)).
-- **High-Tech Obsidian Dark UI**: Tailored specifically for an industrial AI firm with obsidian black background (`#07090e`), electric cyan (`#00f0ff`) and ultraviolet (`#8b5cf6`) accents, micro-glow badges, and telemetry indicators.
-- **Python CLI Tool ([`campaign_generator.py`](file:///c:/Users/mohamed%20redha/Desktop/marketing-agency/campaign_generator.py))**:
-  - Rich terminal CLI interface with panels, tables, and progress spinners.
-  - Automatic visual download and package export (`.jpg`, `.json`, `.md`).
-- **FastAPI Web Server ([`server.py`](file:///c:/Users/mohamed%20redha/Desktop/marketing-agency/server.py))**:
-  - Serves dashboard with disk export endpoint (`/api/export`) and Google search endpoint (`/api/search`).
-- **Instagram-Ready Visual Asset Format**:
-  - 4:5 vertical aspect ratio (`1080×1350`).
-  - Dynamic image synthesis with Lexnis typography overlay burn-in (`text=LEXNIS%20TECHNOLOGIES%0AINDUSTRIAL%20AI`).
-- **Marketing Copy & Caption Studio**:
-  - Structured output: Campaign Hook, Engaging B2B Caption Body, Technical Highlights/ROI Metrics, Curated Hashtags, and Google Research Sources.
-  - One-click copy with clipboard toast notifications.
-  - Character counter with Instagram 2,200 character limit indicator.
-
----
-
-## 🚀 How to Run
-
-### Option 1: Start the Python FastAPI Server & Open Web UI
-```bash
+```powershell
+pip install -r requirements.txt
 python server.py
 ```
-1. Open **`http://localhost:8000`** in your browser.
-2. The UI will show `ENGINE: OPENAI PYTHON ENGINE (ONLINE)`.
-3. Type any campaign idea (e.g. *"Autonomous cobot assembly line optimization for Lexnis"*) and click **Generate Campaign**.
-4. The system automatically searches Google in real time, generates grounded copy, renders the photorealistic Flux Realism visual asset, and displays the Google sources.
-5. You can switch models between **FLUX Realism**, **FLUX.1**, and **Turbo** right on the dashboard.
-6. Click **"Export Package to Disk"** to save everything to the `output/` folder.
 
----
+Open http://localhost:8000. Use the Python backend; direct-file browser generation has been retired because its fallback templates fabricated product claims.
 
-### Option 2: Run directly from the Terminal (CLI)
-```bash
-# Basic run with prompt argument (uses FLUX Realism by default):
-python campaign_generator.py "Predictive maintenance IoT platform launch for Lexnis"
+The compiled Tailwind stylesheet is included in `static/tailwind.css`; no browser Tailwind CDN is used. After changing utility classes or the theme, run `npm ci` and `npm run build:css`. Node.js is only needed to rebuild CSS, not to run the app. Theme settings are in `tailwind.config.cjs`.
 
-# Choose a specific image model and download asset to output/ folder:
-python campaign_generator.py "Autonomous robotics fleet orchestration" --brand "Lexnis Technologies" --image-model black-forest-labs/flux.1.1-pro --download
+The model setup message reports whether credentials are configured, not remote quota availability. Missing setup disables visual retries. Expected provider failures return `image_status: unavailable` with actionable warnings; campaign copy remains usable.
 
-# Interactive prompt (will ask for concept if omitted):
-python campaign_generator.py
+For the supplied reference style, choose **Cinematic Lifestyle**, **Landscape ad**, and use:
+
+> Tesla Model 3, deep blue, driving on a winding coastal road at sunset. Ocean horizon, warm natural light, low front three-quarter tracking shot, realistic reflections and road motion blur. Keep the whole car visible with quiet space upper left and lower right. Campaign hook: Accelerate the future. Product title: Tesla Model 3.
+
+Quality depends on the actual image model and product knowledge. These changes do not guarantee reference-level output or exact product geometry. The next quality step is reference-image editing with an approved product photograph, followed by visual review; reference-image upload is not implemented here.
+
+## Models researched
+
+Verified using primary documentation on October 29, 2026. Free model weights and hosted computation have different costs.
+
+| Option | Why try it | Cost/setup |
+| --- | --- | --- |
+| [Cloudflare FLUX Schnell](https://developers.cloudflare.com/workers-ai/models/flux-1-schnell/) | Fast photographic drafts; integrated REST API | Account ID + Workers AI token. [10,000 neurons/day free](https://developers.cloudflare.com/workers-ai/platform/pricing/), shared across model usage. |
+| [Z-Image Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo) | Photorealism, fast sampling | Apache 2.0 weights. Local GPU or Hugging Face hosting. |
+| [Qwen Image 2512](https://huggingface.co/Qwen/Qwen-Image-2512) | Detailed imagery and composition | Apache 2.0 weights; heavier local inference or hosted computation. This license finding applies to 2512 specifically. |
+| [FLUX.1 Schnell](https://huggingface.co/black-forest-labs/FLUX.1-schnell) | Four-step local drafts | Apache 2.0 weights. Local GPU or hosted computation. |
+| Gemini Image / Pollinations | Existing integrations retained | Provider keys, model access and image quota apply. No automatic cross-provider substitution. |
+
+Hugging Face [currently lists no included inference credits for free accounts](https://huggingface.co/docs/inference-providers/en/pricing). A free model download is not a free hosted API. Provider availability can change.
+
+## Configure
+
+### Local engine on this laptop
+
+The isolated Segmind Vega engine uses `.venv-image` and `.model-cache/segmind-vega`. It needs no Cloudflare or Hugging Face API key after downloading the weights. The default selects this engine after a real smoke render creates its readiness marker. Its GPU runtime is separate from the server Python, which can keep using its existing CPU-only PyTorch.
+
+To install on another machine: `python -m venv .venv-image`, then `python scripts/setup_local_images.py`. This downloads CUDA PyTorch and the fp16 [Segmind Vega](https://huggingface.co/segmind/Segmind-Vega) model (Apache 2.0), verifies CUDA, and generates a real sample before enabling the engine. Downloads require several GB. Recheck an existing installation with `python scripts/verify_local_images.py`.
+
+The laptop engine renders up to 1024 pixels across, then resizes to the selected export size. Expect lower product fidelity than larger hosted models; inspect outputs before use. Each render starts a subprocess and frees its GPU memory on completion. Model files and runtime are ignored by Git.
+
+Select **Segmind Vega — local GPU, no API key** in the dashboard. An explicit `IMAGE_MODEL` setting overrides the automatic default; use `IMAGE_MODEL=local:segmind-vega` if needed.
+
+Use `.env.example` to configure `.env`, preserving any existing keys. Restart the server after edits. Keys stay on the backend.
+
+**Free hosted route:** create a Cloudflare account, locate its Account ID, and create an API token with Workers AI access for that account. Set `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`; choose Cloudflare FLUX Schnell. Its documented request schema does not offer width/height controls, so the app crops its output to the selected format. Providers supporting native dimensions can preserve more composition detail.
+
+**Local route:** install CUDA-compatible PyTorch, then `pip install -r requirements-local.txt`. Set `IMAGE_PROVIDER=local`, select an open-weight model and pre-download its weights, or explicitly set `ALLOW_MODEL_DOWNLOAD=1`. Downloads can be many GB. CPU offload needs sufficient RAM/disk; an 8 GB GPU may still run out of memory, especially with Qwen. Local inference is serialized. No large model downloads happen by default.
+
+**Hugging Face route:** set `HF_TOKEN` with Inference Providers permission and required credits, leave `IMAGE_PROVIDER=huggingface`, and choose an open-weight model. Integration uses the [official InferenceClient](https://huggingface.co/docs/inference-providers/en/tasks/text-to-image). `HF_PROVIDER` overrides automatic provider selection; exact model availability depends on providers.
+
+**Text/research:** `GEMINI_API_KEY` enables Gemini copy and search grounding. `GEMINI_MODEL` overrides the text model. Pollinations remains supported; anonymous services can fail. Failed text steps produce an editorial-review warning and safe fallback copy.
+
+## Changes
+
+- Removed the synthetic cube fallback reported as successful AI photography.
+- Preserved requested product identity; vague Tesla requests no longer become Cybercab.
+- Removed invented charging/material/latency/ROI claims from production fallbacks.
+- Replaced forced dark macro prompts with scene-aware photographic direction and full prompts.
+- Added portrait 1080×1350, landscape 1536×864 and square 1080×1080 formats.
+- Replaced telemetry and “official archive” labels with restrained white ad typography.
+- Added explicit providers, actionable failures, partial campaign results and copy-only export.
+- Versioned cache keys to avoid reusing earlier placeholder renders.
+
+API: `/api/health`, `/api/generate`, `/api/render`, `/api/export`, `/api/search`, `/api/enhance-prompt`. Generate/render accept `output_format`: `portrait`, `landscape`, `square`. Generation returns `image_status` and `warnings`; missing visuals have empty URLs.
+
+```powershell
+python campaign_generator.py "Blue Tesla Model 3 coastal sunset campaign" --brand Tesla --theme "cinematic coastal photography" --format landscape --image-model cf:flux-schnell --download
+python -m unittest discover -s tests -v
 ```
 
----
-
-### Option 3: Double-Click `index.html` (Standalone Client)
-You can open [`index.html`](file:///c:/Users/mohamed%20redha/Desktop/marketing-agency/index.html) directly in any browser without starting Python. It directly connects to the free OpenAI text engine and the photorealistic Flux visual generator with zero configuration.
-
----
-
-## 🐍 Use as a Python Library in Your Code
-
-```python
-from campaign_generator import LexnisCampaignStudio
-
-# Initialize free engine (no key required)
-studio = LexnisCampaignStudio()
-
-# 1. Search Google freely with no limits
-search_results = studio.search_google("industrial IoT predictive maintenance", max_results=5)
-for item in search_results:
-    print(r"•", item["title"], item["url"])
-
-# 2. Generate campaign grounded with Google search & photorealistic image
-campaign = studio.generate_campaign(
-    prompt="Digital twin platform for green gigafactories",
-    tone="authoritative B2B enterprise",
-    theme="dark cyber-physical smart factory with cyan telemetry",
-    use_search=True,
-    image_model="black-forest-labs/flux.1.1-pro",
-    enhance_image=True,          # headline + brand overlay on the image
-    brand="Lexnis Technologies"
-)
-
-# Access structured data
-print("Hook:", campaign.hook)
-print("Caption:", campaign.caption)
-print("Highlights:", campaign.highlights)
-print("Google Sources:", [r["title"] for r in campaign.search_results])
-print("Visual Asset URL:", campaign.image_url)
-
-# Save image and export full package to disk
-saved_files = studio.export_campaign(campaign, output_dir="output")
-print("Saved files:", saved_files)
-```
+Exports: `output/`. Image cache: `output/renders/`. Review factual claims and visual fidelity before publication. Source-backed prompting does not implement automatic claim-by-claim verification.

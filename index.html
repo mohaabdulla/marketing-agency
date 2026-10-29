@@ -10,62 +10,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Compiled CSS; rebuild with npm run build:css -->
+  <link rel="stylesheet" href="/static/tailwind.css">
   
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
 
-  <!-- Tailwind Configuration -->
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            obsidian: {
-              950: '#07090e',
-              900: '#0c1017',
-              850: '#111722',
-              800: '#171f2e',
-              700: '#222d42',
-              600: '#33415c'
-            },
-            cyan: {
-              accent: '#00f0ff',
-              muted: 'rgba(0, 240, 255, 0.15)',
-              glow: 'rgba(0, 240, 255, 0.4)'
-            },
-            violet: {
-              accent: '#8b5cf6',
-              muted: 'rgba(139, 92, 246, 0.15)',
-              glow: 'rgba(139, 92, 246, 0.4)'
-            }
-          },
-          fontFamily: {
-            sans: ['Inter', 'sans-serif'],
-            mono: ['JetBrains Mono', 'monospace'],
-            tech: ['Space Grotesk', 'sans-serif']
-          },
-          boxShadow: {
-            'cyan-glow': '0 0 25px -5px rgba(0, 240, 255, 0.3)',
-            'violet-glow': '0 0 25px -5px rgba(139, 92, 246, 0.3)',
-            'dual-glow': '0 0 35px -5px rgba(0, 240, 255, 0.25), 0 0 35px -5px rgba(139, 92, 246, 0.25)'
-          },
-          animation: {
-            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-            'scanline': 'scanline 8s linear infinite'
-          },
-          keyframes: {
-            scanline: {
-              '0%': { transform: 'translateY(-100%)' },
-              '100%': { transform: 'translateY(1000%)' }
-            }
-          }
-        }
-      }
-    }
-  </script>
+
 
   <style>
     /* Custom scrollbars */
@@ -183,8 +134,8 @@
               <button type="button" data-prompt="Predictive maintenance IoT platform launch for Lexnis with zero-downtime edge analytics and vibration AI sensor arrays" class="preset-chip text-[11px] font-mono bg-obsidian-800 hover:bg-cyan-accent/20 hover:text-cyan-accent text-slate-300 border border-obsidian-700 px-2.5 py-1 rounded-lg transition-all">
                 Predictive Maintenance
               </button>
-              <button type="button" data-prompt="Tesla Cybercab autonomous robotaxi launch: zero-steering-wheel cabin, resonant inductive charging, and end-to-end neural vision" class="preset-chip text-[11px] font-mono bg-obsidian-800 hover:bg-cyan-accent/20 hover:text-cyan-accent text-slate-300 border border-obsidian-700 px-2.5 py-1 rounded-lg transition-all">
-                Tesla Cybercab
+              <button type="button" data-prompt="Tesla Model 3, deep blue, driving on a winding coastal road at sunset. Create a cinematic landscape ad with the headline Accelerate the future." class="preset-chip text-[11px] font-mono bg-obsidian-800 hover:bg-cyan-accent/20 hover:text-cyan-accent text-slate-300 border border-obsidian-700 px-2.5 py-1 rounded-lg transition-all">
+                Tesla Coastal Ad
               </button>
               <button type="button" data-prompt="Autonomous robotic fleet orchestration for smart gigafactories powered by Lexnis VisionAI" class="preset-chip text-[11px] font-mono bg-obsidian-800 hover:bg-violet-accent/20 hover:text-violet-accent text-slate-300 border border-obsidian-700 px-2.5 py-1 rounded-lg transition-all">
                 Robotics Fleet
@@ -240,7 +191,8 @@
             <div class="flex items-center space-x-2">
               <span class="text-slate-400">Visual Style:</span>
               <select id="theme-select" class="bg-obsidian-950 border border-obsidian-800 text-slate-300 rounded-lg px-2.5 py-1 focus:outline-none focus:border-cyan-accent text-xs">
-                <option value="Apple Minimalist Studio: genuine physical hardware hero shot on dark honed graphite monolith, seamless obsidian infinity sweep, overhead strip softbox casting crisp specular reflection, Hasselblad 100mm macro lens, pure luxury isolation, no humans, no anime, no illustration" selected>Apple Minimalist Hero (Luxury Tech)</option>
+                <option value="Cinematic lifestyle photography: golden-hour coastal road, ocean sunset, natural reflections, low front three-quarter tracking shot, 35mm lens, hero product fully visible, quiet upper left and lower right for copy" selected>Cinematic Lifestyle (Reference Ad)</option>
+                <option value="Apple Minimalist Studio: genuine physical hardware hero shot on dark honed graphite monolith, seamless obsidian infinity sweep, overhead strip softbox casting crisp specular reflection, Hasselblad 100mm macro lens, pure luxury isolation, no humans, no anime, no illustration">Apple Minimalist Hero (Luxury Tech)</option>
                 <option value="Teenage Engineering Industrial: genuine physical hardware photograph, CNC-milled black anodized aluminum housing, exposed ribbed heatsink fins, tactile hardware details, architectural concrete workbench, diffused natural studio lighting, Sony 90mm macro lens, no humans, no anime">Teenage Engineering (Tactile Industrial)</option>
                 <option value="Dyson / Deep Tech Physics: genuine physical high-tech hardware photograph, dark frosted optical chassis with exposed neural co-processor glow, volumetric cyan laser telemetry streams, Phase One 150MP, no humans, no anime">Dyson Deep Tech (Optical &amp; Physics)</option>
                 <option value="dark futuristic automated factory floor with neon cyan robotics and laser telemetry, crisp edge separation, tangible physical machinery, no humans, no anime">Cyber-Physical Smart Factory</option>
@@ -317,11 +269,15 @@
               <span>GENERATED CAMPAIGN ASSETS</span>
             </h2>
             <span class="px-2.5 py-0.5 text-[10px] font-mono bg-violet-muted text-violet-accent border border-violet-accent/30 rounded-full">
-              Production Ready
+              Campaign Draft
             </span>
           </div>
           <div class="text-xs font-mono text-slate-400">
-            <span>Format: </span><span class="text-cyan-accent">Instagram 4:5 (1080×1350)</span>
+            <label for="format-select">Format: </label><select id="format-select" class="bg-obsidian-950 border border-obsidian-700 rounded px-2 py-1 text-cyan-accent">
+              <option value="landscape" selected>Landscape ad (1536 × 864)</option>
+              <option value="portrait">Instagram 4:5 (1080 × 1350)</option>
+              <option value="square">Square (1080 × 1080)</option>
+            </select>
           </div>
         </div>
 
@@ -333,7 +289,7 @@
             <div class="flex items-center justify-between pb-2 border-b border-obsidian-800">
               <div class="flex items-center space-x-2">
                 <i data-lucide="image" class="w-4 h-4 text-cyan-accent"></i>
-                <h3 class="text-xs font-mono font-bold tracking-wider text-slate-200 uppercase">Industrial Visual Asset</h3>
+                <h3 class="text-xs font-mono font-bold tracking-wider text-slate-200 uppercase">Campaign Visual</h3>
               </div>
               <span id="current-model-badge" class="text-[10px] font-mono text-cyan-accent bg-obsidian-950 px-2 py-0.5 rounded border border-obsidian-800">
                 Z-IMAGE TURBO
@@ -345,11 +301,12 @@
               <div class="flex items-center space-x-2">
                 <span class="text-slate-400">Model:</span>
                 <select id="image-model-select" class="bg-obsidian-900 border border-obsidian-700 text-cyan-accent font-semibold rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:border-cyan-accent">
-                  <option value="gemini-image" selected>🌟 Google AI Studio Imagen (Gemini Image)</option>
-                  <option value="black-forest-labs/flux.1.1-pro">📷 FLUX 1.1 Pro (Apple/Studio Photorealism)</option>
-                  <option value="flux-realism">📷 FLUX Realism (Hardware Macro &amp; Textures)</option>
-                  <option value="black-forest-labs/flux.1-schnell">⚡ FLUX Schnell (High-Speed Packshot)</option>
-                  <option value="flux">◆ FLUX Standard (Commercial Tech)</option>
+                  <option value="cf:flux-schnell" selected>FLUX Schnell — Cloudflare free allowance</option>
+                  <option value="hf:Tongyi-MAI/Z-Image-Turbo">Z-Image Turbo — Local / Hugging Face</option>
+                  <option value="hf:Qwen/Qwen-Image-2512">Qwen Image 2512 — Local / Hugging Face</option>
+                  <option value="hf:black-forest-labs/FLUX.1-schnell">FLUX Schnell — Local / Hugging Face</option>
+                  <option value="gemini-image">Gemini Image — requires image quota</option>
+                  <option value="flux">Pollinations FLUX — provider quota</option>
                 </select>
               </div>
               <label class="flex items-center space-x-1.5 cursor-pointer text-slate-300 hover:text-cyan-accent select-none text-[11px]">
@@ -360,11 +317,11 @@
 
             <!-- Engine & Tier Indicator -->
             <div id="watermark-warning" class="hidden px-3 py-2 rounded-lg bg-obsidian-900/90 border border-cyan-500/30 text-slate-300 text-[11px] font-mono">
-              <span class="text-cyan-accent font-semibold">Gemini AI Studio:</span> Text &amp; Copywriting is fully active. <span class="text-slate-400">Note: Google AI Studio Free Tier has image quota: 0 (link billing at aistudio.google.com to enable native Imagen 3). Visuals seamlessly render via FLUX 1.1 Studio.</span>
-            </div>
+              <span>Image availability depends on the selected provider and quota. Cloudflare has a free daily allowance; local models need GPU hardware; Hugging Face hosting may require credits.</span></div>
 
+            <p id="campaign-warnings" role="status" class="text-xs text-amber-300 leading-relaxed"></p>
             <!-- Image Frame Container (Instagram 4:5 vertical aspect ratio 1080x1350) -->
-            <div class="relative w-full aspect-[4/5] bg-obsidian-950 rounded-xl overflow-hidden border border-obsidian-800 group shadow-inner">
+            <div id="visual-frame" class="relative w-full aspect-[16/9] bg-obsidian-950 rounded-xl overflow-hidden border border-obsidian-800 group shadow-inner">
               
               <!-- Loading Skeleton / Shimmer -->
               <div id="image-loader" class="absolute inset-0 flex flex-col items-center justify-center bg-obsidian-950 z-20 transition-opacity duration-300">
@@ -384,12 +341,12 @@
               <!-- Top Left Burn-in Simulation Pill -->
               <div class="absolute top-3 left-3 z-10 bg-obsidian-950/80 backdrop-blur-md border border-cyan-accent/40 px-2.5 py-1 rounded-md text-[10px] font-mono text-cyan-accent flex items-center space-x-1.5 shadow-lg">
                 <span class="w-1.5 h-1.5 rounded-full bg-cyan-accent animate-ping"></span>
-                <span class="font-bold tracking-wider">LEXNIS ARCHIVE</span>
+                <span class="font-bold tracking-wider">CAMPAIGN PREVIEW</span>
               </div>
 
               <!-- Bottom Overlay Bar -->
               <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-obsidian-950 via-obsidian-950/70 to-transparent p-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-between">
-                <span class="text-[10px] font-mono text-slate-300">1080 × 1350 • Instagram 4:5</span>
+                <span id="image-dimensions" class="text-[10px] font-mono text-slate-300">1536 × 864 • Landscape ad</span>
                 <button id="view-full-img-btn" class="px-2.5 py-1 text-[11px] font-mono bg-cyan-accent/20 hover:bg-cyan-accent text-cyan-accent hover:text-obsidian-950 rounded border border-cyan-accent/40 transition-colors flex items-center space-x-1">
                   <i data-lucide="maximize-2" class="w-3 h-3"></i>
                   <span>Inspect</span>
@@ -673,6 +630,11 @@
     const viewFullImgBtn = document.getElementById('view-full-img-btn');
     const copyImgUrlBtn = document.getElementById('copy-img-url-btn');
     const imagePromptDisplay = document.getElementById('image-prompt-display');
+    const formatSelect = document.getElementById('format-select');
+    let currentWarnings = [];
+    let currentImageStatus = 'unavailable';
+    let campaignFormat = 'landscape';
+    let imageModelSetup = {};
     const imageModelSelect = document.getElementById('image-model-select');
     const enhanceImageCheckbox = document.getElementById('enhance-image-checkbox');
     const currentModelBadge = document.getElementById('current-model-badge');
@@ -726,6 +688,7 @@
     let startTime = 0;
 
     function resolveBackendUrl(url) {
+      if (!url) return "";
       if (!url) return '';
       if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
       if (url.startsWith('/') && backendApiBase) {
@@ -750,15 +713,18 @@
           clearTimeout(timeoutId);
           if (res.ok) {
             const data = await res.json();
+            imageModelSelect.replaceChildren(...Object.entries(data.image_models).map(([value, label]) => new Option(label, value)));
+            imageModelSelect.value = data.default_image_model;
+            imageModelSetup = data.image_model_setup || {};
+            updateModelSetup();
             backendApiBase = base;
             isPythonBackendActive = true;
             const statusBadge = document.getElementById('engine-status-text');
             if (statusBadge) {
-              statusBadge.textContent = data.has_gemini_key ? 'AGENCY ENGINE (ONLINE: GEMINI 3.5)' : 'AGENCY ENGINE (ONLINE)';
+              statusBadge.textContent = 'AGENCY ENGINE (ONLINE)';
               statusBadge.classList.remove('text-cyan-accent');
               statusBadge.classList.add('text-emerald-400');
             }
-            watermarkWarning.classList.toggle('hidden', !!data.watermark_free);
             return true;
           }
         } catch (e) {
@@ -812,39 +778,9 @@
 
     // --- Client-Side Prompt Enhancer Fallback ---
     function enhancePromptClientSide(prompt, brand) {
-      const p = (prompt || '').toLowerCase();
-      let detectedBrand = brand || 'Lexnis Technologies';
-      let prodName = 'Flagship Innovation';
-      let enhanced = '';
-
-      if (p.includes('tesla') || detectedBrand.toLowerCase().includes('tesla')) {
-        detectedBrand = 'Tesla';
-        prodName = 'Tesla Cybercab';
-        enhanced = 'Tesla Cybercab Autonomous Robotaxi Launch: Announce the arrival of commercial driverless transit. Highlight the zero-steering-wheel/zero-pedal cabin architecture, 20 kW resonant inductive wireless charging (no charge ports), butterfly dihedral doors, unpainted cold-rolled 300-series stainless steel exterior, and vision-only end-to-end neural vision AI. Target enterprise fleet operators and urban commuters with an ultra-compelling scroll-stopping hook, technical highlights, and luxury studio packshot photography.';
-      } else if (p.includes('apple') || detectedBrand.toLowerCase().includes('apple')) {
-        detectedBrand = 'Apple';
-        prodName = 'Apple Spatial Neural Vision';
-        enhanced = 'Apple Spatial Computing Breakthrough: Announce the next leap in spatial intelligence and neural computing. Highlight custom dual micro-OLED optical engines, sub-millisecond gaze tracking, aerospace-grade dark titanium alloy enclosure, and seamless spatial audio immersion. Focus on creative mastery and enterprise pro workflows.';
-      } else if (p.includes('robotic') || p.includes('fleet')) {
-        detectedBrand = brand || 'Lexnis Technologies';
-        prodName = 'VisionAI Robotic Fleet';
-        enhanced = 'Autonomous Robotic Fleet Orchestration Launch: Unveil the next generation of multi-agent gigafactory automation. Highlight real-time zero-collision spatial pathfinding, sub-millisecond industrial edge inference, 99.98% operational uptime, and adaptive vibration dampening across high-speed robotic arms.';
-      } else if (p.includes('predictive') || p.includes('iot')) {
-        detectedBrand = brand || 'Lexnis Technologies';
-        prodName = 'Predictive IoT Edge Sensor Array';
-        enhanced = 'Industrial IoT Predictive Maintenance Platform: Announce the deployment of millisecond edge inference vibration sensors. Highlight zero-downtime anomaly detection, sub-millisecond machine telemetry, automated failure prevention, and 98% reduction in unplanned factory downtime.';
-      } else {
-        const clean = prompt.replace(/^(?:research|write|draft|create|generate)\s+[^.]*?(?:post|hook|description|package)?\s*(?:for|about)?\s*/i, '').trim();
-        enhanced = `${detectedBrand} ${clean || 'Flagship Innovation'}: Announce the breakthrough launch of next-generation hardware and software. Emphasize physical engineering precision, mission-critical performance metrics, and transformative commercial ROI with high-urgency executive storytelling and studio product hero visuals.`;
-      }
-
-      return {
-        detected_brand: detectedBrand,
-        product_name: prodName,
-        enhanced_prompt: enhanced,
-        suggested_tone: 'confident, visionary and disruptive',
-        suggested_theme: 'Apple Minimalist Hero (Luxury Tech)'
-      };
+      return {detected_brand: /\btesla\b/i.test(prompt) ? 'Tesla' : brand,
+        product_name: '', enhanced_prompt: `${prompt} Create a focused photographic campaign. Preserve the exact product and verify technical claims.`,
+        suggested_tone: 'confident, premium and benefit-driven', suggested_theme: 'Cinematic lifestyle photography'};
     }
 
     // --- Prompt Enhancer Action ---
@@ -1004,31 +940,31 @@
 
     // --- Standalone (no server) image URL: FLUX Commercial Photorealism ---
     function constructPollinationsImageUrl(promptDesc, seed) {
-      const p = (promptDesc || '').toLowerCase();
-      let cleanSubject = '';
-      if (p.includes('tesla')) {
-        cleanSubject = 'genuine commercial studio photograph of physical Tesla Cybercab autonomous robotaxi, monolithic unpainted cold-rolled 300-series stainless steel exterior, butterfly dihedral doors, continuous horizon LED lightbar, dark slate infinity cove, overhead linear strip softbox casting razor-sharp specular reflection line along body curves, Hasselblad 100mm macro lens, clean negative space at top, no text, no letters, no logos, no watermark';
-      } else if (p.includes('apple')) {
-        cleanSubject = 'minimalist spatial computing headset with curved obsidian micro-OLED optical visor, matte dark titanium frame, floating above dark honed graphite monolith, dramatic low-key studio lighting with linear strip softbox and cyan rim glow, Hasselblad 100mm macro lens, clean negative space at top, no text, no letters, no logos';
-      } else if (p.includes('robotic') || p.includes('fleet')) {
-        cleanSubject = 'sleek high-precision autonomous industrial robotic arm, matte black steel, exposed orange telemetry fiber optics, futuristic cleanroom factory floor, cool daylight studio key light, cyan edge illumination, Hasselblad 100mm lens, clean negative space at top, no text, no logos';
-      } else if (p.includes('predictive') || p.includes('iot')) {
-        cleanSubject = 'rugged industrial edge AI compute module, brushed dark aluminum heatsink fins, glowing cyan optical channels, dark architectural slate, overhead diffused softbox, clean negative space at top, no text, no logos';
-      } else {
-        const clean = (promptDesc || '')
-          .replace(/^(?:draft|create|generate|write|design)\s+(?:a|an)\s+[^.]*?(?:package|post|copy|campaign|device|launch)\s+(?:for|about)?\s*/i, '')
-          .split('.')[0]
-          .trim()
-          .slice(0, 100) || 'industrial automation device';
-        cleanSubject = `luxury commercial product hero shot of ${clean}, matte dark finish, precision chamfered details, resting on dark minimalist stone pedestal, linear overhead strip-box lighting, Hasselblad 100mm macro lens, clean negative space at top, no text, no letters, no logos`;
-      }
-      return `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanSubject)}?model=flux&width=1080&height=1350&nologo=true&seed=${seed}`;
+      const cleanSubject = `${promptDesc}. Photographic commercial campaign, no added text or watermark.`;
+      return `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanSubject)}?model=flux&seed=${seed}`;
     }
 
     // --- Server-side render: premium model, exact 1080x1350, headline overlay, no watermark (with key) ---
+    function updateModelSetup() {
+      const setup = imageModelSetup[imageModelSelect.value];
+      currentModelBadge.textContent = imageModelSelect.selectedOptions[0]?.textContent.split('—')[0].trim() || 'IMAGE MODEL';
+      if (setup) {
+        watermarkWarning.textContent = setup.message;
+        watermarkWarning.classList.remove('hidden');
+      }
+      rerollImageBtn.disabled = setup?.configured === false;
+      rerollImageBtn.title = setup?.configured === false ? setup.message : 'Generate a new visual';
+    }
+
     async function rerenderVisual(seed) {
       if (!isPythonBackendActive) {
-        updateImageSource(constructPollinationsImageUrl(currentImagePrompt, seed));
+        showToast('Start python server.py to render the visual.', false);
+        return;
+      }
+      const setup = imageModelSetup[imageModelSelect.value];
+      if (setup?.configured === false) {
+        document.getElementById('campaign-warnings').textContent = setup.message;
+        showToast(setup.message, false);
         return;
       }
       imageLoader.classList.remove('opacity-0', 'pointer-events-none');
@@ -1041,8 +977,10 @@
             visual_prompt: currentImagePrompt,
             seed: seed,
             image_model: imageModelSelect.value,
+            output_format: campaignFormat,
             headline: copyHeadline.textContent.trim(),
             brand: brandInput.value.trim(),
+            tagline: copyHook.textContent.trim(),
             overlay: enhanceImageCheckbox.checked
           })
         });
@@ -1051,13 +989,27 @@
           throw new Error(err.detail || `HTTP ${resp.status}`);
         }
         const data = await resp.json();
+        if (data.image_status === 'unavailable') {
+          currentImageStatus = 'unavailable';
+          currentWarnings = data.warnings || ['Image provider unavailable.'];
+          document.getElementById('campaign-warnings').textContent = currentWarnings.join(' ');
+          // Keep a previous successful visual available when a new render fails.
+          if (!currentImageUrl) updateImageSource('');
+          showToast(currentWarnings.join(' '), false);
+          return;
+        }
+        currentImageStatus = 'ready';
+        currentWarnings = currentWarnings.filter(w => w.startsWith('No web evidence') || w.includes('text generation'));
+        document.getElementById('campaign-warnings').textContent = currentWarnings.join(' ');
         currentCleanImageUrl = resolveBackendUrl(data.clean_image_url);
         watermarkWarning.classList.toggle('hidden', !!data.watermark_free);
         updateImageSource(resolveBackendUrl(data.image_url));
       } catch (err) {
+        document.getElementById('campaign-warnings').textContent = 'Render failed: ' + err.message;
+        showToast('Render failed: ' + err.message, false);
+      } finally {
         imageLoader.classList.remove('opacity-100');
         imageLoader.classList.add('opacity-0', 'pointer-events-none');
-        showToast('Render failed: ' + err.message, false);
       }
     }
 
@@ -1087,6 +1039,25 @@
 
     function updateImageSource(url) {
       currentImageUrl = url;
+      document.getElementById('image-dimensions').textContent = {landscape:'1536 × 864 • Landscape ad', portrait:'1080 × 1350 • Instagram 4:5', square:'1080 × 1080 • Square'}[campaignFormat];
+      document.getElementById('visual-frame').style.aspectRatio = {landscape:'16 / 9', portrait:'4 / 5', square:'1 / 1'}[campaignFormat];
+      downloadImageBtn.disabled = !url;
+      resultImage.classList.toggle('hidden', !url);
+      let missing = document.getElementById('visual-unavailable');
+      if (!missing) {
+        missing = document.createElement('div');
+        missing.id = 'visual-unavailable';
+        missing.className = 'absolute inset-0 flex items-center justify-center text-center text-sm text-slate-400 p-8';
+        resultImage.parentElement.appendChild(missing);
+      }
+      missing.textContent = url ? '' : 'Visual unavailable. Configure the selected image provider, then click Re-roll Visual. Your campaign copy is ready.';
+      missing.classList.toggle('hidden', !!url);
+      if (!url) {
+        resultImage.removeAttribute('src');
+        imageLoader.classList.remove('opacity-100');
+        imageLoader.classList.add('opacity-0', 'pointer-events-none');
+        return;
+      }
       imageLoader.classList.remove('opacity-0', 'pointer-events-none');
       imageLoader.classList.add('opacity-100');
 
@@ -1105,163 +1076,12 @@
     }
 
     // --- Client Fallback Campaign Synthesizer (Zero-Error Guarantee) ---
-    function synthesizeClientCampaign(prompt, brand, tone, theme) {
-      const p = (prompt || '').toLowerCase();
-      const brandName = brand || 'Lexnis Technologies';
-      const cleanBrandTag = brandName.replace(/[^a-zA-Z0-9]/g, '');
-
-      let headline = `${brandName.toUpperCase()} // INNOVATION`;
-      let hook = 'The Next Era of Innovation Has Officially Arrived.';
-      let highlights = [
-        'Dedicated neural architecture with real-time sub-millisecond execution',
-        'Enterprise-grade reliability and zero-downtime execution',
-        'High-precision telemetry and seamless cross-platform integration'
-      ];
-      let visualPrompt = `Minimalist studio commercial hero photograph of ${prompt.slice(0, 90)}, ${theme}, dark obsidian backdrop, soft directional studio rim lighting, clean negative space at top, no text, no letters, no logos`;
-
-      if (p.includes('tesla') || brandName.toLowerCase().includes('tesla')) {
-        headline = 'TESLA // CYBERCAB';
-        hook = 'Step into the future: No driver. No pedals. No limits.';
-        highlights = [
-          'Full autonomous mobility guided by end-to-end neural vision AI',
-          '20 kW resonant inductive wireless charging with zero cables',
-          'Monolithic cold-rolled 300-series stainless steel exoskeleton'
-        ];
-        visualPrompt = 'genuine commercial studio photograph of physical Tesla Cybercab autonomous robotaxi, monolithic unpainted cold-rolled 300-series stainless steel exterior, butterfly dihedral doors, continuous horizon LED lightbar, dark slate infinity cove, overhead linear strip softbox casting razor-sharp specular reflection line along body curves, Hasselblad 100mm macro lens, clean negative space at top, no text, no letters, no logos, no watermark';
-      } else if (p.includes('apple')) {
-        headline = 'APPLE SPATIAL // NEURAL VISION';
-        hook = 'Step Beyond the Screen. The Era of Spatial Neural Architecture is Here.';
-        highlights = [
-          'Dedicated 16-core neural co-processor with sub-millisecond gaze tracking',
-          'Dual micro-OLED 4K optical engines with crystal-clear spatial fidelity',
-          'Zero-latency spatial audio and seamless neural ecosystem synchronization'
-        ];
-        visualPrompt = 'Minimalist spatial computing headset with curved obsidian micro-OLED optical visor, matte dark titanium frame, floating above dark honed graphite monolith, dramatic low-key studio lighting with overhead linear strip softbox and electric cyan rim glow, Hasselblad 100mm macro lens, clean negative space across upper third, no text, no letters, no logos';
-      } else if (p.includes('robotic') || p.includes('fleet')) {
-        headline = 'AUTONOMOUS // ROBOTICS FLEET';
-        hook = 'Orchestrating the Autonomous Factory Floor at Millisecond Speed.';
-        highlights = [
-          'Multi-agent robotic fleet telemetry with zero-collision trajectory mapping',
-          'Industrial edge inference delivering 99.98% operational uptime',
-          'Automated toolpath calibration and adaptive vibration dampening'
-        ];
-        visualPrompt = 'High-precision autonomous robotic arm with matte black steel and orange fiber telemetry, pristine futuristic cleanroom factory floor, cool daylight studio lighting, cyan edge illumination, Hasselblad 100mm macro lens, clean negative space at top, no text, no logos';
-      }
-
-      return `### HOOK
-${hook}
-
-### CAPTION
-Breakthrough architecture meets revolutionary precision.
-
-Built from the ground up to redefine what is possible, this new platform unites next-generation computing precision with mission-critical speed. Designed specifically for visionary creators, engineers, and enterprise leaders, every component is engineered to eliminate latency and unlock seamless workflows.
-
-The future of high-impact technology starts now.
-
-👉 Discover the keynote and full specifications at ${cleanBrandTag.toLowerCase()}.com
-
-### KEY TECHNICAL HIGHLIGHTS
-- ${highlights[0]}
-- ${highlights[1]}
-- ${highlights[2]}
-
-### HASHTAGS
-#${cleanBrandTag} #SpatialComputing #NeuralArchitecture #FutureOfTech #Innovation #TechLeadership #IndustrialAI #NextGenComputing
-
-### VISUAL_PROMPT
-${visualPrompt}`;
-    }
-
-    // --- Resilient Multi-Model Free AI Requester (Auto-Fallback on 503/429) ---
-    async function fetchFreeModelText(systemInstructionText, userPrompt) {
-      const models = ['openai', 'mistral', 'deepseek', 'qwen'];
-      
-      for (const model of models) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 12000);
-          const freeResponse = await fetch('https://text.pollinations.ai/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              messages: [
-                { role: "system", content: systemInstructionText },
-                { role: "user", content: userPrompt }
-              ],
-              model: model,
-              seed: Math.floor(Math.random() * 1000000)
-            }),
-            signal: controller.signal
-          });
-          clearTimeout(timeoutId);
-
-          if (freeResponse.ok) {
-            const text = await freeResponse.text();
-            if (text && text.trim().length > 30) {
-              return text;
-            }
-          }
-        } catch (e) {
-          // Model busy/timed out, try next model candidate
-        }
-      }
-
-      // Try GET fallback
-      try {
-        const fullPrompt = `${systemInstructionText}\n\nUSER PROMPT: ${userPrompt}`;
-        const getRes = await fetch(`https://text.pollinations.ai/${encodeURIComponent(fullPrompt.slice(0, 800))}?model=mistral`);
-        if (getRes.ok) {
-          const text = await getRes.text();
-          if (text && text.trim().length > 30) {
-            return text;
-          }
-        }
-      } catch (e) {}
-
-      // Resilient client synthesis fallback (never crashes the UI)
-      return synthesizeClientCampaign(userPrompt, brandInput.value.trim(), toneSelect.value, themeSelect.value);
-    }
-
-    // --- Content Parser for Structured Output ---
-    function parseGeminiResponse(rawText) {
-      let hook = '';
-      let caption = '';
-      let highlights = [];
-      let hashtags = '';
-      let visualPrompt = '';
-
-      // Pattern matching with regex for custom sections
-      const hookMatch = rawText.match(/###\s*HOOK\s*([\s\S]*?)(?=###|$)/i);
-      const captionMatch = rawText.match(/###\s*CAPTION\s*([\s\S]*?)(?=###|$)/i);
-      const highlightsMatch = rawText.match(/###\s*KEY TECHNICAL HIGHLIGHTS\s*([\s\S]*?)(?=###|$)/i);
-      const hashtagsMatch = rawText.match(/###\s*HASHTAGS\s*([\s\S]*?)(?=###|$)/i);
-      const visualPromptMatch = rawText.match(/###\s*VISUAL_PROMPT\s*([\s\S]*?)(?=###|$)/i);
-
-      if (hookMatch) hook = hookMatch[1].trim();
-      if (captionMatch) caption = captionMatch[1].trim();
-      if (hashtagsMatch) hashtags = hashtagsMatch[1].trim();
-      if (visualPromptMatch) visualPrompt = visualPromptMatch[1].trim();
-
-      if (highlightsMatch) {
-        const rawHighlights = highlightsMatch[1].trim();
-        highlights = rawHighlights.split('\n')
-          .map(line => line.replace(/^[-*•]\s*/, '').trim())
-          .filter(line => line.length > 0);
-      }
-
-      // Fallbacks if formatting deviates
-      if (!hook && !caption) {
-        caption = rawText;
-      }
-
-      return { hook, caption, highlights, hashtags, visualPrompt };
-    }
-
     // --- Main Campaign Generation Function ---
     async function handleGenerateCampaign() {
       const userPrompt = promptInput.value.trim();
       const tone = toneSelect.value;
       const theme = themeSelect.value;
+      campaignFormat = formatSelect.value;
 
       if (!userPrompt) {
         showError('Empty Campaign Prompt', 'Please describe your campaign concept or pick one of the quick presets.');
@@ -1276,6 +1096,10 @@ ${visualPrompt}`;
         await checkBackendEngine();
       }
 
+      if (!isPythonBackendActive) {
+        showError('Start the agency engine', 'Run python server.py and open http://localhost:8000 to generate campaigns.');
+        return;
+      }
       setLoading(true, isPythonBackendActive ? 'Processing via Python AI Model Engine...' : 'Connecting to AI Engine...');
 
       try {
@@ -1286,7 +1110,9 @@ ${visualPrompt}`;
 
         if (isPythonBackendActive) {
           // Route generation through Python AI library backend with Google Search
-          statusMessage.textContent = 'Researching product → brief → copy → visual (30-90s)...';
+          statusMessage.textContent = imageModelSelect.value.startsWith('local:')
+            ? 'Researching and writing campaign, then rendering on your GPU. Keep this page open...'
+            : 'Researching product → brief → copy → visual...';
           const pyResponse = await fetch(`${backendApiBase}/api/generate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1298,6 +1124,7 @@ ${visualPrompt}`;
               seed: Math.floor(Math.random() * 1000000),
               use_search: searchToggle ? searchToggle.checked : true,
               image_model: imageModelSelect.value,
+            output_format: campaignFormat,
               enhance_image: enhanceImageCheckbox.checked
             })
           });
@@ -1308,6 +1135,9 @@ ${visualPrompt}`;
           }
 
           const pyData = await pyResponse.json();
+          currentWarnings = pyData.warnings || [];
+          currentImageStatus = pyData.image_status;
+          document.getElementById('campaign-warnings').textContent = currentWarnings.join(' ');
           generatedText = pyData.raw_response || `${pyData.hook}\n\n${pyData.caption}`;
           parsed = {
             hook: pyData.hook,
@@ -1332,61 +1162,6 @@ ${visualPrompt}`;
             brandInput.value = pyData.brand;
           }
           watermarkWarning.classList.toggle('hidden', !!pyData.watermark_free);
-        } else {
-          // Standalone browser client: Call Free AI Model with multi-model fallback (zero API key required)
-          statusMessage.textContent = 'Generating campaign via Free AI Engine...';
-
-          const systemInstructionText = `You are the Lead Copywriter for the brand "${brandInput.value.trim() || 'Lexnis Technologies'}". Generate a professional Instagram caption, key benefits, and high-converting hashtags based on the user's prompt.
-Tone: ${tone}.
-Write plain text only (no markdown, no **bold**). Never invent statistics.
-
-Structure your exact response using these section headers:
-### HOOK
-[A punchy, single-line headline hook for Instagram/LinkedIn]
-
-### CAPTION
-[A 2-4 paragraph compelling, high-converting B2B marketing caption highlighting Lexnis solutions, technical impact, and call to action]
-
-### KEY TECHNICAL HIGHLIGHTS
-- [Highlight 1 with measurable enterprise ROI or technical metric]
-- [Highlight 2 with architectural or hardware advantage]
-- [Highlight 3 with security, scalability or latency spec]
-
-### HASHTAGS
-[10-14 space-separated hashtags: broad + niche + 1 branded]
-
-### VISUAL_PROMPT
-[A 40-60 word commercial photography prompt: ${theme}. Subject, setting, lens, lighting. Clean empty top third. No text, letters or logos in the image]`;
-
-          generatedText = await fetchFreeModelText(systemInstructionText, userPrompt);
-          parsed = parseGeminiResponse(generatedText);
-
-          let visualDesc = parsed.visualPrompt;
-          if (!visualDesc || visualDesc.length < 10) {
-            visualDesc = `premium commercial photograph of ${userPrompt}, ${theme}, clean negative space at the top, no text`;
-          }
-          finalVisualDesc = visualDesc;
-          currentSeed = Math.floor(Math.random() * 1000000);
-          finalImageUrl = constructPollinationsImageUrl(finalVisualDesc, currentSeed);
-          currentCleanImageUrl = '';
-          currentSearchResults = [];
-          currentAgentDialogue = [
-            {
-              agent: 'Agent 1 (Lead Copywriter)',
-              message: `Drafted product launch concept for ${brandInput.value.trim() || 'innovation'}: "${parsed.hook || 'High-Impact Launch'}" emphasizing performance and market differentiation.`
-            },
-            {
-              agent: 'Agent 2 (Executive Creative Director & Critic)',
-              message: 'Audited copy for executive authority, eliminated generic passive phrases, and mastered FLUX 100mm optical photography lighting.'
-            }
-          ];
-          currentCritiqueNotes = [
-            'Tightened hook to eliminate passive language and maximize scroll-stopping curiosity.',
-            'Verified brand identity and concrete engineering specifications.',
-            'Engineered 5-part FLUX commercial studio lighting setup with clean negative space.'
-          ];
-          currentEnhancedPrompt = '';
-          watermarkWarning.classList.remove('hidden');
         }
 
         currentRawResponse = generatedText;
@@ -1458,7 +1233,7 @@ Structure your exact response using these section headers:
         // Smooth scroll to results
         resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-        showToast('Campaign assets generated successfully!');
+        showToast(currentImageStatus === 'ready' ? 'Campaign assets generated.' : 'Copy ready. Configure an image provider and retry the visual.', currentImageStatus === 'ready');
       } catch (err) {
         console.error('Generation Error:', err);
         showError('Generation Failed', err.message);
@@ -1472,15 +1247,13 @@ Structure your exact response using these section headers:
       if (!currentImagePrompt) return;
       currentSeed = Math.floor(Math.random() * 1000000);
       rerenderVisual(currentSeed);
-      showToast('Re-rolling visual with a fresh seed...');
     });
 
     // --- Image Model & Overlay Switchers ---
     imageModelSelect.addEventListener('change', () => {
-      currentModelBadge.textContent = imageModelSelect.options[imageModelSelect.selectedIndex].text.replace(/^\S+\s/, '').replace(/\s*\(.*\)$/, '').toUpperCase();
+      updateModelSetup();
       if (currentImagePrompt) {
         rerenderVisual(currentSeed);
-        showToast(`Switching visual model...`);
       }
     });
 
@@ -1518,7 +1291,7 @@ Structure your exact response using these section headers:
         a.click();
         a.remove();
         setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-        showToast('Image downloaded (1080×1350)');
+        showToast('Campaign image downloaded');
       } catch (err) {
         window.open(currentImageUrl, '_blank');
       }
@@ -1528,7 +1301,7 @@ Structure your exact response using these section headers:
     const exportDiskBtn = document.getElementById('export-disk-btn');
     if (exportDiskBtn) {
       exportDiskBtn.addEventListener('click', async () => {
-        if (!currentImageUrl) {
+        if (!currentInstagramCaption) {
           showToast('Generate a campaign first before exporting', false);
           return;
         }
@@ -1561,9 +1334,12 @@ Structure your exact response using these section headers:
             alt_text: copyAlt.textContent.trim().replace(/^—$/, ''),
             instagram_caption: currentInstagramCaption,
             image_model: imageModelSelect.value,
+            output_format: campaignFormat,
             search_results: currentSearchResults,
             agent_dialogue: currentAgentDialogue,
             critique_notes: currentCritiqueNotes,
+            image_status: currentImageStatus,
+            warnings: currentWarnings,
             enhanced_prompt: currentEnhancedPrompt
           };
 
@@ -1644,12 +1420,12 @@ Structure your exact response using these section headers:
         const sampleHook = "Unplanned industrial downtime is no longer an inevitability. It's an engineered relic of the past.";
         const sampleCaption = `In high-throughput manufacturing, an unexpected bearing seizure or hydraulic pressure drop cascades across supply chains in minutes. 
 
-The Lexnis Sentinel Platform changes the equation. Combining ultra-wideband acoustic telemetry with sub-millisecond edge neural inferencing, Sentinel continuously audits machine health at the physical level—detecting microscopic mechanical stress up to 340 hours before catastrophic breakdown.
+The Lexnis Sentinel Platform changes the equation. Combining ultra-wideband acoustic telemetry with sub-millisecond edge neural inferencing, Sentinel continuously audits machine health at the physical level—detecting microscopic mechanical stress before a breakdown in this fictional demo.
 
 Deployable directly into legacy PLC racks and air-gapped SCADA environments, Lexnis delivers enterprise autonomous resilience without risking industrial cybersecurity. The shift from reactive firefighting to deterministic uptime begins here.`;
 
         const sampleHighlights = [
-          "Reduces catastrophic mechanical failure and unplanned downtime by up to 98.4%",
+          "Reduces catastrophic mechanical failure and unplanned downtime by in this fictional example",
           "Sub-millisecond localized inference running on air-gapped ruggedized edge processors",
           "Universal drop-in telemetry integration with standard IEC 61131-3 and OPC-UA stacks"
         ];
@@ -1692,7 +1468,7 @@ Deployable directly into legacy PLC racks and air-gapped SCADA environments, Lex
         resultsSection.classList.remove('hidden');
         resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-        showToast('Instant Demo loaded with live Pollinations Flux render!');
+        showToast('Fictional demo copy loaded; visual requires a configured provider.');
       });
     }
 

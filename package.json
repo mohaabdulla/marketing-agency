@@ -1,0 +1,10 @@
+{
+  "name": "lexnis-campaign-studio",
+  "private": true,
+  "scripts": {
+    "build:css": "tailwindcss -i ./styles/input.css -o ./static/tailwind.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.17"
+  }
+}

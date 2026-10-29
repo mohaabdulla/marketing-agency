@@ -34,6 +34,8 @@ from typing import Dict, Any, Optional, List, Tuple
 from pathlib import Path
 from dataclasses import dataclass, asdict, field
 
+from visual_engine import OPEN_MODELS, FORMATS, photo_direction, open_model_image, compose_ad, cloudflare_image, LOCAL_MODEL, local_model_ready, local_image
+
 BASE_DIR = Path(__file__).resolve().parent
 
 
@@ -106,7 +108,7 @@ GEMINI_OPENAI_BASE = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 DEFAULT_TEXT_MODEL = os.getenv("TEXT_MODEL", "openai/gpt-5.4-mini")
 DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
-DEFAULT_IMAGE_MODEL = os.getenv("IMAGE_MODEL", "gemini-image")
+DEFAULT_IMAGE_MODEL = os.getenv("IMAGE_MODEL") or (LOCAL_MODEL if local_model_ready() else "cf:flux-schnell")
 
 # Image models available (Google AI Studio Imagen + FLUX photorealism)
 IMAGE_MODELS = {
@@ -116,6 +118,9 @@ IMAGE_MODELS = {
     "black-forest-labs/flux.1-schnell": "FLUX Schnell (High-Speed Packshot)",
     "flux": "FLUX Standard (Commercial Tech)",
 }
+IMAGE_MODELS.update(OPEN_MODELS)
+IMAGE_MODELS[LOCAL_MODEL] = "Segmind Vega — local GPU, no API key"
+IMAGE_MODELS["cf:flux-schnell"] = "FLUX Schnell — Cloudflare free daily allowance"
 # Old model names from previous versions
 LEGACY_MODEL_ALIASES = {"sana", "tongyi-mai/z-image-turbo"}
 
@@ -155,28 +160,13 @@ Return ONLY a JSON object with these keys:
 }"""
 
 
-PROMPT_ENHANCER_PROMPT = """You are the Principal Creative Strategist at an elite Silicon Valley marketing agency (ex-Apple, ex-Tesla launch directors).
-Your mission is to take simple, vague, conversational, or under-specified campaign requests (like "Research Tesla and write...", "New Apple device", "Nike launch") and transform them into an ultra-specific, executive-grade product launch brief for Fortune-500 brands.
-
-Rules:
-1. Detect or infer the true target Brand:
-   - If the request mentions Tesla, brand is "Tesla" (never combine with default brands like Lexnis). If Apple, brand is "Apple".
-2. Select or engineer a concrete flagship innovation / product:
-   - For Tesla: e.g. "Tesla Cybercab" (Autonomous Robotaxi Unveiling) with zero steering wheel, zero pedals, 20 kW inductive resonant wireless charging, unpainted cold-rolled 300-series stainless steel dihedral doors, end-to-end neural vision.
-   - For Apple: e.g. "Apple Vision Pro Spatial Computing & Neural Engine".
-   - If already specific, preserve and deepen the technical specificity.
-3. Inject authentic physical materials, engineering physics, and hardware design details.
-4. Define a high-stakes commercial launch hook and target market.
-5. Format strictly as valid RFC 8259 JSON. No trailing commas.
-
-Return ONLY a JSON object:
-{
-  "detected_brand": "Tesla",
-  "product_name": "Tesla Cybercab",
-  "enhanced_prompt": "Tesla Cybercab Autonomous Robotaxi Launch: Announce the arrival of commercial driverless transit. Highlight the zero-steering-wheel/zero-pedal cabin architecture, 20 kW resonant inductive wireless charging (no charge ports), butterfly dihedral doors, unpainted cold-rolled stainless steel body, and end-to-end neural vision AI. Target enterprise fleet operators and urban commuters.",
-  "suggested_tone": "confident, visionary and disruptive",
-  "suggested_theme": "Apple Minimalist Hero (Luxury Tech)"
-}"""
+PROMPT_ENHANCER_PROMPT = """Improve this marketing request while preserving its exact product,
+brand, color, location and user intent. Never select a different product for an ambiguous brand.
+Never add specifications, dates, launch availability, prices or performance claims.
+Use a photographic campaign concept with a clear audience and a single emotional benefit.
+Return JSON with detected_brand, product_name, enhanced_prompt, suggested_tone, suggested_theme.
+Include the original request verbatim in enhanced_prompt. If product is unknown, leave product_name empty.
+"""
 
 
 AGENT1_COPYWRITER_PROMPT = """You are Agent 1: Senior Copywriter and Creative Strategist at an award-winning creative agency.
@@ -211,41 +201,18 @@ Return strictly valid RFC 8259 JSON:
 COPYWRITER_PROMPT = AGENT1_COPYWRITER_PROMPT
 
 
-AGENT2_DIRECTOR_CRITIC_PROMPT = """You are Agent 2: Executive Creative Director and Head of Visuals (former creative director for Fortune-500 launches at Apple, Tesla, and Porsche).
-You are reviewing the initial campaign draft produced by Agent 1 (Senior Copywriter).
-Your mission is to ruthlessly critique the draft, strip any corporate clichés or passive language, ensure high-stakes commercial urgency, and finalize the production-ready campaign assets.
-
-Critique Checklist:
-1. Hook Urgency: Is it passive or cliché? Replace with a high-impact, scroll-stopping opening.
-2. Authentic Engineering: Ensure verified technical specs (e.g., zero steering wheel, zero pedals, 20 kW inductive charging, stainless steel) are prominent.
-3. FLUX Photography Direction: Transform the visual concept into a pristine 5-part FLUX commercial photography prompt:
-   - 1. Tangible physical hardware & materials (matte dark titanium, cold-rolled stainless steel, curved obsidian glass).
-   - 2. Studio pedestal & setting (dark honed graphite floor, seamless dark slate infinity cove).
-   - 3. Studio lighting (overhead strip softbox casting razor-sharp specular reflection line along body curves, subtle cyan rim light).
-   - 4. Camera & optics (Hasselblad H6D-100c, 100mm f/2.8 commercial macro lens, shallow DOF).
-   - 5. Composition: Clean negative space in top third for headline.
-   - ABSOLUTELY NO text, letters, numbers, logos, or watermarks.
-
-Return strictly valid RFC 8259 JSON:
-{{
-  "critique_notes": [
-    "Critique of Agent 1's hook and how it was elevated for scroll-stopping impact",
-    "Critique of technical accuracy, specs, and brand identity injection",
-    "Critique of visual lighting, optics, and FLUX photography parameters"
-  ],
-  "agent_dialogue": [
-    {{"agent": "Agent 1 (Lead Copywriter)", "message": "Drafted initial concept: [summary of draft]"}},
-    {{"agent": "Agent 2 (Executive Creative Director)", "message": "Critique & Polish: [specific enhancements made to hook, copy & FLUX art direction]"}}
-  ],
-  "hook": "Final scroll-stopping first line, max 110 characters",
-  "caption": "Final polished caption body",
-  "highlights": ["final spec 1", "final spec 2", "final spec 3"],
-  "cta": "Final clear call to action",
-  "hashtags": ["#tag1", "#tag2", ...],
-  "image_headline": "2-4 word luxury product title (e.g. 'TESLA // CYBERCAB')",
-  "alt_text": "Accessible description of the image, max 200 characters",
-  "visual_prompt": "Final 5-part FLUX commercial photography prompt"
-}}"""
+AGENT2_DIRECTOR_CRITIC_PROMPT = """You are a creative director reviewing a marketing draft.
+Return valid JSON with hook, caption, highlights (list), cta, hashtags (list),
+image_headline (product name), alt_text, visual_prompt, critique_notes (list),
+and agent_dialogue (list of objects with agent and message).
+Use only facts from the supplied research/brief. Remove unsupported specifications and statistics.
+Preserve the user's exact product and visual direction. Do not assume every Tesla is a Cybercab.
+Create a photographic scene with natural materials, believable lighting and a clear hero product.
+Use an appropriate lens; outdoor automotive campaigns need a wide tracking composition, not macro.
+Reserve upper left and lower right negative space for typography. No text or watermarks in the photo.
+Write a short, distinctive emotional hook, concise benefits and one clear CTA.
+Never invent a website, official affiliation or endorsements. Report only changes actually made.
+"""
 
 
 @dataclass
@@ -274,6 +241,9 @@ class CampaignAsset:
     agent_dialogue: List[Dict[str, str]] = field(default_factory=list)
     critique_notes: List[str] = field(default_factory=list)
     enhanced_prompt: str = ""
+    output_format: str = "portrait"
+    image_status: str = "ready"
+    warnings: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -307,14 +277,13 @@ def clean_social_text(text: str) -> str:
 def detect_brand_and_product(prompt: str, current_brand: str = "") -> Tuple[str, str]:
     """
     Intelligently infer true target brand and concrete flagship product from user prompt.
-    E.g., if user writes 'Research Tesla and write a product launch hook...',
-    it detects brand 'Tesla' and product 'Tesla Cybercab' instead of staying 'Lexnis Technologies'.
+    Preserve explicit product names. A brand without a product stays ambiguous.
     """
     p = (prompt or "").lower()
     b = (current_brand or "").strip()
 
     brand_catalog = [
-        ("tesla", "Tesla", ["cybercab", "robotaxi", "optimus", "roadster", "cybertruck", "fsd"]),
+        ("tesla", "Tesla", ["model 3", "model y", "model s", "model x", "cybercab", "robotaxi", "optimus", "roadster", "cybertruck", "fsd"]),
         ("apple", "Apple", ["vision pro", "spatial", "iphone", "macbook", "neural"]),
         ("nike", "Nike", ["alphafly", "vaporfly", "air max", "adapt"]),
         ("nvidia", "NVIDIA", ["blackwell", "dgx", "geforce", "cuda"]),
@@ -334,15 +303,6 @@ def detect_brand_and_product(prompt: str, current_brand: str = "") -> Tuple[str,
                 if prod in p:
                     detected_product = f"{canonical_name} {prod.title()}"
                     break
-            if not detected_product:
-                if brand_key == "tesla":
-                    detected_product = "Tesla Cybercab"
-                elif brand_key == "apple":
-                    detected_product = "Apple Spatial Computing"
-                elif brand_key == "nvidia":
-                    detected_product = "NVIDIA AI Accelerator"
-                elif brand_key == "nike":
-                    detected_product = "Nike Flagship Innovation"
             break
 
     if not detected_brand:
@@ -597,304 +557,21 @@ def fit_cover(img, width: int = POST_WIDTH, height: int = POST_HEIGHT):
 
 
 def clean_product_headline(text: str, prompt: str = "", brand: str = "LEXNIS") -> str:
-    """
-    Synthesize a luxury, magazine-editorial product title (2-4 words) with optional // accent.
-    Never outputs instructional verbs like 'Draft a...' or 'Product launch package for...'.
-    """
-    s = (text or "").strip()
-    bad_tokens = [
-        "draft a", "create a", "write a", "generate a", "design a",
-        "product launch", "launch pack", "launch package", "pac", "package for",
-        "keynote script", "specifications", "complete product", "visual image description", "social media post"
-    ]
-    if not s or any(tok in s.lower() for tok in bad_tokens):
-        s = prompt or text or brand
-
-    # Strip instruction command prefixes
-    s = re.sub(
-        r"^(?:draft|create|generate|write|design|build|produce|research)\s+(?:a|an)?\s*(?:complete\s+)?(?:product\s+)?(?:launch\s+)?(?:package|post|copy|campaign|specifications|announcement|hook)?\s*(?:for|about)?\s*(?:a|an)?\s*(?:revolutionary\s+|new\s+|cutting-edge\s+|next-gen\s+)*",
-        "",
-        s,
-        flags=re.I,
-    ).strip()
-    s = re.sub(r"^.*?\b(?:package|post|campaign|announcement|description)\s+(?:for|about)\s+", "", s, flags=re.I).strip()
-
-    # Strip trailing clauses
-    s = re.split(r"[.;,]\s*(?:include|focusing|with|designed|featuring|and\s+a)", s, flags=re.I)[0].strip()
-    s = re.sub(r"\s+(?:for|about|with|and|in|on|at|a|the)$", "", s, flags=re.I).strip()
-
-    # Enrich high-impact prompt keywords if title is generic
-    prompt_lower = (prompt or "").lower()
-    brand_lower = (brand or "").lower()
-
-    if "tesla" in prompt_lower or brand_lower == "tesla":
-        if "cybercab" in prompt_lower or "robotaxi" in prompt_lower or "unsupervised" in prompt_lower:
-            s = "TESLA // CYBERCAB"
-        elif "optimus" in prompt_lower or "humanoid" in prompt_lower or "robot" in prompt_lower:
-            s = "TESLA // OPTIMUS"
-        elif "roadster" in prompt_lower:
-            s = "TESLA // ROADSTER"
-        elif "fsd" in prompt_lower or "autonom" in prompt_lower:
-            s = "TESLA // AUTONOMOUS"
-        else:
-            s = "TESLA // CYBERCAB"
-    elif "apple" in prompt_lower or brand_lower == "apple":
-        if "spatial" in prompt_lower or "neural" in prompt_lower or "vision" in prompt_lower:
-            s = "APPLE SPATIAL // NEURAL VISION"
-        else:
-            s = "APPLE // NEXT-GEN DEVICE"
-    elif "nvidia" in prompt_lower or brand_lower == "nvidia":
-        s = "NVIDIA // BLACKWELL AI"
-    elif "porsche" in prompt_lower or brand_lower == "porsche":
-        s = "PORSCHE // MISSION X"
-    elif "nike" in prompt_lower or brand_lower == "nike":
-        s = "NIKE // NEXT-GEN PRO"
-    elif "predictive" in prompt_lower or "iot" in prompt_lower or "maintenance" in prompt_lower:
-        s = "LEXNIS // PREDICTIVE IoT"
-    elif "robotic" in prompt_lower or "fleet" in prompt_lower:
-        s = "AUTONOMOUS // ROBOTICS FLEET"
-    elif "digital twin" in prompt_lower:
-        s = "DIGITAL TWIN // REAL-TIME AI"
-
-    words = s.split()
-    if len(words) > 4:
-        s = " ".join(words[:4])
-
-    s = s.upper()
-    if not s or len(s) < 3 or s in ["PAC", "PACKAGE", "DEVICE", "LAUNCH", "HOOK"]:
-        s = f"{brand.upper()} // INNOVATION"
-    elif " // " not in s and len(words) >= 2:
-        w = s.split()
-        if len(w) == 2:
-            s = f"{w[0]} // {w[1]}"
-        elif len(w) >= 3:
-            remainder = " ".join(w[2:])
-            s = f"{w[0]} {w[1]} // {remainder}"
-    return s
+    _, product = detect_brand_and_product(prompt or text, brand)
+    if product:
+        return product.upper()
+    text = clean_social_text(text).replace("//", " ")
+    if not text or re.search(r"\b(write|research|generate|draft|package)\b", text, re.I):
+        return brand.upper()
+    return " ".join(text.split()[:8]).upper()
 
 
 def build_flux_commercial_prompt(user_prompt: str, theme: str = "", brand: str = "Lexnis Technologies") -> str:
-    """
-    Construct a world-class 5-part commercial photography prompt optimized for FLUX.1 models.
-    Enforces pure physical hardware product photography and completely crowds out anime/CGI.
-    Structure: Physical Hardware Subject & Materials + Setting/Pedestal + Studio Lighting + Optics & Camera + Clean Space.
-    """
-    p = (user_prompt or "").lower()
-    t = (theme or "").lower()
-    b = (brand or "").lower()
-
-    if "tesla" in p or b == "tesla":
-        if "optimus" in p or "humanoid" in p:
-            subject = "genuine commercial catalog studio photograph of a physical Tesla Optimus Gen-3 humanoid robot, matte white composite and dark carbon fiber finish, precision tactile fingers, dark obsidian visor head unit"
-            setting = "standing poised on a dark honed graphite pedestal in a cleanroom minimalist studio"
-            lighting = "dramatic low-key studio lighting, overhead linear strip softbox casting crisp specular highlight line down the shoulder actuators, cool cyan edge rim light, soft floor contact shadows"
-        else:
-            subject = "genuine commercial studio hero photograph of a physical, tangible Tesla Cybercab autonomous vehicle, monolithic unpainted cold-rolled 300-series stainless steel exterior, aerodynamic sculpted fastback silhouette with gullwing butterfly doors, continuous horizon LED lightbar across the front fascia, dark tinted obsidian glass panoramic canopy"
-            setting = "resting on a seamless dark slate infinity cove with subtle reflections"
-            lighting = "overhead linear strip softbox casting razor-sharp specular reflection line along the stainless steel body curves, cool ambient fill, velvety contact shadows"
-    elif "apple" in p or b == "apple":
-        subject = "genuine commercial catalog studio photograph of a physical, tangible minimalist spatial computing headset with curved obsidian micro-OLED optical visor, machined matte dark titanium frame, chamfered precision ceramic edges"
-        setting = "floating above a dark honed graphite monolith on a seamless dark slate infinity cove"
-        lighting = "dramatic low-key commercial studio lighting, overhead linear strip softbox casting razor-sharp specular reflection along the curved titanium rim, subtle cool electric cyan edge rim light, velvety contact shadows"
-    elif "robotic" in p or "fleet" in p:
-        subject = "genuine commercial product photograph of a physical high-precision autonomous industrial robotic arm, matte black anodized steel, exposed orange telemetry fiber optics"
-        setting = "in a pristine futuristic cleanroom factory floor with dark polished reflective epoxy surface"
-        lighting = "cool daylight studio key light, crisp neon cyan edge illumination, soft natural contact shadows underneath"
-    elif "predictive" in p or "iot" in p or "sensor" in p:
-        subject = "authentic commercial photograph of a tangible industrial edge AI compute module, brushed dark aluminum heatsink fins, glowing optic fiber data channels"
-        setting = "resting on dark architectural slate, centered heroic product composition"
-        lighting = "overhead diffused softbox with deep directional shadows, subtle electric cyan specular accent highlights"
-    elif "digital twin" in p:
-        subject = "commercial photography of a physical industrial digital twin optical glass display module, floating translucent cyan telemetry nodes and laser wireframes"
-        setting = "in a dark minimalist executive tech showroom on a dark obsidian table"
-        lighting = "ambient neon luminescence, sharp rim lighting from behind, deep contrast"
-    else:
-        clean_sub = re.sub(r'^(?:draft|create|generate|write|design|research)\s+(?:a|an)?\s*[^.]*?(?:package|post|copy|campaign|device|launch|hook)\s+(?:for|about)?\s*', '', user_prompt, flags=re.I).strip()
-        clean_sub = clean_sub.split('.')[0][:80] or "industrial automation hardware device"
-        subject = f"commercial luxury product hero photograph of a tangible physical {clean_sub}, machined matte dark finish, precision chamfered details"
-        setting = "resting on a dark minimalist stone pedestal in a luxury studio"
-        lighting = "linear overhead strip-box lighting, crisp edge reflections, soft wrap-around fill light, natural contact shadows"
-
-    if "teenage engineering" in t:
-        setting = "resting on an architectural charcoal concrete workbench with subtle CAD blueprint alignment markings"
-        lighting = "diffused daylight key light from the left and controlled fill light, crisp edge separation"
-    elif "dyson" in t or "deep tech" in t:
-        setting = "dark obsidian infinity cove background with subtle atmospheric haze"
-        lighting = "cinematic low-key studio lighting with high-contrast edge rim highlights and crisp specular reflections on optical glass"
-
-    optics = "shot on Hasselblad H6D-100c, 100mm f/2.8 commercial macro lens, eye-level hero perspective, shallow depth of field, sharp focus across body"
-    composition = "real physical material textures with fine microscopic directional grain lines, clean empty negative space in top third for editorial headline, luxury commercial advertisement aesthetic, genuine physical hardware product photograph, zero digital illustration, no humans, no anime, no face, no watermark"
-
-    return f"{subject}, {setting}, {lighting}, {optics}, {composition}"
+    return photo_direction(user_prompt, theme, brand)
 
 
-def compose_post(img: Image.Image, headline: str = "", brand: str = "", accent: str = "#00F0FF") -> Image.Image:
-    """Compose post with luxury magazine editorial typography, glassmorphism badge, and corner telemetry."""
-    img = img.convert("RGBA")
-    w, h = img.size
-    overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(overlay)
-    pad = 72
-    cyan_rgb = _hex_to_rgb(accent)
-
-    # 1. Soft top & bottom gradient for text contrast
-    grad_h = int(h * 0.40)
-    for y in range(grad_h):
-        alpha = int(220 * (1 - y / grad_h) ** 1.8)
-        draw.line([(0, y), (w, y)], fill=(6, 9, 15, alpha))
-
-    foot_h = int(h * 0.16)
-    for y in range(h - foot_h, h):
-        progress = (y - (h - foot_h)) / foot_h
-        alpha = int(200 * progress ** 1.5)
-        draw.line([(0, y), (w, y)], fill=(6, 9, 15, alpha))
-
-    # 2. Minimalist Corner Telemetry Brackets
-    c_len, c_w = 28, 2
-    c_color = cyan_rgb + (140,)
-    m = 36  # margin
-    draw.line([(m, m), (m + c_len, m)], fill=c_color, width=c_w)
-    draw.line([(m, m), (m, m + c_len)], fill=c_color, width=c_w)
-    draw.line([(w - m - c_len, m), (w - m, m)], fill=c_color, width=c_w)
-    draw.line([(w - m, m), (w - m, m + c_len)], fill=c_color, width=c_w)
-    draw.line([(m, h - m), (m + c_len, h - m)], fill=c_color, width=c_w)
-    draw.line([(m, h - m), (m, h - m - c_len)], fill=c_color, width=c_w)
-    draw.line([(w - m - c_len, h - m), (w - m, h - m)], fill=c_color, width=c_w)
-    draw.line([(w - m, h - m), (w - m, h - m - c_len)], fill=c_color, width=c_w)
-
-    # 3. Top Frosted Glass Badge
-    b_font = _load_font(20, bold=True)
-    clean_b = (brand or "LEXNIS TECHNOLOGIES").strip().upper()
-    if clean_b in ["TESLA", "APPLE", "NIKE", "NVIDIA", "PORSCHE"]:
-        b_label = f"{clean_b} // OFFICIAL ARCHIVE"
-    else:
-        b_label = f"{clean_b} // B2B COMMERCIAL ARCHIVE"
-    b_tw = draw.textlength(b_label, font=b_font)
-    bx0, by0 = pad, pad - 12
-    bx1, by1 = bx0 + b_tw + 48, by0 + 38
-    draw.rounded_rectangle([bx0, by0, bx1, by1], radius=19, fill=(10, 14, 22, 190), outline=cyan_rgb + (90,), width=1)
-    draw.ellipse([bx0 + 14, by0 + 14, bx0 + 24, by0 + 24], fill=cyan_rgb + (255,))
-    draw.text((bx0 + 32, by0 + 9), b_label, font=b_font, fill=(230, 240, 255, 230))
-    b_tw = draw.textlength(b_label, font=b_font)
-    bx0, by0 = pad, pad - 12
-    bx1, by1 = bx0 + b_tw + 48, by0 + 38
-    draw.rounded_rectangle([bx0, by0, bx1, by1], radius=19, fill=(10, 14, 22, 190), outline=cyan_rgb + (90,), width=1)
-    draw.ellipse([bx0 + 14, by0 + 14, bx0 + 24, by0 + 24], fill=cyan_rgb + (255,))
-    draw.text((bx0 + 32, by0 + 9), b_label, font=b_font, fill=(230, 240, 255, 230))
-
-    # 4. Editorial Headline
-    if headline:
-        headline = headline.strip()
-        size = 80
-        font = _load_font(size, bold=True)
-        lines = _wrap(draw, headline, font, w - 2 * pad)
-        while len(lines) > 3 and size > 48:
-            size -= 6
-            font = _load_font(size, bold=True)
-            lines = _wrap(draw, headline, font, w - 2 * pad)
-
-        y = by1 + 28
-        line_h = int(size * 1.12)
-        for line in lines[:3]:
-            # Drop shadow
-            draw.text((pad + 2, y + 3), line, font=font, fill=(0, 0, 0, 190))
-            if " // " in line:
-                part1, part2 = line.split(" // ", 1)
-                p1_w = draw.textlength(part1, font=font)
-                div_w = draw.textlength(" // ", font=font)
-                draw.text((pad, y), part1, font=font, fill=(255, 255, 255, 255))
-                draw.text((pad + p1_w, y), " // ", font=font, fill=cyan_rgb + (255,))
-                draw.text((pad + p1_w + div_w, y), part2, font=font, fill=(240, 248, 255, 255))
-            else:
-                draw.text((pad, y), line, font=font, fill=(255, 255, 255, 255))
-            y += line_h
-
-    # 5. Bottom Brand Tag & Telemetry Pill
-    tag_font = _load_font(24, bold=True)
-    t_label = (brand or "LEXNIS TECHNOLOGIES").upper()
-    t_tw = draw.textlength(t_label, font=tag_font)
-    tx0, ty1 = pad, h - pad
-    tx0_end = tx0 + t_tw + 56
-    draw.rounded_rectangle([tx0, ty1 - 48, tx0_end, ty1], radius=24, fill=(10, 14, 22, 190), outline=cyan_rgb + (80,), width=1)
-    draw.ellipse([tx0 + 16, ty1 - 32, tx0 + 26, ty1 - 22], fill=cyan_rgb + (255,))
-    draw.text((tx0 + 36, ty1 - 37), t_label, font=tag_font, fill=(255, 255, 255, 240))
-
-    # Right technical pill
-    spec_font = _load_font(20, bold=False)
-    spec_text = "4:5 UHD // 1080×1350 // FLUX.1"
-    spec_tw = draw.textlength(spec_text, font=spec_font)
-    sx1 = w - pad
-    sx0 = sx1 - spec_tw - 36
-    draw.rounded_rectangle([sx0, ty1 - 44, sx1, ty1 - 4], radius=20, fill=(10, 14, 22, 160), outline=(255, 255, 255, 40), width=1)
-    draw.text((sx0 + 18, ty1 - 35), spec_text, font=spec_font, fill=(160, 180, 205, 220))
-
-    final = Image.alpha_composite(img, overlay).convert("RGB")
-    final = ImageEnhance.Contrast(final).enhance(1.05)
-    return final
-
-
-def create_fallback_graphic(width: int = POST_WIDTH, height: int = POST_HEIGHT) -> bytes:
-    """Generate a sleek, dark obsidian industrial 3D isometric schematic graphic."""
-    img = Image.new("RGB", (width, height), (9, 13, 20))
-    draw = ImageDraw.Draw(img)
-
-    # 1. Perspective Grid
-    cx, cy = width // 2, int(height * 0.6)
-    grid_color = (20, 28, 42)
-    cyan_dim = (0, 70, 90)
-    cyan_bright = (0, 240, 255)
-
-    for x in range(0, width + 1, 60):
-        draw.line([(x, 0), (x, height)], fill=grid_color, width=1)
-    for y in range(0, height + 1, 60):
-        draw.line([(0, y), (width, y)], fill=grid_color, width=1)
-
-    # 2. Glowing Core Ambient Light
-    core_radius = 280
-    for r in range(core_radius, 0, -10):
-        alpha = int(45 * (1 - r / core_radius) ** 1.5)
-        color = (int(0 * alpha / 45), int(220 * alpha / 45), int(255 * alpha / 45))
-        draw.ellipse([cx - r, cy - int(r * 0.7), cx + r, cy + int(r * 0.7)], fill=color)
-
-    # 3. Isometric Central Chip / Cube Wireframe
-    cube_size = 180
-    top_pts = [
-        (cx, cy - cube_size),
-        (cx + int(cube_size * 1.2), cy - int(cube_size * 0.4)),
-        (cx, cy + int(cube_size * 0.2)),
-        (cx - int(cube_size * 1.2), cy - int(cube_size * 0.4)),
-    ]
-    draw.polygon(top_pts, fill=(15, 23, 36), outline=cyan_bright, width=2)
-
-    left_pts = [
-        (cx - int(cube_size * 1.2), cy - int(cube_size * 0.4)),
-        (cx, cy + int(cube_size * 0.2)),
-        (cx, cy + int(cube_size * 1.2)),
-        (cx - int(cube_size * 1.2), cy + int(cube_size * 0.6)),
-    ]
-    draw.polygon(left_pts, fill=(12, 18, 28), outline=cyan_bright, width=2)
-
-    right_pts = [
-        (cx, cy + int(cube_size * 0.2)),
-        (cx + int(cube_size * 1.2), cy - int(cube_size * 0.4)),
-        (cx + int(cube_size * 1.2), cy + int(cube_size * 0.6)),
-        (cx, cy + int(cube_size * 1.2)),
-    ]
-    draw.polygon(right_pts, fill=(18, 27, 42), outline=cyan_bright, width=2)
-
-    # Laser Circuit Traces radiating outward
-    for angle_deg in [30, 60, 120, 150, 210, 240, 300, 330]:
-        rad = math.radians(angle_deg)
-        x1 = cx + int(math.cos(rad) * 220)
-        y1 = cy + int(math.sin(rad) * 160)
-        x2 = cx + int(math.cos(rad) * 420)
-        y2 = cy + int(math.sin(rad) * 310)
-        draw.line([(x1, y1), (x2, y2)], fill=cyan_dim, width=2)
-        draw.ellipse([x2 - 4, y2 - 4, x2 + 4, y2 + 4], fill=cyan_bright)
-
-    buf = io.BytesIO()
-    img.save(buf, format="JPEG", quality=95)
-    return buf.getvalue()
+def compose_post(img, headline="", brand="", accent="#00F0FF", tagline=""):
+    return compose_ad(img, headline, brand, tagline)
 
 
 def is_pollinations_error_card(img_bytes: bytes) -> bool:
@@ -937,6 +614,7 @@ class LexnisCampaignStudio:
     ):
         self.pollinations_key = os.getenv("POLLINATIONS_API_KEY", "")
         self.gemini_key = os.getenv("GEMINI_API_KEY", "")
+        self.generation_warnings = []
 
         # Explicit overrides > Gemini > Pollinations (keyed) > anonymous legacy endpoint
         if api_key and base_url:
@@ -1222,22 +900,23 @@ class LexnisCampaignStudio:
         for attempt in range(2):
             try:
                 raw = self._chat(system_prompt, user_prompt, temperature=temperature)
-                parsed = extract_json(raw, fallback_schema=fallback_schema)
+                parsed = extract_json(raw)
                 if parsed:
-                    return parsed, raw
+                    return {**(fallback_schema or {}), **parsed}, raw
             except Exception as e:
                 last_err = e
                 user_prompt += "\n\nCRITICAL: Return ONLY a valid JSON object. Do not include markdown codeblocks, comments, or trailing commas."
 
         if raw:
             try:
-                parsed = extract_json(raw, fallback_schema=fallback_schema)
+                parsed = extract_json(raw)
                 if parsed:
-                    return parsed, raw
+                    return {**(fallback_schema or {}), **parsed}, raw
             except Exception:
                 pass
 
         if fallback_schema:
+            self.generation_warnings.append("A text generation step failed; template copy needs editorial review.")
             return dict(fallback_schema), raw or ""
 
         raise RuntimeError(f"Model did not return valid JSON: {last_err}")
@@ -1245,16 +924,16 @@ class LexnisCampaignStudio:
     def build_brief(self, prompt: str, brand: str, research: str) -> Dict[str, Any]:
         user = f"BRAND: {brand}\nREQUEST: {prompt}\n\nWEB RESEARCH:\n{research or 'No research available.'}"
         fallback = {
-            "product_name": prompt[:40].strip(),
-            "category": "Next-Gen Technology",
+            "product_name": detect_brand_and_product(prompt, brand)[1] or brand,
+            "category": "Product campaign",
             "one_liner": prompt[:120].strip(),
-            "target_audience": "Forward-thinking developers, creators, and enterprise leaders",
-            "pain_points": ["Legacy system constraints", "High latency and downtime"],
-            "key_benefits": ["Unprecedented neural speed", "Sub-millisecond latency", "Enterprise-grade reliability"],
+            "target_audience": "Confirm the intended audience",
+            "pain_points": [],
+            "key_benefits": [],
             "proof_points": [],
-            "differentiator": "Proprietary neural architecture and spatial precision",
-            "creative_angle": "The future of spatial intelligence, realized today",
-            "cta_goal": "Explore the launch keynote and technical specifications"
+            "differentiator": "Requires product research",
+            "creative_angle": "A focused product introduction",
+            "cta_goal": "Explore the product"
         }
         brief, _ = self._chat_json(STRATEGIST_PROMPT, user, temperature=0.4, fallback_schema=fallback)
         return brief
@@ -1268,26 +947,11 @@ class LexnisCampaignStudio:
 
         fallback_enhanced = {
             "detected_brand": detected_brand,
-            "product_name": detected_product or f"{detected_brand} Flagship Innovation",
-            "enhanced_prompt": (
-                f"{detected_product or detected_brand} Launch Package: Announce the next breakthrough in {detected_brand} engineering. "
-                f"Highlight core physical hardware specifications, precision industrial design materials, and transformative commercial value. "
-                f"Deliver an authoritative, high-urgency keynote hook, engaging narrative copy, and luxury studio hero photography."
-            ),
-            "suggested_tone": "confident, visionary and disruptive",
-            "suggested_theme": "Apple Minimalist Hero (Luxury Tech)"
+            "product_name": detected_product,
+            "enhanced_prompt": user_prompt + " Create a focused photographic campaign with a clear audience, one emotional benefit and concise copy. Verify any technical claims before use.",
+            "suggested_tone": "confident, premium and benefit-driven",
+            "suggested_theme": "Cinematic lifestyle photography",
         }
-
-        # If user explicitly asks about Tesla
-        if "tesla" in user_prompt.lower() or detected_brand.lower() == "tesla":
-            fallback_enhanced["enhanced_prompt"] = (
-                "Tesla Cybercab Autonomous Robotaxi Launch: Announce the commercial arrival of full driverless mobility. "
-                "Highlight the zero-steering-wheel and zero-pedal cabin architecture, 20 kW resonant inductive wireless charging (no charge plugs), "
-                "sculpted butterfly dihedral doors, unpainted cold-rolled 300-series stainless steel exterior, and vision-only end-to-end neural networks. "
-                "Deliver an ultra-compelling scroll-stopping hook, technical highlights, and luxury studio packshot photography."
-            )
-            fallback_enhanced["product_name"] = "Tesla Cybercab"
-            fallback_enhanced["detected_brand"] = "Tesla"
 
         user_message = f"RAW USER REQUEST: {user_prompt}\nCURRENT BRAND FIELD: {brand or detected_brand}"
 
@@ -1324,19 +988,11 @@ class LexnisCampaignStudio:
 
         # Fallback schema for Agent 1
         agent1_fallback = {
-            "agent1_rationale": f"Positioned {prod_name} as an industry-defining technological leap with high-urgency market appeal.",
-            "hook": brief.get("one_liner") or f"Meet {prod_name}: the next leap in computing.",
-            "caption": (
-                f"Breakthrough architecture meets revolutionary precision.\n\n"
-                f"Built to redefine what is possible, {prod_name} brings advanced intelligence into seamless harmony.\n\n"
-                f"The next era of technology starts now."
-            ),
-            "highlights": [
-                "Dedicated neural architecture with real-time processing",
-                "Sub-millisecond latency and ultra-high efficiency",
-                "Engineered for pro workflows and creative mastery"
-            ],
-            "cta": f"Discover the keynote and full specifications at {brand.lower().replace(' ', '')}.com",
+            "agent1_rationale": "Template draft; AI copy generation unavailable.",
+            "hook": f"Meet {prod_name}.",
+            "caption": f"Discover {prod_name}. Explore the details and find out whether it fits your needs.",
+            "highlights": brief.get("key_benefits", []),
+            "cta": "Explore the product.",
             "hashtags": [f"#{brand.replace(' ', '')}", "#NextGenTech", "#Innovation", "#Engineering"],
             "image_headline": clean_product_headline(prod_name, prompt=prompt, brand=brand),
             "visual_concept": f"Commercial studio hero photograph of physical {prod_name} on dark graphite pedestal"
@@ -1356,21 +1012,8 @@ class LexnisCampaignStudio:
         step("Agent 2 (Creative Director & Art Critic) reviewing, critiquing & polishing...")
 
         agent2_fallback = {
-            "critique_notes": [
-                "Tightened the hook to eliminate passive phrasing and maximize scroll-stopping curiosity.",
-                f"Verified and highlighted tangible technical specifications for {brand}.",
-                "Upgraded visual art direction to 5-part FLUX commercial studio lighting with Hasselblad 100mm macro optics."
-            ],
-            "agent_dialogue": [
-                {
-                    "agent": "Agent 1 (Lead Copywriter)",
-                    "message": f"Drafted launch concept for {prod_name}: '{draft.get('hook', '')}' emphasizing core capabilities and market differentiation."
-                },
-                {
-                    "agent": "Agent 2 (Executive Creative Director)",
-                    "message": "Elevated the copy: sharpened hook urgency, tightened paragraph pacing, and crafted the 5-part FLUX commercial photography prompt with clean editorial space."
-                }
-            ],
+            "critique_notes": ["Creative review unavailable; inspect the draft before publishing."],
+            "agent_dialogue": [],
             "hook": draft.get("hook", agent1_fallback["hook"]),
             "caption": draft.get("caption", agent1_fallback["caption"]),
             "highlights": draft.get("highlights", agent1_fallback["highlights"]),
@@ -1384,6 +1027,7 @@ class LexnisCampaignStudio:
         agent2_user = (
             f"BRAND: {brand}\n"
             f"ORIGINAL REQUEST: {prompt}\n"
+            f"VISUAL DIRECTION: {theme}\n"
             f"CREATIVE BRIEF:\n{json.dumps(brief, indent=2, ensure_ascii=False)}\n\n"
             f"AGENT 1 (LEAD COPYWRITER) DRAFT:\n{json.dumps(draft, indent=2, ensure_ascii=False)}"
         )
@@ -1404,133 +1048,49 @@ class LexnisCampaignStudio:
 
     # ---------- 4. Visual ----------
 
-    def _fetch_image_bytes(self, visual_prompt: str, seed: int, model: str) -> Tuple[bytes, bool]:
-        """Returns (image bytes, watermark_free). Tries multiple models/endpoints with fallback graphic."""
+    def _fetch_image_bytes(self, visual_prompt: str, seed: int, model: str,
+                           width: int = RENDER_WIDTH, height: int = RENDER_HEIGHT) -> Tuple[bytes, bool]:
+        if model == LOCAL_MODEL:
+            return local_image(visual_prompt, seed, width, height)
+        if model == "cf:flux-schnell":
+            return cloudflare_image(visual_prompt, seed)
+        if model.startswith("hf:"):
+            try:
+                return open_model_image(visual_prompt, seed, model, width, height)
+            except RuntimeError:
+                raise
+            except Exception as exc:
+                raise RuntimeError("Open-weight image inference failed. Check cached model weights, installed dependencies and available GPU/RAM, then retry the visual.") from exc
         if requests is None:
-            raise RuntimeError("`requests` is required to render images.")
-
-        clean_prompt = re.sub(
-            r"^(?:draft|create|generate|write|design)\s+(?:a|an)\s+[^.]*?(?:package|post|copy|campaign|device|launch)\s+(?:for|about)?\s*",
-            "",
-            visual_prompt,
-            flags=re.IGNORECASE,
-        ).strip()
-        if not clean_prompt or len(clean_prompt) < 15:
-            clean_prompt = visual_prompt
-        clean_prompt = clean_prompt[:600]
-
-        encoded = urllib.parse.quote(clean_prompt)
-
-        # 1. Google AI Studio Imagen / Gemini Image (keyed with GEMINI_API_KEY)
-        if self.gemini_key:
-            # 1a. Try official google-genai SDK
+            raise RuntimeError("Install requests to render images.")
+        if model == "gemini-image":
+            if not self.gemini_key:
+                raise RuntimeError("Set GEMINI_API_KEY to use Gemini image generation. Image access depends on your quota.")
             try:
-                from google import genai
-                from google.genai import types
-                client = genai.Client(api_key=self.gemini_key)
-                for g_model in ["gemini-3.1-flash-image", "gemini-3-pro-image-preview", "gemini-2.5-flash-image"]:
-                    try:
-                        res = client.models.generate_content(
-                            model=g_model,
-                            contents=clean_prompt,
-                            config=types.GenerateContentConfig(
-                                response_modalities=[types.Modality.IMAGE]
-                            )
-                        )
-                        if res.candidates and res.candidates[0].content and res.candidates[0].content.parts:
-                            for part in res.candidates[0].content.parts:
-                                if hasattr(part, "inline_data") and part.inline_data and part.inline_data.data:
-                                    img_bytes = part.inline_data.data
-                                    if len(img_bytes) > 2000 and not is_pollinations_error_card(img_bytes):
-                                        if console:
-                                            console.print(f"[bold green]✓ Generated visual via Google AI Studio ({g_model})[/bold green]")
-                                        return img_bytes, True
-                    except Exception as eg:
-                        if console and "RESOURCE_EXHAUSTED" in str(eg):
-                            console.print("[dim yellow]Google AI Studio image quota: 0 on Free Tier (link billing in AI Studio to enable). Fallback to FLUX Studio...[/dim yellow]")
-                        pass
-            except Exception:
-                pass
-
-            # 1b. Try direct REST API for Google AI Studio
-            gemini_image_models = [
-                "gemini-3.1-flash-image",
-                "gemini-3-pro-image-preview",
-                "gemini-2.5-flash-image",
-                "nano-banana-pro-preview"
-            ]
-            for g_model in gemini_image_models:
-                try:
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{g_model}:generateContent?key={self.gemini_key}"
-                    payload = {
-                        "contents": [{"parts": [{"text": clean_prompt}]}],
-                        "generationConfig": {"responseModalities": ["IMAGE"]}
-                    }
-                    resp = requests.post(url, json=payload, timeout=35)
-                    if resp.ok:
-                        data = resp.json()
-                        cand = data.get("candidates", [{}])[0]
-                        parts = cand.get("content", {}).get("parts", [])
-                        for p in parts:
-                            if "inlineData" in p and p["inlineData"].get("data"):
-                                img_bytes = base64.b64decode(p["inlineData"]["data"])
-                                if len(img_bytes) > 2000 and not is_pollinations_error_card(img_bytes):
-                                    if console:
-                                        console.print(f"[bold green]✓ Generated visual via Google AI Studio ({g_model})[/bold green]")
-                                    return img_bytes, True
-                except Exception:
-                    pass
-
-        # 2. Keyed Pollinations API (if POLLINATIONS_API_KEY is provided in .env)
-        if self.pollinations_key:
-            try:
-                resp = requests.get(
-                    f"{POLLINATIONS_GEN_BASE}/image/{encoded}",
-                    params={"model": model, "width": RENDER_WIDTH, "height": RENDER_HEIGHT, "seed": seed},
-                    headers={"Authorization": f"Bearer {self.pollinations_key}"},
-                    timeout=45,
-                )
-                if resp.ok and len(resp.content) > 1000 and not is_pollinations_error_card(resp.content):
-                    return resp.content, True
-            except Exception:
-                pass
-
-        # 3. Free Pollinations Image endpoint with model rotation (flux-realism -> flux -> turbo -> default)
-        # We check every image to ensure it is NOT Pollinations' yellow rate-limit card!
-        models_to_try = ["flux-realism", "flux", "turbo", None]
-        for m in models_to_try:
-            params = {"width": 864, "height": 1080, "seed": seed, "nologo": "true"}
-            if m:
-                params["model"] = m
-            try:
-                resp = requests.get(f"{LEGACY_IMAGE_BASE}/{encoded}", params=params, timeout=40)
-                if resp.ok and len(resp.content) > 2000 and not is_pollinations_error_card(resp.content):
-                    return resp.content, False
-                elif resp.ok and is_pollinations_error_card(resp.content):
-                    if console:
-                        console.print(f"[dim yellow]Model {m} returned Pollinations cooldown card. Trying next model...[/dim yellow]")
-            except Exception:
-                continue
-
-        # 4. Gen API Schnell endpoint (public free tier fallback)
+                response = requests.post(
+                    "https://generativelanguage.googleapis.com/v1beta/models/" + os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image") + ":generateContent",
+                    headers={"x-goog-api-key": self.gemini_key},
+                    json={"contents": [{"parts": [{"text": visual_prompt}]}],
+                          "generationConfig": {"responseModalities": ["IMAGE"]}}, timeout=120)
+                if response.ok:
+                    for candidate in response.json().get("candidates", []):
+                        for part in candidate.get("content", {}).get("parts", []):
+                            if part.get("inlineData", {}).get("data"):
+                                return base64.b64decode(part["inlineData"]["data"]), True
+            except requests.RequestException as exc:
+                raise RuntimeError("Cannot connect to Gemini image generation. Check network access and retry the visual.") from exc
+            raise RuntimeError(f"Gemini image generation failed (HTTP {response.status_code}). Check your model access and image quota.")
+        base = POLLINATIONS_GEN_BASE + "/image" if self.pollinations_key else LEGACY_IMAGE_BASE
+        headers = {"Authorization": f"Bearer {self.pollinations_key}"} if self.pollinations_key else {}
         try:
-            resp = requests.get(
-                f"{POLLINATIONS_GEN_BASE}/image/{encoded}",
-                params={"model": "black-forest-labs/flux.1-schnell", "width": 864, "height": 1080, "seed": seed},
-                timeout=40,
-            )
-            if resp.ok and len(resp.content) > 2000 and not is_pollinations_error_card(resp.content):
-                return resp.content, True
-        except Exception:
+            response = requests.get(f"{base}/{urllib.parse.quote(visual_prompt, safe='')}",
+                params={"model": model, "width": width, "height": height, "seed": seed},
+                headers=headers, timeout=90)
+            if response.ok and len(response.content) > 2000 and not is_pollinations_error_card(response.content):
+                return response.content, bool(self.pollinations_key)
+        except requests.RequestException:
             pass
-
-        # 5. If all external public image servers are rate-limited (45s cooldown) or 503, render luxury synthetic studio visual
-        if HAS_PIL:
-            if console:
-                console.print("[bold cyan]✓ External image APIs busy: Generated studio visual via Lexnis Graphic Engine[/bold cyan]")
-            return create_fallback_graphic(POST_WIDTH, POST_HEIGHT), True
-
-        raise RuntimeError("Image rendering servers are currently experiencing 503 high load. Please retry.")
+        raise RuntimeError("Image provider unavailable or quota exhausted. Your copy is saved; configure an image provider and retry the visual.")
 
     def render_image(
         self,
@@ -1541,6 +1101,8 @@ class LexnisCampaignStudio:
         brand: str = "",
         overlay: bool = True,
         out_dir: Path = RENDERS_DIR,
+        output_format: str = "portrait",
+        tagline: str = "",
     ) -> Tuple[Path, Path, bool]:
         """Render (and cache) the base visual, then composite the post. Returns (post, clean, watermark_free)."""
         if model in LEGACY_MODEL_ALIASES or not model:
@@ -1548,18 +1110,23 @@ class LexnisCampaignStudio:
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        key = hashlib.sha1(f"{visual_prompt}|{seed}|{model}|{bool(self.pollinations_key)}".encode()).hexdigest()[:16]
+        width, height = FORMATS[output_format]
+        provider = os.getenv("IMAGE_PROVIDER", "huggingface")
+        key = hashlib.sha1(f"photo-v3|{visual_prompt}|{seed}|{model}|{provider}|{width}|{height}|{bool(self.pollinations_key)}".encode()).hexdigest()[:16]
         clean_path = out_dir / f"{key}_clean.jpg"
         marker = out_dir / f"{key}.wm"  # present when the cached render came from the anonymous tier
 
         if clean_path.exists():
             watermark_free = not marker.exists()
         else:
-            data, watermark_free = self._fetch_image_bytes(visual_prompt, seed, model)
+            data, watermark_free = self._fetch_image_bytes(visual_prompt, seed, model, (width + 31) // 32 * 32, (height + 31) // 32 * 32)
             if not HAS_PIL:
                 clean_path.write_bytes(data)
                 return clean_path, clean_path, watermark_free
-            img = fit_cover(Image.open(io.BytesIO(data)))
+            try:
+                img = fit_cover(Image.open(io.BytesIO(data)), width, height)
+            except Exception as exc:
+                raise RuntimeError("Image provider returned an invalid image. Retry the visual.") from exc
             img = ImageEnhance.Contrast(img).enhance(1.04)
             img = img.filter(ImageFilter.UnsharpMask(radius=1.2, percent=60, threshold=3))
             img.save(clean_path, "JPEG", quality=95, optimize=True)
@@ -1569,11 +1136,11 @@ class LexnisCampaignStudio:
         if not overlay or not HAS_PIL or not (headline or brand):
             return clean_path, clean_path, watermark_free
 
-        clean_hl = clean_product_headline(headline, brand=brand)
-        tag = hashlib.sha1(f"{clean_hl}|{brand}".encode()).hexdigest()[:8]
+        clean_hl = headline.strip()
+        tag = hashlib.sha1(f"ad-v3|{clean_hl}|{brand}|{tagline}".encode()).hexdigest()[:8]
         post_path = out_dir / f"{key}_post_{tag}.jpg"
         if not post_path.exists():
-            compose_post(Image.open(clean_path), headline=clean_hl, brand=brand).save(
+            compose_post(Image.open(clean_path), headline=clean_hl, brand=brand, tagline=tagline).save(
                 post_path, "JPEG", quality=95, optimize=True
             )
         return post_path, clean_path, watermark_free
@@ -1591,6 +1158,7 @@ class LexnisCampaignStudio:
         enhance_image: bool = True,
         brand: str = "Lexnis Technologies",
         progress=None,
+        output_format: str = "portrait",
     ) -> CampaignAsset:
         """
         Run the full agency pipeline with Dual-Agent Collaborative refinement:
@@ -1598,7 +1166,7 @@ class LexnisCampaignStudio:
         """
         step = progress or (lambda msg: None)
         tone = tone or "confident, premium and benefit-driven"
-        theme = theme or "clean premium commercial photography"
+        theme = theme or "Cinematic lifestyle photography"
         brand = brand or "Lexnis Technologies"
 
         # 0. Intelligent Brand Detection & Executive Prompt Enhancement
@@ -1606,20 +1174,9 @@ class LexnisCampaignStudio:
         if detected_brand and (brand.lower() == "lexnis technologies" or not brand):
             brand = detected_brand
 
-        # Auto-enhance if the user prompt is conversational or instructional
-        is_instructional = bool(re.search(r"\b(research|write|draft|create|generate|produce)\b.*?\b(post|hook|description|package|copy)\b", prompt, re.I))
-        is_short = len(prompt.strip()) < 50
+        # The original request governs product identity and creative direction.
         enhanced_prompt = ""
         effective_prompt = prompt
-
-        if is_instructional or is_short:
-            step("Enhancing prompt with Executive Strategy Agent...")
-            enhanced_data = self.enhance_user_prompt(prompt, brand)
-            if enhanced_data.get("enhanced_prompt"):
-                enhanced_prompt = enhanced_data["enhanced_prompt"]
-                effective_prompt = enhanced_prompt
-            if enhanced_data.get("detected_brand"):
-                brand = enhanced_data["detected_brand"]
 
         search_results: List[Dict[str, str]] = []
         research = ""
@@ -1645,20 +1202,6 @@ class LexnisCampaignStudio:
         if isinstance(raw_highlights, str):
             raw_highlights = [h.strip() for h in re.split(r"[\n,]+", raw_highlights) if h.strip()]
         highlights = [clean_social_text(h) for h in raw_highlights if str(h).strip()][:5]
-        if not highlights:
-            highlights = [clean_social_text(h) for h in brief.get("key_benefits", []) if str(h).strip()][:5]
-        if not highlights:
-            highlights = [clean_social_text(h) for h in brief.get("proof_points", []) if str(h).strip()][:5]
-        if not highlights:
-            highlights = [
-                "Full autonomous mobility guided by end-to-end neural vision AI",
-                "20 kW resonant inductive wireless charging with zero cables",
-                "Monolithic cold-rolled 300-series stainless steel durability"
-            ] if brand.lower() == "tesla" else [
-                "Dedicated neural architecture with real-time processing",
-                "Breakthrough precision engineering and mission-critical reliability",
-                "Engineered for pro workflows and enterprise leadership"
-            ]
         cta = clean_social_text(post.get("cta", ""))
         hashtags = " ".join(normalize_hashtags(post.get("hashtags", [])))
         headline = clean_product_headline(post.get("image_headline", ""), prompt=effective_prompt, brand=brand)
@@ -1675,9 +1218,19 @@ class LexnisCampaignStudio:
             seed = random.randint(100000, 999999)
 
         step("Rendering the visual...")
-        post_path, clean_path, watermark_free = self.render_image(
-            visual_prompt, seed, model=image_model, headline=headline, brand=brand, overlay=enhance_image
-        )
+        warnings = list(self.generation_warnings)
+        if not research:
+            warnings.append("No web evidence retrieved. Review product claims before publishing.")
+        try:
+            post_path, clean_path, watermark_free = self.render_image(
+                visual_prompt, seed, model=image_model, headline=headline, brand=brand,
+                overlay=enhance_image, output_format=output_format, tagline=hook[:110])
+            image_status = "ready"
+        except RuntimeError as exc:
+            post_path = clean_path = None
+            watermark_free = False
+            image_status = "unavailable"
+            warnings.append(str(exc))
 
         raw_response = json.dumps({"brief": brief, "post": post, "dialogue": dialogue, "critique": critique_notes}, indent=2, ensure_ascii=False)
         return CampaignAsset(
@@ -1687,7 +1240,7 @@ class LexnisCampaignStudio:
             highlights=highlights,
             hashtags=hashtags,
             visual_prompt=visual_prompt,
-            image_url=post_path.as_uri(),
+            image_url=post_path.as_uri() if post_path else "",
             raw_response=raw_response,
             seed=seed,
             search_results=search_results,
@@ -1698,13 +1251,14 @@ class LexnisCampaignStudio:
             instagram_caption=build_instagram_caption(hook, caption, highlights, cta, hashtags),
             brief=brief,
             image_model=image_model if image_model not in LEGACY_MODEL_ALIASES else DEFAULT_IMAGE_MODEL,
-            image_path=str(post_path),
-            clean_image_path=str(clean_path),
+            image_path=str(post_path) if post_path else "",
+            clean_image_path=str(clean_path) if clean_path else "",
             watermark_free=watermark_free,
             text_engine=f"{self.text_engine}:{self.model}",
             agent_dialogue=dialogue,
             critique_notes=critique_notes,
             enhanced_prompt=enhanced_prompt,
+            output_format=output_format, image_status=image_status, warnings=warnings,
         )
 
     # ---------- Export ----------
@@ -1734,14 +1288,7 @@ class LexnisCampaignStudio:
         image_file = out / f"{slug}_post.jpg"
         if asset.image_path and Path(asset.image_path).exists():
             shutil.copyfile(asset.image_path, image_file)
-        else:
-            post_path, clean_path, wm_free = self.render_image(
-                asset.visual_prompt, asset.seed, model=asset.image_model,
-                headline=asset.image_headline, brand=asset.brand,
-            )
-            shutil.copyfile(post_path, image_file)
-            asset.clean_image_path = str(clean_path)
-        files["image"] = str(image_file)
+            files["image"] = str(image_file)
 
         if asset.clean_image_path and Path(asset.clean_image_path).exists() and asset.clean_image_path != asset.image_path:
             clean_file = out / f"{slug}_clean.jpg"
@@ -1791,6 +1338,7 @@ def run_cli():
     parser.add_argument("--tone", default="confident, premium and benefit-driven", help="Tone of the copy")
     parser.add_argument("--theme", default="clean premium commercial photography", help="Visual direction")
     parser.add_argument("--image-model", default=DEFAULT_IMAGE_MODEL, choices=list(IMAGE_MODELS), help="Image model")
+    parser.add_argument("--format", choices=list(FORMATS), default="portrait", help="Output aspect ratio")
     parser.add_argument("--no-overlay", action="store_true", help="Do not print headline / brand tag on the image")
     parser.add_argument("--no-search", action="store_true", help="Disable web research")
     parser.add_argument("--download", action="store_true", help="Export the package to the output directory")
@@ -1811,13 +1359,9 @@ def run_cli():
         prompt = ask(f"Product / campaign [{default_prompt}]: ").strip() or default_prompt
 
     studio = LexnisCampaignStudio()
-    if not studio.pollinations_key:
-        msg = "No POLLINATIONS_API_KEY in .env: images will be low-res and carry the Pollinations logo."
-        console.print(f"[yellow]{msg}[/yellow]") if console else print(msg)
-
     kwargs = dict(
         prompt=prompt, brand=args.brand, tone=args.tone, theme=args.theme,
-        use_search=not args.no_search, image_model=args.image_model, enhance_image=not args.no_overlay,
+        output_format=args.format, use_search=not args.no_search, image_model=args.image_model, enhance_image=not args.no_overlay,
     )
     if console:
         with console.status("[bold cyan]Working...", spinner="dots") as status:
@@ -1843,6 +1387,9 @@ def run_cli():
         print(f"\nHEADLINE: {asset.image_headline}\nALT TEXT: {asset.alt_text}")
         print(f"IMAGE: {asset.image_path} (watermark-free: {asset.watermark_free})")
         print("=" * 50)
+
+    for warning in asset.warnings:
+        print("Review: " + warning)
 
     if args.download:
         files = studio.export_campaign(asset, output_dir=args.outdir)

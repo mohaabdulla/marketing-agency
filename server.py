@@ -5,12 +5,15 @@ Serves the web UI and provides the AI marketing agency endpoints.
 """
 
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
+import os
+from urllib.parse import urlsplit
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from visual_engine import model_setup, LOCAL_MODEL, local_model_ready
 
 from campaign_generator import (
     LexnisCampaignStudio, CampaignAsset, IMAGE_MODELS, DEFAULT_IMAGE_MODEL, RENDERS_DIR,
@@ -33,16 +36,18 @@ app.add_middleware(
 BASE_DIR = Path(__file__).resolve().parent
 RENDERS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/renders", StaticFiles(directory=RENDERS_DIR), name="renders")
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 
 def render_url(path: str) -> str:
-    return f"/renders/{Path(path).name}"
+    return f"/renders/{Path(path).name}" if path else ""
 
 
 def render_path(url: str) -> str:
     """Map a /renders/... URL from the UI back to the file on disk."""
-    if url and url.startswith("/renders/"):
-        p = RENDERS_DIR / Path(url.split("?")[0]).name
+    path = urlsplit(url).path if url else ""
+    if path.startswith("/renders/"):
+        p = RENDERS_DIR / Path(path).name
         if p.exists():
             return str(p)
     return ""
@@ -57,6 +62,7 @@ class GenerateRequest(BaseModel):
     use_search: Optional[bool] = Field(True, description="Enable web research")
     image_model: Optional[str] = Field(DEFAULT_IMAGE_MODEL, description="Image model id")
     enhance_image: Optional[bool] = Field(True, description="Headline + brand overlay on the image")
+    output_format: Literal["portrait", "landscape", "square"] = "portrait"
 
 
 class EnhancePromptRequest(BaseModel):
@@ -71,6 +77,8 @@ class RenderRequest(BaseModel):
     headline: Optional[str] = ""
     brand: Optional[str] = ""
     overlay: Optional[bool] = True
+    output_format: Literal["portrait", "landscape", "square"] = "portrait"
+    tagline: str = ""
 
 
 class ExportRequest(BaseModel):
@@ -93,6 +101,9 @@ class ExportRequest(BaseModel):
     agent_dialogue: Optional[List[Dict[str, Any]]] = None
     critique_notes: Optional[List[str]] = None
     enhanced_prompt: Optional[str] = ""
+    output_format: Literal["portrait", "landscape", "square"] = "portrait"
+    image_status: str = "ready"
+    warnings: List[str] = Field(default_factory=list)
 
 
 @app.get("/")
@@ -108,15 +119,19 @@ def serve_index():
 def health_check():
     """Engine telemetry and health check."""
     studio = LexnisCampaignStudio()
+    default_model = LOCAL_MODEL if local_model_ready() and not os.getenv('IMAGE_MODEL') else DEFAULT_IMAGE_MODEL
     return {
         "status": "online",
         "engine": "Lexnis Campaign Studio (AI Marketing Agency)",
         "text_engine": f"{studio.text_engine}:{studio.model}",
         "search_engine": "Google Search + page scraping (free)",
-        "visual_engine": "Google AI Studio Imagen (Keyed)" if getattr(studio, "gemini_key", None) else ("Pollinations gen API" if studio.pollinations_key else "Pollinations (FLUX Photorealism)"),
+        "visual_engine": "Explicit provider selection; see model settings",
         "has_gemini_key": bool(getattr(studio, "gemini_key", None)),
-        "watermark_free": bool(getattr(studio, "gemini_key", None) or studio.pollinations_key),
+        "watermark_free": False,
         "image_models": IMAGE_MODELS,
+        "default_image_model": default_model,
+        "image_model_setup": {model: model_setup(model) for model in IMAGE_MODELS},
+        "image_provider_configured": model_setup(default_model)["configured"],
     }
 
 
@@ -161,7 +176,8 @@ def generate_campaign_endpoint(req: GenerateRequest):
             seed=req.seed,
             use_search=req.use_search if req.use_search is not None else True,
             image_model=req.image_model or DEFAULT_IMAGE_MODEL,
-            enhance_image=req.enhance_image if req.enhance_image is not None else True
+            enhance_image=req.enhance_image if req.enhance_image is not None else True,
+            output_format=req.output_format,
         )
         data = asset.to_dict()
         data["image_url"] = render_url(asset.image_path)
@@ -183,12 +199,23 @@ def render_endpoint(req: RenderRequest):
             headline=req.headline or "",
             brand=req.brand or "",
             overlay=req.overlay if req.overlay is not None else True,
+            output_format=req.output_format,
+            tagline=req.tagline,
         )
         return {
+            "image_status": "ready",
+            "warnings": [],
             "image_url": render_url(str(post_path)),
             "clean_image_url": render_url(str(clean_path)),
             "watermark_free": watermark_free,
             "seed": req.seed,
+        }
+    except RuntimeError as e:
+        # Provider/setup failures are an expected render outcome. Preserve the copy
+        # and return a state the dashboard can display without an HTTP 500.
+        return {
+            "image_status": "unavailable", "image_url": "", "clean_image_url": "",
+            "watermark_free": False, "warnings": [str(e)], "seed": req.seed,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -221,6 +248,7 @@ def export_campaign_endpoint(req: ExportRequest):
             agent_dialogue=req.agent_dialogue or [],
             critique_notes=req.critique_notes or [],
             enhanced_prompt=req.enhanced_prompt or "",
+            output_format=req.output_format, image_status=req.image_status, warnings=req.warnings,
         )
         saved_files = studio.export_campaign(asset, output_dir=str(BASE_DIR / "output"))
         return {
