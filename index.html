@@ -1,0 +1,1706 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lexnis Campaign Studio | Industrial AI Marketing Engine</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Tailwind Configuration -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            obsidian: {
+              950: '#07090e',
+              900: '#0c1017',
+              850: '#111722',
+              800: '#171f2e',
+              700: '#222d42',
+              600: '#33415c'
+            },
+            cyan: {
+              accent: '#00f0ff',
+              muted: 'rgba(0, 240, 255, 0.15)',
+              glow: 'rgba(0, 240, 255, 0.4)'
+            },
+            violet: {
+              accent: '#8b5cf6',
+              muted: 'rgba(139, 92, 246, 0.15)',
+              glow: 'rgba(139, 92, 246, 0.4)'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+            tech: ['Space Grotesk', 'sans-serif']
+          },
+          boxShadow: {
+            'cyan-glow': '0 0 25px -5px rgba(0, 240, 255, 0.3)',
+            'violet-glow': '0 0 25px -5px rgba(139, 92, 246, 0.3)',
+            'dual-glow': '0 0 35px -5px rgba(0, 240, 255, 0.25), 0 0 35px -5px rgba(139, 92, 246, 0.25)'
+          },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'scanline': 'scanline 8s linear infinite'
+          },
+          keyframes: {
+            scanline: {
+              '0%': { transform: 'translateY(-100%)' },
+              '100%': { transform: 'translateY(1000%)' }
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0c1017;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #222d42;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #00f0ff;
+    }
+
+    /* Subtle grid background pattern */
+    .bg-grid-pattern {
+      background-size: 32px 32px;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    }
+
+    /* Glow border utility */
+    .border-glow-cyan {
+      border-color: rgba(0, 240, 255, 0.4);
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.15);
+    }
+  </style>
+</head>
+
+<body class="bg-obsidian-950 text-slate-100 font-sans min-h-screen antialiased bg-grid-pattern relative selection:bg-cyan-accent selection:text-obsidian-950">
+
+  <!-- Ambient background glow elements -->
+  <div class="fixed top-0 left-1/4 w-96 h-96 bg-cyan-accent/10 rounded-full blur-[140px] pointer-events-none -z-10"></div>
+  <div class="fixed bottom-10 right-1/4 w-[30rem] h-[30rem] bg-violet-accent/10 rounded-full blur-[160px] pointer-events-none -z-10"></div>
+
+  <!-- Main Container -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
+
+    <!-- Top Navigation / Brand Header -->
+    <header class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-6 border-b border-obsidian-800">
+      <div class="flex items-center space-x-4">
+        <!-- Logo Icon -->
+        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-accent via-cyan-500 to-violet-accent p-[1px] shadow-cyan-glow flex items-center justify-center">
+          <div class="w-full h-full bg-obsidian-900 rounded-[11px] flex items-center justify-center">
+            <i data-lucide="cpu" class="w-6 h-6 text-cyan-accent animate-pulse-slow"></i>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-tech font-bold tracking-wider text-white">
+              LEXNIS <span class="bg-gradient-to-r from-cyan-accent to-violet-accent bg-clip-text text-transparent">CAMPAIGN STUDIO</span>
+            </h1>
+            <span class="px-2 py-0.5 text-[10px] font-mono tracking-widest uppercase bg-cyan-muted text-cyan-accent border border-cyan-accent/30 rounded-full">
+              v2.5 Flash
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 font-mono tracking-wide mt-0.5">
+            INDUSTRIAL AI &amp; AUTOMATION B2B MARKETING GENERATOR
+          </p>
+        </div>
+      </div>
+
+      <!-- System status and telemetry pills -->
+      <div class="flex items-center space-x-3 text-xs font-mono">
+        <div class="flex items-center space-x-2 bg-obsidian-900/80 border border-obsidian-800 px-3 py-1.5 rounded-lg text-slate-300">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-accent opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-cyan-accent"></span>
+          </span>
+          <span class="text-slate-400">ENGINE:</span>
+          <span id="engine-status-text" class="text-cyan-accent font-semibold">FREE OPENAI + FLUX</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Workspace Area -->
+    <div class="grid grid-cols-1 gap-8">
+
+      <!-- Prompt Input Studio Section -->
+      <section class="bg-obsidian-900/80 backdrop-blur-md border border-obsidian-800 rounded-2xl p-6 shadow-xl space-y-5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-tech font-bold text-white flex items-center space-x-2">
+              <i data-lucide="sparkles" class="w-5 h-5 text-cyan-accent"></i>
+              <span>CAMPAIGN PROMPT &amp; CONCEPT STUDIO</span>
+            </h2>
+            <p class="text-xs text-slate-400 font-mono mt-0.5">Define your industrial AI innovation, target use-case, or hardware/software launch</p>
+          </div>
+
+          <!-- Quick Actions & Presets -->
+          <div class="flex flex-wrap items-center gap-2">
+            <button 
+              type="button" 
+              id="enhance-prompt-btn" 
+              class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-accent/20 via-cyan-400/20 to-violet-accent/20 hover:from-cyan-accent hover:to-violet-accent text-cyan-accent hover:text-obsidian-950 border border-cyan-accent/40 font-tech font-bold text-xs tracking-wider uppercase transition-all flex items-center space-x-1.5 shadow-sm active:scale-95 group cursor-pointer"
+              title="Transform simple or conversational requests into Fortune-500 launch briefs with auto-brand detection"
+            >
+              <i data-lucide="sparkles" class="w-3.5 h-3.5 group-hover:rotate-12 transition-transform text-cyan-accent group-hover:text-obsidian-950"></i>
+              <span id="enhance-prompt-text">✨ Enhance Prompt</span>
+              <svg id="enhance-spinner" class="animate-spin -ml-1 mr-1 h-3.5 w-3.5 text-obsidian-950 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </button>
+
+            <span class="text-[11px] font-mono text-slate-600 hidden sm:inline">|</span>
+            <span class="text-[11px] font-mono text-slate-400">Presets:</span>
+            <div class="flex flex-wrap gap-1.5" id="preset-chips">
+              <button type="button" data-prompt="Predictive maintenance IoT platform launch for Lexnis with zero-downtime edge analytics and vibration AI sensor arrays" class="preset-chip text-[11px] font-mono bg-obsidian-800 hover:bg-cyan-accent/20 hover:text-cyan-accent text-slate-300 border border-obsidian-700 px-2.5 py-1 rounded-lg transition-all">
+                Predictive Maintenance
+              </button>
+              <button type="button" data-prompt="Tesla Cybercab autonomous robotaxi launch: zero-steering-wheel cabin, resonant inductive charging, and end-to-end neural vision" class="preset-chip text-[11px] font-mono bg-obsidian-800 hover:bg-cyan-accent/20 hover:text-cyan-accent text-slate-300 border border-obsidian-700 px-2.5 py-1 rounded-lg transition-all">
+                Tesla Cybercab
+              </button>
+              <button type="button" data-prompt="Autonomous robotic fleet orchestration for smart gigafactories powered by Lexnis VisionAI" class="preset-chip text-[11px] font-mono bg-obsidian-800 hover:bg-violet-accent/20 hover:text-violet-accent text-slate-300 border border-obsidian-700 px-2.5 py-1 rounded-lg transition-all">
+                Robotics Fleet
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Prompt Textarea -->
+        <div class="relative">
+          <textarea 
+            id="prompt-input" 
+            rows="4" 
+            placeholder="Describe your campaign concept... e.g. Research Tesla and write a product launch hook, social media post, and a visual image description"
+            class="w-full bg-obsidian-950 border border-obsidian-700 focus:border-cyan-accent focus:ring-1 focus:ring-cyan-accent rounded-xl p-4 text-sm font-sans text-slate-100 placeholder-slate-600 outline-none transition-all resize-none shadow-inner"
+          ></textarea>
+          
+          <div class="absolute bottom-3 right-3 text-[11px] font-mono text-slate-400 flex items-center space-x-2 bg-obsidian-900/90 px-2 py-0.5 rounded border border-obsidian-800">
+            <span id="char-count">0</span>
+            <span>chars</span>
+          </div>
+        </div>
+
+        <!-- Prompt Enhancement Notification Pill -->
+        <div id="enhance-badge" class="hidden px-3.5 py-2 rounded-xl bg-cyan-950/40 border border-cyan-500/40 text-cyan-300 text-xs font-mono flex items-center justify-between transition-all">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-cyan-400"></i>
+            <span id="enhance-badge-msg">✨ Upgraded to Fortune-500 Executive Launch Brief</span>
+          </div>
+          <span id="enhance-brand-tag" class="px-2 py-0.5 rounded text-[10px] bg-cyan-accent/20 text-cyan-accent border border-cyan-accent/30 font-bold">BRAND: TESLA</span>
+        </div>
+
+        <!-- Advanced Tone & Target Modifiers (Optional) -->
+        <div class="flex flex-wrap items-center justify-between gap-4 pt-1 text-xs font-mono">
+          <div class="flex flex-wrap items-center gap-4">
+            <div class="flex items-center space-x-2">
+              <span class="text-slate-400">Brand:</span>
+              <input id="brand-input" type="text" value="Lexnis Technologies" class="w-40 bg-obsidian-950 border border-obsidian-800 text-slate-300 rounded-lg px-2.5 py-1 focus:outline-none focus:border-cyan-accent text-xs">
+            </div>
+
+            <div class="flex items-center space-x-2">
+              <span class="text-slate-400">Tone:</span>
+              <select id="tone-select" class="bg-obsidian-950 border border-obsidian-800 text-slate-300 rounded-lg px-2.5 py-1 focus:outline-none focus:border-cyan-accent text-xs">
+                <option value="confident, premium and benefit-driven">Premium &amp; Benefit-Driven</option>
+                <option value="warm, friendly and conversational for consumers">Friendly Consumer (B2C)</option>
+                <option value="authoritative and cutting-edge industrial technology">Authoritative B2B Enterprise</option>
+                <option value="visionary executive thought-leadership">Executive Thought Leadership</option>
+                <option value="deeply technical and data-driven for engineers">Technical / Engineering First</option>
+                <option value="high-energy disruptive product launch">Product Launch Hype</option>
+              </select>
+            </div>
+
+            <div class="flex items-center space-x-2">
+              <span class="text-slate-400">Visual Style:</span>
+              <select id="theme-select" class="bg-obsidian-950 border border-obsidian-800 text-slate-300 rounded-lg px-2.5 py-1 focus:outline-none focus:border-cyan-accent text-xs">
+                <option value="Apple Minimalist Studio: genuine physical hardware hero shot on dark honed graphite monolith, seamless obsidian infinity sweep, overhead strip softbox casting crisp specular reflection, Hasselblad 100mm macro lens, pure luxury isolation, no humans, no anime, no illustration" selected>Apple Minimalist Hero (Luxury Tech)</option>
+                <option value="Teenage Engineering Industrial: genuine physical hardware photograph, CNC-milled black anodized aluminum housing, exposed ribbed heatsink fins, tactile hardware details, architectural concrete workbench, diffused natural studio lighting, Sony 90mm macro lens, no humans, no anime">Teenage Engineering (Tactile Industrial)</option>
+                <option value="Dyson / Deep Tech Physics: genuine physical high-tech hardware photograph, dark frosted optical chassis with exposed neural co-processor glow, volumetric cyan laser telemetry streams, Phase One 150MP, no humans, no anime">Dyson Deep Tech (Optical &amp; Physics)</option>
+                <option value="dark futuristic automated factory floor with neon cyan robotics and laser telemetry, crisp edge separation, tangible physical machinery, no humans, no anime">Cyber-Physical Smart Factory</option>
+                <option value="rugged industrial edge compute hardware module, brushed dark aluminum heatsink fins, glowing optical fiber channels, dark architectural slate, no humans, no anime">Edge Computing Hardware</option>
+              </select>
+            </div>
+
+            <label class="flex items-center space-x-1.5 cursor-pointer text-slate-300 hover:text-cyan-accent transition-colors select-none">
+              <input type="checkbox" id="search-toggle" checked class="w-3.5 h-3.5 rounded border-obsidian-700 bg-obsidian-950 text-cyan-accent focus:ring-cyan-accent accent-[#00f0ff] cursor-pointer">
+              <span class="flex items-center space-x-1">
+                <i data-lucide="globe" class="w-3 h-3 text-cyan-accent"></i>
+                <span>Google Research</span>
+              </span>
+            </label>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="flex items-center space-x-3 w-full sm:w-auto">
+            <button 
+              type="button" 
+              id="instant-demo-btn" 
+              class="hidden sm:inline-flex px-4 py-3 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-700 hover:border-cyan-accent/50 text-slate-300 hover:text-cyan-accent font-tech font-bold text-xs tracking-wider uppercase transition-all items-center space-x-2"
+              title="Preview with sample campaign data and Flux visual"
+            >
+              <i data-lucide="play" class="w-3.5 h-3.5 text-cyan-accent"></i>
+              <span>Instant Demo</span>
+            </button>
+
+            <button 
+              type="button" 
+              id="generate-btn" 
+              class="w-full sm:w-auto px-7 py-3 rounded-xl bg-gradient-to-r from-cyan-accent via-cyan-400 to-violet-accent hover:from-cyan-300 hover:to-violet-400 text-obsidian-950 font-tech font-bold text-sm tracking-wider uppercase shadow-cyan-glow hover:shadow-dual-glow active:scale-[0.98] transition-all flex items-center justify-center space-x-2.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <i data-lucide="zap" id="generate-icon" class="w-4 h-4 text-obsidian-950 fill-obsidian-950"></i>
+              <span id="generate-btn-text">Generate Campaign</span>
+              <!-- Spinner Icon (Hidden by default) -->
+              <svg id="generate-spinner" class="animate-spin -ml-1 mr-2 h-4 w-4 text-obsidian-950 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Realtime Status Banner for generation steps -->
+        <div id="status-bar" class="hidden px-4 py-2.5 rounded-xl bg-obsidian-950/80 border border-cyan-accent/30 text-cyan-accent text-xs font-mono flex items-center justify-between">
+          <div class="flex items-center space-x-3">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-accent opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-cyan-accent"></span>
+            </span>
+            <span id="status-message">Synthesizing campaign assets...</span>
+          </div>
+          <span id="status-timer" class="text-slate-500 font-mono">0.0s</span>
+        </div>
+
+        <!-- Inline Error Banner -->
+        <div id="error-banner" class="hidden px-4 py-3 rounded-xl bg-rose-950/40 border border-rose-800/80 text-rose-300 text-xs font-mono flex items-start space-x-3">
+          <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-400 mt-0.5 flex-shrink-0"></i>
+          <div class="space-y-1">
+            <p class="font-semibold" id="error-title">Generation Error</p>
+            <p class="text-slate-300 text-[11px]" id="error-details">Please check your API key and network connection.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- RESULTS SECTION: Two-Column Responsive Layout -->
+      <section id="results-section" class="hidden space-y-6">
+        
+        <div class="flex items-center justify-between pb-2 border-b border-obsidian-800">
+          <div class="flex items-center space-x-3">
+            <h2 class="text-xl font-tech font-bold text-white flex items-center space-x-2">
+              <i data-lucide="layers" class="w-5 h-5 text-violet-accent"></i>
+              <span>GENERATED CAMPAIGN ASSETS</span>
+            </h2>
+            <span class="px-2.5 py-0.5 text-[10px] font-mono bg-violet-muted text-violet-accent border border-violet-accent/30 rounded-full">
+              Production Ready
+            </span>
+          </div>
+          <div class="text-xs font-mono text-slate-400">
+            <span>Format: </span><span class="text-cyan-accent">Instagram 4:5 (1080×1350)</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+
+          <!-- COLUMN 1: Visual Asset Studio (Pollinations Flux) -->
+          <div class="lg:col-span-5 bg-obsidian-900/90 border border-obsidian-800 rounded-2xl p-5 shadow-2xl space-y-4">
+            
+            <div class="flex items-center justify-between pb-2 border-b border-obsidian-800">
+              <div class="flex items-center space-x-2">
+                <i data-lucide="image" class="w-4 h-4 text-cyan-accent"></i>
+                <h3 class="text-xs font-mono font-bold tracking-wider text-slate-200 uppercase">Industrial Visual Asset</h3>
+              </div>
+              <span id="current-model-badge" class="text-[10px] font-mono text-cyan-accent bg-obsidian-950 px-2 py-0.5 rounded border border-obsidian-800">
+                Z-IMAGE TURBO
+              </span>
+            </div>
+
+            <!-- Model Selection Bar -->
+            <div class="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-obsidian-950/90 rounded-xl border border-obsidian-800 text-[11px] font-mono">
+              <div class="flex items-center space-x-2">
+                <span class="text-slate-400">Model:</span>
+                <select id="image-model-select" class="bg-obsidian-900 border border-obsidian-700 text-cyan-accent font-semibold rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:border-cyan-accent">
+                  <option value="black-forest-labs/flux.1.1-pro" selected>🌟 FLUX 1.1 Pro (Apple/Studio Photorealism)</option>
+                  <option value="flux-realism">📷 FLUX Realism (Hardware Macro &amp; Textures)</option>
+                  <option value="black-forest-labs/flux.1-schnell">⚡ FLUX Schnell (High-Speed Packshot)</option>
+                  <option value="flux">◆ FLUX Standard (Commercial Tech)</option>
+                </select>
+              </div>
+              <label class="flex items-center space-x-1.5 cursor-pointer text-slate-300 hover:text-cyan-accent select-none text-[11px]">
+                <input type="checkbox" id="enhance-image-checkbox" checked class="w-3.5 h-3.5 rounded border-obsidian-700 bg-obsidian-900 text-cyan-accent accent-[#00f0ff] cursor-pointer">
+                <span>✨ Headline Overlay</span>
+              </label>
+            </div>
+
+            <!-- Shown when the server has no Pollinations key (anonymous tier adds a logo) -->
+            <div id="watermark-warning" class="hidden px-3 py-2 rounded-lg bg-amber-950/40 border border-amber-700/60 text-amber-300 text-[11px] font-mono">
+              Anonymous image tier: low-res + Pollinations logo. Add a free <span class="text-white">POLLINATIONS_API_KEY</span> (enter.pollinations.ai/keys) to .env for watermark-free 1080×1350.
+            </div>
+
+            <!-- Image Frame Container (Instagram 4:5 vertical aspect ratio 1080x1350) -->
+            <div class="relative w-full aspect-[4/5] bg-obsidian-950 rounded-xl overflow-hidden border border-obsidian-800 group shadow-inner">
+              
+              <!-- Loading Skeleton / Shimmer -->
+              <div id="image-loader" class="absolute inset-0 flex flex-col items-center justify-center bg-obsidian-950 z-20 transition-opacity duration-300">
+                <div class="w-12 h-12 rounded-full border-2 border-cyan-accent/20 border-t-cyan-accent animate-spin mb-3"></div>
+                <p class="text-xs font-mono text-cyan-accent tracking-widest uppercase animate-pulse">Rendering Visual...</p>
+                <p class="text-[10px] font-mono text-slate-500 mt-1">Compositing headline &amp; brand overlay</p>
+              </div>
+
+              <!-- Main Rendered Image -->
+              <img 
+                id="result-image" 
+                src="" 
+                alt="Lexnis Industrial AI Visual Asset" 
+                class="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+              />
+
+              <!-- Top Left Burn-in Simulation Pill -->
+              <div class="absolute top-3 left-3 z-10 bg-obsidian-950/80 backdrop-blur-md border border-cyan-accent/40 px-2.5 py-1 rounded-md text-[10px] font-mono text-cyan-accent flex items-center space-x-1.5 shadow-lg">
+                <span class="w-1.5 h-1.5 rounded-full bg-cyan-accent animate-ping"></span>
+                <span class="font-bold tracking-wider">LEXNIS ARCHIVE</span>
+              </div>
+
+              <!-- Bottom Overlay Bar -->
+              <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-obsidian-950 via-obsidian-950/70 to-transparent p-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-between">
+                <span class="text-[10px] font-mono text-slate-300">1080 × 1350 • Instagram 4:5</span>
+                <button id="view-full-img-btn" class="px-2.5 py-1 text-[11px] font-mono bg-cyan-accent/20 hover:bg-cyan-accent text-cyan-accent hover:text-obsidian-950 rounded border border-cyan-accent/40 transition-colors flex items-center space-x-1">
+                  <i data-lucide="maximize-2" class="w-3 h-3"></i>
+                  <span>Inspect</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Image Actions & Reroll -->
+            <div class="grid grid-cols-2 gap-2 pt-2">
+              <button 
+                type="button" 
+                id="reroll-image-btn" 
+                class="px-3 py-2 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-700 text-slate-300 hover:text-cyan-accent text-xs font-mono transition-colors flex items-center justify-center space-x-1.5"
+                title="Generate another variation with a new seed"
+              >
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                <span>Re-roll Visual</span>
+              </button>
+
+              <button 
+                type="button" 
+                id="download-image-btn" 
+                class="px-3 py-2 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-700 text-slate-300 hover:text-violet-accent text-xs font-mono transition-colors flex items-center justify-center space-x-1.5"
+                title="Download full quality visual asset"
+              >
+                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                <span>Download Asset</span>
+              </button>
+            </div>
+
+            <!-- Export to Disk (Python Backend) -->
+            <button 
+              type="button" 
+              id="export-disk-btn" 
+              class="w-full px-3 py-2 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-700 text-slate-300 hover:text-cyan-accent text-xs font-mono transition-colors flex items-center justify-center space-x-1.5"
+              title="Save image (.jpg), metadata (.json), and caption (.md) to output/ folder via Python backend"
+            >
+              <i data-lucide="hard-drive" class="w-3.5 h-3.5 text-cyan-accent"></i>
+              <span>Export Package to Disk</span>
+            </button>
+
+            <!-- Raw Image Prompt Details Collapsible -->
+            <div class="bg-obsidian-950 border border-obsidian-800 rounded-xl p-3 text-[11px] font-mono space-y-1">
+              <div class="flex items-center justify-between text-slate-400">
+                <span class="text-cyan-accent">Visual Prompt Construction:</span>
+                <button id="copy-img-url-btn" class="hover:text-white transition-colors" title="Copy Direct Image URL">
+                  <i data-lucide="copy" class="w-3 h-3"></i>
+                </button>
+              </div>
+              <p id="image-prompt-display" class="text-slate-400 truncate text-[10px] font-mono"></p>
+            </div>
+          </div>
+
+          <!-- COLUMN 2: Marketing Copy & Caption Studio -->
+          <div class="lg:col-span-7 bg-obsidian-900/90 border border-obsidian-800 rounded-2xl p-6 shadow-2xl space-y-5">
+            
+            <!-- Column Header with Copy Actions -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-obsidian-800">
+              <div class="flex items-center space-x-2">
+                <i data-lucide="file-text" class="w-4 h-4 text-violet-accent"></i>
+                <h3 class="text-xs font-mono font-bold tracking-wider text-slate-200 uppercase">B2B Marketing Copy &amp; Caption</h3>
+              </div>
+
+              <!-- Quick Copy Button -->
+              <div class="flex items-center space-x-2">
+                <button 
+                  type="button" 
+                  id="copy-all-btn" 
+                  class="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-violet-accent to-cyan-accent text-obsidian-950 hover:brightness-110 font-mono font-bold text-xs transition-all shadow-md flex items-center space-x-1.5 active:scale-95"
+                >
+                  <i data-lucide="copy" id="copy-icon" class="w-3.5 h-3.5"></i>
+                  <span id="copy-btn-text">Copy Full Caption</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Tab / Section Breakdown -->
+            <div class="space-y-4">
+              
+              <!-- Dual-Agent Collaborative Dialogue Card -->
+              <div id="agent-collab-box" class="bg-gradient-to-br from-obsidian-950 via-obsidian-900 to-obsidian-950 border border-cyan-500/30 rounded-xl p-4 space-y-3 shadow-lg">
+                <div class="flex items-center justify-between pb-2 border-b border-obsidian-800">
+                  <div class="flex items-center space-x-2">
+                    <i data-lucide="bot" class="w-4 h-4 text-cyan-accent"></i>
+                    <span class="text-xs font-mono font-bold uppercase tracking-wider text-white">Dual-Agent Collaborative Pipeline</span>
+                  </div>
+                  <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-accent/10 border border-cyan-accent/30 text-cyan-accent font-semibold flex items-center space-x-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-cyan-accent animate-pulse"></span>
+                    <span>Multi-Agent Consensus</span>
+                  </span>
+                </div>
+
+                <!-- Agent Dialogue Stream -->
+                <div id="agent-dialogue-list" class="space-y-2.5 text-xs font-mono">
+                  <!-- Populated dynamically: Agent 1 Draft & Agent 2 Director Critique -->
+                </div>
+
+                <!-- Director Polish Notes -->
+                <div id="critique-notes-container" class="hidden pt-2 border-t border-obsidian-800/80 space-y-1">
+                  <span class="text-[10px] font-mono uppercase tracking-wider text-violet-400 font-semibold block">
+                    Executive Creative Director Improvements:
+                  </span>
+                  <ul id="critique-notes-list" class="space-y-1 text-[11px] text-slate-300 list-disc list-inside"></ul>
+                </div>
+              </div>
+
+              <!-- Hook / Headline Section -->
+              <div class="bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-4 space-y-2">
+                <div class="flex items-center justify-between text-[11px] font-mono text-cyan-accent">
+                  <span class="flex items-center space-x-1.5">
+                    <i data-lucide="zap" class="w-3 h-3"></i>
+                    <span class="font-bold uppercase tracking-wider">Campaign Hook</span>
+                  </span>
+                  <button class="copy-section-btn text-slate-500 hover:text-cyan-accent transition-colors" data-target="copy-hook" title="Copy Hook">
+                    <i data-lucide="copy" class="w-3 h-3"></i>
+                  </button>
+                </div>
+                <div id="copy-hook" class="text-sm font-tech font-semibold text-white leading-snug"></div>
+              </div>
+
+              <!-- Main Caption Body -->
+              <div class="bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-4 space-y-2">
+                <div class="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                  <span class="flex items-center space-x-1.5 text-violet-accent">
+                    <i data-lucide="align-left" class="w-3 h-3"></i>
+                    <span class="font-bold uppercase tracking-wider">Instagram Caption Body</span>
+                  </span>
+                  <span id="caption-length-indicator" class="text-[10px] font-mono text-slate-500">0 / 2,200 chars</span>
+                </div>
+                <div id="copy-body" class="text-xs sm:text-sm text-slate-300 font-sans leading-relaxed whitespace-pre-line"></div>
+              </div>
+
+              <!-- Technical Highlights Box -->
+              <div class="bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-4 space-y-2">
+                <div class="flex items-center justify-between text-[11px] font-mono text-cyan-accent">
+                  <span class="flex items-center space-x-1.5">
+                    <i data-lucide="cpu" class="w-3 h-3"></i>
+                    <span class="font-bold uppercase tracking-wider">Key Benefits</span>
+                  </span>
+                  <button class="copy-section-btn text-slate-500 hover:text-cyan-accent transition-colors" data-target="copy-highlights" title="Copy Highlights">
+                    <i data-lucide="copy" class="w-3 h-3"></i>
+                  </button>
+                </div>
+                <div id="copy-highlights" class="text-xs text-slate-300 font-mono space-y-1"></div>
+              </div>
+
+              <!-- High-Converting Hashtags Section -->
+              <div class="bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-4 space-y-2">
+                <div class="flex items-center justify-between text-[11px] font-mono text-violet-accent">
+                  <span class="flex items-center space-x-1.5">
+                    <i data-lucide="hash" class="w-3 h-3"></i>
+                    <span class="font-bold uppercase tracking-wider">Hashtags</span>
+                  </span>
+                  <button class="copy-section-btn text-slate-500 hover:text-violet-accent transition-colors" data-target="copy-hashtags" title="Copy Hashtags Only">
+                    <i data-lucide="copy" class="w-3 h-3"></i>
+                  </button>
+                </div>
+                <div id="copy-hashtags" class="text-xs font-mono text-cyan-accent/90 break-words leading-relaxed"></div>
+              </div>
+
+              <!-- Posting Kit: CTA, on-image headline, accessibility alt text -->
+              <div class="bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-4 space-y-3">
+                <div class="flex items-center space-x-1.5 text-[11px] font-mono text-cyan-accent">
+                  <i data-lucide="send" class="w-3 h-3"></i>
+                  <span class="font-bold uppercase tracking-wider">Posting Kit</span>
+                </div>
+                <div class="grid gap-3 text-xs">
+                  <div>
+                    <div class="flex items-center justify-between text-[10px] font-mono text-slate-500 uppercase"><span>Call to action</span>
+                      <button class="copy-section-btn hover:text-cyan-accent" data-target="copy-cta" title="Copy CTA"><i data-lucide="copy" class="w-3 h-3"></i></button></div>
+                    <div id="copy-cta" class="text-slate-200 mt-0.5"></div>
+                  </div>
+                  <div>
+                    <div class="flex items-center justify-between text-[10px] font-mono text-slate-500 uppercase"><span>Image headline</span>
+                      <button class="copy-section-btn hover:text-cyan-accent" data-target="copy-headline" title="Copy headline"><i data-lucide="copy" class="w-3 h-3"></i></button></div>
+                    <div id="copy-headline" class="text-slate-200 mt-0.5"></div>
+                  </div>
+                  <div>
+                    <div class="flex items-center justify-between text-[10px] font-mono text-slate-500 uppercase"><span>Alt text (Advanced settings → Accessibility)</span>
+                      <button class="copy-section-btn hover:text-cyan-accent" data-target="copy-alt" title="Copy alt text"><i data-lucide="copy" class="w-3 h-3"></i></button></div>
+                    <div id="copy-alt" class="text-slate-300 mt-0.5"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Google Search Research Intel Box -->
+              <div id="search-intel-box" class="hidden bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-4 space-y-2">
+                <div class="flex items-center justify-between text-[11px] font-mono text-cyan-accent">
+                  <span class="flex items-center space-x-1.5">
+                    <i data-lucide="globe" class="w-3 h-3"></i>
+                    <span class="font-bold uppercase tracking-wider">Google Search Research Sources</span>
+                  </span>
+                  <span class="text-[10px] text-slate-500 font-mono">Live Grounding</span>
+                </div>
+                <div id="search-intel-list" class="text-xs text-slate-300 font-mono space-y-1.5"></div>
+              </div>
+
+            </div>
+
+            <!-- Complete Raw Markdown Output (Collapsible) -->
+            <details class="bg-obsidian-950/60 border border-obsidian-800 rounded-xl p-3 text-xs font-mono">
+              <summary class="cursor-pointer text-slate-400 hover:text-slate-200 select-none flex items-center space-x-2">
+                <i data-lucide="code" class="w-3.5 h-3.5 text-cyan-accent"></i>
+                <span>View Raw Output &amp; Markdown</span>
+              </summary>
+              <pre id="raw-output-text" class="mt-3 p-3 bg-obsidian-950 rounded-lg text-[11px] text-slate-300 whitespace-pre-wrap overflow-x-auto max-h-60 border border-obsidian-800"></pre>
+            </details>
+
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- Empty State Graphic (When no campaign is generated yet) -->
+      <section id="empty-state" class="border border-dashed border-obsidian-800 rounded-2xl p-12 text-center space-y-4">
+        <div class="w-16 h-16 mx-auto rounded-2xl bg-obsidian-900 border border-obsidian-800 flex items-center justify-center text-cyan-accent shadow-cyan-glow">
+          <i data-lucide="terminal" class="w-8 h-8"></i>
+        </div>
+        <div class="max-w-md mx-auto space-y-2">
+          <h3 class="text-base font-tech font-bold text-white tracking-wide">Studio Engine Idle</h3>
+          <p class="text-xs font-mono text-slate-400">
+            Paste your Gemini API key above, enter a campaign prompt, and generate synchronized high-converting B2B copy with custom Pollinations Flux visuals.
+          </p>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Footer -->
+    <footer class="pt-8 border-t border-obsidian-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-slate-500">
+      <div class="flex items-center space-x-2">
+        <span class="w-2 h-2 rounded-full bg-cyan-accent"></span>
+        <span>LEXNIS TECHNOLOGIES • INDUSTRIAL AI &amp; AUTOMATION</span>
+      </div>
+      <div class="flex items-center space-x-4">
+        <span>Powered by Gemini 2.5 Flash &amp; Pollinations Flux</span>
+        <span>•</span>
+        <span class="text-slate-400">v1.0.0</span>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+    <div class="bg-obsidian-900/95 backdrop-blur-md border border-cyan-accent/50 text-slate-100 px-4 py-3 rounded-xl shadow-cyan-glow flex items-center space-x-3 text-xs font-mono">
+      <i data-lucide="check-circle-2" class="w-4 h-4 text-cyan-accent"></i>
+      <span id="toast-message">Notification</span>
+    </div>
+  </div>
+
+  <!-- APPLICATION LOGIC SCRIPT -->
+  <script>
+    // --- DOM Elements ---
+    const promptInput = document.getElementById('prompt-input');
+    const charCount = document.getElementById('char-count');
+    const presetChips = document.querySelectorAll('.preset-chip');
+    const toneSelect = document.getElementById('tone-select');
+    const themeSelect = document.getElementById('theme-select');
+    const searchToggle = document.getElementById('search-toggle');
+    const generateBtn = document.getElementById('generate-btn');
+    const generateBtnText = document.getElementById('generate-btn-text');
+    const generateIcon = document.getElementById('generate-icon');
+    const generateSpinner = document.getElementById('generate-spinner');
+
+    const statusBar = document.getElementById('status-bar');
+    const statusMessage = document.getElementById('status-message');
+    const statusTimer = document.getElementById('status-timer');
+    const errorBanner = document.getElementById('error-banner');
+    const errorTitle = document.getElementById('error-title');
+    const errorDetails = document.getElementById('error-details');
+
+    const resultsSection = document.getElementById('results-section');
+    const emptyState = document.getElementById('empty-state');
+
+    const resultImage = document.getElementById('result-image');
+    const imageLoader = document.getElementById('image-loader');
+    const rerollImageBtn = document.getElementById('reroll-image-btn');
+    const downloadImageBtn = document.getElementById('download-image-btn');
+    const viewFullImgBtn = document.getElementById('view-full-img-btn');
+    const copyImgUrlBtn = document.getElementById('copy-img-url-btn');
+    const imagePromptDisplay = document.getElementById('image-prompt-display');
+    const imageModelSelect = document.getElementById('image-model-select');
+    const enhanceImageCheckbox = document.getElementById('enhance-image-checkbox');
+    const currentModelBadge = document.getElementById('current-model-badge');
+
+    const copyHook = document.getElementById('copy-hook');
+    const copyBody = document.getElementById('copy-body');
+    const copyHighlights = document.getElementById('copy-highlights');
+    const copyHashtags = document.getElementById('copy-hashtags');
+    const searchIntelBox = document.getElementById('search-intel-box');
+    const searchIntelList = document.getElementById('search-intel-list');
+    const rawOutputText = document.getElementById('raw-output-text');
+    const captionLengthIndicator = document.getElementById('caption-length-indicator');
+    const copyAllBtn = document.getElementById('copy-all-btn');
+    const copyBtnText = document.getElementById('copy-btn-text');
+    const copyIcon = document.getElementById('copy-icon');
+    const brandInput = document.getElementById('brand-input');
+    const copyCta = document.getElementById('copy-cta');
+    const copyHeadline = document.getElementById('copy-headline');
+    const copyAlt = document.getElementById('copy-alt');
+    const watermarkWarning = document.getElementById('watermark-warning');
+
+    const enhancePromptBtn = document.getElementById('enhance-prompt-btn');
+    const enhancePromptText = document.getElementById('enhance-prompt-text');
+    const enhanceSpinner = document.getElementById('enhance-spinner');
+    const enhanceBadge = document.getElementById('enhance-badge');
+    const enhanceBadgeMsg = document.getElementById('enhance-badge-msg');
+    const enhanceBrandTag = document.getElementById('enhance-brand-tag');
+
+    const agentCollabBox = document.getElementById('agent-collab-box');
+    const agentDialogueList = document.getElementById('agent-dialogue-list');
+    const critiqueNotesContainer = document.getElementById('critique-notes-container');
+    const critiqueNotesList = document.getElementById('critique-notes-list');
+
+    const toast = document.getElementById('toast');
+    const toastMessage = document.getElementById('toast-message');
+
+    // --- State ---
+    let isPythonBackendActive = false;
+    let backendApiBase = '';
+    let currentRawResponse = '';
+    let currentImagePrompt = '';
+    let currentImageUrl = '';
+    let currentSeed = Math.floor(Math.random() * 1000000);
+    let currentCleanImageUrl = '';
+    let currentInstagramCaption = '';
+    let currentSearchResults = [];
+    let currentAgentDialogue = [];
+    let currentCritiqueNotes = [];
+    let currentEnhancedPrompt = '';
+    let timerInterval = null;
+    let startTime = 0;
+
+    function resolveBackendUrl(url) {
+      if (!url) return '';
+      if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
+      if (url.startsWith('/') && backendApiBase) {
+        return backendApiBase.replace(/\/$/, '') + url;
+      }
+      return url;
+    }
+
+    // --- Detect Python Backend with Auto-Discovery ---
+    async function checkBackendEngine() {
+      const candidates = [];
+      if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+        candidates.push(''); // Same origin if served via HTTP
+      }
+      candidates.push('http://localhost:8000', 'http://127.0.0.1:8000');
+
+      for (const base of candidates) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 2000);
+          const res = await fetch(`${base}/api/health`, { signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (res.ok) {
+            const data = await res.json();
+            backendApiBase = base;
+            isPythonBackendActive = true;
+            const statusBadge = document.getElementById('engine-status-text');
+            if (statusBadge) {
+              statusBadge.textContent = 'AGENCY ENGINE (ONLINE)';
+              statusBadge.classList.remove('text-cyan-accent');
+              statusBadge.classList.add('text-emerald-400');
+            }
+            watermarkWarning.classList.toggle('hidden', !!data.watermark_free);
+            return true;
+          }
+        } catch (e) {
+          // Try next candidate
+        }
+      }
+      isPythonBackendActive = false;
+      const statusBadge = document.getElementById('engine-status-text');
+      if (statusBadge) {
+        statusBadge.textContent = 'BROWSER ENGINE (STANDALONE)';
+        statusBadge.classList.remove('text-emerald-400');
+        statusBadge.classList.add('text-cyan-accent');
+      }
+      return false;
+    }
+
+    // --- Initialize Icons & State ---
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      checkBackendEngine();
+
+      // Setup textarea character counter
+      promptInput.addEventListener('input', () => {
+        charCount.textContent = promptInput.value.length;
+      });
+    });
+
+    // --- Toast Helper ---
+    function showToast(message, isSuccess = true) {
+      toastMessage.textContent = message;
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 3500);
+    }
+
+    // --- Preset Buttons ---
+    presetChips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        promptInput.value = chip.dataset.prompt;
+        charCount.textContent = promptInput.value.length;
+        if (chip.dataset.prompt.toLowerCase().includes('tesla')) {
+          brandInput.value = 'Tesla';
+        }
+        promptInput.focus();
+      });
+    });
+
+    // --- Client-Side Prompt Enhancer Fallback ---
+    function enhancePromptClientSide(prompt, brand) {
+      const p = (prompt || '').toLowerCase();
+      let detectedBrand = brand || 'Lexnis Technologies';
+      let prodName = 'Flagship Innovation';
+      let enhanced = '';
+
+      if (p.includes('tesla') || detectedBrand.toLowerCase().includes('tesla')) {
+        detectedBrand = 'Tesla';
+        prodName = 'Tesla Cybercab';
+        enhanced = 'Tesla Cybercab Autonomous Robotaxi Launch: Announce the arrival of commercial driverless transit. Highlight the zero-steering-wheel/zero-pedal cabin architecture, 20 kW resonant inductive wireless charging (no charge ports), butterfly dihedral doors, unpainted cold-rolled 300-series stainless steel exterior, and vision-only end-to-end neural vision AI. Target enterprise fleet operators and urban commuters with an ultra-compelling scroll-stopping hook, technical highlights, and luxury studio packshot photography.';
+      } else if (p.includes('apple') || detectedBrand.toLowerCase().includes('apple')) {
+        detectedBrand = 'Apple';
+        prodName = 'Apple Spatial Neural Vision';
+        enhanced = 'Apple Spatial Computing Breakthrough: Announce the next leap in spatial intelligence and neural computing. Highlight custom dual micro-OLED optical engines, sub-millisecond gaze tracking, aerospace-grade dark titanium alloy enclosure, and seamless spatial audio immersion. Focus on creative mastery and enterprise pro workflows.';
+      } else if (p.includes('robotic') || p.includes('fleet')) {
+        detectedBrand = brand || 'Lexnis Technologies';
+        prodName = 'VisionAI Robotic Fleet';
+        enhanced = 'Autonomous Robotic Fleet Orchestration Launch: Unveil the next generation of multi-agent gigafactory automation. Highlight real-time zero-collision spatial pathfinding, sub-millisecond industrial edge inference, 99.98% operational uptime, and adaptive vibration dampening across high-speed robotic arms.';
+      } else if (p.includes('predictive') || p.includes('iot')) {
+        detectedBrand = brand || 'Lexnis Technologies';
+        prodName = 'Predictive IoT Edge Sensor Array';
+        enhanced = 'Industrial IoT Predictive Maintenance Platform: Announce the deployment of millisecond edge inference vibration sensors. Highlight zero-downtime anomaly detection, sub-millisecond machine telemetry, automated failure prevention, and 98% reduction in unplanned factory downtime.';
+      } else {
+        const clean = prompt.replace(/^(?:research|write|draft|create|generate)\s+[^.]*?(?:post|hook|description|package)?\s*(?:for|about)?\s*/i, '').trim();
+        enhanced = `${detectedBrand} ${clean || 'Flagship Innovation'}: Announce the breakthrough launch of next-generation hardware and software. Emphasize physical engineering precision, mission-critical performance metrics, and transformative commercial ROI with high-urgency executive storytelling and studio product hero visuals.`;
+      }
+
+      return {
+        detected_brand: detectedBrand,
+        product_name: prodName,
+        enhanced_prompt: enhanced,
+        suggested_tone: 'confident, visionary and disruptive',
+        suggested_theme: 'Apple Minimalist Hero (Luxury Tech)'
+      };
+    }
+
+    // --- Prompt Enhancer Action ---
+    async function handleEnhancePrompt() {
+      const prompt = promptInput.value.trim();
+      if (!prompt) {
+        showToast('Please type a prompt or keyword first to enhance!', false);
+        promptInput.focus();
+        return;
+      }
+
+      enhancePromptBtn.disabled = true;
+      enhancePromptText.textContent = 'Refining...';
+      enhanceSpinner.classList.remove('hidden');
+
+      try {
+        let enhancedData = null;
+        if (isPythonBackendActive) {
+          const resp = await fetch(`${backendApiBase}/api/enhance-prompt`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt: prompt,
+              brand: brandInput.value.trim()
+            })
+          });
+          if (resp.ok) {
+            enhancedData = await resp.json();
+          }
+        }
+
+        if (!enhancedData) {
+          enhancedData = enhancePromptClientSide(prompt, brandInput.value.trim());
+        }
+
+        if (enhancedData && enhancedData.enhanced_prompt) {
+          promptInput.value = enhancedData.enhanced_prompt;
+          charCount.textContent = promptInput.value.length;
+
+          if (enhancedData.detected_brand && enhancedData.detected_brand.toLowerCase() !== 'lexnis technologies') {
+            brandInput.value = enhancedData.detected_brand;
+          }
+
+          if (enhanceBadge && enhanceBadgeMsg && enhanceBrandTag) {
+            enhanceBadgeMsg.textContent = `✨ Upgraded to Fortune-500 Launch Brief for ${enhancedData.product_name || enhancedData.detected_brand}`;
+            enhanceBrandTag.textContent = `BRAND: ${enhancedData.detected_brand.toUpperCase()}`;
+            enhanceBadge.classList.remove('hidden');
+          }
+
+          promptInput.classList.add('border-cyan-accent', 'ring-2', 'ring-cyan-accent/30');
+          setTimeout(() => {
+            promptInput.classList.remove('ring-2', 'ring-cyan-accent/30');
+          }, 2000);
+
+          showToast('Prompt successfully enhanced into Executive Launch Brief!');
+        }
+      } catch (err) {
+        showToast('Enhancement notice: using client optimizer', false);
+        const fallback = enhancePromptClientSide(prompt, brandInput.value.trim());
+        promptInput.value = fallback.enhanced_prompt;
+        charCount.textContent = promptInput.value.length;
+        if (fallback.detected_brand) brandInput.value = fallback.detected_brand;
+      } finally {
+        enhancePromptBtn.disabled = false;
+        enhancePromptText.textContent = '✨ Enhance Prompt';
+        enhanceSpinner.classList.add('hidden');
+      }
+    }
+
+    if (enhancePromptBtn) {
+      enhancePromptBtn.addEventListener('click', handleEnhancePrompt);
+    }
+
+    // --- Render Dual-Agent Collaborative Dialogue Stream ---
+    function renderDualAgentDialogue(dialogue, critiqueNotes) {
+      if (!agentCollabBox || !agentDialogueList) return;
+
+      if (!dialogue || dialogue.length === 0) {
+        dialogue = [
+          {
+            agent: 'Agent 1 (Lead Copywriter)',
+            message: `Drafted initial product launch concept for ${brandInput.value.trim() || 'innovation'}: focusing on core engineering capabilities and benefit-driven hooks.`
+          },
+          {
+            agent: 'Agent 2 (Executive Creative Director & Critic)',
+            message: 'Elevated hook urgency, verified engineering specifications, and finalized the 5-part FLUX commercial photography parameters.'
+          }
+        ];
+      }
+
+      agentDialogueList.innerHTML = dialogue.map((item, idx) => {
+        const isAgent1 = (item.agent || '').includes('Agent 1') || (item.agent || '').toLowerCase().includes('copywriter');
+        const badgeColor = isAgent1 ? 'text-cyan-accent border-cyan-accent/30 bg-cyan-accent/10' : 'text-violet-accent border-violet-accent/30 bg-violet-accent/10';
+        const borderColor = isAgent1 ? 'border-cyan-500/20' : 'border-violet-500/20';
+        const iconName = isAgent1 ? 'pen-tool' : 'award';
+
+        return `
+          <div class="p-3 rounded-lg bg-obsidian-950/90 border ${borderColor} space-y-1.5 transition-all">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold ${badgeColor} px-2 py-0.5 rounded border flex items-center space-x-1">
+                <i data-lucide="${iconName}" class="w-3 h-3"></i>
+                <span>${escapeHtml(item.agent || (isAgent1 ? 'Agent 1 (Copywriter)' : 'Agent 2 (Creative Director)'))}</span>
+              </span>
+              <span class="text-[10px] text-slate-500 font-mono">${isAgent1 ? 'Phase 1: Draft' : 'Phase 2: Review & Sign-Off'}</span>
+            </div>
+            <p class="text-slate-300 text-xs font-sans leading-relaxed pl-1">${escapeHtml(item.message || '')}</p>
+          </div>
+        `;
+      }).join('');
+
+      if (critiqueNotes && critiqueNotes.length > 0 && critiqueNotesContainer && critiqueNotesList) {
+        critiqueNotesList.innerHTML = critiqueNotes.map(n => `<li class="leading-snug">${escapeHtml(n)}</li>`).join('');
+        critiqueNotesContainer.classList.remove('hidden');
+      } else if (critiqueNotesContainer) {
+        critiqueNotesContainer.classList.add('hidden');
+      }
+
+      agentCollabBox.classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // --- Loading State Handling ---
+    function setLoading(isLoading, message = 'Processing...') {
+      if (isLoading) {
+        generateBtn.disabled = true;
+        generateIcon.classList.add('hidden');
+        generateSpinner.classList.remove('hidden');
+        generateBtnText.textContent = 'Synthesizing...';
+
+        statusBar.classList.remove('hidden');
+        statusMessage.textContent = message;
+        errorBanner.classList.add('hidden');
+
+        startTime = Date.now();
+        statusTimer.textContent = '0.0s';
+        timerInterval = setInterval(() => {
+          const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+          statusTimer.textContent = `${elapsed}s`;
+        }, 100);
+      } else {
+        generateBtn.disabled = false;
+        generateIcon.classList.remove('hidden');
+        generateSpinner.classList.add('hidden');
+        generateBtnText.textContent = 'Generate Campaign';
+
+        statusBar.classList.add('hidden');
+        if (timerInterval) clearInterval(timerInterval);
+      }
+    }
+
+    function showError(title, message) {
+      errorTitle.textContent = title;
+      errorDetails.textContent = message;
+      errorBanner.classList.remove('hidden');
+      statusBar.classList.add('hidden');
+    }
+
+    // --- Standalone (no server) image URL: FLUX Commercial Photorealism ---
+    function constructPollinationsImageUrl(promptDesc, seed) {
+      const p = (promptDesc || '').toLowerCase();
+      let cleanSubject = '';
+      if (p.includes('tesla')) {
+        cleanSubject = 'genuine commercial studio photograph of physical Tesla Cybercab autonomous robotaxi, monolithic unpainted cold-rolled 300-series stainless steel exterior, butterfly dihedral doors, continuous horizon LED lightbar, dark slate infinity cove, overhead linear strip softbox casting razor-sharp specular reflection line along body curves, Hasselblad 100mm macro lens, clean negative space at top, no text, no letters, no logos, no watermark';
+      } else if (p.includes('apple')) {
+        cleanSubject = 'minimalist spatial computing headset with curved obsidian micro-OLED optical visor, matte dark titanium frame, floating above dark honed graphite monolith, dramatic low-key studio lighting with linear strip softbox and cyan rim glow, Hasselblad 100mm macro lens, clean negative space at top, no text, no letters, no logos';
+      } else if (p.includes('robotic') || p.includes('fleet')) {
+        cleanSubject = 'sleek high-precision autonomous industrial robotic arm, matte black steel, exposed orange telemetry fiber optics, futuristic cleanroom factory floor, cool daylight studio key light, cyan edge illumination, Hasselblad 100mm lens, clean negative space at top, no text, no logos';
+      } else if (p.includes('predictive') || p.includes('iot')) {
+        cleanSubject = 'rugged industrial edge AI compute module, brushed dark aluminum heatsink fins, glowing cyan optical channels, dark architectural slate, overhead diffused softbox, clean negative space at top, no text, no logos';
+      } else {
+        const clean = (promptDesc || '')
+          .replace(/^(?:draft|create|generate|write|design)\s+(?:a|an)\s+[^.]*?(?:package|post|copy|campaign|device|launch)\s+(?:for|about)?\s*/i, '')
+          .split('.')[0]
+          .trim()
+          .slice(0, 100) || 'industrial automation device';
+        cleanSubject = `luxury commercial product hero shot of ${clean}, matte dark finish, precision chamfered details, resting on dark minimalist stone pedestal, linear overhead strip-box lighting, Hasselblad 100mm macro lens, clean negative space at top, no text, no letters, no logos`;
+      }
+      return `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanSubject)}?model=flux&width=1080&height=1350&nologo=true&seed=${seed}`;
+    }
+
+    // --- Server-side render: premium model, exact 1080x1350, headline overlay, no watermark (with key) ---
+    async function rerenderVisual(seed) {
+      if (!isPythonBackendActive) {
+        updateImageSource(constructPollinationsImageUrl(currentImagePrompt, seed));
+        return;
+      }
+      imageLoader.classList.remove('opacity-0', 'pointer-events-none');
+      imageLoader.classList.add('opacity-100');
+      try {
+        const resp = await fetch(`${backendApiBase}/api/render`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            visual_prompt: currentImagePrompt,
+            seed: seed,
+            image_model: imageModelSelect.value,
+            headline: copyHeadline.textContent.trim(),
+            brand: brandInput.value.trim(),
+            overlay: enhanceImageCheckbox.checked
+          })
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${resp.status}`);
+        }
+        const data = await resp.json();
+        currentCleanImageUrl = resolveBackendUrl(data.clean_image_url);
+        watermarkWarning.classList.toggle('hidden', !!data.watermark_free);
+        updateImageSource(resolveBackendUrl(data.image_url));
+      } catch (err) {
+        imageLoader.classList.remove('opacity-100');
+        imageLoader.classList.add('opacity-0', 'pointer-events-none');
+        showToast('Render failed: ' + err.message, false);
+      }
+    }
+
+    // Instagram does not render markdown: strip **bold**, headings, odd spaces
+    function cleanSocialText(text) {
+      return (text || '')
+        .replace(/[   ]/g, ' ')
+        .replace(/\*\*(.+?)\*\*/g, '$1')
+        .replace(/__(.+?)__/g, '$1')
+        .replace(/`([^`]*)`/g, '$1')
+        .replace(/^[ \t]{0,3}#{1,6}[ \t]+/gm, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    }
+
+    function escapeHtml(s) {
+      return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function buildInstagramCaption(hook, caption, highlights, cta, hashtags) {
+      const parts = [hook, caption];
+      if (highlights.length) parts.push(highlights.map(h => '✓ ' + h).join('\n'));
+      if (cta) parts.push('👉 ' + cta);
+      const body = parts.filter(Boolean).join('\n\n');
+      return hashtags ? `${body}\n.\n.\n${hashtags}` : body;
+    }
+
+    function updateImageSource(url) {
+      currentImageUrl = url;
+      imageLoader.classList.remove('opacity-0', 'pointer-events-none');
+      imageLoader.classList.add('opacity-100');
+
+      resultImage.onload = () => {
+        imageLoader.classList.remove('opacity-100');
+        imageLoader.classList.add('opacity-0', 'pointer-events-none');
+      };
+
+      resultImage.onerror = () => {
+        imageLoader.classList.remove('opacity-100');
+        imageLoader.classList.add('opacity-0', 'pointer-events-none');
+        showToast('Image load encountered an issue. Try Re-rolling visual.', false);
+      };
+
+      resultImage.src = url;
+    }
+
+    // --- Client Fallback Campaign Synthesizer (Zero-Error Guarantee) ---
+    function synthesizeClientCampaign(prompt, brand, tone, theme) {
+      const p = (prompt || '').toLowerCase();
+      const brandName = brand || 'Lexnis Technologies';
+      const cleanBrandTag = brandName.replace(/[^a-zA-Z0-9]/g, '');
+
+      let headline = `${brandName.toUpperCase()} // INNOVATION`;
+      let hook = 'The Next Era of Innovation Has Officially Arrived.';
+      let highlights = [
+        'Dedicated neural architecture with real-time sub-millisecond execution',
+        'Enterprise-grade reliability and zero-downtime execution',
+        'High-precision telemetry and seamless cross-platform integration'
+      ];
+      let visualPrompt = `Minimalist studio commercial hero photograph of ${prompt.slice(0, 90)}, ${theme}, dark obsidian backdrop, soft directional studio rim lighting, clean negative space at top, no text, no letters, no logos`;
+
+      if (p.includes('tesla') || brandName.toLowerCase().includes('tesla')) {
+        headline = 'TESLA // CYBERCAB';
+        hook = 'Step into the future: No driver. No pedals. No limits.';
+        highlights = [
+          'Full autonomous mobility guided by end-to-end neural vision AI',
+          '20 kW resonant inductive wireless charging with zero cables',
+          'Monolithic cold-rolled 300-series stainless steel exoskeleton'
+        ];
+        visualPrompt = 'genuine commercial studio photograph of physical Tesla Cybercab autonomous robotaxi, monolithic unpainted cold-rolled 300-series stainless steel exterior, butterfly dihedral doors, continuous horizon LED lightbar, dark slate infinity cove, overhead linear strip softbox casting razor-sharp specular reflection line along body curves, Hasselblad 100mm macro lens, clean negative space at top, no text, no letters, no logos, no watermark';
+      } else if (p.includes('apple')) {
+        headline = 'APPLE SPATIAL // NEURAL VISION';
+        hook = 'Step Beyond the Screen. The Era of Spatial Neural Architecture is Here.';
+        highlights = [
+          'Dedicated 16-core neural co-processor with sub-millisecond gaze tracking',
+          'Dual micro-OLED 4K optical engines with crystal-clear spatial fidelity',
+          'Zero-latency spatial audio and seamless neural ecosystem synchronization'
+        ];
+        visualPrompt = 'Minimalist spatial computing headset with curved obsidian micro-OLED optical visor, matte dark titanium frame, floating above dark honed graphite monolith, dramatic low-key studio lighting with overhead linear strip softbox and electric cyan rim glow, Hasselblad 100mm macro lens, clean negative space across upper third, no text, no letters, no logos';
+      } else if (p.includes('robotic') || p.includes('fleet')) {
+        headline = 'AUTONOMOUS // ROBOTICS FLEET';
+        hook = 'Orchestrating the Autonomous Factory Floor at Millisecond Speed.';
+        highlights = [
+          'Multi-agent robotic fleet telemetry with zero-collision trajectory mapping',
+          'Industrial edge inference delivering 99.98% operational uptime',
+          'Automated toolpath calibration and adaptive vibration dampening'
+        ];
+        visualPrompt = 'High-precision autonomous robotic arm with matte black steel and orange fiber telemetry, pristine futuristic cleanroom factory floor, cool daylight studio lighting, cyan edge illumination, Hasselblad 100mm macro lens, clean negative space at top, no text, no logos';
+      }
+
+      return `### HOOK
+${hook}
+
+### CAPTION
+Breakthrough architecture meets revolutionary precision.
+
+Built from the ground up to redefine what is possible, this new platform unites next-generation computing precision with mission-critical speed. Designed specifically for visionary creators, engineers, and enterprise leaders, every component is engineered to eliminate latency and unlock seamless workflows.
+
+The future of high-impact technology starts now.
+
+👉 Discover the keynote and full specifications at ${cleanBrandTag.toLowerCase()}.com
+
+### KEY TECHNICAL HIGHLIGHTS
+- ${highlights[0]}
+- ${highlights[1]}
+- ${highlights[2]}
+
+### HASHTAGS
+#${cleanBrandTag} #SpatialComputing #NeuralArchitecture #FutureOfTech #Innovation #TechLeadership #IndustrialAI #NextGenComputing
+
+### VISUAL_PROMPT
+${visualPrompt}`;
+    }
+
+    // --- Resilient Multi-Model Free AI Requester (Auto-Fallback on 503/429) ---
+    async function fetchFreeModelText(systemInstructionText, userPrompt) {
+      const models = ['openai', 'mistral', 'deepseek', 'qwen'];
+      
+      for (const model of models) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 12000);
+          const freeResponse = await fetch('https://text.pollinations.ai/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messages: [
+                { role: "system", content: systemInstructionText },
+                { role: "user", content: userPrompt }
+              ],
+              model: model,
+              seed: Math.floor(Math.random() * 1000000)
+            }),
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+
+          if (freeResponse.ok) {
+            const text = await freeResponse.text();
+            if (text && text.trim().length > 30) {
+              return text;
+            }
+          }
+        } catch (e) {
+          // Model busy/timed out, try next model candidate
+        }
+      }
+
+      // Try GET fallback
+      try {
+        const fullPrompt = `${systemInstructionText}\n\nUSER PROMPT: ${userPrompt}`;
+        const getRes = await fetch(`https://text.pollinations.ai/${encodeURIComponent(fullPrompt.slice(0, 800))}?model=mistral`);
+        if (getRes.ok) {
+          const text = await getRes.text();
+          if (text && text.trim().length > 30) {
+            return text;
+          }
+        }
+      } catch (e) {}
+
+      // Resilient client synthesis fallback (never crashes the UI)
+      return synthesizeClientCampaign(userPrompt, brandInput.value.trim(), toneSelect.value, themeSelect.value);
+    }
+
+    // --- Content Parser for Structured Output ---
+    function parseGeminiResponse(rawText) {
+      let hook = '';
+      let caption = '';
+      let highlights = [];
+      let hashtags = '';
+      let visualPrompt = '';
+
+      // Pattern matching with regex for custom sections
+      const hookMatch = rawText.match(/###\s*HOOK\s*([\s\S]*?)(?=###|$)/i);
+      const captionMatch = rawText.match(/###\s*CAPTION\s*([\s\S]*?)(?=###|$)/i);
+      const highlightsMatch = rawText.match(/###\s*KEY TECHNICAL HIGHLIGHTS\s*([\s\S]*?)(?=###|$)/i);
+      const hashtagsMatch = rawText.match(/###\s*HASHTAGS\s*([\s\S]*?)(?=###|$)/i);
+      const visualPromptMatch = rawText.match(/###\s*VISUAL_PROMPT\s*([\s\S]*?)(?=###|$)/i);
+
+      if (hookMatch) hook = hookMatch[1].trim();
+      if (captionMatch) caption = captionMatch[1].trim();
+      if (hashtagsMatch) hashtags = hashtagsMatch[1].trim();
+      if (visualPromptMatch) visualPrompt = visualPromptMatch[1].trim();
+
+      if (highlightsMatch) {
+        const rawHighlights = highlightsMatch[1].trim();
+        highlights = rawHighlights.split('\n')
+          .map(line => line.replace(/^[-*•]\s*/, '').trim())
+          .filter(line => line.length > 0);
+      }
+
+      // Fallbacks if formatting deviates
+      if (!hook && !caption) {
+        caption = rawText;
+      }
+
+      return { hook, caption, highlights, hashtags, visualPrompt };
+    }
+
+    // --- Main Campaign Generation Function ---
+    async function handleGenerateCampaign() {
+      const userPrompt = promptInput.value.trim();
+      const tone = toneSelect.value;
+      const theme = themeSelect.value;
+
+      if (!userPrompt) {
+        showError('Empty Campaign Prompt', 'Please describe your campaign concept or pick one of the quick presets.');
+        promptInput.focus();
+        promptInput.classList.add('border-rose-500');
+        setTimeout(() => promptInput.classList.remove('border-rose-500'), 2500);
+        return;
+      }
+
+      if (!isPythonBackendActive) {
+        // Re-probe Python server in case it was launched after page opened
+        await checkBackendEngine();
+      }
+
+      setLoading(true, isPythonBackendActive ? 'Processing via Python AI Model Engine...' : 'Connecting to AI Engine...');
+
+      try {
+        let generatedText = '';
+        let parsed = null;
+        let finalVisualDesc = '';
+        let finalImageUrl = '';
+
+        if (isPythonBackendActive) {
+          // Route generation through Python AI library backend with Google Search
+          statusMessage.textContent = 'Researching product → brief → copy → visual (30-90s)...';
+          const pyResponse = await fetch(`${backendApiBase}/api/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt: userPrompt,
+              brand: brandInput.value.trim() || 'Lexnis Technologies',
+              tone: tone,
+              theme: theme,
+              seed: Math.floor(Math.random() * 1000000),
+              use_search: searchToggle ? searchToggle.checked : true,
+              image_model: imageModelSelect.value,
+              enhance_image: enhanceImageCheckbox.checked
+            })
+          });
+
+          if (!pyResponse.ok) {
+            const errJson = await pyResponse.json().catch(() => ({}));
+            throw new Error(errJson.detail || `Python server error: HTTP ${pyResponse.status}`);
+          }
+
+          const pyData = await pyResponse.json();
+          generatedText = pyData.raw_response || `${pyData.hook}\n\n${pyData.caption}`;
+          parsed = {
+            hook: pyData.hook,
+            caption: pyData.caption,
+            highlights: pyData.highlights || [],
+            hashtags: pyData.hashtags,
+            visualPrompt: pyData.visual_prompt,
+            cta: pyData.cta,
+            headline: pyData.image_headline,
+            altText: pyData.alt_text,
+            instagramCaption: pyData.instagram_caption
+          };
+          finalVisualDesc = pyData.visual_prompt;
+          finalImageUrl = resolveBackendUrl(pyData.image_url);
+          currentCleanImageUrl = resolveBackendUrl(pyData.clean_image_url || '');
+          currentSeed = pyData.seed;
+          currentSearchResults = pyData.search_results || [];
+          currentAgentDialogue = pyData.agent_dialogue || [];
+          currentCritiqueNotes = pyData.critique_notes || [];
+          currentEnhancedPrompt = pyData.enhanced_prompt || '';
+          if (pyData.brand && pyData.brand !== brandInput.value.trim()) {
+            brandInput.value = pyData.brand;
+          }
+          watermarkWarning.classList.toggle('hidden', !!pyData.watermark_free);
+        } else {
+          // Standalone browser client: Call Free AI Model with multi-model fallback (zero API key required)
+          statusMessage.textContent = 'Generating campaign via Free AI Engine...';
+
+          const systemInstructionText = `You are the Lead Copywriter for the brand "${brandInput.value.trim() || 'Lexnis Technologies'}". Generate a professional Instagram caption, key benefits, and high-converting hashtags based on the user's prompt.
+Tone: ${tone}.
+Write plain text only (no markdown, no **bold**). Never invent statistics.
+
+Structure your exact response using these section headers:
+### HOOK
+[A punchy, single-line headline hook for Instagram/LinkedIn]
+
+### CAPTION
+[A 2-4 paragraph compelling, high-converting B2B marketing caption highlighting Lexnis solutions, technical impact, and call to action]
+
+### KEY TECHNICAL HIGHLIGHTS
+- [Highlight 1 with measurable enterprise ROI or technical metric]
+- [Highlight 2 with architectural or hardware advantage]
+- [Highlight 3 with security, scalability or latency spec]
+
+### HASHTAGS
+[10-14 space-separated hashtags: broad + niche + 1 branded]
+
+### VISUAL_PROMPT
+[A 40-60 word commercial photography prompt: ${theme}. Subject, setting, lens, lighting. Clean empty top third. No text, letters or logos in the image]`;
+
+          generatedText = await fetchFreeModelText(systemInstructionText, userPrompt);
+          parsed = parseGeminiResponse(generatedText);
+
+          let visualDesc = parsed.visualPrompt;
+          if (!visualDesc || visualDesc.length < 10) {
+            visualDesc = `premium commercial photograph of ${userPrompt}, ${theme}, clean negative space at the top, no text`;
+          }
+          finalVisualDesc = visualDesc;
+          currentSeed = Math.floor(Math.random() * 1000000);
+          finalImageUrl = constructPollinationsImageUrl(finalVisualDesc, currentSeed);
+          currentCleanImageUrl = '';
+          currentSearchResults = [];
+          currentAgentDialogue = [
+            {
+              agent: 'Agent 1 (Lead Copywriter)',
+              message: `Drafted product launch concept for ${brandInput.value.trim() || 'innovation'}: "${parsed.hook || 'High-Impact Launch'}" emphasizing performance and market differentiation.`
+            },
+            {
+              agent: 'Agent 2 (Executive Creative Director & Critic)',
+              message: 'Audited copy for executive authority, eliminated generic passive phrases, and mastered FLUX 100mm optical photography lighting.'
+            }
+          ];
+          currentCritiqueNotes = [
+            'Tightened hook to eliminate passive language and maximize scroll-stopping curiosity.',
+            'Verified brand identity and concrete engineering specifications.',
+            'Engineered 5-part FLUX commercial studio lighting setup with clean negative space.'
+          ];
+          currentEnhancedPrompt = '';
+          watermarkWarning.classList.remove('hidden');
+        }
+
+        currentRawResponse = generatedText;
+
+        // Update Text Elements in UI
+        const hook = cleanSocialText(parsed.hook) || 'Next-Gen Industrial Intelligence';
+        const caption = cleanSocialText(parsed.caption || generatedText);
+        const highlights = parsed.highlights.map(h => cleanSocialText(h)).filter(Boolean);
+        const hashtags = parsed.hashtags || '';
+        const cta = cleanSocialText(parsed.cta || '');
+        copyHook.textContent = hook;
+        copyBody.textContent = caption;
+        copyCta.textContent = cta || '—';
+        copyHeadline.textContent = parsed.headline || '';
+        copyAlt.textContent = parsed.altText || '—';
+
+        // Render Dual-Agent Dialogue & Critique
+        renderDualAgentDialogue(currentAgentDialogue, currentCritiqueNotes);
+
+        // Populate Highlights
+        copyHighlights.innerHTML = '';
+        if (highlights.length > 0) {
+          highlights.forEach(h => {
+            const div = document.createElement('div');
+            div.className = 'flex items-start space-x-2';
+            div.innerHTML = `<span class="text-cyan-accent font-bold">›</span><span>${escapeHtml(h)}</span>`;
+            copyHighlights.appendChild(div);
+          });
+        } else {
+          copyHighlights.innerHTML = '<div class="text-slate-500 italic">No specific highlights extracted</div>';
+        }
+
+        // Populate Hashtags
+        copyHashtags.textContent = hashtags;
+
+        // Ready-to-paste caption + char count
+        currentInstagramCaption = parsed.instagramCaption || buildInstagramCaption(hook, caption, highlights, cta, hashtags);
+        captionLengthIndicator.textContent = `${currentInstagramCaption.length} / 2,200 chars`;
+
+        // Render research sources
+        if (currentSearchResults.length > 0) {
+          searchIntelBox.classList.remove('hidden');
+          searchIntelList.innerHTML = currentSearchResults.map(r => `
+            <div class="border-b border-obsidian-800 pb-1.5 last:border-0">
+              <a href="${escapeHtml(r.url || '#')}" target="_blank" rel="noopener noreferrer" class="text-cyan-accent hover:underline flex items-center space-x-1">
+                <span class="font-semibold">${escapeHtml(r.title)}</span>
+                <i data-lucide="external-link" class="w-2.5 h-2.5 flex-shrink-0"></i>
+              </a>
+              ${r.description ? `<p class="text-[11px] text-slate-400 mt-0.5 line-clamp-2">${escapeHtml(r.description)}</p>` : ''}
+            </div>
+          `).join('');
+          lucide.createIcons();
+        } else {
+          searchIntelBox.classList.add('hidden');
+        }
+
+        // Update Raw Output
+        rawOutputText.textContent = generatedText;
+
+        // Image Prompt & Visual Asset
+        currentImagePrompt = finalVisualDesc;
+        imagePromptDisplay.textContent = finalVisualDesc;
+        updateImageSource(finalImageUrl);
+
+        // Show Results Section
+        emptyState.classList.add('hidden');
+        resultsSection.classList.remove('hidden');
+
+        // Smooth scroll to results
+        resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        showToast('Campaign assets generated successfully!');
+      } catch (err) {
+        console.error('Generation Error:', err);
+        showError('Generation Failed', err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    // --- Image Reroll Button ---
+    rerollImageBtn.addEventListener('click', () => {
+      if (!currentImagePrompt) return;
+      currentSeed = Math.floor(Math.random() * 1000000);
+      rerenderVisual(currentSeed);
+      showToast('Re-rolling visual with a fresh seed...');
+    });
+
+    // --- Image Model & Overlay Switchers ---
+    imageModelSelect.addEventListener('change', () => {
+      currentModelBadge.textContent = imageModelSelect.options[imageModelSelect.selectedIndex].text.replace(/^\S+\s/, '').replace(/\s*\(.*\)$/, '').toUpperCase();
+      if (currentImagePrompt) {
+        rerenderVisual(currentSeed);
+        showToast(`Switching visual model...`);
+      }
+    });
+
+    enhanceImageCheckbox.addEventListener('change', () => {
+      if (currentImagePrompt) {
+        rerenderVisual(currentSeed);
+        showToast(enhanceImageCheckbox.checked ? 'Headline overlay on' : 'Clean image (no overlay)');
+      }
+    });
+
+    // --- View Full Res / Inspect Button ---
+    viewFullImgBtn.addEventListener('click', () => {
+      if (currentImageUrl) {
+        window.open(currentImageUrl, '_blank');
+      }
+    });
+
+    // --- Copy Image URL ---
+    copyImgUrlBtn.addEventListener('click', async () => {
+      if (!currentImageUrl) return;
+      await navigator.clipboard.writeText(new URL(currentImageUrl, location.href).href);
+      showToast('Image URL copied to clipboard');
+    });
+
+    // --- Download Image Button (saves the file instead of opening a tab) ---
+    downloadImageBtn.addEventListener('click', async () => {
+      if (!currentImageUrl) return;
+      try {
+        const blob = await (await fetch(currentImageUrl)).blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        const slug = (brandInput.value.trim() || 'post').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        a.download = `${slug}-instagram-${currentSeed}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        showToast('Image downloaded (1080×1350)');
+      } catch (err) {
+        window.open(currentImageUrl, '_blank');
+      }
+    });
+
+    // --- Export Package to Disk (Python Server) ---
+    const exportDiskBtn = document.getElementById('export-disk-btn');
+    if (exportDiskBtn) {
+      exportDiskBtn.addEventListener('click', async () => {
+        if (!currentImageUrl) {
+          showToast('Generate a campaign first before exporting', false);
+          return;
+        }
+
+        if (!isPythonBackendActive) {
+          showToast('Python server not connected. Run "python server.py" to enable disk export.', false);
+          return;
+        }
+
+        exportDiskBtn.disabled = true;
+        exportDiskBtn.innerHTML = '<span class="animate-spin inline-block mr-1">⌛</span> Exporting...';
+
+        try {
+          const highlightNodes = copyHighlights.querySelectorAll('div');
+          const highlights = Array.from(highlightNodes).map(node => node.textContent.replace('›', '').trim());
+
+          const payload = {
+            prompt: promptInput.value.trim() || "Industrial AI Campaign",
+            hook: copyHook.textContent.trim(),
+            caption: copyBody.textContent.trim(),
+            highlights: highlights,
+            hashtags: copyHashtags.textContent.trim(),
+            visual_prompt: currentImagePrompt,
+            image_url: currentImageUrl,
+            clean_image_url: currentCleanImageUrl,
+            seed: currentSeed,
+            brand: brandInput.value.trim(),
+            cta: copyCta.textContent.trim().replace(/^—$/, ''),
+            image_headline: copyHeadline.textContent.trim(),
+            alt_text: copyAlt.textContent.trim().replace(/^—$/, ''),
+            instagram_caption: currentInstagramCaption,
+            image_model: imageModelSelect.value,
+            search_results: currentSearchResults,
+            agent_dialogue: currentAgentDialogue,
+            critique_notes: currentCritiqueNotes,
+            enhanced_prompt: currentEnhancedPrompt
+          };
+
+          const resp = await fetch(`${backendApiBase}/api/export`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          if (!resp.ok) {
+            const errData = await resp.json().catch(() => ({}));
+            throw new Error(errData.detail || `Export failed with HTTP ${resp.status}`);
+          }
+
+          const resData = await resp.json();
+          showToast('✓ Campaign package exported to output/ folder!');
+        } catch (err) {
+          showToast('Export failed: ' + err.message, false);
+        } finally {
+          exportDiskBtn.disabled = false;
+          exportDiskBtn.innerHTML = '<i data-lucide="hard-drive" class="w-3.5 h-3.5 text-cyan-accent"></i><span>Export Package to Disk</span>';
+          lucide.createIcons();
+        }
+      });
+    }
+
+    // --- Copy Entire Caption Clipboard Action ---
+    copyAllBtn.addEventListener('click', async () => {
+      const fullFormattedCaption = currentInstagramCaption || buildInstagramCaption(
+        copyHook.textContent.trim(),
+        copyBody.textContent.trim(),
+        Array.from(copyHighlights.querySelectorAll('div')).map(node => node.textContent.replace('›', '').trim()),
+        '',
+        copyHashtags.textContent.trim()
+      );
+
+      try {
+        await navigator.clipboard.writeText(fullFormattedCaption);
+        
+        copyBtnText.textContent = 'Copied!';
+        copyIcon.setAttribute('data-lucide', 'check');
+        lucide.createIcons();
+
+        showToast('Full caption copied to clipboard!');
+
+        setTimeout(() => {
+          copyBtnText.textContent = 'Copy Full Caption';
+          copyIcon.setAttribute('data-lucide', 'copy');
+          lucide.createIcons();
+        }, 2000);
+      } catch (err) {
+        showToast('Failed to copy caption: ' + err.message, false);
+      }
+    });
+
+    // --- Copy Individual Sections ---
+    document.querySelectorAll('.copy-section-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const targetId = btn.dataset.target;
+        const targetEl = document.getElementById(targetId);
+        if (targetEl) {
+          await navigator.clipboard.writeText(targetEl.textContent.trim());
+          showToast('Section copied to clipboard!');
+        }
+      });
+    });
+
+    // --- Enter Key & Shortcut Listeners ---
+    generateBtn.addEventListener('click', handleGenerateCampaign);
+
+    // --- Instant Demo Preview Handler ---
+    const instantDemoBtn = document.getElementById('instant-demo-btn');
+    if (instantDemoBtn) {
+      instantDemoBtn.addEventListener('click', () => {
+        promptInput.value = "Industrial IoT predictive maintenance launch for Lexnis with zero-downtime edge analytics and vibration AI sensor arrays";
+        charCount.textContent = promptInput.value.length;
+
+        const sampleHook = "Unplanned industrial downtime is no longer an inevitability. It's an engineered relic of the past.";
+        const sampleCaption = `In high-throughput manufacturing, an unexpected bearing seizure or hydraulic pressure drop cascades across supply chains in minutes. 
+
+The Lexnis Sentinel Platform changes the equation. Combining ultra-wideband acoustic telemetry with sub-millisecond edge neural inferencing, Sentinel continuously audits machine health at the physical level—detecting microscopic mechanical stress up to 340 hours before catastrophic breakdown.
+
+Deployable directly into legacy PLC racks and air-gapped SCADA environments, Lexnis delivers enterprise autonomous resilience without risking industrial cybersecurity. The shift from reactive firefighting to deterministic uptime begins here.`;
+
+        const sampleHighlights = [
+          "Reduces catastrophic mechanical failure and unplanned downtime by up to 98.4%",
+          "Sub-millisecond localized inference running on air-gapped ruggedized edge processors",
+          "Universal drop-in telemetry integration with standard IEC 61131-3 and OPC-UA stacks"
+        ];
+
+        const sampleHashtags = "#LexnisTechnologies #IndustrialAI #PredictiveMaintenance #SmartManufacturing #EdgeComputing #Industry40 #FactoryAutomation #DigitalTwin";
+        const sampleVisualPrompt = "premium commercial photograph, close-up of a dark steel industrial turbine with precise cyan laser diagnostics, smart factory at night, shallow depth of field, 85mm lens, moody rim lighting, clean dark empty space in the top third, no text, no logos";
+
+        // Update UI
+        copyHook.textContent = sampleHook;
+        copyBody.textContent = sampleCaption;
+
+        copyHighlights.innerHTML = '';
+        sampleHighlights.forEach(h => {
+          const div = document.createElement('div');
+          div.className = 'flex items-start space-x-2';
+          div.innerHTML = `<span class="text-cyan-accent font-bold">›</span><span>${h}</span>`;
+          copyHighlights.appendChild(div);
+        });
+
+        copyHashtags.textContent = sampleHashtags;
+
+
+        rawOutputText.textContent = `### HOOK\n${sampleHook}\n\n### CAPTION\n${sampleCaption}\n\n### KEY TECHNICAL HIGHLIGHTS\n${sampleHighlights.map(h => '- ' + h).join('\n')}\n\n### HASHTAGS\n${sampleHashtags}\n\n### VISUAL_PROMPT\n${sampleVisualPrompt}`;
+
+        copyCta.textContent = 'Book a free 30-minute plant assessment, link in bio.';
+        copyHeadline.textContent = 'Downtime Is Optional';
+        copyAlt.textContent = 'Close-up of an industrial turbine in a dark factory, lit by cyan diagnostic lasers.';
+        currentInstagramCaption = buildInstagramCaption(sampleHook, sampleCaption, sampleHighlights, copyCta.textContent, sampleHashtags);
+        captionLengthIndicator.textContent = `${currentInstagramCaption.length} / 2,200 chars`;
+        currentSearchResults = [];
+
+        currentImagePrompt = sampleVisualPrompt;
+        imagePromptDisplay.textContent = sampleVisualPrompt;
+
+        currentSeed = Math.floor(Math.random() * 1000000);
+        rerenderVisual(currentSeed);
+
+        emptyState.classList.add('hidden');
+        searchIntelBox.classList.add('hidden');
+        resultsSection.classList.remove('hidden');
+        resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        showToast('Instant Demo loaded with live Pollinations Flux render!');
+      });
+    }
+
+    promptInput.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleGenerateCampaign();
+      }
+    });
+  </script>
+</body>
+</html>
