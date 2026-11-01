@@ -270,6 +270,9 @@ class CampaignAsset:
     warnings: List[str] = field(default_factory=list)
     rivals: List[Dict[str, Any]] = field(default_factory=list)
     competitive_strategy: Dict[str, Any] = field(default_factory=dict)
+    visual_analysis: str = ""
+    visual_headline: str = ""
+    visual_tagline: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -303,13 +306,31 @@ def clean_social_text(text: str) -> str:
 def detect_brand_and_product(prompt: str, current_brand: str = "") -> Tuple[str, str]:
     """
     Intelligently infer true target brand and concrete flagship product from user prompt.
-    Extracts brand and product across global tech, automotive, AI, SaaS, and custom companies.
+    Extracts brand and product across global tech, automotive, AI, banking, luxury, SaaS, and custom companies.
+    Prompt content ALWAYS takes precedence over stale session brands.
     """
     p = (prompt or "").strip()
     p_lower = p.lower()
     b = (current_brand or "").strip()
 
     brand_catalog = [
+        # Banking & Wealth Management
+        ("bank of america", "Bank of America", ["private bank", "merrill", "wealth management", "preferred rewards", "cash rewards"]),
+        ("jpmorgan", "JPMorgan Chase", ["chase", "sapphire", "private bank", "reserve", "j.p. morgan"]),
+        ("goldman sachs", "Goldman Sachs", ["marcus", "private wealth", "asset management"]),
+        ("morgan stanley", "Morgan Stanley", ["etrade", "wealth management", "graystone"]),
+        ("american express", "American Express", ["amex", "centurion", "platinum", "membership rewards"]),
+        ("citigroup", "Citigroup", ["citi", "citi priority", "strata"]),
+        ("wells fargo", "Wells Fargo", ["autograph", "premier"]),
+        
+        # Luxury & Horology
+        ("rolex", "Rolex", ["submariner", "daytona", "datejust", "oyster perpetual", "gmt-master", "sea-dweller"]),
+        ("patek philippe", "Patek Philippe", ["nautilus", "aquanaut", "calatrava"]),
+        ("audemars piguet", "Audemars Piguet", ["royal oak", "offshore"]),
+        ("cartier", "Cartier", ["santos", "tank", "panthere"]),
+        ("omega", "Omega", ["speedmaster", "seamaster", "constellation"]),
+
+        # Tech, Automotive, AI & Robotics
         ("tesla", "Tesla", ["model 3", "model y", "model s", "model x", "cybercab", "robotaxi", "optimus", "roadster", "cybertruck", "fsd"]),
         ("apple", "Apple", ["vision pro", "spatial", "iphone", "macbook", "neural", "watch", "airpods", "ipad"]),
         ("rivian", "Rivian", ["r1t", "r1s", "r2", "r3", "commercial van"]),
@@ -324,6 +345,7 @@ def detect_brand_and_product(prompt: str, current_brand: str = "") -> Tuple[str,
         ("microsoft", "Microsoft", ["surface", "copilot", "quantum", "azure"]),
         ("sony", "Sony", ["alpha 1", "playstation", "spatial reality", "xperia"]),
         ("porsche", "Porsche", ["mission x", "taycan", "911", "macan electric"]),
+        ("ferrari", "Ferrari", ["f80", "296 gtb", "sf90", "purosangue"]),
         ("nike", "Nike", ["alphafly", "vaporfly", "air max", "adapt"]),
         ("datadog", "Datadog", ["apm", "cloud monitoring", "security", "synthetics"]),
         ("snowflake", "Snowflake", ["cortex", "data cloud", "snowpark"]),
@@ -331,43 +353,49 @@ def detect_brand_and_product(prompt: str, current_brand: str = "") -> Tuple[str,
         ("boston dynamics", "Boston Dynamics", ["atlas", "spot", "stretch"]),
     ]
 
-    detected_brand = b if b and b.lower() != "lexnis technologies" else ""
+    detected_brand = ""
     detected_product = ""
 
-    # 1. Catalog check
-    for brand_key, canonical_name, products in brand_catalog:
-        if re.search(rf"\b{brand_key}\b", p_lower):
-            if not detected_brand or b.lower() == "lexnis technologies":
-                detected_brand = canonical_name
-            for prod in products:
-                if prod in p_lower:
-                    detected_product = f"{canonical_name} {prod.title()}"
-                    break
-            break
+    # Specific typo tolerance for Bank of America (e.g., "bank of amerca", "bofa")
+    if re.search(r"\b(?:bank\s+of\s+am[eiar]*c?a?|bofa)\b", p_lower):
+        detected_brand = "Bank of America"
 
-    # 2. Dynamic heuristic extraction if brand still empty or default
-    if not detected_brand or detected_brand.lower() == "lexnis technologies":
-        # Look for explicit prefixes: "Research Tesla...", "Launch for Acme Robotics...", "Brand: Stripe"
+    # 1. Prompt Catalog Check FIRST (Prompt is the authoritative source of truth)
+    if not detected_brand:
+        for brand_key, canonical_name, products in brand_catalog:
+            if re.search(rf"\b{re.escape(brand_key)}\b", p_lower):
+                detected_brand = canonical_name
+                for prod in products:
+                    if prod in p_lower:
+                        detected_product = f"{canonical_name} {prod.title()}"
+                        break
+                break
+
+    # 2. Dynamic heuristic extraction from PROMPT if still empty
+    if not detected_brand:
         m = re.search(
-            r"\b(?:research|analyze|study|campaign for|launch package for|launch for|post for|about|by|at|brand:?)\s+([A-Za-z0-9&.-]+(?:\s+[A-Za-z0-9&.-]+)?)",
+            r"\b(?:research|analyze|study|campaign for|launch package for|launch for|post for|about|by|at|brand:?)\s+([A-Za-z0-9&.'-]+(?:\s+[A-Za-z0-9&.'-]+){0,3})",
             p,
             re.IGNORECASE
         )
         if m:
-            candidate = m.group(1).strip()
-            # Filter common stop words
-            cand_words = [w for w in candidate.split() if w.lower() not in {"a", "an", "the", "our", "new", "this", "revolutionary", "complete", "high-impact"}]
+            raw_cand = m.group(1).strip()
+            # Stop before conjunctions/clauses like "and write", "and draft", "to launch"
+            cut = re.split(r"\s+\b(?:and|with|to|in|on|for)\b", raw_cand, maxsplit=1, flags=re.I)[0].strip()
+            cand_words = [w for w in cut.split() if w.lower() not in {"a", "an", "the", "our", "new", "this", "revolutionary", "complete", "high-impact", "device", "post", "campaign"}]
             if cand_words:
-                cleaned_brand = " ".join(cand_words)
-                if len(cleaned_brand) >= 2 and cleaned_brand.lower() != "device":
-                    detected_brand = cleaned_brand
+                cand_brand = " ".join(cand_words)
+                if re.search(r"\bbank\s+of\s+am\w*a?\b", cand_brand.lower()):
+                    detected_brand = "Bank of America"
+                elif len(cand_brand) >= 2:
+                    detected_brand = cand_brand.title()
 
+    # 3. Only if prompt provided NO brand at all, fall back to current_brand
     if not detected_brand:
-        detected_brand = b or "Lexnis Technologies"
+        detected_brand = b if b and b.lower() != "lexnis technologies" else "Lexnis Technologies"
 
-    # 3. Dynamic product extraction if product is still empty
+    # 4. Dynamic product extraction if product is still empty
     if not detected_product:
-        # Check if user mentioned explicit product keywords like "Cybercab", "Vision Pro", "Billing"
         prod_match = re.search(
             rf"\b{re.escape(detected_brand)}\s+([A-Za-z0-9]+(?:\s+[A-Za-z0-9]+)?)",
             p,
@@ -685,6 +713,7 @@ class LexnisCampaignStudio:
         self.pollinations_key = os.getenv("POLLINATIONS_API_KEY", "")
         self.gemini_key = os.getenv("GEMINI_API_KEY", "")
         self.generation_warnings = []
+        self.last_vision_meta = {}
 
         # Explicit overrides > Gemini > Pollinations (keyed) > anonymous legacy endpoint
         if api_key and base_url:
@@ -1379,14 +1408,124 @@ class LexnisCampaignStudio:
         if not overlay or not HAS_PIL or not (headline or brand):
             return clean_path, clean_path, watermark_free
 
-        clean_hl = headline.strip()
-        tag = hashlib.sha1(f"ad-v4-natural-exposure|{clean_hl}|{brand}|{tagline}".encode()).hexdigest()[:8]
+        # AI Vision Art Director & Typographer: analyze what is actually in the rendered image
+        # and synthesize typography that matches the visual scene and brand.
+        vision_meta = self.typeset_visual_with_vision(
+            clean_path.read_bytes(),
+            brand=brand,
+            campaign_context=f"{headline} - {tagline}",
+            default_headline=headline,
+            default_tagline=tagline
+        )
+        self.last_vision_meta = vision_meta
+        clean_hl = (vision_meta.get("visual_headline") or headline).strip()
+        typeset_tagline = (vision_meta.get("visual_tagline") or tagline).strip()
+
+        tag = hashlib.sha1(f"ad-v5-vision-aligned|{clean_hl}|{brand}|{typeset_tagline}".encode()).hexdigest()[:8]
         post_path = out_dir / f"{key}_post_{tag}.jpg"
         if not post_path.exists():
-            compose_post(Image.open(clean_path), headline=clean_hl, brand=brand, tagline=tagline).save(
+            compose_post(Image.open(clean_path), headline=clean_hl, brand=brand, tagline=typeset_tagline).save(
                 post_path, "JPEG", quality=95, optimize=True
             )
         return post_path, clean_path, watermark_free
+
+    def typeset_visual_with_vision(
+        self,
+        image_bytes: bytes,
+        brand: str,
+        campaign_context: str = "",
+        default_headline: str = "",
+        default_tagline: str = ""
+    ) -> Dict[str, str]:
+        """
+        Multimodal Vision Typographer:
+        Inspects the rendered visual asset, analyzes composition, lighting, and hero subject,
+        and generates an ad headline and subline that organically fit WHAT IS ACTUALLY IN THE IMAGE.
+        """
+        clean_brand = brand.strip() if brand and brand.lower() != "lexnis technologies" else ""
+        fallback_headline = default_headline.strip() or clean_brand or "INNOVATION"
+        if clean_brand and fallback_headline.upper().startswith(clean_brand.upper()):
+            remainder = fallback_headline[len(clean_brand):].strip(" -//:")
+            if len(remainder) >= 3:
+                fallback_headline = remainder
+
+        short_tagline = default_tagline.strip()
+        if len(short_tagline.split()) > 10:
+            short_tagline = " ".join(short_tagline.split()[:9]) + "..."
+
+        result = {
+            "visual_subject": "Commercial hero scene",
+            "visual_analysis": "Commercial advertising photograph with balanced directional lighting and reserved negative space.",
+            "visual_headline": fallback_headline.upper(),
+            "visual_tagline": short_tagline
+        }
+
+        if not image_bytes or not self.gemini_key or requests is None:
+            return result
+
+        try:
+            import base64
+            b64_img = base64.b64encode(image_bytes).decode("utf-8")
+            vision_prompt = (
+                f"You are an Executive Art Director and Luxury Ad Typographer for {brand}.\n"
+                f"Analyze this newly generated commercial advertising photograph.\n"
+                f"Campaign Brand: {brand}\n"
+                f"Campaign Context / Core Benefit: {campaign_context[:400]}\n\n"
+                "TASK:\n"
+                "1. Identify the primary visual subject visible in this specific photo (e.g., 'scenic coastal highway at sunset', 'minimalist titanium device', 'precision robotic arm', 'industrial turbine with diagnostic beams').\n"
+                "2. Write a 1-sentence analysis of the image composition, lighting, and mood.\n"
+                "3. Compose an ad headline (strictly 2 to 4 words) that organically connects WHAT IS VISIBLE in this image with the brand's premium identity.\n"
+                "   - Crucial rule: Do NOT redundantly repeat the brand name.\n"
+                "   - If the image depicts an open road or horizon, invoke journey, vision, or future.\n"
+                "   - If the image depicts a physical product or machine, highlight precision, engineering, or mastery.\n"
+                "   - If the image depicts nature, architecture, or lifestyle, evoke prestige, permanence, or sovereign power.\n"
+                "4. Compose a punchy, elegant subtitle/tagline (strictly under 8 words) that reinforces the headline.\n\n"
+                "Respond ONLY with a JSON object:\n"
+                "{\n"
+                '  "visual_subject": "Primary object/scene visible",\n'
+                '  "visual_analysis": "One sentence describing visual composition and mood",\n'
+                '  "visual_headline": "2-4 WORDS PUNCHY HEADLINE",\n'
+                '  "visual_tagline": "Under 8 words subtitle fitting the image"\n'
+                "}"
+            )
+
+            models_to_try = [
+                os.getenv("GEMINI_VISION_MODEL", "gemini-3.5-flash-lite"),
+                "gemini-3.5-flash",
+                "gemini-3.8-flash"
+            ]
+
+            for m_name in models_to_try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{m_name}:generateContent?key={self.gemini_key}"
+                payload = {
+                    "contents": [{
+                        "parts": [
+                            {"text": vision_prompt},
+                            {"inline_data": {"mime_type": "image/jpeg", "data": b64_img}}
+                        ]
+                    }],
+                    "generationConfig": {
+                        "response_mime_type": "application/json",
+                        "temperature": 0.2
+                    }
+                }
+                resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=20)
+                if resp.ok:
+                    data = resp.json()
+                    parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                    if parts and parts[0].get("text"):
+                        parsed = json.loads(parts[0]["text"])
+                        hl = parsed.get("visual_headline", "").strip()
+                        if hl:
+                            result["visual_subject"] = parsed.get("visual_subject", result["visual_subject"])
+                            result["visual_analysis"] = parsed.get("visual_analysis", result["visual_analysis"])
+                            result["visual_headline"] = hl.upper()
+                            result["visual_tagline"] = parsed.get("visual_tagline", "").strip()
+                            return result
+        except Exception:
+            pass
+
+        return result
 
     # ---------- Full pipeline ----------
 
@@ -1414,7 +1553,7 @@ class LexnisCampaignStudio:
 
         # 0. Intelligent Brand Detection & Executive Prompt Enhancement
         detected_brand, detected_prod = detect_brand_and_product(prompt, brand)
-        if detected_brand and (brand.lower() == "lexnis technologies" or not brand):
+        if detected_brand:
             brand = detected_brand
 
         # The original request governs product identity and creative direction.
@@ -1501,6 +1640,10 @@ class LexnisCampaignStudio:
             warnings.append(str(exc))
 
         raw_response = json.dumps({"brief": brief, "post": post, "dialogue": dialogue, "critique": critique_notes}, indent=2, ensure_ascii=False)
+        vm = getattr(self, "last_vision_meta", {})
+        final_headline = vm.get("visual_headline") or headline
+        final_tagline = vm.get("visual_tagline") or hook[:110]
+        final_analysis = vm.get("visual_analysis") or ""
         return CampaignAsset(
             prompt=prompt,
             hook=hook,
@@ -1514,8 +1657,8 @@ class LexnisCampaignStudio:
             search_results=search_results,
             brand=brand,
             cta=cta,
-            image_headline=headline,
-            alt_text=alt_text,
+            image_headline=final_headline,
+            alt_text=f"Commercial luxury photograph of {final_headline}. {final_analysis}".strip(),
             instagram_caption=build_instagram_caption(hook, caption, highlights, cta, hashtags),
             brief=brief,
             image_model=image_model if image_model not in LEGACY_MODEL_ALIASES else DEFAULT_IMAGE_MODEL,
@@ -1531,6 +1674,9 @@ class LexnisCampaignStudio:
             warnings=warnings,
             rivals=rivals,
             competitive_strategy=competitive_strategy,
+            visual_analysis=final_analysis,
+            visual_headline=final_headline,
+            visual_tagline=final_tagline,
         )
 
     # ---------- Export ----------
@@ -1577,6 +1723,12 @@ class LexnisCampaignStudio:
         )
         if asset.alt_text:
             caption_text += f"\n\n---\nALT TEXT: {asset.alt_text}"
+
+        if asset.visual_analysis:
+            caption_text += f"\n\n---\nAI VISION SCENE ANALYSIS & IMAGE-AWARE TYPOGRAPHY:\n"
+            caption_text += f"* Visual Scene: {asset.visual_analysis}\n"
+            caption_text += f"* Image Headline: {asset.visual_headline}\n"
+            caption_text += f"* Image Subline: {asset.visual_tagline}\n"
 
         if asset.rivals:
             caption_text += "\n\n---\nCOMPETITIVE INTEL & RIVALS BATTLECARD:\n"

@@ -79,6 +79,7 @@ class RenderRequest(BaseModel):
     overlay: Optional[bool] = True
     output_format: Literal["portrait", "landscape", "square"] = "portrait"
     tagline: str = ""
+    campaign_context: Optional[str] = ""
 
 
 class ExportRequest(BaseModel):
@@ -106,6 +107,9 @@ class ExportRequest(BaseModel):
     warnings: List[str] = Field(default_factory=list)
     rivals: Optional[List[Dict[str, Any]]] = None
     competitive_strategy: Optional[Dict[str, Any]] = None
+    visual_analysis: Optional[str] = ""
+    visual_headline: Optional[str] = ""
+    visual_tagline: Optional[str] = ""
 
 
 @app.get("/")
@@ -204,6 +208,7 @@ def render_endpoint(req: RenderRequest):
             output_format=req.output_format,
             tagline=req.tagline,
         )
+        vm = getattr(studio, "last_vision_meta", {})
         return {
             "image_status": "ready",
             "warnings": [],
@@ -211,6 +216,9 @@ def render_endpoint(req: RenderRequest):
             "clean_image_url": render_url(str(clean_path)),
             "watermark_free": watermark_free,
             "seed": req.seed,
+            "visual_analysis": vm.get("visual_analysis", ""),
+            "visual_headline": vm.get("visual_headline", req.headline or ""),
+            "visual_tagline": vm.get("visual_tagline", req.tagline or ""),
         }
     except RuntimeError as e:
         # Provider/setup failures are an expected render outcome. Preserve the copy
@@ -253,6 +261,9 @@ def export_campaign_endpoint(req: ExportRequest):
             output_format=req.output_format, image_status=req.image_status, warnings=req.warnings,
             rivals=req.rivals or [],
             competitive_strategy=req.competitive_strategy or {},
+            visual_analysis=req.visual_analysis or "",
+            visual_headline=req.visual_headline or "",
+            visual_tagline=req.visual_tagline or "",
         )
         saved_files = studio.export_campaign(asset, output_dir=str(BASE_DIR / "output"))
         return {

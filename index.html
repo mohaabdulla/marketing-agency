@@ -388,6 +388,33 @@
               <span>Export Package to Disk</span>
             </button>
 
+            <!-- AI Vision Art Director (Image-Aware Typography) -->
+            <div id="vision-typographer-box" class="bg-obsidian-950/90 border border-cyan-500/30 rounded-xl p-3.5 space-y-2.5 text-xs font-mono shadow-md">
+              <div class="flex items-center justify-between pb-1.5 border-b border-obsidian-800">
+                <span class="text-xs font-mono font-bold text-cyan-accent flex items-center space-x-1.5">
+                  <i data-lucide="scan-eye" class="w-3.5 h-3.5"></i>
+                  <span>AI Vision Art Director</span>
+                </span>
+                <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-accent/10 border border-cyan-accent/30 text-cyan-accent font-semibold">
+                  Scene-Aware Text
+                </span>
+              </div>
+              <div class="space-y-1">
+                <div class="text-[10px] font-mono text-slate-400 uppercase tracking-wider">Analyzed Visual Scene</div>
+                <p id="vision-scene-analysis" class="text-xs text-slate-200 font-sans leading-relaxed italic">Generating visual scene analysis...</p>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                <div class="bg-obsidian-900 border border-obsidian-800/80 rounded-lg p-2.5">
+                  <div class="text-[10px] font-mono text-slate-400 uppercase">Typeset Headline</div>
+                  <p id="vision-headline-display" class="text-xs text-white font-tech font-bold uppercase truncate mt-0.5">—</p>
+                </div>
+                <div class="bg-obsidian-900 border border-obsidian-800/80 rounded-lg p-2.5">
+                  <div class="text-[10px] font-mono text-slate-400 uppercase">Typeset Subtitle</div>
+                  <p id="vision-tagline-display" class="text-xs text-slate-300 font-sans truncate mt-0.5">—</p>
+                </div>
+              </div>
+            </div>
+
             <!-- Raw Image Prompt Details Collapsible -->
             <div class="bg-obsidian-950 border border-obsidian-800 rounded-xl p-3 text-[11px] font-mono space-y-1">
               <div class="flex items-center justify-between text-slate-400">
@@ -802,6 +829,11 @@
     const toast = document.getElementById('toast');
     const toastMessage = document.getElementById('toast-message');
 
+    const visionTypographerBox = document.getElementById('vision-typographer-box');
+    const visionSceneAnalysis = document.getElementById('vision-scene-analysis');
+    const visionHeadlineDisplay = document.getElementById('vision-headline-display');
+    const visionTaglineDisplay = document.getElementById('vision-tagline-display');
+
     // --- State ---
     let isPythonBackendActive = false;
     let backendApiBase = '';
@@ -817,8 +849,21 @@
     let currentEnhancedPrompt = '';
     let currentRivals = [];
     let currentCompetitiveStrategy = {};
+    let currentVisualAnalysis = '';
+    let currentVisualHeadline = '';
+    let currentVisualTagline = '';
     let timerInterval = null;
     let startTime = 0;
+
+    function renderVisionTypographer(analysis, headline, tagline) {
+      if (!visionTypographerBox) return;
+      if (analysis || headline || tagline) {
+        visionTypographerBox.classList.remove('hidden');
+        if (visionSceneAnalysis) visionSceneAnalysis.textContent = analysis || 'Commercial advertising scene with photographic lighting.';
+        if (visionHeadlineDisplay) visionHeadlineDisplay.textContent = headline || '—';
+        if (visionTaglineDisplay) visionTaglineDisplay.textContent = tagline || '—';
+      }
+    }
 
     function resolveBackendUrl(url) {
       if (!url) return "";
@@ -1251,6 +1296,16 @@
         currentCleanImageUrl = resolveBackendUrl(data.clean_image_url);
         watermarkWarning.classList.toggle('hidden', !!data.watermark_free);
         updateImageSource(resolveBackendUrl(data.image_url));
+
+        if (data.visual_headline) {
+          currentVisualHeadline = data.visual_headline;
+          copyHeadline.textContent = data.visual_headline;
+        }
+        if (data.visual_analysis || data.visual_headline || data.visual_tagline) {
+          currentVisualAnalysis = data.visual_analysis || currentVisualAnalysis;
+          currentVisualTagline = data.visual_tagline || currentVisualTagline;
+          renderVisionTypographer(currentVisualAnalysis, currentVisualHeadline, currentVisualTagline);
+        }
       } catch (err) {
         document.getElementById('campaign-warnings').textContent = 'Render failed: ' + err.message;
         showToast('Render failed: ' + err.message, false);
@@ -1407,6 +1462,11 @@
           currentEnhancedPrompt = pyData.enhanced_prompt || '';
           currentRivals = pyData.rivals || [];
           currentCompetitiveStrategy = pyData.competitive_strategy || {};
+          currentVisualAnalysis = pyData.visual_analysis || '';
+          currentVisualHeadline = pyData.visual_headline || pyData.image_headline || '';
+          currentVisualTagline = pyData.visual_tagline || '';
+          renderVisionTypographer(currentVisualAnalysis, currentVisualHeadline, currentVisualTagline);
+
           if (pyData.brand && pyData.brand !== brandInput.value.trim()) {
             brandInput.value = pyData.brand;
           }
@@ -1424,7 +1484,7 @@
         copyHook.textContent = hook;
         copyBody.textContent = caption;
         copyCta.textContent = cta || '—';
-        copyHeadline.textContent = parsed.headline || '';
+        copyHeadline.textContent = currentVisualHeadline || parsed.headline || '';
         copyAlt.textContent = parsed.altText || '—';
 
         // Render Dual-Agent Dialogue & Critique
@@ -1594,7 +1654,10 @@
             warnings: currentWarnings,
             enhanced_prompt: currentEnhancedPrompt,
             rivals: currentRivals,
-            competitive_strategy: currentCompetitiveStrategy
+            competitive_strategy: currentCompetitiveStrategy,
+            visual_analysis: currentVisualAnalysis,
+            visual_headline: currentVisualHeadline || copyHeadline.textContent.trim(),
+            visual_tagline: currentVisualTagline || copyHook.textContent.trim()
           };
 
           const resp = await fetch(`${backendApiBase}/api/export`, {
@@ -1791,6 +1854,11 @@ Deployable directly into legacy PLC racks and air-gapped SCADA environments, Lex
         };
 
         renderCompetitiveBattlecard(currentRivals, currentCompetitiveStrategy);
+
+        currentVisualAnalysis = 'Dark industrial steel turbine with precision laser diagnostics in a smart factory.';
+        currentVisualHeadline = 'DOWNTIME IS OPTIONAL';
+        currentVisualTagline = 'Sub-millisecond acoustic predictive resilience.';
+        renderVisionTypographer(currentVisualAnalysis, currentVisualHeadline, currentVisualTagline);
 
         rawOutputText.textContent = `### HOOK\n${sampleHook}\n\n### CAPTION\n${sampleCaption}\n\n### KEY TECHNICAL HIGHLIGHTS\n${sampleHighlights.map(h => '- ' + h).join('\n')}\n\n### HASHTAGS\n${sampleHashtags}\n\n### VISUAL_PROMPT\n${sampleVisualPrompt}`;
 
