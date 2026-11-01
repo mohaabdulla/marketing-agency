@@ -239,6 +239,34 @@ Never invent a website, official affiliation or endorsements. Report only change
 """
 
 
+ARABIC_TRANSCREATOR_PROMPT = """You are a Senior Arabic Creative Director and Transcreation Strategist at a premier international advertising agency in Dubai and Riyadh.
+Your mission is to transcreate and culturally localize the marketing campaign into authoritative, high-impact, and persuasive Modern Standard Arabic (الفصحى التسويقية الراقية).
+
+Rules:
+- NEVER translate literally word-for-word. Re-imagine the campaign's emotional hook, competitive edge, and executive authority for discerning Arabic-speaking decision makers.
+- The hook must stop the scroll in under 120 characters with compelling, prestigious Arabic phrasing.
+- Caption: 3-4 short, scannable paragraphs separated by blank lines. Fluid, natural, and prestigious.
+- Highlights: 3 outcome-first benefit bullets (e.g. "حماية القوة الشرائية للأجيال القادمة").
+- CTA: One direct, elegant call to action (e.g. "تواصل مع مستشارك المالي الخاص عبر الرابط في البايو").
+- Hashtags: 6-10 targeted Arabic hashtags accompanied by the brand name tag.
+- visual_headline: 2 to 4 powerful, punchy Arabic words fitting the visual scene (e.g. "آفاق بلا حدود").
+- visual_tagline: A resonant subline under 8 words.
+- alt_text: High-quality Arabic accessibility description.
+
+Return strictly valid RFC 8259 JSON:
+{
+  "hook": "scroll-stopping Arabic hook",
+  "caption": "scannable Arabic caption paragraphs",
+  "highlights": ["bullet 1", "bullet 2", "bullet 3"],
+  "cta": "Arabic call to action",
+  "hashtags": "#وسم1 #وسم2",
+  "image_headline": "Arabic visual headline",
+  "visual_headline": "Arabic visual headline",
+  "visual_tagline": "Arabic visual tagline",
+  "alt_text": "Arabic accessibility description"
+}"""
+
+
 @dataclass
 class CampaignAsset:
     prompt: str
@@ -273,9 +301,41 @@ class CampaignAsset:
     visual_analysis: str = ""
     visual_headline: str = ""
     visual_tagline: str = ""
+    arabic: Dict[str, Any] = field(default_factory=dict)
+    arabic_image_url: str = ""
+    arabic_image_path: str = ""
+    guidelines: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+
+class RenderResult(tuple):
+    """
+    Tuple representing rendered visual outputs with English and Arabic overlays.
+    Yields 3 items on unpacking for full backward-compatibility with (post, clean, watermark_free).
+    """
+    def __new__(cls, post_path, clean_path, watermark_free, arabic_post_path=None):
+        return super().__new__(cls, (post_path, clean_path, watermark_free, arabic_post_path))
+
+    def __iter__(self):
+        return iter(self[:3])
+
+    @property
+    def post_path(self):
+        return self[0]
+
+    @property
+    def clean_path(self):
+        return self[1]
+
+    @property
+    def watermark_free(self):
+        return self[2]
+
+    @property
+    def arabic_post_path(self):
+        return self[3]
 
 
 # ==========================================
@@ -356,8 +416,29 @@ def detect_brand_and_product(prompt: str, current_brand: str = "") -> Tuple[str,
     detected_brand = ""
     detected_product = ""
 
+    # Specific Arabic brand catalog check
+    arabic_brand_catalog = [
+        (r"بنك\s*(?:أوف|اوف)?\s*(?:أم[يإا]?رك?ا|أميركا|اميركا|امريكا)", "Bank of America", ["برايفت بنك", "إدارة الثروات"]),
+        (r"تسلا", "Tesla", ["موديل 3", "موديل واي", "سايبركاب", "أوبتيموس", "سايبرتراك"]),
+        (r"أبل|ابل", "Apple", ["فيجن برو", "ايفون", "ماك بوك"]),
+        (r"رولكس", "Rolex", ["ديب سي", "دايتونا", "صبمارينر"]),
+        (r"بورشه|بورش", "Porsche", ["تايكان", "911"]),
+        (r"مرسيدس", "Mercedes-Benz", []),
+        (r"بي\s*إم\s*دبليو|بي\s*ام\s*دبليو", "BMW", []),
+        (r"فيراري", "Ferrari", []),
+        (r"أرامكو|ارامكو", "Saudi Aramco", []),
+    ]
+    for pat, canonical, prods in arabic_brand_catalog:
+        if re.search(pat, p):
+            detected_brand = canonical
+            for pr in prods:
+                if pr in p:
+                    detected_product = f"{canonical} {pr}"
+                    break
+            break
+
     # Specific typo tolerance for Bank of America (e.g., "bank of amerca", "bofa")
-    if re.search(r"\b(?:bank\s+of\s+am[eiar]*c?a?|bofa)\b", p_lower):
+    if not detected_brand and re.search(r"\b(?:bank\s+of\s+am[eiar]*c?a?|bofa)\b", p_lower):
         detected_brand = "Bank of America"
 
     # 1. Prompt Catalog Check FIRST (Prompt is the authoritative source of truth)
@@ -604,6 +685,25 @@ def build_instagram_caption(hook: str, caption: str, highlights: List[str], cta:
     return full
 
 
+def build_arabic_instagram_caption(hook: str, caption: str, highlights: List[str], cta: str, hashtags: str) -> str:
+    """Assemble the ready-to-paste Arabic caption with appropriate RTL styling and character limits."""
+    parts = []
+    if hook:
+        parts.append(hook.strip())
+    if caption:
+        parts.append(caption.strip())
+    if highlights:
+        parts.append("\n".join(f"‹ {h.strip()}" for h in highlights if h.strip()))
+    if cta:
+        parts.append(f"👈 {cta.strip()}")
+    body = "\n\n".join(p for p in parts if p)
+    full = f"{body}\n.\n.\n{hashtags.strip()}" if hashtags else body
+    if len(full) > IG_CAPTION_LIMIT:
+        room = IG_CAPTION_LIMIT - len(hashtags) - 8
+        full = body[:room].rsplit(" ", 1)[0] + "…\n.\n.\n" + hashtags
+    return full
+
+
 # ==========================================
 # Image helpers
 # ==========================================
@@ -614,6 +714,23 @@ _FONT_CANDIDATES = {
     False: ["C:/Windows/Fonts/segoeui.ttf", "C:/Windows/Fonts/arial.ttf",
             "/System/Library/Fonts/Supplemental/Arial.ttf", "DejaVuSans.ttf"],
 }
+
+
+def prepare_bidi_text(text: str) -> str:
+    """
+    Reshape Arabic letters and apply Unicode BiDi algorithm for proper right-to-left rendering in Pillow.
+    Passes Latin / English text through untouched.
+    """
+    if not text:
+        return ""
+    if re.search(r"[\u0600-\u06FF]", text):
+        try:
+            import arabic_reshaper
+            from bidi.algorithm import get_display
+            return get_display(arabic_reshaper.reshape(text))
+        except Exception:
+            return text
+    return text
 
 
 def _load_font(size: int, bold: bool = True):
@@ -629,7 +746,8 @@ def _wrap(draw, text: str, font, max_width: int) -> List[str]:
     lines, line = [], ""
     for word in text.split():
         test = f"{line} {word}".strip()
-        if draw.textlength(test, font=font) <= max_width:
+        disp = prepare_bidi_text(test)
+        if draw.textlength(disp, font=font) <= max_width:
             line = test
         else:
             if line:
@@ -1020,8 +1138,9 @@ class LexnisCampaignStudio:
 
         raise RuntimeError(f"Model did not return valid JSON: {last_err}")
 
-    def build_brief(self, prompt: str, brand: str, research: str) -> Dict[str, Any]:
-        user = f"BRAND: {brand}\nREQUEST: {prompt}\n\nWEB RESEARCH:\n{research or 'No research available.'}"
+    def build_brief(self, prompt: str, brand: str, research: str, guidelines: str = "") -> Dict[str, Any]:
+        gl_text = f"\n\nCLIENT BRAND GUIDELINES (STRICT ADHERENCE):\n{guidelines.strip()}" if guidelines else ""
+        user = f"BRAND: {brand}\nREQUEST: {prompt}\n\nWEB RESEARCH:\n{research or 'No research available.'}{gl_text}"
         fallback = {
             "product_name": detect_brand_and_product(prompt, brand)[1] or brand,
             "category": "Product campaign",
@@ -1195,18 +1314,21 @@ class LexnisCampaignStudio:
         brand: str,
         product: str,
         prompt: str,
-        research_context: str = ""
+        research_context: str = "",
+        guidelines: str = ""
     ) -> Dict[str, Any]:
         """
         Analyze the company/brand name, identify top rivals in the business,
         and generate a counter-positioning strategy and marketing conquest playbook.
         """
         target_name = product or brand
+        gl_text = f"\n\nCLIENT BRAND GUIDELINES:\n{guidelines.strip()}" if guidelines else ""
         user_message = (
             f"TARGET BRAND: {brand}\n"
             f"PRODUCT / INITIATIVE: {target_name}\n"
             f"USER PROMPT: {prompt}\n\n"
             f"RESEARCH CONTEXT:\n{research_context[:3000] if research_context else 'No research context available.'}"
+            f"{gl_text}"
         )
 
         fallback_rivals = self._generate_fallback_competitor_analysis(brand, product, prompt)
@@ -1237,7 +1359,8 @@ class LexnisCampaignStudio:
         theme: str,
         competitive_strategy: Optional[Dict[str, Any]] = None,
         rivals: Optional[List[Dict[str, Any]]] = None,
-        step_callback=None
+        step_callback=None,
+        guidelines: str = ""
     ) -> Tuple[Dict[str, Any], List[Dict[str, str]], List[str]]:
         """
         Dual-agent collaborative pipeline:
@@ -1269,10 +1392,21 @@ class LexnisCampaignStudio:
             }
             strat_section = f"\n\nCOMPETITIVE INTEL & RIVAL CONQUEST BATTLECARD:\n{json.dumps(strat_info, indent=2, ensure_ascii=False)}"
 
+        guidelines_section = ""
+        if guidelines and guidelines.strip():
+            guidelines_section = (
+                f"\n\n============================================================\n"
+                f"CLIENT BRAND GUIDELINES & DIRECTIVES (STRICT COMPLIANCE MANDATORY):\n"
+                f"{guidelines.strip()}\n"
+                f"============================================================\n"
+                f"AUDIT DIRECTIVE: Adhere strictly to the brand voice, tone, forbidden/allowed terminology, "
+                f"and positioning rules specified above. Eliminate generic claims.\n"
+            )
+
         # 1. Agent 1 Draft
         step("Agent 1 (Lead Copywriter) drafting initial campaign concept with competitive edge...")
         agent1_sys = AGENT1_COPYWRITER_PROMPT.format(brand=brand, tone=tone, theme=theme)
-        agent1_user = f"ORIGINAL REQUEST: {prompt}\n\nCREATIVE BRIEF:\n{json.dumps(brief, indent=2, ensure_ascii=False)}{strat_section}"
+        agent1_user = f"ORIGINAL REQUEST: {prompt}\n\nCREATIVE BRIEF:\n{json.dumps(brief, indent=2, ensure_ascii=False)}{strat_section}{guidelines_section}"
 
         try:
             draft, _ = self._chat_json(agent1_sys, agent1_user, temperature=0.75, fallback_schema=agent1_fallback)
@@ -1301,6 +1435,7 @@ class LexnisCampaignStudio:
             f"VISUAL DIRECTION: {theme}\n"
             f"CREATIVE BRIEF:\n{json.dumps(brief, indent=2, ensure_ascii=False)}"
             f"{strat_section}\n\n"
+            f"{guidelines_section}\n\n"
             f"AGENT 1 (LEAD COPYWRITER) DRAFT:\n{json.dumps(draft, indent=2, ensure_ascii=False)}"
         )
 
@@ -1375,8 +1510,10 @@ class LexnisCampaignStudio:
         out_dir: Path = RENDERS_DIR,
         output_format: str = "portrait",
         tagline: str = "",
-    ) -> Tuple[Path, Path, bool]:
-        """Render (and cache) the base visual, then composite the post. Returns (post, clean, watermark_free)."""
+        arabic_headline: str = "",
+        arabic_tagline: str = "",
+    ) -> RenderResult:
+        """Render (and cache) base visual, then composite both English and Arabic posts."""
         if model in LEGACY_MODEL_ALIASES or not model:
             model = DEFAULT_IMAGE_MODEL
         out_dir = Path(out_dir)
@@ -1394,7 +1531,7 @@ class LexnisCampaignStudio:
             data, watermark_free = self._fetch_image_bytes(visual_prompt, seed, model, (width + 31) // 32 * 32, (height + 31) // 32 * 32)
             if not HAS_PIL:
                 clean_path.write_bytes(data)
-                return clean_path, clean_path, watermark_free
+                return RenderResult(clean_path, clean_path, watermark_free)
             try:
                 img = fit_cover(Image.open(io.BytesIO(data)), width, height)
             except Exception as exc:
@@ -1406,7 +1543,7 @@ class LexnisCampaignStudio:
                 marker.touch()
 
         if not overlay or not HAS_PIL or not (headline or brand):
-            return clean_path, clean_path, watermark_free
+            return RenderResult(clean_path, clean_path, watermark_free)
 
         # AI Vision Art Director & Typographer: analyze what is actually in the rendered image
         # and synthesize typography that matches the visual scene and brand.
@@ -1427,7 +1564,26 @@ class LexnisCampaignStudio:
             compose_post(Image.open(clean_path), headline=clean_hl, brand=brand, tagline=typeset_tagline).save(
                 post_path, "JPEG", quality=95, optimize=True
             )
-        return post_path, clean_path, watermark_free
+
+        arabic_post_path = None
+        clean_ar_hl = (arabic_headline or vision_meta.get("visual_ar_headline") or "").strip()
+        clean_ar_tl = (arabic_tagline or vision_meta.get("visual_ar_tagline") or "").strip()
+        if not clean_ar_hl:
+            clean_ar_hl = "ريادة تتخطى الآفاق"
+            clean_ar_tl = "حيث تلتقي الرؤية بالتميز المطلق."
+
+        ar_tag = hashlib.sha1(f"ad-v5-ar|{clean_ar_hl}|{brand}|{clean_ar_tl}".encode()).hexdigest()[:8]
+        arabic_post_path = out_dir / f"{key}_post_ar_{ar_tag}.jpg"
+        if not arabic_post_path.exists():
+            try:
+                compose_post(Image.open(clean_path), headline=clean_ar_hl, brand=brand, tagline=clean_ar_tl).save(
+                    arabic_post_path, "JPEG", quality=95, optimize=True
+                )
+            except Exception as e:
+                arabic_post_path = None
+
+        self.last_arabic_post_path = arabic_post_path
+        return RenderResult(post_path, clean_path, watermark_free, arabic_post_path)
 
     def typeset_visual_with_vision(
         self,
@@ -1440,7 +1596,8 @@ class LexnisCampaignStudio:
         """
         Multimodal Vision Typographer:
         Inspects the rendered visual asset, analyzes composition, lighting, and hero subject,
-        and generates an ad headline and subline that organically fit WHAT IS ACTUALLY IN THE IMAGE.
+        and generates an ad headline and subline that organically fit WHAT IS ACTUALLY IN THE IMAGE
+        in both English and Modern Standard Arabic.
         """
         clean_brand = brand.strip() if brand and brand.lower() != "lexnis technologies" else ""
         fallback_headline = default_headline.strip() or clean_brand or "INNOVATION"
@@ -1457,7 +1614,9 @@ class LexnisCampaignStudio:
             "visual_subject": "Commercial hero scene",
             "visual_analysis": "Commercial advertising photograph with balanced directional lighting and reserved negative space.",
             "visual_headline": fallback_headline.upper(),
-            "visual_tagline": short_tagline
+            "visual_tagline": short_tagline,
+            "visual_ar_headline": "ريادة تتخطى الآفاق",
+            "visual_ar_tagline": "حيث تلتقي الرؤية بالتميز المطلق."
         }
 
         if not image_bytes or not self.gemini_key or requests is None:
@@ -1474,18 +1633,23 @@ class LexnisCampaignStudio:
                 "TASK:\n"
                 "1. Identify the primary visual subject visible in this specific photo (e.g., 'scenic coastal highway at sunset', 'minimalist titanium device', 'precision robotic arm', 'industrial turbine with diagnostic beams').\n"
                 "2. Write a 1-sentence analysis of the image composition, lighting, and mood.\n"
-                "3. Compose an ad headline (strictly 2 to 4 words) that organically connects WHAT IS VISIBLE in this image with the brand's premium identity.\n"
+                "3. Compose an English ad headline (strictly 2 to 4 words) that organically connects WHAT IS VISIBLE in this image with the brand's premium identity.\n"
                 "   - Crucial rule: Do NOT redundantly repeat the brand name.\n"
                 "   - If the image depicts an open road or horizon, invoke journey, vision, or future.\n"
                 "   - If the image depicts a physical product or machine, highlight precision, engineering, or mastery.\n"
                 "   - If the image depicts nature, architecture, or lifestyle, evoke prestige, permanence, or sovereign power.\n"
-                "4. Compose a punchy, elegant subtitle/tagline (strictly under 8 words) that reinforces the headline.\n\n"
+                "4. Compose a punchy, elegant English subtitle/tagline (strictly under 8 words) that reinforces the headline.\n"
+                "5. Transcreate the headline and subtitle into prestigious Modern Standard Arabic (الفصحى التسويقية الراقية):\n"
+                "   - visual_ar_headline: 2 to 4 punchy Arabic words capturing the exact same visual mood (e.g. 'آفاق بلا حدود').\n"
+                "   - visual_ar_tagline: concise Arabic subtitle under 8 words.\n\n"
                 "Respond ONLY with a JSON object:\n"
                 "{\n"
                 '  "visual_subject": "Primary object/scene visible",\n'
                 '  "visual_analysis": "One sentence describing visual composition and mood",\n'
                 '  "visual_headline": "2-4 WORDS PUNCHY HEADLINE",\n'
-                '  "visual_tagline": "Under 8 words subtitle fitting the image"\n'
+                '  "visual_tagline": "Under 8 words subtitle fitting the image",\n'
+                '  "visual_ar_headline": "2-4 كلمات عنوان معرب راقٍ",\n'
+                '  "visual_ar_tagline": "شعار عربي مكمل ومقتضب تحت 8 كلمات"\n'
                 "}"
             )
 
@@ -1521,11 +1685,66 @@ class LexnisCampaignStudio:
                             result["visual_analysis"] = parsed.get("visual_analysis", result["visual_analysis"])
                             result["visual_headline"] = hl.upper()
                             result["visual_tagline"] = parsed.get("visual_tagline", "").strip()
+                            if parsed.get("visual_ar_headline"):
+                                result["visual_ar_headline"] = parsed.get("visual_ar_headline", "").strip()
+                            if parsed.get("visual_ar_tagline"):
+                                result["visual_ar_tagline"] = parsed.get("visual_ar_tagline", "").strip()
                             return result
         except Exception:
             pass
 
         return result
+
+    def transcreate_to_arabic(
+        self,
+        en_campaign: Dict[str, Any],
+        brand: str,
+        visual_analysis: str = "",
+        guidelines: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Transcreate and localize the campaign into high-impact Modern Standard Arabic (التعريب الإبداعي).
+        Preserves executive authority, emotional resonance, and competitive wedge.
+        """
+        fallback_arabic = {
+            "hook": f"ارتقِ بمعايير الريادة والتميز مع {brand}.",
+            "caption": f"نبتكر أفقاً جديداً في التميز والأداء.\n\nصُمم خصيصاً لإعادة صياغة الممكن ودمج الدقة الفائقة مع الرؤية المستقبلية.\n\nعصر جديد يبدأ الآن.",
+            "highlights": [
+                "هندسة متطورة بمعايير عالمية لا تقبل المساومة",
+                "أداء فائق ودقة استثنائية مصممة للرواد",
+                "حلول متكاملة تمنحك السيادة والتميز المستدام"
+            ],
+            "cta": "اكتشف المزيد وتواصل معنا عبر الرابط في البايو.",
+            "hashtags": f"#{brand.replace(' ', '_')} #ريادة #ابتكار #تميز #مستقبل",
+            "image_headline": "آفاق جديدة",
+            "visual_headline": "آفاق جديدة",
+            "visual_tagline": "حيث تلتقي الرؤية بالتميز المطلق",
+            "alt_text": f"صورة إعلانية تجارية فاخرة للعلامة التجارية {brand}"
+        }
+
+        user_content = (
+            f"BRAND: {brand}\n"
+            f"VISUAL SCENE ANALYSIS: {visual_analysis or 'Commercial luxury photography'}\n"
+            f"ENGLISH CAMPAIGN PACKAGE:\n{json.dumps(en_campaign, ensure_ascii=False, indent=2)}"
+        )
+
+        try:
+            ar_data, _ = self._chat_json(ARABIC_TRANSCREATOR_PROMPT, user_content, temperature=0.4, fallback_schema=fallback_arabic)
+        except Exception:
+            ar_data = fallback_arabic
+
+        ar_hook = ar_data.get("hook") or fallback_arabic["hook"]
+        ar_caption = ar_data.get("caption") or fallback_arabic["caption"]
+        ar_highlights = ar_data.get("highlights") or fallback_arabic["highlights"]
+        if isinstance(ar_highlights, str):
+            ar_highlights = [h.strip() for h in re.split(r"[\n,]+", ar_highlights) if h.strip()]
+        ar_cta = ar_data.get("cta") or fallback_arabic["cta"]
+        ar_hashtags = ar_data.get("hashtags") or fallback_arabic["hashtags"]
+        if isinstance(ar_hashtags, list):
+            ar_hashtags = " ".join(normalize_hashtags(ar_hashtags))
+
+        ar_data["instagram_caption"] = build_arabic_instagram_caption(ar_hook, ar_caption, ar_highlights, ar_cta, str(ar_hashtags))
+        return ar_data
 
     # ---------- Full pipeline ----------
 
@@ -1541,6 +1760,7 @@ class LexnisCampaignStudio:
         brand: str = "Lexnis Technologies",
         progress=None,
         output_format: str = "portrait",
+        guidelines: str = "",
     ) -> CampaignAsset:
         """
         Run the full agency pipeline with Dual-Agent Collaborative refinement:
@@ -1584,11 +1804,11 @@ class LexnisCampaignStudio:
                 pass
 
         step("Building the creative brief...")
-        brief = self.build_brief(effective_prompt, brand, research)
+        brief = self.build_brief(effective_prompt, brand, research, guidelines=guidelines)
         prod_name = brief.get("product_name") or detected_prod or brand
 
         step("Analyzing competitor battlecards & strategic counter-positioning...")
-        strategy_data = self.analyze_competitors_and_strategy(brand, prod_name, effective_prompt, research)
+        strategy_data = self.analyze_competitors_and_strategy(brand, prod_name, effective_prompt, research, guidelines=guidelines)
         rivals = strategy_data.get("rivals", [])
         competitive_strategy = {
             "strategic_wedge": strategy_data.get("strategic_wedge", ""),
@@ -1600,7 +1820,8 @@ class LexnisCampaignStudio:
             effective_prompt, brand, brief, tone, theme,
             competitive_strategy=competitive_strategy,
             rivals=rivals,
-            step_callback=step
+            step_callback=step,
+            guidelines=guidelines
         )
 
         hook = clean_social_text(post.get("hook", "")) or brief.get("one_liner", prompt)
@@ -1629,21 +1850,53 @@ class LexnisCampaignStudio:
         if not research:
             warnings.append("No web evidence retrieved. Review product claims before publishing.")
         try:
-            post_path, clean_path, watermark_free = self.render_image(
+            render_res = self.render_image(
                 visual_prompt, seed, model=image_model, headline=headline, brand=brand,
                 overlay=enhance_image, output_format=output_format, tagline=hook[:110])
+            post_path, clean_path, watermark_free = render_res[0], render_res[1], render_res[2]
             image_status = "ready"
         except RuntimeError as exc:
             post_path = clean_path = None
+            render_res = None
             watermark_free = False
             image_status = "unavailable"
             warnings.append(str(exc))
 
-        raw_response = json.dumps({"brief": brief, "post": post, "dialogue": dialogue, "critique": critique_notes}, indent=2, ensure_ascii=False)
         vm = getattr(self, "last_vision_meta", {})
         final_headline = vm.get("visual_headline") or headline
         final_tagline = vm.get("visual_tagline") or hook[:110]
         final_analysis = vm.get("visual_analysis") or ""
+
+        # Bilingual Layer: Transcreate campaign into high-impact Arabic
+        step("Transcreating creative campaign to Arabic (التعريب الإبداعي)...")
+        en_pack = {
+            "hook": hook,
+            "caption": caption,
+            "highlights": highlights,
+            "cta": cta,
+            "hashtags": hashtags,
+            "visual_headline": final_headline,
+            "visual_tagline": final_tagline,
+            "visual_analysis": final_analysis,
+        }
+        arabic_pack = self.transcreate_to_arabic(en_pack, brand=brand, visual_analysis=final_analysis, guidelines=guidelines)
+
+        # Render Arabic visual overlay
+        arabic_post_path = None
+        if clean_path and clean_path.exists():
+            ar_hl = arabic_pack.get("visual_headline") or arabic_pack.get("image_headline") or vm.get("visual_ar_headline") or "ريادة تتخطى الآفاق"
+            ar_tl = arabic_pack.get("visual_tagline") or vm.get("visual_ar_tagline") or ""
+            ar_tag = hashlib.sha1(f"ad-v5-ar|{ar_hl}|{brand}|{ar_tl}".encode()).hexdigest()[:8]
+            arabic_post_path = RENDERS_DIR / f"{clean_path.stem.split('_')[0]}_post_ar_{ar_tag}.jpg"
+            if not arabic_post_path.exists():
+                try:
+                    compose_post(Image.open(clean_path), headline=ar_hl, brand=brand, tagline=ar_tl).save(
+                        arabic_post_path, "JPEG", quality=95, optimize=True
+                    )
+                except Exception:
+                    arabic_post_path = None
+
+        raw_response = json.dumps({"brief": brief, "post": post, "arabic": arabic_pack, "dialogue": dialogue, "critique": critique_notes}, indent=2, ensure_ascii=False)
         return CampaignAsset(
             prompt=prompt,
             hook=hook,
@@ -1651,7 +1904,7 @@ class LexnisCampaignStudio:
             highlights=highlights,
             hashtags=hashtags,
             visual_prompt=visual_prompt,
-            image_url=post_path.as_uri() if post_path else "",
+            image_url=f"/renders/{post_path.name}" if post_path else "",
             raw_response=raw_response,
             seed=seed,
             search_results=search_results,
@@ -1668,7 +1921,7 @@ class LexnisCampaignStudio:
             text_engine=f"{self.text_engine}:{self.model}",
             agent_dialogue=dialogue,
             critique_notes=critique_notes,
-            enhanced_prompt=enhanced_prompt,
+            enhanced_prompt=effective_prompt,
             output_format=output_format,
             image_status=image_status,
             warnings=warnings,
@@ -1677,6 +1930,10 @@ class LexnisCampaignStudio:
             visual_analysis=final_analysis,
             visual_headline=final_headline,
             visual_tagline=final_tagline,
+            arabic=arabic_pack,
+            arabic_image_url=f"/renders/{arabic_post_path.name}" if arabic_post_path else "",
+            arabic_image_path=str(arabic_post_path) if arabic_post_path else "",
+            guidelines=guidelines,
         )
 
     # ---------- Export ----------
@@ -1694,7 +1951,7 @@ class LexnisCampaignStudio:
         return save_path
 
     def export_campaign(self, asset: CampaignAsset, output_dir: str = "output") -> Dict[str, str]:
-        """Save campaign package: post image, clean image, metadata (.json) and caption (.txt)."""
+        """Save campaign package: English & Arabic post images, clean image, metadata (.json) and bilingual captions."""
         import shutil
 
         out = Path(output_dir)
@@ -1708,6 +1965,11 @@ class LexnisCampaignStudio:
             shutil.copyfile(asset.image_path, image_file)
             files["image"] = str(image_file)
 
+        if asset.arabic_image_path and Path(asset.arabic_image_path).exists():
+            image_ar_file = out / f"{slug}_post_ar.jpg"
+            shutil.copyfile(asset.arabic_image_path, image_ar_file)
+            files["arabic_image"] = str(image_ar_file)
+
         if asset.clean_image_path and Path(asset.clean_image_path).exists() and asset.clean_image_path != asset.image_path:
             clean_file = out / f"{slug}_clean.jpg"
             shutil.copyfile(asset.clean_image_path, clean_file)
@@ -1718,20 +1980,56 @@ class LexnisCampaignStudio:
             json.dump(asset.to_dict(), f, indent=2, ensure_ascii=False)
         files["json"] = str(json_file)
 
-        caption_text = asset.instagram_caption or build_instagram_caption(
+        en_caption = asset.instagram_caption or build_instagram_caption(
             asset.hook, asset.caption, asset.highlights, asset.cta, asset.hashtags
         )
-        if asset.alt_text:
-            caption_text += f"\n\n---\nALT TEXT: {asset.alt_text}"
+        en_caption_file = out / f"{slug}_caption_en.txt"
+        en_caption_file.write_text(en_caption, encoding="utf-8")
+        files["caption_en"] = str(en_caption_file)
+
+        ar_data = asset.arabic or {}
+        ar_caption = ar_data.get("instagram_caption") or build_arabic_instagram_caption(
+            ar_data.get("hook", ""), ar_data.get("caption", ""), ar_data.get("highlights", []),
+            ar_data.get("cta", ""), ar_data.get("hashtags", "")
+        )
+        ar_caption_file = out / f"{slug}_caption_ar.txt"
+        ar_caption_file.write_text(ar_caption, encoding="utf-8")
+        files["caption_ar"] = str(ar_caption_file)
+
+        # Master Bilingual caption file with full strategic intel
+        caption_text = (
+            "============================================================\n"
+            "🇬🇧 ENGLISH MARKETING PACKAGE\n"
+            "============================================================\n\n"
+            f"{en_caption}\n\n"
+            "------------------------------------------------------------\n"
+            f"ALT TEXT (EN): {asset.alt_text}\n"
+            f"TYPESET HEADLINE (EN): {asset.visual_headline}\n"
+            f"TYPESET SUBLINE (EN): {asset.visual_tagline}\n\n"
+            "============================================================\n"
+            "🇸🇦 ARABIC MARKETING PACKAGE (النسخة العربية)\n"
+            "============================================================\n\n"
+            f"{ar_caption}\n\n"
+            "------------------------------------------------------------\n"
+            f"ALT TEXT (AR): {ar_data.get('alt_text', '')}\n"
+            f"TYPESET HEADLINE (AR): {ar_data.get('visual_headline', '')}\n"
+            f"TYPESET SUBLINE (AR): {ar_data.get('visual_tagline', '')}\n\n"
+        )
 
         if asset.visual_analysis:
-            caption_text += f"\n\n---\nAI VISION SCENE ANALYSIS & IMAGE-AWARE TYPOGRAPHY:\n"
-            caption_text += f"* Visual Scene: {asset.visual_analysis}\n"
-            caption_text += f"* Image Headline: {asset.visual_headline}\n"
-            caption_text += f"* Image Subline: {asset.visual_tagline}\n"
+            caption_text += (
+                "============================================================\n"
+                "AI VISION SCENE ANALYSIS\n"
+                "============================================================\n"
+                f"{asset.visual_analysis}\n\n"
+            )
 
         if asset.rivals:
-            caption_text += "\n\n---\nCOMPETITIVE INTEL & RIVALS BATTLECARD:\n"
+            caption_text += (
+                "============================================================\n"
+                "COMPETITIVE INTEL & RIVALS BATTLECARD\n"
+                "============================================================\n"
+            )
             for r in asset.rivals:
                 caption_text += f"\n* {r.get('name')}:\n"
                 caption_text += f"  - Current Stance: {r.get('stance', '')}\n"
@@ -1741,33 +2039,35 @@ class LexnisCampaignStudio:
         if asset.competitive_strategy:
             strat = asset.competitive_strategy
             if strat.get("strategic_wedge"):
-                caption_text += f"\n---\nSTRATEGIC COUNTER-POSITIONING WEDGE:\n{strat.get('strategic_wedge', '')}\n"
+                caption_text += f"\nSTRATEGIC COUNTER-POSITIONING WEDGE:\n{strat.get('strategic_wedge', '')}\n"
             pb = strat.get("conquest_playbook", {})
             if pb:
                 if pb.get("attack_angle"):
                     caption_text += f"\nATTACK ANGLE:\n{pb.get('attack_angle', '')}\n"
                 if pb.get("campaign_ideas"):
-                    caption_text += "\nMARKETING CONQUEST CAMPAIGN IDEAS:\n" + "\n".join(f"- {c}" for c in pb["campaign_ideas"])
+                    caption_text += "\nCONQUEST CAMPAIGN IDEAS:\n"
+                    for idea in pb.get("campaign_ideas", []):
+                        caption_text += f"  › {idea}\n"
                 if pb.get("landmine_questions"):
-                    caption_text += "\nBUYER LANDMINE QUESTIONS:\n" + "\n".join(f"- {q}" for q in pb["landmine_questions"])
+                    caption_text += "\nBUYER LANDMINE QUESTIONS:\n"
+                    for q in pb.get("landmine_questions", []):
+                        caption_text += f"  ? {q}\n"
                 if pb.get("growth_tactics"):
-                    caption_text += "\nGTM & SOCIAL GROWTH TACTICS:\n" + "\n".join(f"- {t}" for t in pb["growth_tactics"])
+                    caption_text += "\nGTM & SOCIAL GROWTH PLAYS:\n"
+                    for t in pb.get("growth_tactics", []):
+                        caption_text += f"  ⚡ {t}\n"
 
-        if asset.critique_notes:
-            caption_text += "\n\n---\nEXECUTIVE CRITIQUE & POLISH NOTES:\n" + "\n".join(
-                f"- {note}" for note in asset.critique_notes
+        if asset.guidelines:
+            caption_text += (
+                "\n============================================================\n"
+                "CLIENT BRAND GUIDELINES APPLIED\n"
+                "============================================================\n"
+                f"{asset.guidelines.strip()}\n"
             )
-        if asset.agent_dialogue:
-            caption_text += "\n\n---\nDUAL-AGENT COLLABORATION LOG:\n" + "\n".join(
-                f"[{msg.get('agent', 'Agent')}]: {msg.get('message', '')}" for msg in asset.agent_dialogue
-            )
-        if asset.search_results:
-            caption_text += "\n\n---\nRESEARCH SOURCES:\n" + "\n".join(
-                f"- {r.get('title')}: {r.get('url')}" for r in asset.search_results
-            )
-        txt_file = out / f"{slug}_caption.txt"
-        txt_file.write_text(caption_text, encoding="utf-8")
-        files["caption"] = str(txt_file)
+
+        caption_file = out / f"{slug}_caption.txt"
+        caption_file.write_text(caption_text, encoding="utf-8")
+        files["caption"] = str(caption_file)
 
         return files
 

@@ -219,9 +219,9 @@ def open_model_image(prompt, seed, model, width, height):
 
 
 def compose_ad(image, headline="", brand="", tagline=""):
-    """Restrained typography in reserved corners; no telemetry on customer artwork."""
+    """Restrained typography in reserved corners; supports English and Arabic text shaping."""
     from PIL import Image, ImageDraw
-    from campaign_generator import _load_font, _wrap
+    from campaign_generator import _load_font, _wrap, prepare_bidi_text
     image = image.convert("RGBA")
     width, height = image.size
     layer = Image.new("RGBA", image.size)
@@ -234,19 +234,24 @@ def compose_ad(image, headline="", brand="", tagline=""):
     max_width = width - pad * 2
 
     def lines(text, size, limit):
-        text = " ".join(text.replace("//", " ").split()).upper()[:160]
+        clean = " ".join(text.replace("//", " ").split())[:160]
+        if not re.search(r"[\u0600-\u06FF]", clean):
+            clean = clean.upper()
         while size > 12:
             font = _load_font(size)
-            wrapped = _wrap(draw, text, font, max_width)
-            if len(wrapped) <= limit and all(draw.textlength(line, font=font) <= max_width for line in wrapped):
-                return wrapped, font, size
+            wrapped = _wrap(draw, clean, font, max_width)
+            if len(wrapped) <= limit and all(draw.textlength(prepare_bidi_text(line), font=font) <= max_width for line in wrapped):
+                return [prepare_bidi_text(line) for line in wrapped], font, size
             size -= 1
-        return _wrap(draw, text, _load_font(size), max_width)[:limit], _load_font(size), size
+        wrapped = _wrap(draw, clean, _load_font(size), max_width)[:limit]
+        return [prepare_bidi_text(line) for line in wrapped], _load_font(size), size
 
+    is_arabic_brand = bool(re.search(r"[\u0600-\u06FF]", brand))
     brand_lines, font, size = lines(brand, round(height * .030), 2)
     y = pad
     for line in brand_lines:
-        draw.text((pad, y), line, font=font, fill="white")
+        x = (width - pad - draw.textlength(line, font=font)) if is_arabic_brand else pad
+        draw.text((x, y), line, font=font, fill="white")
         y += round(size * 1.3)
     title_lines, font, size = lines(headline, round(height * .052), 2)
     tag_lines, tag_font, tag_size = lines(tagline, round(height * .022), 2)

@@ -168,6 +168,64 @@
           <span id="enhance-brand-tag" class="px-2 py-0.5 rounded text-[10px] bg-cyan-accent/20 text-cyan-accent border border-cyan-accent/30 font-bold">BRAND: TESLA</span>
         </div>
 
+        <!-- Brand Guidelines / Style Guide Directives Section -->
+        <div id="guidelines-card" class="rounded-xl bg-obsidian-950/90 border border-obsidian-800 p-3 transition-all">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="shield-check" class="w-4 h-4 text-cyan-accent"></i>
+              <span class="text-xs font-tech font-bold tracking-wider uppercase text-slate-200">Brand Guidelines &amp; Directives</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-950/60 text-cyan-300 border border-cyan-500/30">Targeted Compliance</span>
+            </div>
+            <div class="flex items-center space-x-3">
+              <button type="button" id="guidelines-toggle-paste" class="text-[11px] font-mono text-slate-400 hover:text-cyan-accent transition-colors flex items-center space-x-1">
+                <i data-lucide="type" class="w-3 h-3"></i>
+                <span id="paste-toggle-label">Paste Rules</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Active Guidelines Pill (shown when guidelines loaded) -->
+          <div id="guidelines-active-pill" class="hidden mt-2.5 p-2 rounded-lg bg-emerald-950/30 border border-emerald-500/40 flex items-center justify-between">
+            <div class="flex items-center space-x-2.5 overflow-hidden">
+              <span class="relative flex h-2 w-2 flex-shrink-0">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <div class="flex items-center space-x-2 truncate">
+                <span id="guidelines-active-title" class="text-xs font-mono font-bold text-emerald-300 truncate">brand_guidelines.pdf</span>
+                <span id="guidelines-word-badge" class="px-1.5 py-0.2 rounded text-[10px] font-mono bg-emerald-900/50 text-emerald-200 border border-emerald-500/30">1,240 words</span>
+              </div>
+            </div>
+            <div class="flex items-center space-x-2 flex-shrink-0">
+              <button type="button" id="guidelines-preview-btn" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-emerald-900/40 text-emerald-300 hover:bg-emerald-900/70 border border-emerald-500/30 transition-all">
+                Preview
+              </button>
+              <button type="button" id="guidelines-remove-btn" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-rose-950/40 text-rose-300 hover:bg-rose-900/60 border border-rose-500/30 transition-all">
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <!-- Upload Dropzone -->
+          <div id="guidelines-dropzone" class="mt-2.5 border border-dashed border-obsidian-700 hover:border-cyan-accent/50 rounded-lg p-2.5 text-center cursor-pointer transition-all bg-obsidian-900/30 hover:bg-obsidian-900/60 group">
+            <input type="file" id="guidelines-file-input" class="hidden" accept=".txt,.md,.markdown,.pdf,.docx,.doc,.json,.csv">
+            <div class="flex items-center justify-center space-x-2 text-xs font-mono text-slate-400 group-hover:text-cyan-accent transition-colors">
+              <i data-lucide="upload-cloud" class="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-accent"></i>
+              <span>Drop style guide / guidelines file here or <span class="text-cyan-accent underline underline-offset-2">upload</span> (.pdf, .docx, .txt, .md, .json)</span>
+            </div>
+          </div>
+
+          <!-- Direct Paste Textarea (toggleable) -->
+          <div id="guidelines-paste-box" class="hidden mt-2.5">
+            <textarea id="guidelines-text-input" rows="3" placeholder="Paste custom brand voice rules, forbidden words, mandatory positioning hooks, target customer traits..." class="w-full bg-obsidian-900 border border-obsidian-700 focus:border-cyan-accent rounded-lg p-2.5 text-xs font-mono text-slate-200 placeholder-slate-600 outline-none resize-none"></textarea>
+            <div class="flex justify-end space-x-2 mt-1.5">
+              <button type="button" id="guidelines-apply-text-btn" class="px-3 py-1 text-xs font-mono rounded bg-cyan-accent/20 text-cyan-accent hover:bg-cyan-accent/30 border border-cyan-accent/40 font-bold transition-all">
+                Enforce Custom Guidelines
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Advanced Tone & Target Modifiers (Optional) -->
         <div class="flex flex-wrap items-center justify-between gap-4 pt-1 text-xs font-mono">
           <div class="flex flex-wrap items-center gap-4">
@@ -283,13 +341,13 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
-          <!-- COLUMN 1: Visual Asset Studio (Pollinations Flux) -->
-          <div class="lg:col-span-5 bg-obsidian-900/90 border border-obsidian-800 rounded-2xl p-5 shadow-2xl space-y-4">
+          <!-- COLUMN 1: Visual Asset Studio (Dual English & Arabic Display) -->
+          <div class="lg:col-span-6 bg-obsidian-900/90 border border-obsidian-800 rounded-2xl p-5 shadow-2xl space-y-4">
             
             <div class="flex items-center justify-between pb-2 border-b border-obsidian-800">
               <div class="flex items-center space-x-2">
                 <i data-lucide="image" class="w-4 h-4 text-cyan-accent"></i>
-                <h3 class="text-xs font-mono font-bold tracking-wider text-slate-200 uppercase">Campaign Visual</h3>
+                <h3 class="text-xs font-mono font-bold tracking-wider text-slate-200 uppercase">Bilingual Visual Asset Studio</h3>
               </div>
               <span id="current-model-badge" class="text-[10px] font-mono text-cyan-accent bg-obsidian-950 px-2 py-0.5 rounded border border-obsidian-800">
                 Z-IMAGE TURBO
@@ -315,65 +373,247 @@
               </label>
             </div>
 
+            <!-- Bilingual Visual Mode Switcher (Both / English Solo / Arabic Solo / Clean) -->
+            <div class="flex flex-wrap items-center justify-between gap-2 p-2 bg-obsidian-950/90 rounded-xl border border-obsidian-800 text-[11px] font-mono shadow-sm">
+              <span class="text-slate-400 flex items-center space-x-1.5">
+                <i data-lucide="layout" class="w-3.5 h-3.5 text-cyan-accent"></i>
+                <span class="font-semibold text-slate-300">Visual Display:</span>
+              </span>
+              <div class="flex items-center space-x-1 bg-obsidian-900 p-0.5 rounded-lg border border-obsidian-800">
+                <button type="button" id="visual-tab-both" class="px-2.5 py-1 rounded text-[11px] font-semibold bg-gradient-to-r from-cyan-500/20 to-violet-500/20 text-white border border-cyan-400/40 shadow-sm transition-all flex items-center space-x-1">
+                  <i data-lucide="columns-2" class="w-3 h-3 text-cyan-accent"></i>
+                  <span>👥 Both (Side-by-Side)</span>
+                </button>
+                <button type="button" id="visual-tab-en" class="px-2.5 py-1 rounded text-[11px] font-semibold text-slate-400 hover:text-white transition-all">
+                  🇬🇧 English Solo
+                </button>
+                <button type="button" id="visual-tab-ar" class="px-2.5 py-1 rounded text-[11px] font-semibold text-slate-400 hover:text-white transition-all">
+                  🇸🇦 Arabic Solo
+                </button>
+                <button type="button" id="visual-tab-clean" class="px-2 py-1 rounded text-[11px] font-semibold text-slate-400 hover:text-white transition-all">
+                  🖼️ Clean
+                </button>
+              </div>
+            </div>
+
             <!-- Engine & Tier Indicator -->
             <div id="watermark-warning" class="hidden px-3 py-2 rounded-lg bg-obsidian-900/90 border border-cyan-500/30 text-slate-300 text-[11px] font-mono">
               <span>Image availability depends on the selected provider and quota. Cloudflare has a free daily allowance; local models need GPU hardware; Hugging Face hosting may require credits.</span></div>
 
             <p id="campaign-warnings" role="status" class="text-xs text-amber-300 leading-relaxed"></p>
-            <!-- Image Frame Container (Instagram 4:5 vertical aspect ratio 1080x1350) -->
-            <div id="visual-frame" class="relative w-full aspect-[16/9] bg-obsidian-950 rounded-xl overflow-hidden border border-obsidian-800 group shadow-inner">
-              
-              <!-- Loading Skeleton / Shimmer -->
-              <div id="image-loader" class="absolute inset-0 flex flex-col items-center justify-center bg-obsidian-950 z-20 transition-opacity duration-300">
-                <div class="w-12 h-12 rounded-full border-2 border-cyan-accent/20 border-t-cyan-accent animate-spin mb-3"></div>
-                <p class="text-xs font-mono text-cyan-accent tracking-widest uppercase animate-pulse">Rendering Visual...</p>
-                <p class="text-[10px] font-mono text-slate-500 mt-1">Compositing headline &amp; brand overlay</p>
+
+            <!-- DUAL VISUAL SHOWCASE: Displays BOTH English & Arabic simultaneously -->
+            <div id="dual-visual-container" class="space-y-3">
+              <!-- Dual Header & Layout Controls -->
+              <div class="flex items-center justify-between px-1 text-[11px] font-mono">
+                <div class="flex items-center space-x-2">
+                  <span class="relative flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                  </span>
+                  <span class="font-bold text-slate-200 uppercase tracking-wide">Dual Language Showcase</span>
+                </div>
+                <div class="flex items-center space-x-1 bg-obsidian-950 p-0.5 rounded-lg border border-obsidian-800">
+                  <button type="button" id="dual-layout-split" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-cyan-accent/20 text-cyan-accent border border-cyan-accent/30 transition-all" title="Side-by-side columns">
+                    ⊞ Side-by-Side
+                  </button>
+                  <button type="button" id="dual-layout-stack" class="px-2 py-0.5 rounded text-[10px] font-semibold text-slate-400 hover:text-white transition-all" title="Stacked full-width">
+                    ↕ Stacked
+                  </button>
+                </div>
               </div>
 
-              <!-- Main Rendered Image -->
-              <img 
-                id="result-image" 
-                src="" 
-                alt="Lexnis Industrial AI Visual Asset" 
-                class="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-              />
+              <!-- Two Cards Grid -->
+              <div id="dual-cards-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                
+                <!-- ENGLISH AD CARD -->
+                <div class="bg-obsidian-950/90 border border-cyan-500/30 rounded-xl p-3 space-y-2 flex flex-col justify-between shadow-xl group/en">
+                  <div class="space-y-1.5">
+                    <!-- English Header -->
+                    <div class="flex items-center justify-between pb-1.5 border-b border-obsidian-800">
+                      <div class="flex items-center space-x-1.5">
+                        <span class="text-xs">🇬🇧</span>
+                        <span class="text-[11px] font-mono font-bold tracking-wider text-cyan-accent uppercase">English Ad</span>
+                      </div>
+                      <span id="dual-en-badge" class="text-[9px] font-mono px-2 py-0.5 rounded bg-cyan-accent/10 border border-cyan-accent/30 text-cyan-accent font-semibold truncate max-w-[130px]">
+                        ENGLISH AD
+                      </span>
+                    </div>
 
-              <!-- Top Left Burn-in Simulation Pill -->
-              <div class="absolute top-3 left-3 z-10 bg-obsidian-950/80 backdrop-blur-md border border-cyan-accent/40 px-2.5 py-1 rounded-md text-[10px] font-mono text-cyan-accent flex items-center space-x-1.5 shadow-lg">
-                <span class="w-1.5 h-1.5 rounded-full bg-cyan-accent animate-ping"></span>
-                <span class="font-bold tracking-wider">CAMPAIGN PREVIEW</span>
+                    <!-- English Frame -->
+                    <div id="dual-frame-en" class="relative w-full aspect-[16/9] bg-obsidian-900 rounded-lg overflow-hidden border border-obsidian-800 group shadow-inner">
+                      <!-- Loader -->
+                      <div id="image-loader-en" class="absolute inset-0 flex flex-col items-center justify-center bg-obsidian-950 z-20 transition-opacity duration-300">
+                        <div class="w-8 h-8 rounded-full border-2 border-cyan-accent/20 border-t-cyan-accent animate-spin mb-1.5"></div>
+                        <p class="text-[10px] font-mono text-cyan-accent tracking-widest uppercase animate-pulse">Rendering EN...</p>
+                      </div>
+
+                      <img 
+                        id="result-image-en" 
+                        src="" 
+                        alt="English Campaign Ad" 
+                        class="w-full h-full object-cover transition-transform duration-500 group-hover/en:scale-105"
+                      />
+
+                      <div class="absolute top-2 left-2 z-10 bg-obsidian-950/80 backdrop-blur-md border border-cyan-accent/40 px-2 py-0.5 rounded text-[9px] font-mono text-cyan-accent font-bold">
+                        🇬🇧 EN AD
+                      </div>
+
+                      <!-- Hover Actions -->
+                      <div class="absolute inset-0 bg-black/50 opacity-0 group-hover/en:opacity-100 transition-opacity duration-200 flex items-center justify-center space-x-2 z-15">
+                        <button type="button" id="inspect-en-btn" class="px-2.5 py-1 bg-cyan-accent text-obsidian-950 rounded font-mono text-[10px] font-bold shadow-lg hover:brightness-110 flex items-center space-x-1 cursor-pointer">
+                          <i data-lucide="maximize-2" class="w-3 h-3"></i>
+                          <span>Inspect</span>
+                        </button>
+                        <button type="button" id="download-en-card-btn" class="px-2.5 py-1 bg-obsidian-950 text-cyan-accent border border-cyan-accent/40 rounded font-mono text-[10px] font-bold hover:bg-obsidian-800 flex items-center space-x-1 cursor-pointer">
+                          <i data-lucide="download" class="w-3 h-3"></i>
+                          <span>Save</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Footer / Headline -->
+                  <div class="pt-1.5 border-t border-obsidian-800/80 flex items-center justify-between text-[10px] font-mono">
+                    <span id="dual-en-headline-pill" class="text-slate-300 font-sans font-bold truncate max-w-[150px]">—</span>
+                    <button type="button" id="download-en-btn" class="text-cyan-accent hover:text-white transition-colors flex items-center space-x-1 cursor-pointer">
+                      <i data-lucide="download" class="w-3 h-3"></i>
+                      <span>Download</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- ARABIC AD CARD -->
+                <div class="bg-obsidian-950/90 border border-violet-500/30 rounded-xl p-3 space-y-2 flex flex-col justify-between shadow-xl group/ar">
+                  <div class="space-y-1.5">
+                    <!-- Arabic Header -->
+                    <div class="flex items-center justify-between pb-1.5 border-b border-obsidian-800">
+                      <div class="flex items-center space-x-1.5">
+                        <span class="text-xs">🇸🇦</span>
+                        <span class="text-[11px] font-mono font-bold tracking-wider text-violet-400 uppercase">الإعلان المعرّب</span>
+                      </div>
+                      <span id="dual-ar-badge" class="text-[9px] font-mono px-2 py-0.5 rounded bg-violet-400/10 border border-violet-400/30 text-violet-300 font-semibold truncate max-w-[130px]">
+                        ARABIC AD
+                      </span>
+                    </div>
+
+                    <!-- Arabic Frame -->
+                    <div id="dual-frame-ar" class="relative w-full aspect-[16/9] bg-obsidian-900 rounded-lg overflow-hidden border border-obsidian-800 group shadow-inner">
+                      <!-- Loader -->
+                      <div id="image-loader-ar" class="absolute inset-0 flex flex-col items-center justify-center bg-obsidian-950 z-20 transition-opacity duration-300">
+                        <div class="w-8 h-8 rounded-full border-2 border-violet-400/20 border-t-violet-400 animate-spin mb-1.5"></div>
+                        <p class="text-[10px] font-mono text-violet-300 tracking-widest uppercase animate-pulse">Rendering AR...</p>
+                      </div>
+
+                      <img 
+                        id="result-image-ar" 
+                        src="" 
+                        alt="Arabic Campaign Ad" 
+                        class="w-full h-full object-cover transition-transform duration-500 group-hover/ar:scale-105"
+                      />
+
+                      <div class="absolute top-2 left-2 z-10 bg-obsidian-950/80 backdrop-blur-md border border-violet-400/40 px-2 py-0.5 rounded text-[9px] font-mono text-violet-300 font-bold">
+                        🇸🇦 AR AD
+                      </div>
+
+                      <!-- Hover Actions -->
+                      <div class="absolute inset-0 bg-black/50 opacity-0 group-hover/ar:opacity-100 transition-opacity duration-200 flex items-center justify-center space-x-2 z-15">
+                        <button type="button" id="inspect-ar-btn" class="px-2.5 py-1 bg-violet-500 text-white rounded font-mono text-[10px] font-bold shadow-lg hover:brightness-110 flex items-center space-x-1 cursor-pointer">
+                          <i data-lucide="maximize-2" class="w-3 h-3"></i>
+                          <span>Inspect</span>
+                        </button>
+                        <button type="button" id="download-ar-card-btn" class="px-2.5 py-1 bg-obsidian-950 text-violet-300 border border-violet-400/40 rounded font-mono text-[10px] font-bold hover:bg-obsidian-800 flex items-center space-x-1 cursor-pointer">
+                          <i data-lucide="download" class="w-3 h-3"></i>
+                          <span>Save</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Footer / Headline -->
+                  <div class="pt-1.5 border-t border-obsidian-800/80 flex items-center justify-between text-[10px] font-mono" dir="rtl">
+                    <span id="dual-ar-headline-pill" class="text-slate-300 font-sans font-bold truncate max-w-[150px]">—</span>
+                    <button type="button" id="download-ar-btn" class="text-violet-400 hover:text-white transition-colors flex items-center space-x-1 cursor-pointer" dir="ltr">
+                      <i data-lucide="download" class="w-3 h-3"></i>
+                      <span>Download</span>
+                    </button>
+                  </div>
+                </div>
+
               </div>
+            </div>
 
-              <!-- Bottom Overlay Bar -->
-              <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-obsidian-950 via-obsidian-950/70 to-transparent p-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-between">
-                <span id="image-dimensions" class="text-[10px] font-mono text-slate-300">1536 × 864 • Landscape ad</span>
-                <button id="view-full-img-btn" class="px-2.5 py-1 text-[11px] font-mono bg-cyan-accent/20 hover:bg-cyan-accent text-cyan-accent hover:text-obsidian-950 rounded border border-cyan-accent/40 transition-colors flex items-center space-x-1">
-                  <i data-lucide="maximize-2" class="w-3 h-3"></i>
-                  <span>Inspect</span>
-                </button>
+            <!-- SOLO VISUAL SHOWCASE: Full-width view for inspecting single variant or clean photo -->
+            <div id="solo-visual-container" class="hidden space-y-2">
+              <div id="visual-frame" class="relative w-full aspect-[16/9] bg-obsidian-950 rounded-xl overflow-hidden border border-obsidian-800 group shadow-inner">
+                <!-- Loading Skeleton / Shimmer -->
+                <div id="image-loader" class="absolute inset-0 flex flex-col items-center justify-center bg-obsidian-950 z-20 transition-opacity duration-300">
+                  <div class="w-12 h-12 rounded-full border-2 border-cyan-accent/20 border-t-cyan-accent animate-spin mb-3"></div>
+                  <p class="text-xs font-mono text-cyan-accent tracking-widest uppercase animate-pulse">Rendering Visual...</p>
+                  <p class="text-[10px] font-mono text-slate-500 mt-1">Compositing headline &amp; brand overlay</p>
+                </div>
+
+                <!-- Main Rendered Image -->
+                <img 
+                  id="result-image" 
+                  src="" 
+                  alt="Campaign Visual Asset" 
+                  class="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                />
+
+                <!-- Top Left Mode Pill -->
+                <div class="absolute top-3 left-3 z-10 bg-obsidian-950/80 backdrop-blur-md border border-cyan-accent/40 px-2.5 py-1 rounded-md text-[10px] font-mono text-cyan-accent flex items-center space-x-1.5 shadow-lg">
+                  <span class="w-1.5 h-1.5 rounded-full bg-cyan-accent animate-ping"></span>
+                  <span id="solo-mode-badge" class="font-bold tracking-wider">CAMPAIGN PREVIEW</span>
+                </div>
+
+                <!-- Bottom Overlay Bar -->
+                <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-obsidian-950 via-obsidian-950/70 to-transparent p-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-between">
+                  <span id="image-dimensions" class="text-[10px] font-mono text-slate-300">1536 × 864 • Landscape ad</span>
+                  <div class="flex items-center space-x-2">
+                    <button id="view-full-img-btn" class="px-2.5 py-1 text-[11px] font-mono bg-cyan-accent/20 hover:bg-cyan-accent text-cyan-accent hover:text-obsidian-950 rounded border border-cyan-accent/40 transition-colors flex items-center space-x-1 cursor-pointer">
+                      <i data-lucide="maximize-2" class="w-3 h-3"></i>
+                      <span>Inspect</span>
+                    </button>
+                    <button id="download-image-btn" class="px-2.5 py-1 text-[11px] font-mono bg-obsidian-950/90 text-cyan-accent hover:text-white border border-cyan-accent/40 rounded transition-colors flex items-center space-x-1 cursor-pointer">
+                      <i data-lucide="download" class="w-3 h-3"></i>
+                      <span>Download</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
             <!-- Image Actions & Reroll -->
-            <div class="grid grid-cols-2 gap-2 pt-2">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
               <button 
                 type="button" 
                 id="reroll-image-btn" 
-                class="px-3 py-2 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-700 text-slate-300 hover:text-cyan-accent text-xs font-mono transition-colors flex items-center justify-center space-x-1.5"
+                class="px-3 py-2 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-700 text-slate-300 hover:text-cyan-accent text-xs font-mono transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
                 title="Generate another variation with a new seed"
               >
                 <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-                <span>Re-roll Visual</span>
+                <span>Re-roll Visuals</span>
               </button>
 
               <button 
                 type="button" 
-                id="download-image-btn" 
-                class="px-3 py-2 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-700 text-slate-300 hover:text-violet-accent text-xs font-mono transition-colors flex items-center justify-center space-x-1.5"
-                title="Download full quality visual asset"
+                id="download-en-main-btn" 
+                class="px-3 py-2 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-cyan-500/30 text-cyan-accent hover:text-white text-xs font-mono transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+                title="Download English visual asset"
               >
                 <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                <span>Download Asset</span>
+                <span>Download EN</span>
+              </button>
+
+              <button 
+                type="button" 
+                id="download-ar-main-btn" 
+                class="px-3 py-2 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-violet-500/30 text-violet-300 hover:text-white text-xs font-mono transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+                title="Download Arabic visual asset"
+              >
+                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                <span>Download AR</span>
               </button>
             </div>
 
@@ -381,11 +621,11 @@
             <button 
               type="button" 
               id="export-disk-btn" 
-              class="w-full px-3 py-2 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-700 text-slate-300 hover:text-cyan-accent text-xs font-mono transition-colors flex items-center justify-center space-x-1.5"
-              title="Save image (.jpg), metadata (.json), and caption (.md) to output/ folder via Python backend"
+              class="w-full px-3 py-2 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-700 text-slate-300 hover:text-cyan-accent text-xs font-mono transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+              title="Save English & Arabic images (.jpg), metadata (.json), and captions (.txt) to output/ folder"
             >
               <i data-lucide="hard-drive" class="w-3.5 h-3.5 text-cyan-accent"></i>
-              <span>Export Package to Disk</span>
+              <span>Export Bilingual Package to Disk</span>
             </button>
 
             <!-- AI Vision Art Director (Image-Aware Typography) -->
@@ -396,7 +636,7 @@
                   <span>AI Vision Art Director</span>
                 </span>
                 <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-accent/10 border border-cyan-accent/30 text-cyan-accent font-semibold">
-                  Scene-Aware Text
+                  Bilingual Scene-Aware
                 </span>
               </div>
               <div class="space-y-1">
@@ -404,13 +644,21 @@
                 <p id="vision-scene-analysis" class="text-xs text-slate-200 font-sans leading-relaxed italic">Generating visual scene analysis...</p>
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                <div class="bg-obsidian-900 border border-obsidian-800/80 rounded-lg p-2.5">
-                  <div class="text-[10px] font-mono text-slate-400 uppercase">Typeset Headline</div>
-                  <p id="vision-headline-display" class="text-xs text-white font-tech font-bold uppercase truncate mt-0.5">—</p>
+                <div class="bg-obsidian-900 border border-obsidian-800/80 rounded-lg p-2.5 space-y-1">
+                  <div class="text-[10px] font-mono text-slate-400 uppercase flex items-center justify-between">
+                    <span>🇬🇧 English Headline</span>
+                    <span class="text-[9px] text-cyan-accent font-bold px-1.5 py-0.2 rounded bg-cyan-accent/10">EN</span>
+                  </div>
+                  <p id="vision-headline-display" class="text-xs text-white font-tech font-bold uppercase truncate">—</p>
+                  <p id="vision-tagline-display" class="text-[11px] text-slate-300 font-sans truncate">—</p>
                 </div>
-                <div class="bg-obsidian-900 border border-obsidian-800/80 rounded-lg p-2.5">
-                  <div class="text-[10px] font-mono text-slate-400 uppercase">Typeset Subtitle</div>
-                  <p id="vision-tagline-display" class="text-xs text-slate-300 font-sans truncate mt-0.5">—</p>
+                <div class="bg-obsidian-900 border border-obsidian-800/80 rounded-lg p-2.5 space-y-1" dir="rtl">
+                  <div class="text-[10px] font-mono text-slate-400 uppercase flex items-center justify-between">
+                    <span class="font-sans font-semibold">🇸🇦 العنوان المعرّب</span>
+                    <span class="text-[9px] text-violet-400 font-bold px-1.5 py-0.2 rounded bg-violet-400/10 font-mono">AR</span>
+                  </div>
+                  <p id="vision-ar-headline-display" class="text-xs text-white font-sans font-bold truncate">—</p>
+                  <p id="vision-ar-tagline-display" class="text-[11px] text-slate-300 font-sans truncate">—</p>
                 </div>
               </div>
             </div>
@@ -428,7 +676,7 @@
           </div>
 
           <!-- COLUMN 2: Marketing Copy & Caption Studio -->
-          <div class="lg:col-span-7 bg-obsidian-900/90 border border-obsidian-800 rounded-2xl p-6 shadow-2xl space-y-5">
+          <div class="lg:col-span-6 bg-obsidian-900/90 border border-obsidian-800 rounded-2xl p-6 shadow-2xl space-y-5">
             
             <!-- Column Header with Copy Actions -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-obsidian-800">
@@ -437,8 +685,18 @@
                 <h3 class="text-xs font-mono font-bold tracking-wider text-slate-200 uppercase">B2B Marketing Copy &amp; Caption</h3>
               </div>
 
-              <!-- Quick Copy Button -->
-              <div class="flex items-center space-x-2">
+              <!-- Language Switcher & Quick Copy Button -->
+              <div class="flex items-center space-x-2.5">
+                <!-- Bilingual Tabs -->
+                <div class="flex items-center space-x-1 bg-obsidian-950 p-1 rounded-xl border border-obsidian-800 text-xs font-mono shadow-inner">
+                  <button type="button" id="lang-tab-en" class="px-3 py-1 rounded-lg text-xs font-semibold transition-all bg-cyan-accent text-obsidian-950 shadow-cyan-glow">
+                    🇬🇧 English
+                  </button>
+                  <button type="button" id="lang-tab-ar" class="px-3 py-1 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white">
+                    🇸🇦 العربية
+                  </button>
+                </div>
+
                 <button 
                   type="button" 
                   id="copy-all-btn" 
@@ -451,7 +709,7 @@
             </div>
 
             <!-- Tab / Section Breakdown -->
-            <div class="space-y-4">
+            <div id="copy-card-body" class="space-y-4 transition-all duration-300">
               
               <!-- Dual-Agent Collaborative Dialogue Card -->
               <div id="agent-collab-box" class="bg-gradient-to-br from-obsidian-950 via-obsidian-900 to-obsidian-950 border border-cyan-500/30 rounded-xl p-4 space-y-3 shadow-lg">
@@ -747,6 +1005,27 @@
     </div>
   </div>
 
+  <!-- Guidelines Preview Modal -->
+  <div id="guidelines-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-obsidian-900 border border-obsidian-700 rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl overflow-hidden">
+      <div class="p-4 border-b border-obsidian-800 flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <i data-lucide="shield-check" class="w-4 h-4 text-cyan-accent"></i>
+          <span id="guidelines-modal-title" class="text-sm font-tech font-bold text-white tracking-wider uppercase">Active Brand Guidelines &amp; Directives</span>
+        </div>
+        <button type="button" id="guidelines-modal-close" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div class="p-5 overflow-y-auto font-mono text-xs text-slate-300 leading-relaxed whitespace-pre-wrap select-text max-h-[60vh]" id="guidelines-modal-body"></div>
+      <div class="p-3 border-t border-obsidian-800 flex justify-end">
+        <button type="button" id="guidelines-modal-dismiss" class="px-4 py-1.5 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 text-xs font-mono text-slate-300">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- APPLICATION LOGIC SCRIPT -->
   <script>
     // --- DOM Elements ---
@@ -833,6 +1112,39 @@
     const visionSceneAnalysis = document.getElementById('vision-scene-analysis');
     const visionHeadlineDisplay = document.getElementById('vision-headline-display');
     const visionTaglineDisplay = document.getElementById('vision-tagline-display');
+    const visionArHeadlineDisplay = document.getElementById('vision-ar-headline-display');
+    const visionArTaglineDisplay = document.getElementById('vision-ar-tagline-display');
+
+    // Language and Visual Switchers
+    const langTabEn = document.getElementById('lang-tab-en');
+    const langTabAr = document.getElementById('lang-tab-ar');
+    const copyCardBody = document.getElementById('copy-card-body');
+    const visualTabBoth = document.getElementById('visual-tab-both');
+    const visualTabEn = document.getElementById('visual-tab-en');
+    const visualTabAr = document.getElementById('visual-tab-ar');
+    const visualTabClean = document.getElementById('visual-tab-clean');
+    const dualVisualContainer = document.getElementById('dual-visual-container');
+    const soloVisualContainer = document.getElementById('solo-visual-container');
+    const dualCardsGrid = document.getElementById('dual-cards-grid');
+    const dualLayoutSplit = document.getElementById('dual-layout-split');
+    const dualLayoutStack = document.getElementById('dual-layout-stack');
+    const resultImageEn = document.getElementById('result-image-en');
+    const resultImageAr = document.getElementById('result-image-ar');
+    const imageLoaderEn = document.getElementById('image-loader-en');
+    const imageLoaderAr = document.getElementById('image-loader-ar');
+    const dualEnHeadlinePill = document.getElementById('dual-en-headline-pill');
+    const dualArHeadlinePill = document.getElementById('dual-ar-headline-pill');
+    const dualEnBadge = document.getElementById('dual-en-badge');
+    const dualArBadge = document.getElementById('dual-ar-badge');
+    const soloModeBadge = document.getElementById('solo-mode-badge');
+    const inspectEnBtn = document.getElementById('inspect-en-btn');
+    const inspectArBtn = document.getElementById('inspect-ar-btn');
+    const downloadEnBtn = document.getElementById('download-en-btn');
+    const downloadArBtn = document.getElementById('download-ar-btn');
+    const downloadEnCardBtn = document.getElementById('download-en-card-btn');
+    const downloadArCardBtn = document.getElementById('download-ar-card-btn');
+    const downloadEnMainBtn = document.getElementById('download-en-main-btn');
+    const downloadArMainBtn = document.getElementById('download-ar-main-btn');
 
     // --- State ---
     let isPythonBackendActive = false;
@@ -842,6 +1154,8 @@
     let currentImageUrl = '';
     let currentSeed = Math.floor(Math.random() * 1000000);
     let currentCleanImageUrl = '';
+    let currentEnglishImageUrl = '';
+    let currentArabicImageUrl = '';
     let currentInstagramCaption = '';
     let currentSearchResults = [];
     let currentAgentDialogue = [];
@@ -852,22 +1166,404 @@
     let currentVisualAnalysis = '';
     let currentVisualHeadline = '';
     let currentVisualTagline = '';
+    let activeLanguage = 'en';
+    let currentVisualMode = 'both';
+    let currentDualLayout = 'split';
+    let currentEnglishPackage = {};
+    let currentArabicPackage = {};
     let timerInterval = null;
     let startTime = 0;
 
-    function renderVisionTypographer(analysis, headline, tagline) {
-      if (!visionTypographerBox) return;
-      if (analysis || headline || tagline) {
-        visionTypographerBox.classList.remove('hidden');
-        if (visionSceneAnalysis) visionSceneAnalysis.textContent = analysis || 'Commercial advertising scene with photographic lighting.';
-        if (visionHeadlineDisplay) visionHeadlineDisplay.textContent = headline || '—';
-        if (visionTaglineDisplay) visionTaglineDisplay.textContent = tagline || '—';
+    // Guidelines State & Elements
+    const guidelinesCard = document.getElementById('guidelines-card');
+    const guidelinesDropzone = document.getElementById('guidelines-dropzone');
+    const guidelinesFileInput = document.getElementById('guidelines-file-input');
+    const guidelinesActivePill = document.getElementById('guidelines-active-pill');
+    const guidelinesActiveTitle = document.getElementById('guidelines-active-title');
+    const guidelinesWordBadge = document.getElementById('guidelines-word-badge');
+    const guidelinesPreviewBtn = document.getElementById('guidelines-preview-btn');
+    const guidelinesRemoveBtn = document.getElementById('guidelines-remove-btn');
+    const guidelinesTogglePaste = document.getElementById('guidelines-toggle-paste');
+    const pasteToggleLabel = document.getElementById('paste-toggle-label');
+    const guidelinesPasteBox = document.getElementById('guidelines-paste-box');
+    const guidelinesTextInput = document.getElementById('guidelines-text-input');
+    const guidelinesApplyTextBtn = document.getElementById('guidelines-apply-text-btn');
+
+    const guidelinesModal = document.getElementById('guidelines-modal');
+    const guidelinesModalTitle = document.getElementById('guidelines-modal-title');
+    const guidelinesModalBody = document.getElementById('guidelines-modal-body');
+    const guidelinesModalClose = document.getElementById('guidelines-modal-close');
+    const guidelinesModalDismiss = document.getElementById('guidelines-modal-dismiss');
+
+    let currentGuidelines = '';
+    let currentGuidelinesTitle = '';
+
+    function updateGuidelinesUI(title, wordCount) {
+      currentGuidelinesTitle = title;
+      if (guidelinesActiveTitle) guidelinesActiveTitle.textContent = title;
+      if (guidelinesWordBadge) guidelinesWordBadge.textContent = `${wordCount.toLocaleString()} words`;
+      if (guidelinesActivePill) guidelinesActivePill.classList.remove('hidden');
+      if (guidelinesDropzone) guidelinesDropzone.classList.add('hidden');
+      if (guidelinesPasteBox) guidelinesPasteBox.classList.add('hidden');
+      if (pasteToggleLabel) pasteToggleLabel.textContent = 'Edit Rules';
+    }
+
+    function clearGuidelinesUI() {
+      currentGuidelines = '';
+      currentGuidelinesTitle = '';
+      if (guidelinesActivePill) guidelinesActivePill.classList.add('hidden');
+      if (guidelinesDropzone) guidelinesDropzone.classList.remove('hidden');
+      if (guidelinesFileInput) guidelinesFileInput.value = '';
+      if (guidelinesTextInput) guidelinesTextInput.value = '';
+      if (pasteToggleLabel) pasteToggleLabel.textContent = 'Paste Rules';
+    }
+
+    async function handleGuidelinesFile(file) {
+      if (!file) return;
+      showToast(`Reading and parsing ${file.name}...`);
+      try {
+        if (isPythonBackendActive && backendApiBase) {
+          const fd = new FormData();
+          fd.append('file', file);
+          const resp = await fetch(`${backendApiBase}/api/upload-guidelines`, {
+            method: 'POST',
+            body: fd
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            currentGuidelines = data.guidelines;
+            updateGuidelinesUI(data.filename, data.word_count);
+            showToast(`Brand guidelines active: ${data.word_count} words enforced!`, true);
+            return;
+          }
+        }
+        // Client fallback for text files
+        const text = await file.text();
+        currentGuidelines = text;
+        const words = text.split(/\s+/).filter(Boolean).length;
+        updateGuidelinesUI(file.name, words);
+        showToast(`Brand guidelines active: ${words} words enforced!`, true);
+      } catch (err) {
+        showToast(`Could not load guidelines: ${err.message}`, false);
       }
     }
 
+    if (guidelinesDropzone && guidelinesFileInput) {
+      guidelinesDropzone.addEventListener('click', () => guidelinesFileInput.click());
+      guidelinesFileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          handleGuidelinesFile(e.target.files[0]);
+        }
+      });
+      guidelinesDropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        guidelinesDropzone.classList.add('border-cyan-accent', 'bg-obsidian-900/80');
+      });
+      guidelinesDropzone.addEventListener('dragleave', () => {
+        guidelinesDropzone.classList.remove('border-cyan-accent', 'bg-obsidian-900/80');
+      });
+      guidelinesDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        guidelinesDropzone.classList.remove('border-cyan-accent', 'bg-obsidian-900/80');
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+          handleGuidelinesFile(e.dataTransfer.files[0]);
+        }
+      });
+    }
+
+    if (guidelinesTogglePaste) {
+      guidelinesTogglePaste.addEventListener('click', () => {
+        const isHidden = guidelinesPasteBox.classList.contains('hidden');
+        if (isHidden) {
+          guidelinesPasteBox.classList.remove('hidden');
+          guidelinesTextInput.value = currentGuidelines || '';
+          guidelinesTextInput.focus();
+        } else {
+          guidelinesPasteBox.classList.add('hidden');
+        }
+      });
+    }
+
+    if (guidelinesApplyTextBtn) {
+      guidelinesApplyTextBtn.addEventListener('click', () => {
+        const txt = guidelinesTextInput.value.trim();
+        if (!txt) {
+          showToast('Please type or paste your guidelines text first', false);
+          return;
+        }
+        currentGuidelines = txt;
+        const words = txt.split(/\s+/).filter(Boolean).length;
+        updateGuidelinesUI('Custom Brand Directives', words);
+        showToast(`Brand guidelines active: ${words} words enforced!`, true);
+      });
+    }
+
+    if (guidelinesRemoveBtn) {
+      guidelinesRemoveBtn.addEventListener('click', () => {
+        clearGuidelinesUI();
+        showToast('Guidelines cleared. Generation will follow standard prompts.');
+      });
+    }
+
+    if (guidelinesPreviewBtn) {
+      guidelinesPreviewBtn.addEventListener('click', () => {
+        if (!currentGuidelines) return;
+        guidelinesModalTitle.textContent = currentGuidelinesTitle || 'Active Brand Guidelines';
+        guidelinesModalBody.textContent = currentGuidelines;
+        guidelinesModal.classList.remove('hidden');
+      });
+    }
+
+    if (guidelinesModalClose) {
+      guidelinesModalClose.addEventListener('click', () => guidelinesModal.classList.add('hidden'));
+    }
+    if (guidelinesModalDismiss) {
+      guidelinesModalDismiss.addEventListener('click', () => guidelinesModal.classList.add('hidden'));
+    }
+
+    function renderVisionTypographer(analysis, enHeadline, enTagline, arHeadline, arTagline) {
+      if (!visionTypographerBox) return;
+      visionTypographerBox.classList.remove('hidden');
+      if (visionSceneAnalysis) visionSceneAnalysis.textContent = analysis || 'Commercial advertising scene with photographic lighting.';
+      if (visionHeadlineDisplay) visionHeadlineDisplay.textContent = enHeadline || '—';
+      if (visionTaglineDisplay) visionTaglineDisplay.textContent = enTagline || '—';
+      if (visionArHeadlineDisplay) visionArHeadlineDisplay.textContent = arHeadline || (currentArabicPackage && (currentArabicPackage.visual_headline || currentArabicPackage.image_headline)) || '—';
+      if (visionArTaglineDisplay) visionArTaglineDisplay.textContent = arTagline || (currentArabicPackage && currentArabicPackage.visual_tagline) || '—';
+    }
+
+    function buildArabicInstagramCaption(hook, caption, highlights, cta, hashtags) {
+      const parts = [];
+      if (hook) parts.push(hook.trim());
+      if (caption) parts.push(caption.trim());
+      if (highlights && highlights.length) parts.push(highlights.map(h => '‹ ' + h.trim()).join('\n'));
+      if (cta) parts.push('👈 ' + cta.trim());
+      const body = parts.filter(Boolean).join('\n\n');
+      return hashtags ? `${body}\n.\n.\n${hashtags.trim()}` : body;
+    }
+
+    function setVisualMode(mode) {
+      currentVisualMode = mode;
+      
+      const activeBoth = 'px-2.5 py-0.5 rounded text-[11px] font-semibold bg-gradient-to-r from-cyan-500/20 to-violet-500/20 text-white border border-cyan-400/40 shadow-sm transition-all';
+      const activeEn = 'px-2.5 py-0.5 rounded text-[11px] font-semibold bg-cyan-accent/20 text-cyan-accent border border-cyan-accent/30 transition-all';
+      const activeAr = 'px-2.5 py-0.5 rounded text-[11px] font-semibold bg-violet-500/20 text-violet-300 border border-violet-500/40 transition-all';
+      const activeClean = 'px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-700 text-white border border-slate-600 transition-all';
+      const inactiveBtn = 'px-2.5 py-0.5 rounded text-[11px] font-semibold text-slate-400 hover:text-white transition-all';
+      const inactiveClean = 'px-2 py-0.5 rounded text-[11px] font-semibold text-slate-400 hover:text-white transition-all';
+
+      if (visualTabBoth) visualTabBoth.className = mode === 'both' ? activeBoth : inactiveBtn;
+      if (visualTabEn) visualTabEn.className = mode === 'en' ? activeEn : inactiveBtn;
+      if (visualTabAr) visualTabAr.className = mode === 'ar' ? activeAr : inactiveBtn;
+      if (visualTabClean) visualTabClean.className = mode === 'clean' ? activeClean : inactiveClean;
+
+      if (mode === 'both') {
+        if (dualVisualContainer) dualVisualContainer.classList.remove('hidden');
+        if (soloVisualContainer) soloVisualContainer.classList.add('hidden');
+        updateDualImages();
+      } else {
+        if (dualVisualContainer) dualVisualContainer.classList.add('hidden');
+        if (soloVisualContainer) soloVisualContainer.classList.remove('hidden');
+
+        if (mode === 'en') {
+          if (soloModeBadge) soloModeBadge.textContent = '🇬🇧 ENGLISH AD PREVIEW';
+          updateImageSource(currentEnglishImageUrl || currentImageUrl);
+        } else if (mode === 'ar') {
+          if (soloModeBadge) soloModeBadge.textContent = '🇸🇦 ARABIC AD PREVIEW';
+          if (currentArabicImageUrl) {
+            updateImageSource(currentArabicImageUrl);
+          } else if (currentCleanImageUrl) {
+            updateImageSource(currentCleanImageUrl);
+            showToast('Arabic visual overlay is processing...', false);
+          } else if (currentEnglishImageUrl) {
+            updateImageSource(currentEnglishImageUrl);
+          }
+        } else if (mode === 'clean') {
+          if (soloModeBadge) soloModeBadge.textContent = '🖼️ CLEAN BASE PHOTO';
+          if (currentCleanImageUrl) {
+            updateImageSource(currentCleanImageUrl);
+          } else if (currentEnglishImageUrl) {
+            updateImageSource(currentEnglishImageUrl);
+          }
+        }
+      }
+    }
+
+    function setDualLayout(layout) {
+      currentDualLayout = layout;
+      if (!dualCardsGrid) return;
+      if (layout === 'split') {
+        dualCardsGrid.className = 'grid grid-cols-1 sm:grid-cols-2 gap-3.5';
+        if (dualLayoutSplit) dualLayoutSplit.className = 'px-2 py-0.5 rounded text-[10px] font-semibold bg-cyan-accent/20 text-cyan-accent border border-cyan-accent/30 transition-all';
+        if (dualLayoutStack) dualLayoutStack.className = 'px-2 py-0.5 rounded text-[10px] font-semibold text-slate-400 hover:text-white transition-all';
+      } else {
+        dualCardsGrid.className = 'grid grid-cols-1 gap-4';
+        if (dualLayoutStack) dualLayoutStack.className = 'px-2 py-0.5 rounded text-[10px] font-semibold bg-cyan-accent/20 text-cyan-accent border border-cyan-accent/30 transition-all';
+        if (dualLayoutSplit) dualLayoutSplit.className = 'px-2 py-0.5 rounded text-[10px] font-semibold text-slate-400 hover:text-white transition-all';
+      }
+    }
+
+    function updateDualImages() {
+      const enUrl = currentEnglishImageUrl || currentImageUrl;
+      const arUrl = currentArabicImageUrl || currentEnglishImageUrl || currentImageUrl;
+
+      const arStyle = {landscape: '16 / 9', portrait: '4 / 5', square: '1 / 1'}[campaignFormat] || '16 / 9';
+      const frameEn = document.getElementById('dual-frame-en');
+      const frameAr = document.getElementById('dual-frame-ar');
+      if (frameEn) frameEn.style.aspectRatio = arStyle;
+      if (frameAr) frameAr.style.aspectRatio = arStyle;
+
+      if (resultImageEn) {
+        if (enUrl) {
+          resultImageEn.src = enUrl;
+          resultImageEn.classList.remove('hidden');
+          if (imageLoaderEn) {
+            imageLoaderEn.classList.remove('opacity-100');
+            imageLoaderEn.classList.add('opacity-0', 'pointer-events-none');
+          }
+        } else {
+          resultImageEn.removeAttribute('src');
+          resultImageEn.classList.add('hidden');
+        }
+      }
+
+      if (resultImageAr) {
+        if (arUrl) {
+          resultImageAr.src = arUrl;
+          resultImageAr.classList.remove('hidden');
+          if (imageLoaderAr) {
+            imageLoaderAr.classList.remove('opacity-100');
+            imageLoaderAr.classList.add('opacity-0', 'pointer-events-none');
+          }
+        } else {
+          resultImageAr.removeAttribute('src');
+          resultImageAr.classList.add('hidden');
+        }
+      }
+
+      const enHl = currentVisualHeadline || (currentEnglishPackage && currentEnglishPackage.headline) || '';
+      const arHl = (currentArabicPackage && (currentArabicPackage.visual_headline || currentArabicPackage.image_headline)) || '';
+
+      if (dualEnHeadlinePill) dualEnHeadlinePill.textContent = enHl || 'English Ad';
+      if (dualArHeadlinePill) dualArHeadlinePill.textContent = arHl || 'الإعلان المعرب';
+      if (dualEnBadge) dualEnBadge.textContent = enHl ? enHl.slice(0, 18) : 'ENGLISH AD';
+      if (dualArBadge) dualArBadge.textContent = arHl ? arHl.slice(0, 18) : 'ARABIC AD';
+    }
+
+    async function downloadAssetByUrl(url, suffix = 'ad') {
+      if (!url) {
+        showToast('Visual asset not ready yet', false);
+        return;
+      }
+      try {
+        const blob = await (await fetch(url)).blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        const slug = (brandInput.value.trim() || 'campaign').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        a.download = `${slug}-${suffix}-${currentSeed}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        showToast(`Downloaded ${suffix.toUpperCase()} asset!`);
+      } catch (err) {
+        window.open(url, '_blank');
+      }
+    }
+
+    function setLanguage(lang) {
+      activeLanguage = lang;
+      const isAr = lang === 'ar';
+
+      if (langTabEn && langTabAr) {
+        if (isAr) {
+          langTabAr.className = 'px-3 py-1 rounded-lg text-xs font-semibold transition-all bg-violet-600 text-white shadow-lg border border-violet-400 font-bold';
+          langTabEn.className = 'px-3 py-1 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white';
+        } else {
+          langTabEn.className = 'px-3 py-1 rounded-lg text-xs font-semibold transition-all bg-cyan-accent text-obsidian-950 shadow-cyan-glow font-bold';
+          langTabAr.className = 'px-3 py-1 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white';
+        }
+      }
+
+      if (copyCardBody) {
+        copyCardBody.setAttribute('dir', isAr ? 'rtl' : 'ltr');
+      }
+
+      const pkg = isAr ? currentArabicPackage : currentEnglishPackage;
+      if (!pkg || Object.keys(pkg).length === 0) return;
+
+      copyHook.textContent = pkg.hook || (isAr ? 'حملة إعلانية استثنائية' : 'Next-Gen Campaign');
+      copyBody.textContent = pkg.caption || '';
+      copyCta.textContent = pkg.cta || '—';
+      copyHeadline.textContent = (isAr ? (pkg.visual_headline || pkg.image_headline) : (currentVisualHeadline || pkg.headline)) || '';
+      copyAlt.textContent = pkg.alt_text || pkg.altText || '—';
+
+      // Highlights
+      copyHighlights.innerHTML = '';
+      const hList = pkg.highlights || [];
+      if (Array.isArray(hList) && hList.length > 0) {
+        hList.forEach(h => {
+          const div = document.createElement('div');
+          div.className = 'flex items-start space-x-2' + (isAr ? ' space-x-reverse text-right' : '');
+          const bullet = isAr ? '‹' : '›';
+          div.innerHTML = `<span class="${isAr ? 'text-violet-400' : 'text-cyan-accent'} font-bold">${bullet}</span><span>${escapeHtml(h)}</span>`;
+          copyHighlights.appendChild(div);
+        });
+      } else {
+        copyHighlights.innerHTML = `<div class="text-slate-500 italic">${isAr ? 'لا توجد مزايا محددة' : 'No specific highlights extracted'}</div>`;
+      }
+
+      // Hashtags
+      copyHashtags.textContent = pkg.hashtags || '';
+
+      // Instagram Caption
+      const fullCap = pkg.instagram_caption || pkg.instagramCaption || (isAr
+        ? buildArabicInstagramCaption(pkg.hook, pkg.caption, hList, pkg.cta, pkg.hashtags)
+        : buildInstagramCaption(pkg.hook, pkg.caption, hList, pkg.cta, pkg.hashtags));
+      currentInstagramCaption = fullCap;
+      captionLengthIndicator.textContent = `${fullCap.length} / 2,200 chars`;
+
+      // Only switch solo visual if user is in a solo view
+      if (currentVisualMode !== 'both' && currentVisualMode !== 'clean') {
+        if (isAr && currentArabicImageUrl) {
+          setVisualMode('ar');
+        } else if (!isAr && currentEnglishImageUrl) {
+          setVisualMode('en');
+        }
+      }
+    }
+
+    if (langTabEn) langTabEn.addEventListener('click', () => setLanguage('en'));
+    if (langTabAr) langTabAr.addEventListener('click', () => setLanguage('ar'));
+    if (visualTabBoth) visualTabBoth.addEventListener('click', () => setVisualMode('both'));
+    if (visualTabEn) visualTabEn.addEventListener('click', () => setVisualMode('en'));
+    if (visualTabAr) visualTabAr.addEventListener('click', () => setVisualMode('ar'));
+    if (visualTabClean) visualTabClean.addEventListener('click', () => setVisualMode('clean'));
+    if (dualLayoutSplit) dualLayoutSplit.addEventListener('click', () => setDualLayout('split'));
+    if (dualLayoutStack) dualLayoutStack.addEventListener('click', () => setDualLayout('stack'));
+
+    if (inspectEnBtn) inspectEnBtn.addEventListener('click', () => {
+      const url = currentEnglishImageUrl || currentImageUrl;
+      if (url) window.open(url, '_blank');
+    });
+    if (inspectArBtn) inspectArBtn.addEventListener('click', () => {
+      const url = currentArabicImageUrl || currentEnglishImageUrl || currentImageUrl;
+      if (url) window.open(url, '_blank');
+    });
+
+    if (downloadEnBtn) downloadEnBtn.addEventListener('click', () => downloadAssetByUrl(currentEnglishImageUrl || currentImageUrl, 'english'));
+    if (downloadArBtn) downloadArBtn.addEventListener('click', () => downloadAssetByUrl(currentArabicImageUrl || currentImageUrl, 'arabic'));
+    if (downloadEnCardBtn) downloadEnCardBtn.addEventListener('click', () => downloadAssetByUrl(currentEnglishImageUrl || currentImageUrl, 'english'));
+    if (downloadArCardBtn) downloadArCardBtn.addEventListener('click', () => downloadAssetByUrl(currentArabicImageUrl || currentImageUrl, 'arabic'));
+    if (downloadEnMainBtn) downloadEnMainBtn.addEventListener('click', () => downloadAssetByUrl(currentEnglishImageUrl || currentImageUrl, 'english'));
+    if (downloadArMainBtn) downloadArMainBtn.addEventListener('click', () => downloadAssetByUrl(currentArabicImageUrl || currentImageUrl, 'arabic'));
+
     function resolveBackendUrl(url) {
       if (!url) return "";
-      if (!url) return '';
+      if (url.startsWith('file://')) {
+        const parts = url.split(/[/\\]/);
+        const filename = parts[parts.length - 1];
+        return (backendApiBase ? backendApiBase.replace(/\/$/, '') : '') + '/renders/' + filename;
+      }
       if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
       if (url.startsWith('/') && backendApiBase) {
         return backendApiBase.replace(/\/$/, '') + url;
@@ -1261,7 +1957,17 @@
       }
       imageLoader.classList.remove('opacity-0', 'pointer-events-none');
       imageLoader.classList.add('opacity-100');
+      if (imageLoaderEn) {
+        imageLoaderEn.classList.remove('opacity-0', 'pointer-events-none');
+        imageLoaderEn.classList.add('opacity-100');
+      }
+      if (imageLoaderAr) {
+        imageLoaderAr.classList.remove('opacity-0', 'pointer-events-none');
+        imageLoaderAr.classList.add('opacity-100');
+      }
       try {
+        const arHl = (currentArabicPackage && (currentArabicPackage.visual_headline || currentArabicPackage.image_headline)) || '';
+        const arTl = (currentArabicPackage && currentArabicPackage.visual_tagline) || '';
         const resp = await fetch(`${backendApiBase}/api/render`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1273,7 +1979,9 @@
             headline: copyHeadline.textContent.trim(),
             brand: brandInput.value.trim(),
             tagline: copyHook.textContent.trim(),
-            overlay: enhanceImageCheckbox.checked
+            overlay: enhanceImageCheckbox.checked,
+            arabic_headline: arHl,
+            arabic_tagline: arTl
           })
         });
         if (!resp.ok) {
@@ -1294,17 +2002,35 @@
         currentWarnings = currentWarnings.filter(w => w.startsWith('No web evidence') || w.includes('text generation'));
         document.getElementById('campaign-warnings').textContent = currentWarnings.join(' ');
         currentCleanImageUrl = resolveBackendUrl(data.clean_image_url);
+        currentEnglishImageUrl = resolveBackendUrl(data.image_url);
+        currentArabicImageUrl = resolveBackendUrl(data.arabic_image_url || '');
         watermarkWarning.classList.toggle('hidden', !!data.watermark_free);
-        updateImageSource(resolveBackendUrl(data.image_url));
+        setVisualMode(currentVisualMode);
 
         if (data.visual_headline) {
           currentVisualHeadline = data.visual_headline;
-          copyHeadline.textContent = data.visual_headline;
+          if (activeLanguage === 'en') {
+            copyHeadline.textContent = data.visual_headline;
+          }
         }
-        if (data.visual_analysis || data.visual_headline || data.visual_tagline) {
+        if (data.visual_ar_headline) {
+          if (!currentArabicPackage) currentArabicPackage = {};
+          currentArabicPackage.visual_headline = data.visual_ar_headline;
+          if (data.visual_ar_tagline) currentArabicPackage.visual_tagline = data.visual_ar_tagline;
+          if (activeLanguage === 'ar') {
+            copyHeadline.textContent = data.visual_ar_headline;
+          }
+        }
+        if (data.visual_analysis || data.visual_headline || data.visual_tagline || data.visual_ar_headline) {
           currentVisualAnalysis = data.visual_analysis || currentVisualAnalysis;
           currentVisualTagline = data.visual_tagline || currentVisualTagline;
-          renderVisionTypographer(currentVisualAnalysis, currentVisualHeadline, currentVisualTagline);
+          renderVisionTypographer(
+            currentVisualAnalysis,
+            currentVisualHeadline,
+            currentVisualTagline,
+            (currentArabicPackage && (currentArabicPackage.visual_headline || currentArabicPackage.image_headline)) || data.visual_ar_headline,
+            (currentArabicPackage && currentArabicPackage.visual_tagline) || data.visual_ar_tagline
+          );
         }
       } catch (err) {
         document.getElementById('campaign-warnings').textContent = 'Render failed: ' + err.message;
@@ -1312,6 +2038,14 @@
       } finally {
         imageLoader.classList.remove('opacity-100');
         imageLoader.classList.add('opacity-0', 'pointer-events-none');
+        if (imageLoaderEn) {
+          imageLoaderEn.classList.remove('opacity-100');
+          imageLoaderEn.classList.add('opacity-0', 'pointer-events-none');
+        }
+        if (imageLoaderAr) {
+          imageLoaderAr.classList.remove('opacity-100');
+          imageLoaderAr.classList.add('opacity-0', 'pointer-events-none');
+        }
       }
     }
 
@@ -1343,7 +2077,7 @@
       currentImageUrl = url;
       document.getElementById('image-dimensions').textContent = {landscape:'1536 × 864 • Landscape ad', portrait:'1080 × 1350 • Instagram 4:5', square:'1080 × 1080 • Square'}[campaignFormat];
       document.getElementById('visual-frame').style.aspectRatio = {landscape:'16 / 9', portrait:'4 / 5', square:'1 / 1'}[campaignFormat];
-      downloadImageBtn.disabled = !url;
+      if (downloadImageBtn) downloadImageBtn.disabled = !url;
       resultImage.classList.toggle('hidden', !url);
       let missing = document.getElementById('visual-unavailable');
       if (!missing) {
@@ -1362,6 +2096,14 @@
       }
       imageLoader.classList.remove('opacity-0', 'pointer-events-none');
       imageLoader.classList.add('opacity-100');
+      if (imageLoaderEn) {
+        imageLoaderEn.classList.remove('opacity-0', 'pointer-events-none');
+        imageLoaderEn.classList.add('opacity-100');
+      }
+      if (imageLoaderAr) {
+        imageLoaderAr.classList.remove('opacity-0', 'pointer-events-none');
+        imageLoaderAr.classList.add('opacity-100');
+      }
 
       resultImage.onload = () => {
         imageLoader.classList.remove('opacity-100');
@@ -1403,6 +2145,14 @@
         return;
       }
       setLoading(true, isPythonBackendActive ? 'Processing via Python AI Model Engine...' : 'Connecting to AI Engine...');
+      if (imageLoaderEn) {
+        imageLoaderEn.classList.remove('opacity-0', 'pointer-events-none');
+        imageLoaderEn.classList.add('opacity-100');
+      }
+      if (imageLoaderAr) {
+        imageLoaderAr.classList.remove('opacity-0', 'pointer-events-none');
+        imageLoaderAr.classList.add('opacity-100');
+      }
 
       try {
         let generatedText = '';
@@ -1426,8 +2176,9 @@
               seed: Math.floor(Math.random() * 1000000),
               use_search: searchToggle ? searchToggle.checked : true,
               image_model: imageModelSelect.value,
-            output_format: campaignFormat,
-              enhance_image: enhanceImageCheckbox.checked
+              output_format: campaignFormat,
+              enhance_image: enhanceImageCheckbox.checked,
+              guidelines: currentGuidelines || ''
             })
           });
 
@@ -1454,6 +2205,8 @@
           };
           finalVisualDesc = pyData.visual_prompt;
           finalImageUrl = resolveBackendUrl(pyData.image_url);
+          currentEnglishImageUrl = finalImageUrl;
+          currentArabicImageUrl = resolveBackendUrl(pyData.arabic_image_url || '');
           currentCleanImageUrl = resolveBackendUrl(pyData.clean_image_url || '');
           currentSeed = pyData.seed;
           currentSearchResults = pyData.search_results || [];
@@ -1465,27 +2218,42 @@
           currentVisualAnalysis = pyData.visual_analysis || '';
           currentVisualHeadline = pyData.visual_headline || pyData.image_headline || '';
           currentVisualTagline = pyData.visual_tagline || '';
-          renderVisionTypographer(currentVisualAnalysis, currentVisualHeadline, currentVisualTagline);
+          currentArabicPackage = pyData.arabic || {};
+
+          renderVisionTypographer(
+            currentVisualAnalysis,
+            currentVisualHeadline,
+            currentVisualTagline,
+            currentArabicPackage.visual_headline || currentArabicPackage.image_headline,
+            currentArabicPackage.visual_tagline
+          );
 
           if (pyData.brand && pyData.brand !== brandInput.value.trim()) {
             brandInput.value = pyData.brand;
           }
           watermarkWarning.classList.toggle('hidden', !!pyData.watermark_free);
+          setVisualMode('both');
         }
 
         currentRawResponse = generatedText;
 
-        // Update Text Elements in UI
+        // Build English package
         const hook = cleanSocialText(parsed.hook) || 'Next-Gen Industrial Intelligence';
         const caption = cleanSocialText(parsed.caption || generatedText);
         const highlights = parsed.highlights.map(h => cleanSocialText(h)).filter(Boolean);
         const hashtags = parsed.hashtags || '';
         const cta = cleanSocialText(parsed.cta || '');
-        copyHook.textContent = hook;
-        copyBody.textContent = caption;
-        copyCta.textContent = cta || '—';
-        copyHeadline.textContent = currentVisualHeadline || parsed.headline || '';
-        copyAlt.textContent = parsed.altText || '—';
+
+        currentEnglishPackage = {
+          hook: hook,
+          caption: caption,
+          highlights: highlights,
+          hashtags: hashtags,
+          cta: cta,
+          headline: currentVisualHeadline || parsed.headline || '',
+          altText: parsed.altText || '—',
+          instagramCaption: parsed.instagramCaption || buildInstagramCaption(hook, caption, highlights, cta, hashtags)
+        };
 
         // Render Dual-Agent Dialogue & Critique
         renderDualAgentDialogue(currentAgentDialogue, currentCritiqueNotes);
@@ -1493,18 +2261,8 @@
         // Render Competitive Intel Battlecard & Rival Conquest Playbook
         renderCompetitiveBattlecard(currentRivals, currentCompetitiveStrategy);
 
-        // Populate Highlights
-        copyHighlights.innerHTML = '';
-        if (highlights.length > 0) {
-          highlights.forEach(h => {
-            const div = document.createElement('div');
-            div.className = 'flex items-start space-x-2';
-            div.innerHTML = `<span class="text-cyan-accent font-bold">›</span><span>${escapeHtml(h)}</span>`;
-            copyHighlights.appendChild(div);
-          });
-        } else {
-          copyHighlights.innerHTML = '<div class="text-slate-500 italic">No specific highlights extracted</div>';
-        }
+        // Populate active language (English or Arabic)
+        setLanguage(activeLanguage);
 
         // Populate Hashtags
         copyHashtags.textContent = hashtags;
@@ -1551,63 +2309,83 @@
         showError('Generation Failed', err.message);
       } finally {
         setLoading(false);
+        if (imageLoaderEn) {
+          imageLoaderEn.classList.remove('opacity-100');
+          imageLoaderEn.classList.add('opacity-0', 'pointer-events-none');
+        }
+        if (imageLoaderAr) {
+          imageLoaderAr.classList.remove('opacity-100');
+          imageLoaderAr.classList.add('opacity-0', 'pointer-events-none');
+        }
       }
     }
 
     // --- Image Reroll Button ---
-    rerollImageBtn.addEventListener('click', () => {
-      if (!currentImagePrompt) return;
-      currentSeed = Math.floor(Math.random() * 1000000);
-      rerenderVisual(currentSeed);
-    });
+    if (rerollImageBtn) {
+      rerollImageBtn.addEventListener('click', () => {
+        if (!currentImagePrompt) return;
+        currentSeed = Math.floor(Math.random() * 1000000);
+        rerenderVisual(currentSeed);
+      });
+    }
 
     // --- Image Model & Overlay Switchers ---
-    imageModelSelect.addEventListener('change', () => {
-      updateModelSetup();
-      if (currentImagePrompt) {
-        rerenderVisual(currentSeed);
-      }
-    });
+    if (imageModelSelect) {
+      imageModelSelect.addEventListener('change', () => {
+        updateModelSetup();
+        if (currentImagePrompt) {
+          rerenderVisual(currentSeed);
+        }
+      });
+    }
 
-    enhanceImageCheckbox.addEventListener('change', () => {
-      if (currentImagePrompt) {
-        rerenderVisual(currentSeed);
-        showToast(enhanceImageCheckbox.checked ? 'Headline overlay on' : 'Clean image (no overlay)');
-      }
-    });
+    if (enhanceImageCheckbox) {
+      enhanceImageCheckbox.addEventListener('change', () => {
+        if (currentImagePrompt) {
+          rerenderVisual(currentSeed);
+          showToast(enhanceImageCheckbox.checked ? 'Headline overlay on' : 'Clean image (no overlay)');
+        }
+      });
+    }
 
     // --- View Full Res / Inspect Button ---
-    viewFullImgBtn.addEventListener('click', () => {
-      if (currentImageUrl) {
-        window.open(currentImageUrl, '_blank');
-      }
-    });
+    if (viewFullImgBtn) {
+      viewFullImgBtn.addEventListener('click', () => {
+        if (currentImageUrl) {
+          window.open(currentImageUrl, '_blank');
+        }
+      });
+    }
 
     // --- Copy Image URL ---
-    copyImgUrlBtn.addEventListener('click', async () => {
-      if (!currentImageUrl) return;
-      await navigator.clipboard.writeText(new URL(currentImageUrl, location.href).href);
-      showToast('Image URL copied to clipboard');
-    });
+    if (copyImgUrlBtn) {
+      copyImgUrlBtn.addEventListener('click', async () => {
+        if (!currentImageUrl) return;
+        await navigator.clipboard.writeText(new URL(currentImageUrl, location.href).href);
+        showToast('Image URL copied to clipboard');
+      });
+    }
 
     // --- Download Image Button (saves the file instead of opening a tab) ---
-    downloadImageBtn.addEventListener('click', async () => {
-      if (!currentImageUrl) return;
-      try {
-        const blob = await (await fetch(currentImageUrl)).blob();
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        const slug = (brandInput.value.trim() || 'post').toLowerCase().replace(/[^a-z0-9]+/g, '-');
-        a.download = `${slug}-instagram-${currentSeed}.jpg`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-        showToast('Campaign image downloaded');
-      } catch (err) {
-        window.open(currentImageUrl, '_blank');
-      }
-    });
+    if (downloadImageBtn) {
+      downloadImageBtn.addEventListener('click', async () => {
+        if (!currentImageUrl) return;
+        try {
+          const blob = await (await fetch(currentImageUrl)).blob();
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          const slug = (brandInput.value.trim() || 'post').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+          a.download = `${slug}-instagram-${currentSeed}.jpg`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+          showToast('Campaign image downloaded');
+        } catch (err) {
+          window.open(currentImageUrl, '_blank');
+        }
+      });
+    }
 
     // --- Export Package to Disk (Python Server) ---
     const exportDiskBtn = document.getElementById('export-disk-btn');
@@ -1628,23 +2406,24 @@
 
         try {
           const highlightNodes = copyHighlights.querySelectorAll('div');
-          const highlights = Array.from(highlightNodes).map(node => node.textContent.replace('›', '').trim());
+          const highlights = Array.from(highlightNodes).map(node => node.textContent.replace(/[›‹]/g, '').trim());
 
           const payload = {
-            prompt: promptInput.value.trim() || "Industrial AI Campaign",
-            hook: copyHook.textContent.trim(),
-            caption: copyBody.textContent.trim(),
-            highlights: highlights,
-            hashtags: copyHashtags.textContent.trim(),
+            prompt: promptInput.value.trim() || currentEnhancedPrompt || "Industrial AI Campaign",
+            hook: (currentEnglishPackage.hook || copyHook.textContent).trim(),
+            caption: (currentEnglishPackage.caption || copyBody.textContent).trim(),
+            highlights: currentEnglishPackage.highlights || highlights,
+            hashtags: (currentEnglishPackage.hashtags || copyHashtags.textContent).trim(),
             visual_prompt: currentImagePrompt,
-            image_url: currentImageUrl,
+            image_url: currentEnglishImageUrl || currentImageUrl,
             clean_image_url: currentCleanImageUrl,
+            arabic_image_url: currentArabicImageUrl,
             seed: currentSeed,
             brand: brandInput.value.trim(),
-            cta: copyCta.textContent.trim().replace(/^—$/, ''),
-            image_headline: copyHeadline.textContent.trim(),
-            alt_text: copyAlt.textContent.trim().replace(/^—$/, ''),
-            instagram_caption: currentInstagramCaption,
+            cta: (currentEnglishPackage.cta || copyCta.textContent).trim().replace(/^—$/, ''),
+            image_headline: (currentEnglishPackage.headline || copyHeadline.textContent).trim(),
+            alt_text: (currentEnglishPackage.altText || copyAlt.textContent).trim().replace(/^—$/, ''),
+            instagram_caption: currentEnglishPackage.instagramCaption || currentInstagramCaption,
             image_model: imageModelSelect.value,
             output_format: campaignFormat,
             search_results: currentSearchResults,
@@ -1657,7 +2436,9 @@
             competitive_strategy: currentCompetitiveStrategy,
             visual_analysis: currentVisualAnalysis,
             visual_headline: currentVisualHeadline || copyHeadline.textContent.trim(),
-            visual_tagline: currentVisualTagline || copyHook.textContent.trim()
+            visual_tagline: currentVisualTagline || copyHook.textContent.trim(),
+            arabic: currentArabicPackage,
+            guidelines: currentGuidelines || ''
           };
 
           const resp = await fetch(`${backendApiBase}/api/export`, {
@@ -1684,33 +2465,35 @@
     }
 
     // --- Copy Entire Caption Clipboard Action ---
-    copyAllBtn.addEventListener('click', async () => {
-      const fullFormattedCaption = currentInstagramCaption || buildInstagramCaption(
-        copyHook.textContent.trim(),
-        copyBody.textContent.trim(),
-        Array.from(copyHighlights.querySelectorAll('div')).map(node => node.textContent.replace('›', '').trim()),
-        '',
-        copyHashtags.textContent.trim()
-      );
+    if (copyAllBtn) {
+      copyAllBtn.addEventListener('click', async () => {
+        const fullFormattedCaption = currentInstagramCaption || buildInstagramCaption(
+          copyHook.textContent.trim(),
+          copyBody.textContent.trim(),
+          Array.from(copyHighlights.querySelectorAll('div')).map(node => node.textContent.replace('›', '').trim()),
+          '',
+          copyHashtags.textContent.trim()
+        );
 
-      try {
-        await navigator.clipboard.writeText(fullFormattedCaption);
-        
-        copyBtnText.textContent = 'Copied!';
-        copyIcon.setAttribute('data-lucide', 'check');
-        lucide.createIcons();
-
-        showToast('Full caption copied to clipboard!');
-
-        setTimeout(() => {
-          copyBtnText.textContent = 'Copy Full Caption';
-          copyIcon.setAttribute('data-lucide', 'copy');
+        try {
+          await navigator.clipboard.writeText(fullFormattedCaption);
+          
+          copyBtnText.textContent = 'Copied!';
+          copyIcon.setAttribute('data-lucide', 'check');
           lucide.createIcons();
-        }, 2000);
-      } catch (err) {
-        showToast('Failed to copy caption: ' + err.message, false);
-      }
-    });
+
+          showToast('Full caption copied to clipboard!');
+
+          setTimeout(() => {
+            copyBtnText.textContent = 'Copy Full Caption';
+            copyIcon.setAttribute('data-lucide', 'copy');
+            lucide.createIcons();
+          }, 2000);
+        } catch (err) {
+          showToast('Failed to copy caption: ' + err.message, false);
+        }
+      });
+    }
 
     // --- Copy Full Conquest Strategy Playbook ---
     if (copyStrategyBtn) {
@@ -1770,7 +2553,9 @@
     });
 
     // --- Enter Key & Shortcut Listeners ---
-    generateBtn.addEventListener('click', handleGenerateCampaign);
+    if (generateBtn) {
+      generateBtn.addEventListener('click', handleGenerateCampaign);
+    }
 
     // --- Instant Demo Preview Handler ---
     const instantDemoBtn = document.getElementById('instant-demo-btn');
@@ -1795,25 +2580,52 @@ Deployable directly into legacy PLC racks and air-gapped SCADA environments, Lex
         const sampleHashtags = "#LexnisTechnologies #IndustrialAI #PredictiveMaintenance #SmartManufacturing #EdgeComputing #Industry40 #FactoryAutomation #DigitalTwin";
         const sampleVisualPrompt = "premium commercial photograph, close-up of a dark steel industrial turbine with precise cyan laser diagnostics, smart factory at night, shallow depth of field, 85mm lens, moody rim lighting, clean dark empty space in the top third, no text, no logos";
 
-        // Update UI
-        copyHook.textContent = sampleHook;
-        copyBody.textContent = sampleCaption;
+        // Update UI state with bilingual packages
+        currentEnglishPackage = {
+          hook: sampleHook,
+          caption: sampleCaption,
+          highlights: sampleHighlights,
+          hashtags: sampleHashtags,
+          cta: 'Book a free 30-minute plant assessment, link in bio.',
+          headline: 'DOWNTIME IS OPTIONAL',
+          altText: 'Close-up of an industrial turbine in a dark factory, lit by cyan diagnostic lasers.',
+          instagramCaption: buildInstagramCaption(sampleHook, sampleCaption, sampleHighlights, 'Book a free 30-minute plant assessment, link in bio.', sampleHashtags)
+        };
 
-        copyHighlights.innerHTML = '';
-        sampleHighlights.forEach(h => {
-          const div = document.createElement('div');
-          div.className = 'flex items-start space-x-2';
-          div.innerHTML = `<span class="text-cyan-accent font-bold">›</span><span>${h}</span>`;
-          copyHighlights.appendChild(div);
-        });
+        currentArabicPackage = {
+          hook: "حينما تتوقف ماكينة لدقيقة واحدة، تتراكم الخسائر. مع الذكاء الاصطناعي من ليكسنيس، التوقف خيار وليس قدراً.",
+          caption: "في خطوط الإنتاج فائقة السرعة، تلف بسيط في محمل دوار أو هبوط ضغط هيدروليكي كفيل بتعطيل سلاسل الإمداد في دقائق.\n\nمنصة ليكسنيس سِنتينيل تعيد صياغة المعادلة كلياً. تجمع بين التتبع الصوتي واسع النطاق والمعالجة العصبية اللحظية على الأجهزة الطرفية لرصد الإجهاد الميكانيكي قبل 30 يوماً من حدوث العطل.\n\nتكامل فوري مع أنظمة التحكم PLC المعزولة مع الحفاظ على الأمن السيبراني للمنشأة. هنا تبدأ جاهزيتك التشغيلية المستدامة.",
+          highlights: [
+            "رصد مبكر للأعطال قبل 30 يوماً عبر بصمات التردد الصوتي الفائق",
+            "معالجة طرفية معزولة لا تخترق بروتوكولات الأمان الصناعي",
+            "تكامل مباشر مع لوحات التحكم PLC خلال 48 ساعة دون توقف"
+          ],
+          cta: "احجز استشارة تقنية مجانية لتقييم مصنعك خلال 30 دقيقة عبر الرابط في البايو.",
+          hashtags: "#ليكسنيس #أتمتة_صناعية #ذكاء_اصطناعي #المصانع_الذكية #صيانة_تنبؤية #إنترنت_الأشياء_الصناعي #Lexnis",
+          visual_headline: "التوقف خيار.. وليس حتمية",
+          visual_tagline: "صيانة تنبؤية لحظية لمعامل المستقبل.",
+          alt_text: "صورة فوتوغرافية مقربة لتوربين صناعي في مصنع مظلم، مضاء بأشعة ليزر تشخيصية فيروزية."
+        };
+        currentArabicPackage.instagram_caption = buildArabicInstagramCaption(
+          currentArabicPackage.hook,
+          currentArabicPackage.caption,
+          currentArabicPackage.highlights,
+          currentArabicPackage.cta,
+          currentArabicPackage.hashtags
+        );
 
-        copyHashtags.textContent = sampleHashtags;
+        currentVisualAnalysis = 'Dark industrial steel turbine with precision laser diagnostics in a smart factory.';
+        currentVisualHeadline = 'DOWNTIME IS OPTIONAL';
+        currentVisualTagline = 'Sub-millisecond acoustic predictive resilience.';
+        renderVisionTypographer(
+          currentVisualAnalysis,
+          currentVisualHeadline,
+          currentVisualTagline,
+          currentArabicPackage.visual_headline,
+          currentArabicPackage.visual_tagline
+        );
 
-        copyCta.textContent = 'Book a free 30-minute plant assessment, link in bio.';
-        copyHeadline.textContent = 'Downtime Is Optional';
-        copyAlt.textContent = 'Close-up of an industrial turbine in a dark factory, lit by cyan diagnostic lasers.';
-        currentInstagramCaption = buildInstagramCaption(sampleHook, sampleCaption, sampleHighlights, copyCta.textContent, sampleHashtags);
-        captionLengthIndicator.textContent = `${currentInstagramCaption.length} / 2,200 chars`;
+        setLanguage(activeLanguage);
         currentSearchResults = [];
 
         // Sample Competitor Battlecard & Strategy
@@ -1864,9 +2676,15 @@ Deployable directly into legacy PLC racks and air-gapped SCADA environments, Lex
 
         currentImagePrompt = sampleVisualPrompt;
         imagePromptDisplay.textContent = sampleVisualPrompt;
+        currentEnglishImageUrl = '/renders/a43756836bab9a99_post_e90584b8.jpg';
+        currentArabicImageUrl = '/renders/a43756836bab9a99_post_ar_fc949dea.jpg';
+        currentCleanImageUrl = '/renders/a43756836bab9a99_clean.jpg';
+        currentVisualHeadline = 'DOWNTIME IS OPTIONAL';
+        currentVisualTagline = 'Sub-millisecond acoustic predictive resilience.';
+        setVisualMode('both');
+        updateImageSource(currentEnglishImageUrl);
 
         currentSeed = Math.floor(Math.random() * 1000000);
-        rerenderVisual(currentSeed);
 
         emptyState.classList.add('hidden');
         searchIntelBox.classList.add('hidden');
@@ -1877,12 +2695,14 @@ Deployable directly into legacy PLC racks and air-gapped SCADA environments, Lex
       });
     }
 
-    promptInput.addEventListener('keydown', (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        e.preventDefault();
-        handleGenerateCampaign();
-      }
-    });
+    if (promptInput) {
+      promptInput.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          e.preventDefault();
+          handleGenerateCampaign();
+        }
+      });
+    }
   </script>
 </body>
 </html>

@@ -7,8 +7,9 @@ Serves the web UI and provides the AI marketing agency endpoints.
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Literal
 import os
+import io
 from urllib.parse import urlsplit
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -63,6 +64,7 @@ class GenerateRequest(BaseModel):
     image_model: Optional[str] = Field(DEFAULT_IMAGE_MODEL, description="Image model id")
     enhance_image: Optional[bool] = Field(True, description="Headline + brand overlay on the image")
     output_format: Literal["portrait", "landscape", "square"] = "portrait"
+    guidelines: Optional[str] = Field("", description="Client brand guidelines, style guide, or strategic constraints")
 
 
 class EnhancePromptRequest(BaseModel):
@@ -80,6 +82,8 @@ class RenderRequest(BaseModel):
     output_format: Literal["portrait", "landscape", "square"] = "portrait"
     tagline: str = ""
     campaign_context: Optional[str] = ""
+    arabic_headline: Optional[str] = ""
+    arabic_tagline: Optional[str] = ""
 
 
 class ExportRequest(BaseModel):
@@ -98,6 +102,7 @@ class ExportRequest(BaseModel):
     instagram_caption: Optional[str] = ""
     image_model: Optional[str] = DEFAULT_IMAGE_MODEL
     clean_image_url: Optional[str] = ""
+    arabic_image_url: Optional[str] = ""
     search_results: Optional[List[Dict[str, Any]]] = None
     agent_dialogue: Optional[List[Dict[str, Any]]] = None
     critique_notes: Optional[List[str]] = None
@@ -110,6 +115,8 @@ class ExportRequest(BaseModel):
     visual_analysis: Optional[str] = ""
     visual_headline: Optional[str] = ""
     visual_tagline: Optional[str] = ""
+    arabic: Optional[Dict[str, Any]] = None
+    guidelines: Optional[str] = ""
 
 
 @app.get("/")
@@ -184,13 +191,61 @@ def generate_campaign_endpoint(req: GenerateRequest):
             image_model=req.image_model or DEFAULT_IMAGE_MODEL,
             enhance_image=req.enhance_image if req.enhance_image is not None else True,
             output_format=req.output_format,
+            guidelines=req.guidelines or "",
         )
         data = asset.to_dict()
         data["image_url"] = render_url(asset.image_path)
         data["clean_image_url"] = render_url(asset.clean_image_path)
+        data["arabic_image_url"] = render_url(asset.arabic_image_path)
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/upload-guidelines")
+async def upload_guidelines_endpoint(file: UploadFile = File(...)):
+    """Extract and validate text from uploaded style guides and brand guidelines (.txt, .md, .pdf, .docx, .json)."""
+    filename = file.filename or "guidelines.txt"
+    ext = Path(filename).suffix.lower()
+    content_bytes = await file.read()
+
+    extracted_text = ""
+    if ext in [".txt", ".md", ".markdown", ".json", ".csv", ".yaml", ".yml"]:
+        try:
+            extracted_text = content_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            extracted_text = content_bytes.decode("latin-1", errors="ignore")
+    elif ext == ".pdf":
+        try:
+            import pypdf
+            reader = pypdf.PdfReader(io.BytesIO(content_bytes))
+            pages_text = [page.extract_text() or "" for page in reader.pages]
+            extracted_text = "\n\n".join(pages_text).strip()
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"PDF extraction error: {str(e)}")
+    elif ext in [".docx", ".doc"]:
+        try:
+            import docx
+            doc = docx.Document(io.BytesIO(content_bytes))
+            extracted_text = "\n".join([p.text for p in doc.paragraphs if p.text]).strip()
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Word document extraction error: {str(e)}")
+    else:
+        extracted_text = content_bytes.decode("utf-8", errors="ignore")
+
+    extracted_text = extracted_text.strip()
+    if not extracted_text:
+        raise HTTPException(status_code=400, detail="The uploaded guidelines document is empty or unreadable.")
+
+    words = len(extracted_text.split())
+    return {
+        "status": "success",
+        "filename": filename,
+        "word_count": words,
+        "char_count": len(extracted_text),
+        "guidelines": extracted_text,
+        "preview": extracted_text[:350] + ("..." if len(extracted_text) > 350 else "")
+    }
 
 
 @app.post("/api/render")
@@ -198,7 +253,7 @@ def render_endpoint(req: RenderRequest):
     """Re-render the visual (new seed / model / overlay) without regenerating the copy."""
     try:
         studio = LexnisCampaignStudio()
-        post_path, clean_path, watermark_free = studio.render_image(
+        render_res = studio.render_image(
             req.visual_prompt,
             req.seed,
             model=req.image_model or DEFAULT_IMAGE_MODEL,
@@ -207,24 +262,31 @@ def render_endpoint(req: RenderRequest):
             overlay=req.overlay if req.overlay is not None else True,
             output_format=req.output_format,
             tagline=req.tagline,
+            arabic_headline=req.arabic_headline or "",
+            arabic_tagline=req.arabic_tagline or "",
         )
+        post_path, clean_path, watermark_free = render_res[0], render_res[1], render_res[2]
+        ar_post_path = getattr(render_res, "arabic_post_path", None) or (render_res[3] if len(render_res) > 3 else getattr(studio, "last_arabic_post_path", None))
         vm = getattr(studio, "last_vision_meta", {})
         return {
             "image_status": "ready",
             "warnings": [],
             "image_url": render_url(str(post_path)),
             "clean_image_url": render_url(str(clean_path)),
+            "arabic_image_url": render_url(str(ar_post_path)) if ar_post_path else "",
             "watermark_free": watermark_free,
             "seed": req.seed,
             "visual_analysis": vm.get("visual_analysis", ""),
             "visual_headline": vm.get("visual_headline", req.headline or ""),
             "visual_tagline": vm.get("visual_tagline", req.tagline or ""),
+            "visual_ar_headline": vm.get("visual_ar_headline", req.arabic_headline or ""),
+            "visual_ar_tagline": vm.get("visual_ar_tagline", req.arabic_tagline or ""),
         }
     except RuntimeError as e:
         # Provider/setup failures are an expected render outcome. Preserve the copy
         # and return a state the dashboard can display without an HTTP 500.
         return {
-            "image_status": "unavailable", "image_url": "", "clean_image_url": "",
+            "image_status": "unavailable", "image_url": "", "clean_image_url": "", "arabic_image_url": "",
             "watermark_free": False, "warnings": [str(e)], "seed": req.seed,
         }
     except Exception as e:
@@ -255,6 +317,7 @@ def export_campaign_endpoint(req: ExportRequest):
             image_model=req.image_model or DEFAULT_IMAGE_MODEL,
             image_path=render_path(req.image_url),
             clean_image_path=render_path(req.clean_image_url or ""),
+            arabic_image_path=render_path(req.arabic_image_url or "") if req.arabic_image_url else "",
             agent_dialogue=req.agent_dialogue or [],
             critique_notes=req.critique_notes or [],
             enhanced_prompt=req.enhanced_prompt or "",
@@ -264,6 +327,8 @@ def export_campaign_endpoint(req: ExportRequest):
             visual_analysis=req.visual_analysis or "",
             visual_headline=req.visual_headline or "",
             visual_tagline=req.visual_tagline or "",
+            arabic=req.arabic or {},
+            guidelines=req.guidelines or "",
         )
         saved_files = studio.export_campaign(asset, output_dir=str(BASE_DIR / "output"))
         return {
