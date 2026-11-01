@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   
   <!-- Compiled CSS; rebuild with npm run build:css -->
-  <link rel="stylesheet" href="/static/tailwind.css">
+  <link rel="stylesheet" href="/static/tailwind.css?v=2.1">
   
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -559,6 +559,127 @@
 
         </div>
 
+        <!-- FULL WIDTH: Competitive Intel & Rival Conquest Playbook -->
+        <div id="competitive-intel-box" class="w-full bg-obsidian-900/90 border border-amber-500/30 rounded-2xl p-6 sm:p-7 shadow-2xl space-y-6">
+          
+          <!-- Section Header -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-obsidian-800">
+            <div class="flex items-center space-x-3">
+              <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                <i data-lucide="swords" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <h3 class="text-base font-tech font-bold tracking-wider text-white uppercase">
+                    Competitive Intel &amp; Rival Conquest Playbook
+                  </h3>
+                  <span class="text-[10px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300">
+                    Market Advantage Engine
+                  </span>
+                </div>
+                <p class="text-xs font-mono text-slate-400 mt-0.5">
+                  Rival vulnerability analysis, strategic counter-positioning wedge, and tactical marketing ideas to win.
+                </p>
+              </div>
+            </div>
+            <button type="button" id="copy-strategy-btn" class="px-4 py-2 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-amber-500/40 text-amber-300 hover:text-white font-mono text-xs font-semibold transition-all flex items-center space-x-2 shrink-0 shadow-sm active:scale-95">
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+              <span id="copy-strategy-text">Copy Full Playbook</span>
+            </button>
+          </div>
+
+          <!-- The Strategic Counter-Positioning Wedge -->
+          <div class="bg-gradient-to-r from-amber-950/40 via-obsidian-950/90 to-obsidian-950/80 border border-amber-500/30 border-l-4 border-l-amber-400 rounded-xl p-5 space-y-2">
+            <div class="flex items-center space-x-2 text-xs font-mono text-amber-400 uppercase tracking-wider font-bold">
+              <i data-lucide="shield-alert" class="w-4 h-4 shrink-0"></i>
+              <span>The Strategic Counter-Positioning Wedge (Why Rivals Cannot Follow)</span>
+            </div>
+            <p id="strategic-wedge-text" class="text-sm sm:text-base text-slate-100 font-sans leading-relaxed"></p>
+          </div>
+
+          <!-- Rivals Battlecard Grid -->
+          <div class="space-y-3">
+            <div class="flex items-center space-x-2 text-xs font-mono text-slate-300 font-bold uppercase tracking-wider">
+              <i data-lucide="crosshair" class="w-3.5 h-3.5 text-cyan-accent"></i>
+              <span>Direct Rivals &amp; Vulnerability Battlecard</span>
+            </div>
+            <div id="rivals-cards-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              <!-- Dynamically rendered competitor cards -->
+            </div>
+          </div>
+
+          <!-- Actionable Marketing Tactics to Beat Rivals -->
+          <div class="space-y-4 pt-3 border-t border-obsidian-800/80">
+            <div class="flex items-center space-x-2 text-xs font-mono text-slate-300 font-bold uppercase tracking-wider">
+              <i data-lucide="target" class="w-3.5 h-3.5 text-violet-accent"></i>
+              <span>Actionable Marketing Tactics to Beat These Rivals</span>
+            </div>
+
+            <!-- Attack Angle -->
+            <div class="bg-gradient-to-r from-violet-950/30 via-obsidian-950 to-obsidian-950 border border-violet-500/30 rounded-xl p-4 sm:p-5 space-y-2">
+              <div class="text-xs font-mono text-violet-accent uppercase tracking-wider font-bold flex items-center space-x-2">
+                <i data-lucide="zap" class="w-4 h-4 shrink-0"></i>
+                <span>Core Attack Angle / Narrative Shift</span>
+              </div>
+              <p id="attack-angle-text" class="text-sm text-slate-200 font-sans leading-relaxed"></p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 text-xs">
+              
+              <!-- Campaign Ideas to Deploy -->
+              <div class="bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-5 space-y-3 flex flex-col justify-between">
+                <div class="space-y-2.5">
+                  <div class="flex items-center justify-between text-xs font-mono text-cyan-accent uppercase tracking-wider font-bold pb-2 border-b border-obsidian-800">
+                    <span class="flex items-center space-x-2">
+                      <i data-lucide="megaphone" class="w-3.5 h-3.5"></i>
+                      <span>Conquest Campaign Ideas</span>
+                    </span>
+                    <button class="copy-section-btn hover:text-white p-1" data-target="campaign-ideas-list" title="Copy Campaign Ideas">
+                      <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                    </button>
+                  </div>
+                  <ul id="campaign-ideas-list" class="space-y-2.5 text-slate-300 font-sans text-xs"></ul>
+                </div>
+              </div>
+
+              <!-- Landmine Questions for Buyers -->
+              <div class="bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-5 space-y-3 flex flex-col justify-between">
+                <div class="space-y-2.5">
+                  <div class="flex items-center justify-between text-xs font-mono text-amber-400 uppercase tracking-wider font-bold pb-2 border-b border-obsidian-800">
+                    <span class="flex items-center space-x-2">
+                      <i data-lucide="bomb" class="w-3.5 h-3.5"></i>
+                      <span>Buyer Landmine Questions</span>
+                    </span>
+                    <button class="copy-section-btn hover:text-white p-1" data-target="landmine-questions-list" title="Copy Landmine Questions">
+                      <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                    </button>
+                  </div>
+                  <ul id="landmine-questions-list" class="space-y-2.5 text-slate-300 font-sans text-xs"></ul>
+                </div>
+              </div>
+
+              <!-- GTM & Social Growth Plays -->
+              <div class="bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-5 space-y-3 flex flex-col justify-between">
+                <div class="space-y-2.5">
+                  <div class="flex items-center justify-between text-xs font-mono text-emerald-400 uppercase tracking-wider font-bold pb-2 border-b border-obsidian-800">
+                    <span class="flex items-center space-x-2">
+                      <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
+                      <span>GTM &amp; Social Growth Plays</span>
+                    </span>
+                    <button class="copy-section-btn hover:text-white p-1" data-target="growth-tactics-list" title="Copy Growth Tactics">
+                      <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                    </button>
+                  </div>
+                  <ul id="growth-tactics-list" class="space-y-2.5 text-slate-300 font-sans text-xs"></ul>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
       </section>
 
       <!-- Empty State Graphic (When no campaign is generated yet) -->
@@ -668,6 +789,16 @@
     const critiqueNotesContainer = document.getElementById('critique-notes-container');
     const critiqueNotesList = document.getElementById('critique-notes-list');
 
+    const competitiveIntelBox = document.getElementById('competitive-intel-box');
+    const strategicWedgeText = document.getElementById('strategic-wedge-text');
+    const rivalsCardsGrid = document.getElementById('rivals-cards-grid');
+    const attackAngleText = document.getElementById('attack-angle-text');
+    const campaignIdeasList = document.getElementById('campaign-ideas-list');
+    const landmineQuestionsList = document.getElementById('landmine-questions-list');
+    const growthTacticsList = document.getElementById('growth-tactics-list');
+    const copyStrategyBtn = document.getElementById('copy-strategy-btn');
+    const copyStrategyText = document.getElementById('copy-strategy-text');
+
     const toast = document.getElementById('toast');
     const toastMessage = document.getElementById('toast-message');
 
@@ -684,6 +815,8 @@
     let currentAgentDialogue = [];
     let currentCritiqueNotes = [];
     let currentEnhancedPrompt = '';
+    let currentRivals = [];
+    let currentCompetitiveStrategy = {};
     let timerInterval = null;
     let startTime = 0;
 
@@ -899,6 +1032,120 @@
       }
 
       agentCollabBox.classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // --- Render Competitive Battlecard & Rival Conquest Playbook ---
+    function renderCompetitiveBattlecard(rivals, strategy) {
+      if (!competitiveIntelBox) return;
+
+      const wedge = (strategy && strategy.strategic_wedge) || 'Counter-positioning against legacy complexity: delivering instant time-to-value while incumbents remain trapped defending multi-month deployments.';
+      if (strategicWedgeText) strategicWedgeText.textContent = wedge;
+
+      const playbook = (strategy && strategy.conquest_playbook) || {};
+      if (attackAngleText) {
+        attackAngleText.textContent = playbook.attack_angle || 'Reframe customer evaluation criteria from legacy feature bloat to rapid time-to-value and lower total cost of ownership.';
+      }
+
+      // Render Rivals Battlecard Grid
+      if (rivalsCardsGrid) {
+        const rivalList = (rivals && rivals.length > 0) ? rivals : [
+          {
+            name: 'Legacy Market Incumbents',
+            stance: 'Decades of entrenched presence, bloated feature sets, and massive services ecosystems.',
+            incumbent_weakness: 'Exorbitant professional consulting fees, multi-month onboarding, and complex legacy architecture.',
+            our_edge: 'Zero-configuration modern deployment with rapid time-to-value in under 48 hours.'
+          },
+          {
+            name: 'Fragmented Point Solutions',
+            stance: 'Low-cost single-purpose tools solving isolated pain points.',
+            incumbent_weakness: 'Data silos, integration friction, and uncontrolled stack subscription sprawl.',
+            our_edge: 'Unified end-to-end intelligence platform that integrates entire operational workflows seamlessly.'
+          }
+        ];
+
+        rivalsCardsGrid.innerHTML = rivalList.map(r => `
+          <div class="bg-obsidian-950/90 border border-obsidian-800 hover:border-amber-500/50 rounded-2xl p-5 space-y-4 transition-all flex flex-col justify-between shadow-xl">
+            <div class="space-y-3">
+              <div class="flex items-center justify-between pb-2.5 border-b border-obsidian-800">
+                <span class="text-sm font-tech font-bold text-white flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shrink-0"></span>
+                  <span>${escapeHtml(r.name || 'Rival Competitor')}</span>
+                </span>
+                <span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/30 uppercase font-bold shrink-0">Competitor</span>
+              </div>
+              
+              <div>
+                <div class="text-[10px] font-mono text-slate-400 uppercase tracking-wider font-semibold">Their Market Stance</div>
+                <p class="text-xs text-slate-300 font-sans mt-1 leading-relaxed">${escapeHtml(r.stance || 'Traditional category incumbent')}</p>
+              </div>
+
+              <div class="bg-red-950/30 border border-red-500/30 rounded-xl p-3.5 space-y-1">
+                <div class="text-[10px] font-mono text-red-400 font-bold uppercase flex items-center gap-1.5">
+                  <i data-lucide="alert-triangle" class="w-3.5 h-3.5 shrink-0"></i>
+                  <span>Incumbent Fatal Weakness</span>
+                </div>
+                <p class="text-xs text-red-200/95 font-sans leading-relaxed">${escapeHtml(r.incumbent_weakness || 'High cost and architectural rigidity')}</p>
+              </div>
+            </div>
+
+            <div class="bg-emerald-950/30 border border-emerald-500/30 rounded-xl p-3.5 space-y-1 mt-3">
+              <div class="text-[10px] font-mono text-emerald-400 font-bold uppercase flex items-center gap-1.5">
+                <i data-lucide="shield-check" class="w-3.5 h-3.5 shrink-0"></i>
+                <span>Our Unfair Advantage Over Them</span>
+              </div>
+              <p class="text-xs text-emerald-200/95 font-sans leading-relaxed font-medium">${escapeHtml(r.our_edge || 'Scalable next-generation architecture')}</p>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // Campaign ideas
+      if (campaignIdeasList) {
+        const ideas = (playbook.campaign_ideas && playbook.campaign_ideas.length > 0) ? playbook.campaign_ideas : [
+          'Side-by-side benchmark teardown contrasting rapid setup vs. competitor legacy delays.',
+          'The True Cost of Ownership calculator comparing hidden consulting fees against our flat rate.',
+          'Customer migration case study highlighting switching in under 2 weeks.'
+        ];
+        campaignIdeasList.innerHTML = ideas.map(idea => `
+          <li class="p-3 rounded-xl bg-obsidian-950/90 border border-obsidian-800 flex items-start space-x-2.5">
+            <span class="text-cyan-accent font-bold leading-none mt-0.5 text-sm shrink-0">›</span>
+            <span class="leading-relaxed flex-1 text-slate-200 text-xs font-sans">${escapeHtml(idea)}</span>
+          </li>
+        `).join('');
+      }
+
+      // Landmine questions
+      if (landmineQuestionsList) {
+        const questions = (playbook.landmine_questions && playbook.landmine_questions.length > 0) ? playbook.landmine_questions : [
+          'How many months of custom professional services are required before seeing the first measurable ROI?',
+          'What is the true recurring cost of maintenance once initial setup credits expire?',
+          'Does your architecture scale natively without requiring complete database migration?'
+        ];
+        landmineQuestionsList.innerHTML = questions.map(q => `
+          <li class="p-3 rounded-xl bg-obsidian-950/90 border border-obsidian-800 flex items-start space-x-2.5">
+            <span class="text-amber-400 font-bold leading-none mt-0.5 text-sm shrink-0">?</span>
+            <span class="leading-relaxed flex-1 text-slate-200 text-xs font-sans">${escapeHtml(q)}</span>
+          </li>
+        `).join('');
+      }
+
+      // Growth tactics
+      if (growthTacticsList) {
+        const tactics = (playbook.growth_tactics && playbook.growth_tactics.length > 0) ? playbook.growth_tactics : [
+          'Publish targeted comparison landing pages addressing "[Competitor] alternatives" search intent.',
+          'Launch a zero-friction sandbox environment proving value within 10 minutes.',
+          'Execute founder-led LinkedIn video teardowns exposing legacy industry assumptions.'
+        ];
+        growthTacticsList.innerHTML = tactics.map(t => `
+          <li class="p-3 rounded-xl bg-obsidian-950/90 border border-obsidian-800 flex items-start space-x-2.5">
+            <span class="text-emerald-400 font-bold leading-none mt-0.5 text-sm shrink-0">⚡</span>
+            <span class="leading-relaxed flex-1 text-slate-200 text-xs font-sans">${escapeHtml(t)}</span>
+          </li>
+        `).join('');
+      }
+
+      competitiveIntelBox.classList.remove('hidden');
       if (window.lucide) lucide.createIcons();
     }
 
@@ -1158,6 +1405,8 @@
           currentAgentDialogue = pyData.agent_dialogue || [];
           currentCritiqueNotes = pyData.critique_notes || [];
           currentEnhancedPrompt = pyData.enhanced_prompt || '';
+          currentRivals = pyData.rivals || [];
+          currentCompetitiveStrategy = pyData.competitive_strategy || {};
           if (pyData.brand && pyData.brand !== brandInput.value.trim()) {
             brandInput.value = pyData.brand;
           }
@@ -1180,6 +1429,9 @@
 
         // Render Dual-Agent Dialogue & Critique
         renderDualAgentDialogue(currentAgentDialogue, currentCritiqueNotes);
+
+        // Render Competitive Intel Battlecard & Rival Conquest Playbook
+        renderCompetitiveBattlecard(currentRivals, currentCompetitiveStrategy);
 
         // Populate Highlights
         copyHighlights.innerHTML = '';
@@ -1340,7 +1592,9 @@
             critique_notes: currentCritiqueNotes,
             image_status: currentImageStatus,
             warnings: currentWarnings,
-            enhanced_prompt: currentEnhancedPrompt
+            enhanced_prompt: currentEnhancedPrompt,
+            rivals: currentRivals,
+            competitive_strategy: currentCompetitiveStrategy
           };
 
           const resp = await fetch(`${backendApiBase}/api/export`, {
@@ -1395,6 +1649,51 @@
       }
     });
 
+    // --- Copy Full Conquest Strategy Playbook ---
+    if (copyStrategyBtn) {
+      copyStrategyBtn.addEventListener('click', async () => {
+        let text = `COMPETITIVE INTEL & RIVAL CONQUEST PLAYBOOK\n========================================\n\n`;
+        text += `STRATEGIC COUNTER-POSITIONING WEDGE:\n${strategicWedgeText ? strategicWedgeText.textContent.trim() : ''}\n\n`;
+        text += `CORE ATTACK ANGLE:\n${attackAngleText ? attackAngleText.textContent.trim() : ''}\n\n`;
+        
+        if (currentRivals && currentRivals.length > 0) {
+          text += `RIVALS BATTLECARD:\n`;
+          currentRivals.forEach(r => {
+            text += `* ${r.name || 'Rival'}:\n`;
+            text += `  - Positioning: ${r.stance || ''}\n`;
+            text += `  - Incumbent Weakness: ${r.incumbent_weakness || ''}\n`;
+            text += `  - Our Unfair Edge: ${r.our_edge || ''}\n\n`;
+          });
+        }
+
+        const ideas = Array.from(document.querySelectorAll('#campaign-ideas-list li')).map(li => li.textContent.replace('›', '').trim());
+        if (ideas.length > 0) {
+          text += `CONQUEST CAMPAIGN IDEAS:\n` + ideas.map(i => `- ${i}`).join('\n') + `\n\n`;
+        }
+
+        const questions = Array.from(document.querySelectorAll('#landmine-questions-list li')).map(li => li.textContent.replace('?', '').trim());
+        if (questions.length > 0) {
+          text += `BUYER LANDMINE QUESTIONS:\n` + questions.map(q => `- ${q}`).join('\n') + `\n\n`;
+        }
+
+        const tactics = Array.from(document.querySelectorAll('#growth-tactics-list li')).map(li => li.textContent.replace('⚡', '').trim());
+        if (tactics.length > 0) {
+          text += `GTM & SOCIAL GROWTH TACTICS:\n` + tactics.map(t => `- ${t}`).join('\n') + `\n`;
+        }
+
+        try {
+          await navigator.clipboard.writeText(text);
+          if (copyStrategyText) copyStrategyText.textContent = 'Copied Playbook!';
+          showToast('Competitive Playbook copied to clipboard!');
+          setTimeout(() => {
+            if (copyStrategyText) copyStrategyText.textContent = 'Copy Full Playbook';
+          }, 2000);
+        } catch (e) {
+          showToast('Failed to copy strategy: ' + e.message, false);
+        }
+      });
+    }
+
     // --- Copy Individual Sections ---
     document.querySelectorAll('.copy-section-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -1447,15 +1746,53 @@ Deployable directly into legacy PLC racks and air-gapped SCADA environments, Lex
 
         copyHashtags.textContent = sampleHashtags;
 
-
-        rawOutputText.textContent = `### HOOK\n${sampleHook}\n\n### CAPTION\n${sampleCaption}\n\n### KEY TECHNICAL HIGHLIGHTS\n${sampleHighlights.map(h => '- ' + h).join('\n')}\n\n### HASHTAGS\n${sampleHashtags}\n\n### VISUAL_PROMPT\n${sampleVisualPrompt}`;
-
         copyCta.textContent = 'Book a free 30-minute plant assessment, link in bio.';
         copyHeadline.textContent = 'Downtime Is Optional';
         copyAlt.textContent = 'Close-up of an industrial turbine in a dark factory, lit by cyan diagnostic lasers.';
         currentInstagramCaption = buildInstagramCaption(sampleHook, sampleCaption, sampleHighlights, copyCta.textContent, sampleHashtags);
         captionLengthIndicator.textContent = `${currentInstagramCaption.length} / 2,200 chars`;
         currentSearchResults = [];
+
+        // Sample Competitor Battlecard & Strategy
+        currentRivals = [
+          {
+            name: "Siemens MindSphere / GE Digital",
+            stance: "Entrenched legacy industrial automation suites with heavy on-premise hardware.",
+            incumbent_weakness: "Multi-million dollar implementation contracts, rigid 9-month onboarding cycles, and high vulnerability to cloud latency.",
+            our_edge: "Air-gapped edge neural processing deployable in 48 hours directly on existing PLC racks with zero cloud dependency."
+          },
+          {
+            name: "PTC ThingWorx",
+            stance: "Enterprise IoT application development platform connecting industrial equipment.",
+            incumbent_weakness: "Complex developer overhead, heavy customization requirements, and fragmented telemetry data silos.",
+            our_edge: "Turnkey acoustic-vibration sensor arrays with automated neural anomaly detection out-of-the-box."
+          }
+        ];
+        currentCompetitiveStrategy = {
+          strategic_wedge: "Exposing the fatal latency and consulting bloat of legacy cloud IoT suites: providing sovereign, real-time edge intelligence that stops failures before signals even leave the plant floor.",
+          conquest_playbook: {
+            attack_angle: "The Speed of Physics: Why waiting for cloud latency guarantees machine downtime, while edge neural inferencing prevents it.",
+            campaign_ideas: [
+              "The 48-Hour Live Plant Challenge: Documenting retrofitting an operational facility over a weekend vs. the competitor's 6-month consulting timeline.",
+              "Air-Gapped vs. Cloud: A security visual teardown showing why defense and critical infrastructure plants refuse cloud-connected sensors.",
+              "Bearing Failure Acoustic Teardown: Audio visualization comparing human ear vs. ultra-wideband acoustic AI detection 30 days before seizure."
+            ],
+            landmine_questions: [
+              "What happens to your predictive monitoring if the factory's external WAN connection drops during a storm?",
+              "How many weeks of billable system integrator hours are budgeted before your models can detect a single motor fault?",
+              "Can your sensor telemetry run securely inside air-gapped SCADA environments without violating cybersecurity protocols?"
+            ],
+            growth_tactics: [
+              "Target plant managers on LinkedIn with interactive 'Downtime Cost per Minute' interactive calculator.",
+              "Distribute free 2-sensor evaluation kits to certified reliability engineers at top manufacturing hubs.",
+              "Run comparative case studies highlighting migration off discontinued legacy industrial cloud platforms."
+            ]
+          }
+        };
+
+        renderCompetitiveBattlecard(currentRivals, currentCompetitiveStrategy);
+
+        rawOutputText.textContent = `### HOOK\n${sampleHook}\n\n### CAPTION\n${sampleCaption}\n\n### KEY TECHNICAL HIGHLIGHTS\n${sampleHighlights.map(h => '- ' + h).join('\n')}\n\n### HASHTAGS\n${sampleHashtags}\n\n### VISUAL_PROMPT\n${sampleVisualPrompt}`;
 
         currentImagePrompt = sampleVisualPrompt;
         imagePromptDisplay.textContent = sampleVisualPrompt;
@@ -1468,7 +1805,7 @@ Deployable directly into legacy PLC racks and air-gapped SCADA environments, Lex
         resultsSection.classList.remove('hidden');
         resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-        showToast('Fictional demo copy loaded; visual requires a configured provider.');
+        showToast('Instant demo campaign & competitive battlecard loaded!');
       });
     }
 

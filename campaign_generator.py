@@ -34,7 +34,7 @@ from typing import Dict, Any, Optional, List, Tuple
 from pathlib import Path
 from dataclasses import dataclass, asdict, field
 
-from visual_engine import OPEN_MODELS, FORMATS, photo_direction, open_model_image, compose_ad, cloudflare_image, LOCAL_MODEL, local_model_ready, local_image
+from visual_engine import OPEN_MODELS, FORMATS, photo_direction, open_model_image, compose_ad, cloudflare_image, LOCAL_MODEL, LOCAL_MODELS, preferred_local_model, local_image, RENDER_VERSION
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -108,7 +108,7 @@ GEMINI_OPENAI_BASE = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 DEFAULT_TEXT_MODEL = os.getenv("TEXT_MODEL", "openai/gpt-5.4-mini")
 DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
-DEFAULT_IMAGE_MODEL = os.getenv("IMAGE_MODEL") or (LOCAL_MODEL if local_model_ready() else "cf:flux-schnell")
+DEFAULT_IMAGE_MODEL = os.getenv("IMAGE_MODEL") or preferred_local_model() or "cf:flux-schnell"
 
 # Image models available (Google AI Studio Imagen + FLUX photorealism)
 IMAGE_MODELS = {
@@ -119,7 +119,7 @@ IMAGE_MODELS = {
     "flux": "FLUX Standard (Commercial Tech)",
 }
 IMAGE_MODELS.update(OPEN_MODELS)
-IMAGE_MODELS[LOCAL_MODEL] = "Segmind Vega — local GPU, no API key"
+IMAGE_MODELS.update({model: settings['label'] for model, settings in LOCAL_MODELS.items()})
 IMAGE_MODELS["cf:flux-schnell"] = "FLUX Schnell — Cloudflare free daily allowance"
 # Old model names from previous versions
 LEGACY_MODEL_ALIASES = {"sana", "tongyi-mai/z-image-turbo"}
@@ -169,8 +169,30 @@ Include the original request verbatim in enhanced_prompt. If product is unknown,
 """
 
 
+COMPETITIVE_INTELLIGENCE_PROMPT = """You are a Chief Marketing Officer and Competitive Strategy Director.
+Analyze the target company/brand, flagship product/service, and market landscape to identify their primary rivals and formulate an aggressive, high-status counter-positioning playbook that gives this brand an unfair market edge.
+
+Rules:
+- Identify 2 to 3 real primary competitors / industry rivals (incumbents, market leaders, or direct alternatives).
+- For each rival, provide:
+  * "name": Competitor name (and parent company if applicable).
+  * "stance": Their core marketing promise / value prop in the market.
+  * "incumbent_weakness": Their fatal flaw, structural limitation, legacy anchor, or user frustration.
+  * "our_edge": The exact reason why our brand's architecture, business model, or user experience beats them.
+- "strategic_wedge": A bold, 1-2 sentence counter-positioning thesis explaining why competitors cannot easily copy or catch up (the "Hamilton Helmer 7 Powers" counter-positioning trap).
+- "conquest_playbook":
+  * "attack_angle": The primary psychological or economic narrative angle to win over their customers.
+  * "campaign_ideas": 3 concrete, high-converting marketing campaigns/angles to deploy against rivals.
+  * "landmine_questions": 3 killer questions buyers/prospects should ask competitors to expose their flaws.
+  * "growth_tactics": 3 actionable GTM & social distribution tactics to win market share and mindshare.
+
+Format strictly as valid RFC 8259 JSON. Never include markdown code fences or trailing commas.
+Return ONLY a JSON object with: rivals (list), strategic_wedge (str), conquest_playbook (object).
+"""
+
+
 AGENT1_COPYWRITER_PROMPT = """You are Agent 1: Senior Copywriter and Creative Strategist at an award-winning creative agency.
-Draft an initial Instagram product launch campaign for the brand "{brand}" based on the creative brief below.
+Draft an initial Instagram product launch campaign for the brand "{brand}" based on the creative brief and competitive intelligence battlecard below.
 
 Tone: {tone}
 Visual direction: {theme}
@@ -179,12 +201,13 @@ Rules:
 - Plain text only. NO markdown: no **bold**, no #headings, no bullet asterisks.
 - The hook must stop the scroll in under 125 characters.
 - Caption: 3-4 short paragraphs (1-3 sentences each), scannable, written to ONE person ("you").
+- WEAPONIZE THE STRATEGIC EDGE: Subtle, high-status counter-positioning that exposes rivals' legacy limitations (e.g. expensive hardware, bloated geofencing, slow onboarding) and highlights our brand's radical breakthrough. Never sound petty or mention competitors by name in cheap attacks; make our superiority mathematically and intuitively obvious.
 - Use 0-3 tasteful emojis max, never at the start of every line.
-- Highlights: 3 short benefit lines (max 12 words each), outcome first.
+- Highlights: 3 short benefit lines (max 12 words each), outcome first, underscoring our unfair advantage.
 - Hashtags: 8-12 relevant hashtags.
 - Image Headline: 2-4 word luxury product title (e.g. 'TESLA // CYBERCAB').
 - visual_concept: Detailed description of physical subject, materials, setting, and lighting.
-- agent1_rationale: 1-2 sentence explanation of your chosen creative angle and target audience hook.
+- agent1_rationale: 1-2 sentence explanation of your chosen creative angle, target audience hook, and competitive wedge.
 
 Return strictly valid RFC 8259 JSON:
 {{
@@ -201,10 +224,11 @@ Return strictly valid RFC 8259 JSON:
 COPYWRITER_PROMPT = AGENT1_COPYWRITER_PROMPT
 
 
-AGENT2_DIRECTOR_CRITIC_PROMPT = """You are a creative director reviewing a marketing draft.
+AGENT2_DIRECTOR_CRITIC_PROMPT = """You are an executive creative director and marketing auditor reviewing a campaign draft.
 Return valid JSON with hook, caption, highlights (list), cta, hashtags (list),
 image_headline (product name), alt_text, visual_prompt, critique_notes (list),
 and agent_dialogue (list of objects with agent and message).
+Audit the copy for executive authority and competitive edge. Ensure our counter-positioning against the rivals' flaws is distinct, unassailable, and memorable. Make sure the hook and caption stop the scroll by highlighting our brand's unique superiority.
 Use only facts from the supplied research/brief. Remove unsupported specifications and statistics.
 Preserve the user's exact product and visual direction. Do not assume every Tesla is a Cybercab.
 Create a photographic scene with natural materials, believable lighting and a clear hero product.
@@ -244,6 +268,8 @@ class CampaignAsset:
     output_format: str = "portrait"
     image_status: str = "ready"
     warnings: List[str] = field(default_factory=list)
+    rivals: List[Dict[str, Any]] = field(default_factory=list)
+    competitive_strategy: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -277,36 +303,80 @@ def clean_social_text(text: str) -> str:
 def detect_brand_and_product(prompt: str, current_brand: str = "") -> Tuple[str, str]:
     """
     Intelligently infer true target brand and concrete flagship product from user prompt.
-    Preserve explicit product names. A brand without a product stays ambiguous.
+    Extracts brand and product across global tech, automotive, AI, SaaS, and custom companies.
     """
-    p = (prompt or "").lower()
+    p = (prompt or "").strip()
+    p_lower = p.lower()
     b = (current_brand or "").strip()
 
     brand_catalog = [
         ("tesla", "Tesla", ["model 3", "model y", "model s", "model x", "cybercab", "robotaxi", "optimus", "roadster", "cybertruck", "fsd"]),
-        ("apple", "Apple", ["vision pro", "spatial", "iphone", "macbook", "neural"]),
+        ("apple", "Apple", ["vision pro", "spatial", "iphone", "macbook", "neural", "watch", "airpods", "ipad"]),
+        ("rivian", "Rivian", ["r1t", "r1s", "r2", "r3", "commercial van"]),
+        ("lucid", "Lucid", ["air", "gravity", "sapphire"]),
+        ("byd", "BYD", ["seal", "yangwang", "dolphin", "atto", "blade battery"]),
+        ("waymo", "Waymo", ["robotaxi", "autonomous cab", "driver"]),
+        ("stripe", "Stripe", ["billing", "atlas", "issuing", "radar", "terminal", "connect"]),
+        ("nvidia", "NVIDIA", ["blackwell", "dgx", "geforce", "cuda", "h100", "b200", "omniverse"]),
+        ("openai", "OpenAI", ["chatgpt", "gpt-4o", "o1", "sora", "operator"]),
+        ("meta", "Meta", ["quest 3", "quest pro", "ray-ban", "llama", "orion"]),
+        ("google", "Google", ["pixel", "gemini", "workspace", "tensor", "cloud"]),
+        ("microsoft", "Microsoft", ["surface", "copilot", "quantum", "azure"]),
+        ("sony", "Sony", ["alpha 1", "playstation", "spatial reality", "xperia"]),
+        ("porsche", "Porsche", ["mission x", "taycan", "911", "macan electric"]),
         ("nike", "Nike", ["alphafly", "vaporfly", "air max", "adapt"]),
-        ("nvidia", "NVIDIA", ["blackwell", "dgx", "geforce", "cuda"]),
-        ("porsche", "Porsche", ["mission x", "taycan", "911"]),
-        ("sony", "Sony", ["alpha 1", "playstation", "spatial reality"]),
-        ("microsoft", "Microsoft", ["surface", "copilot", "quantum"]),
+        ("datadog", "Datadog", ["apm", "cloud monitoring", "security", "synthetics"]),
+        ("snowflake", "Snowflake", ["cortex", "data cloud", "snowpark"]),
+        ("figma", "Figma", ["figjam", "slides", "dev mode"]),
+        ("boston dynamics", "Boston Dynamics", ["atlas", "spot", "stretch"]),
     ]
 
     detected_brand = b if b and b.lower() != "lexnis technologies" else ""
     detected_product = ""
 
+    # 1. Catalog check
     for brand_key, canonical_name, products in brand_catalog:
-        if re.search(rf"\b{brand_key}\b", p):
+        if re.search(rf"\b{brand_key}\b", p_lower):
             if not detected_brand or b.lower() == "lexnis technologies":
                 detected_brand = canonical_name
             for prod in products:
-                if prod in p:
+                if prod in p_lower:
                     detected_product = f"{canonical_name} {prod.title()}"
                     break
             break
 
+    # 2. Dynamic heuristic extraction if brand still empty or default
+    if not detected_brand or detected_brand.lower() == "lexnis technologies":
+        # Look for explicit prefixes: "Research Tesla...", "Launch for Acme Robotics...", "Brand: Stripe"
+        m = re.search(
+            r"\b(?:research|analyze|study|campaign for|launch package for|launch for|post for|about|by|at|brand:?)\s+([A-Za-z0-9&.-]+(?:\s+[A-Za-z0-9&.-]+)?)",
+            p,
+            re.IGNORECASE
+        )
+        if m:
+            candidate = m.group(1).strip()
+            # Filter common stop words
+            cand_words = [w for w in candidate.split() if w.lower() not in {"a", "an", "the", "our", "new", "this", "revolutionary", "complete", "high-impact"}]
+            if cand_words:
+                cleaned_brand = " ".join(cand_words)
+                if len(cleaned_brand) >= 2 and cleaned_brand.lower() != "device":
+                    detected_brand = cleaned_brand
+
     if not detected_brand:
         detected_brand = b or "Lexnis Technologies"
+
+    # 3. Dynamic product extraction if product is still empty
+    if not detected_product:
+        # Check if user mentioned explicit product keywords like "Cybercab", "Vision Pro", "Billing"
+        prod_match = re.search(
+            rf"\b{re.escape(detected_brand)}\s+([A-Za-z0-9]+(?:\s+[A-Za-z0-9]+)?)",
+            p,
+            re.IGNORECASE
+        )
+        if prod_match:
+            candidate_p = prod_match.group(1).strip()
+            if candidate_p.lower() not in {"and", "to", "for", "with", "is", "device", "post", "campaign"}:
+                detected_product = f"{detected_brand} {candidate_p.title()}"
 
     return detected_brand, detected_product
 
@@ -968,6 +1038,167 @@ class LexnisCampaignStudio:
         except Exception:
             return {k: clean_social_text(v) if isinstance(v, str) else v for k, v in fallback_enhanced.items()}
 
+    def _generate_fallback_competitor_analysis(self, brand: str, product: str, prompt: str) -> Dict[str, Any]:
+        """Synthesize a robust, highly detailed competitive battlecard when offline or model times out."""
+        b_lower = (brand or "").lower()
+        p_lower = (product or prompt or "").lower()
+
+        if "tesla" in b_lower or "cybercab" in p_lower or "robotaxi" in p_lower:
+            return {
+                "rivals": [
+                    {
+                        "name": "Waymo (Alphabet)",
+                        "stance": "Proven commercial autonomous ride-hailing with millions of driverless miles using LiDAR, radar, cameras and HD maps.",
+                        "incumbent_weakness": "Prohibitively expensive hardware per vehicle ($100k+), reliance on rigid, expensive HD-mapping geofences, and slow geographic expansion.",
+                        "our_edge": "Sub-$30k mass-manufactured vehicle powered by vision-only end-to-end neural networks, scaling globally without high-definition mapping or bulky hardware."
+                    },
+                    {
+                        "name": "Cruise (General Motors)",
+                        "stance": "Automaker-backed autonomous rideshare focused on urban mobility with dedicated robotaxi concepts.",
+                        "incumbent_weakness": "Regulatory hurdles, trust deficits following safety incidents, and reliance on sensor-heavy architectures that cannot be mass-produced cheaply.",
+                        "our_edge": "Massive real-world training data from billions of customer miles worldwide, enabling rapid software iteration and a bespoke, steering-wheel-free cabin from day one."
+                    },
+                    {
+                        "name": "Uber / Lyft (Legacy Rideshare)",
+                        "stance": "Ubiquitous, asset-light global network connecting riders with human drivers instantly.",
+                        "incumbent_weakness": "High per-mile costs driven by human driver labor (60-70% of fare), vehicle maintenance inconsistencies, and zero hardware integration.",
+                        "our_edge": "Radically lower cost per mile (<$0.20/mile target) with zero human labor, seamless inductive wireless charging for 24/7 uptime, and integrated luxury passenger experience."
+                    }
+                ],
+                "strategic_wedge": "Flipping sensor-heavy architectures from a 'safety feature' into an obsolete, cost-prohibitive anchor; positioning Tesla as unconstrained planetary scale vs. geofenced science experiments.",
+                "conquest_playbook": {
+                    "attack_angle": "The Economics of Freedom: Why Geofenced, $150k LiDAR Rigs Can Never Deliver the True Robotaxi Future.",
+                    "campaign_ideas": [
+                        "The 'No Geofence' Challenge: Documenting Cybercab navigating complex, unmapped suburban roads where rival vehicles refuse to drive.",
+                        "The 20-Cent Mile: A bold cost-comparison infographic and interactive calculator showing riders and fleet operators the extreme financial advantage over Uber and Waymo.",
+                        "The Cabin of Tomorrow: An immersive video tour highlighting the psychological transformation of stepping into a vehicle with zero pedals or steering wheel, pure autonomy."
+                    ],
+                    "landmine_questions": [
+                        "How much does it cost to build and equip your vehicle with sensors, and how long does it take to manually map a new city before it can drive there?",
+                        "Why should I pay legacy rideshare commissions when the vehicle is fully automated and running on an outsourced network?",
+                        "What happens when your vehicle loses GPS or encounters road layouts not present in your static HD maps?"
+                    ],
+                    "growth_tactics": [
+                        "Deploy localized guerrilla test-ride zones outside competitor hubs to let early adopters experience zero-wheel autonomy firsthand.",
+                        "Launch a 'Fleet Owner' referral program allowing everyday Tesla owners to add their future Cybercabs to the network with a single tap in the app.",
+                        "Release transparent safety and miles-between-critical-intervention data comparing vision-only neural net progress directly against LiDAR-dependent fleets."
+                    ]
+                }
+            }
+
+        if "apple" in b_lower or "vision" in p_lower or "spatial" in p_lower:
+            return {
+                "rivals": [
+                    {
+                        "name": "Meta (Quest 3 / Quest Pro)",
+                        "stance": "Accessible, high-volume consumer VR gaming and social metaverse platform.",
+                        "incumbent_weakness": "Plastic low-resolution displays, gaming-centric aesthetic, ad-driven privacy concerns, and weak enterprise productivity integration.",
+                        "our_edge": "Ultra-high-resolution custom micro-OLED optical visor, pristine dark titanium materials, eye/hand micro-gesture neural tracking, and seamless ecosystem sync."
+                    },
+                    {
+                        "name": "Sony / Magic Leap",
+                        "stance": "Enterprise XR hardware focused on spatial design and industrial visualization.",
+                        "incumbent_weakness": "Fragmented developer ecosystem, bulky tethered compute packs, and lack of consumer-grade operating system polish.",
+                        "our_edge": "Dual-chip spatial architecture with dedicated real-time sensor processing, zero tethered battery pack clumsiness, and global App Store developer momentum."
+                    }
+                ],
+                "strategic_wedge": "Reframing VR headsets as disposable plastic gaming toys, while establishing our spatial architecture as the definitive high-status personal computing medium of the next 20 years.",
+                "conquest_playbook": {
+                    "attack_angle": "The Post-Screen Era: Why immersive spatial fidelity renders physical multi-monitor setups obsolete.",
+                    "campaign_ideas": [
+                        "The Infinite Workspace: Creative pros demonstrating replacing 4 physical studio monitors with a floating, zero-latency spatial canvas.",
+                        "Optics vs. Pixels: Side-by-side macro lens visual teardown comparing 4K micro-OLED pixel density against rival screendoor effect displays.",
+                        "Mind & Hand: Highlighting zero-controller natural eye-tracking that makes rival bulky plastic controllers feel like 1990s joysticks."
+                    ],
+                    "landmine_questions": [
+                        "Can you comfortably read 10-point text in your headset without eye strain for a full 8-hour workday?",
+                        "Does your platform require plastic handheld controllers just to click a link or navigate your workspace?",
+                        "How does your headset protect eye-tracking privacy data from being monetized for advertising?"
+                    ],
+                    "growth_tactics": [
+                        "Architectural & industrial design studio partnerships providing flagship demo stations in major design capitals.",
+                        "Executive keynote reaction series featuring top creative directors replacing multi-display editing suites.",
+                        "High-framerate Instagram Reels showing seamless hand-tracking pinch gestures manipulating 3D CAD models in physical living rooms."
+                    ]
+                }
+            }
+
+        # Universal fallback for custom / B2B / industrial brands
+        target_display = product or brand or "The Solution"
+        return {
+            "rivals": [
+                {
+                    "name": "Legacy Enterprise Incumbents",
+                    "stance": "All-in-one bloated enterprise suites with decades of entrenched market presence and massive partner networks.",
+                    "incumbent_weakness": "Rigid multi-month implementation timelines, exorbitant professional services consulting fees, and brittle, dated user interfaces.",
+                    "our_edge": f"{target_display} provides instant deployment, modern zero-configuration architecture, and rapid time-to-value within 48 hours without expensive consultants."
+                },
+                {
+                    "name": "Fragmented Point Solutions",
+                    "stance": "Specialized single-feature tools solving one isolated problem cheaply.",
+                    "incumbent_weakness": "Data silos, high total cost of ownership across multiple subscriptions, and constant integration breakdowns.",
+                    "our_edge": "Unified end-to-end intelligence platform that integrates seamlessly across entire operational workflows, eliminating disconnected stack sprawl."
+                }
+            ],
+            "strategic_wedge": f"Exposing the hidden cost of legacy inertia—positioning {brand} as the agile, high-margin modern alternative while incumbents are trapped defending multi-month consulting deployments.",
+            "conquest_playbook": {
+                "attack_angle": "Time-to-Value Supremacy: Why modern teams refuse to wait 6 months and pay 6 figures just to go live.",
+                "campaign_ideas": [
+                    "The Implementation Horror Story vs. 48-Hour Live: Contrasting real customer migration stories from bloated legacy systems to our streamlined platform.",
+                    "The TCO Calculator: Interactive audit showing hidden consulting and admin maintenance fees charged by legacy incumbents.",
+                    "The Modern Stack Manifesto: High-conviction executive thought leadership outlining why next-gen architecture wins."
+                ],
+                "landmine_questions": [
+                    "How many weeks of specialized professional consulting are required before our team sees the first tangible ROI metric?",
+                    "What is the actual total cost of ownership once you factor in custom maintenance, upgrades, and admin overhead?",
+                    "Can your architecture scale real-time workflows without requiring complete database refactoring?"
+                ],
+                "growth_tactics": [
+                    "Targeted competitive comparison landing pages and LinkedIn carousels addressing search queries for '[Competitor] alternatives'.",
+                    "Frictionless proof-of-concept trial that proves measurable enterprise value in under 7 days.",
+                    "Direct executive migration incentives (e.g. buyout of remaining rival contracts for qualifying enterprise pilots)."
+                ]
+            }
+        }
+
+    def analyze_competitors_and_strategy(
+        self,
+        brand: str,
+        product: str,
+        prompt: str,
+        research_context: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Analyze the company/brand name, identify top rivals in the business,
+        and generate a counter-positioning strategy and marketing conquest playbook.
+        """
+        target_name = product or brand
+        user_message = (
+            f"TARGET BRAND: {brand}\n"
+            f"PRODUCT / INITIATIVE: {target_name}\n"
+            f"USER PROMPT: {prompt}\n\n"
+            f"RESEARCH CONTEXT:\n{research_context[:3000] if research_context else 'No research context available.'}"
+        )
+
+        fallback_rivals = self._generate_fallback_competitor_analysis(brand, product, prompt)
+
+        try:
+            strategy_data, _ = self._chat_json(
+                COMPETITIVE_INTELLIGENCE_PROMPT,
+                user_message,
+                temperature=0.35,
+                fallback_schema=fallback_rivals
+            )
+            if not strategy_data.get("rivals"):
+                strategy_data["rivals"] = fallback_rivals["rivals"]
+            if not strategy_data.get("strategic_wedge"):
+                strategy_data["strategic_wedge"] = fallback_rivals["strategic_wedge"]
+            if not strategy_data.get("conquest_playbook"):
+                strategy_data["conquest_playbook"] = fallback_rivals["conquest_playbook"]
+            return strategy_data
+        except Exception:
+            return fallback_rivals
+
     def collaborative_generation(
         self,
         prompt: str,
@@ -975,11 +1206,13 @@ class LexnisCampaignStudio:
         brief: Dict[str, Any],
         tone: str,
         theme: str,
+        competitive_strategy: Optional[Dict[str, Any]] = None,
+        rivals: Optional[List[Dict[str, Any]]] = None,
         step_callback=None
     ) -> Tuple[Dict[str, Any], List[Dict[str, str]], List[str]]:
         """
         Dual-agent collaborative pipeline:
-        1. Agent 1 (Lead Copywriter & Strategist) drafts initial copy & visual concept.
+        1. Agent 1 (Lead Copywriter & Strategist) drafts initial copy & visual concept with competitive edge.
         2. Agent 2 (Executive Creative Director & Art Critic) critiques, strips clichés, injects specs, and polishes to Fortune-500 standard.
         Returns (final_post_dict, agent_dialogue, critique_notes).
         """
@@ -998,10 +1231,19 @@ class LexnisCampaignStudio:
             "visual_concept": f"Commercial studio hero photograph of physical {prod_name} on dark graphite pedestal"
         }
 
+        strat_section = ""
+        if competitive_strategy or rivals:
+            strat_info = {
+                "strategic_wedge": (competitive_strategy or {}).get("strategic_wedge", ""),
+                "rivals": rivals or [],
+                "conquest_playbook": (competitive_strategy or {}).get("conquest_playbook", {})
+            }
+            strat_section = f"\n\nCOMPETITIVE INTEL & RIVAL CONQUEST BATTLECARD:\n{json.dumps(strat_info, indent=2, ensure_ascii=False)}"
+
         # 1. Agent 1 Draft
-        step("Agent 1 (Lead Copywriter) drafting initial campaign concept...")
+        step("Agent 1 (Lead Copywriter) drafting initial campaign concept with competitive edge...")
         agent1_sys = AGENT1_COPYWRITER_PROMPT.format(brand=brand, tone=tone, theme=theme)
-        agent1_user = f"ORIGINAL REQUEST: {prompt}\n\nCREATIVE BRIEF:\n{json.dumps(brief, indent=2, ensure_ascii=False)}"
+        agent1_user = f"ORIGINAL REQUEST: {prompt}\n\nCREATIVE BRIEF:\n{json.dumps(brief, indent=2, ensure_ascii=False)}{strat_section}"
 
         try:
             draft, _ = self._chat_json(agent1_sys, agent1_user, temperature=0.75, fallback_schema=agent1_fallback)
@@ -1009,7 +1251,7 @@ class LexnisCampaignStudio:
             draft = agent1_fallback
 
         # 2. Agent 2 Critique & Polish
-        step("Agent 2 (Creative Director & Art Critic) reviewing, critiquing & polishing...")
+        step("Agent 2 (Creative Director & Critic) auditing competitive edge, specs & visuals...")
 
         agent2_fallback = {
             "critique_notes": ["Creative review unavailable; inspect the draft before publishing."],
@@ -1028,7 +1270,8 @@ class LexnisCampaignStudio:
             f"BRAND: {brand}\n"
             f"ORIGINAL REQUEST: {prompt}\n"
             f"VISUAL DIRECTION: {theme}\n"
-            f"CREATIVE BRIEF:\n{json.dumps(brief, indent=2, ensure_ascii=False)}\n\n"
+            f"CREATIVE BRIEF:\n{json.dumps(brief, indent=2, ensure_ascii=False)}"
+            f"{strat_section}\n\n"
             f"AGENT 1 (LEAD COPYWRITER) DRAFT:\n{json.dumps(draft, indent=2, ensure_ascii=False)}"
         )
 
@@ -1050,8 +1293,8 @@ class LexnisCampaignStudio:
 
     def _fetch_image_bytes(self, visual_prompt: str, seed: int, model: str,
                            width: int = RENDER_WIDTH, height: int = RENDER_HEIGHT) -> Tuple[bytes, bool]:
-        if model == LOCAL_MODEL:
-            return local_image(visual_prompt, seed, width, height)
+        if model in LOCAL_MODELS:
+            return local_image(visual_prompt, seed, width, height, model=model)
         if model == "cf:flux-schnell":
             return cloudflare_image(visual_prompt, seed)
         if model.startswith("hf:"):
@@ -1112,7 +1355,7 @@ class LexnisCampaignStudio:
 
         width, height = FORMATS[output_format]
         provider = os.getenv("IMAGE_PROVIDER", "huggingface")
-        key = hashlib.sha1(f"photo-v3|{visual_prompt}|{seed}|{model}|{provider}|{width}|{height}|{bool(self.pollinations_key)}".encode()).hexdigest()[:16]
+        key = hashlib.sha1(f"{RENDER_VERSION}|{visual_prompt}|{seed}|{model}|{provider}|{width}|{height}|{bool(self.pollinations_key)}".encode()).hexdigest()[:16]
         clean_path = out_dir / f"{key}_clean.jpg"
         marker = out_dir / f"{key}.wm"  # present when the cached render came from the anonymous tier
 
@@ -1127,8 +1370,8 @@ class LexnisCampaignStudio:
                 img = fit_cover(Image.open(io.BytesIO(data)), width, height)
             except Exception as exc:
                 raise RuntimeError("Image provider returned an invalid image. Retry the visual.") from exc
-            img = ImageEnhance.Contrast(img).enhance(1.04)
-            img = img.filter(ImageFilter.UnsharpMask(radius=1.2, percent=60, threshold=3))
+            # Preserve the model's exposure and fine texture. Extra contrast and
+            # blanket sharpening made reflections look painted and crushed shadows.
             img.save(clean_path, "JPEG", quality=95, optimize=True)
             if not watermark_free:
                 marker.touch()
@@ -1137,7 +1380,7 @@ class LexnisCampaignStudio:
             return clean_path, clean_path, watermark_free
 
         clean_hl = headline.strip()
-        tag = hashlib.sha1(f"ad-v3|{clean_hl}|{brand}|{tagline}".encode()).hexdigest()[:8]
+        tag = hashlib.sha1(f"ad-v4-natural-exposure|{clean_hl}|{brand}|{tagline}".encode()).hexdigest()[:8]
         post_path = out_dir / f"{key}_post_{tag}.jpg"
         if not post_path.exists():
             compose_post(Image.open(clean_path), headline=clean_hl, brand=brand, tagline=tagline).save(
@@ -1181,19 +1424,44 @@ class LexnisCampaignStudio:
         search_results: List[Dict[str, str]] = []
         research = ""
         if use_search:
-            step("Researching the product on the web...")
+            step("Researching the product and competitor landscape on the web...")
             try:
                 search_query = f"{brand} {detected_prod or prompt}"
                 search_results, research = self.research_product(search_query)
             except Exception:
                 search_results, research = [], ""
 
+            # Extra competitor context query
+            try:
+                rival_query = f"{brand} {detected_prod or ''} competitors rivals alternatives vs".strip()
+                r_sources, r_text = self.research_product(rival_query, max_results=3, deep_pages=1)
+                if r_text:
+                    research = f"{research}\n\nCOMPETITOR WEB EVIDENCE:\n{r_text}".strip()
+                if r_sources:
+                    for s in r_sources:
+                        if s not in search_results:
+                            search_results.append(s)
+            except Exception:
+                pass
+
         step("Building the creative brief...")
         brief = self.build_brief(effective_prompt, brand, research)
+        prod_name = brief.get("product_name") or detected_prod or brand
+
+        step("Analyzing competitor battlecards & strategic counter-positioning...")
+        strategy_data = self.analyze_competitors_and_strategy(brand, prod_name, effective_prompt, research)
+        rivals = strategy_data.get("rivals", [])
+        competitive_strategy = {
+            "strategic_wedge": strategy_data.get("strategic_wedge", ""),
+            "conquest_playbook": strategy_data.get("conquest_playbook", {})
+        }
 
         # Dual-Agent Collaboration Loop: Agent 1 (Draft) -> Agent 2 (Critique & Polish)
         post, dialogue, critique_notes = self.collaborative_generation(
-            effective_prompt, brand, brief, tone, theme, step_callback=step
+            effective_prompt, brand, brief, tone, theme,
+            competitive_strategy=competitive_strategy,
+            rivals=rivals,
+            step_callback=step
         )
 
         hook = clean_social_text(post.get("hook", "")) or brief.get("one_liner", prompt)
@@ -1258,7 +1526,11 @@ class LexnisCampaignStudio:
             agent_dialogue=dialogue,
             critique_notes=critique_notes,
             enhanced_prompt=enhanced_prompt,
-            output_format=output_format, image_status=image_status, warnings=warnings,
+            output_format=output_format,
+            image_status=image_status,
+            warnings=warnings,
+            rivals=rivals,
+            competitive_strategy=competitive_strategy,
         )
 
     # ---------- Export ----------
@@ -1305,6 +1577,30 @@ class LexnisCampaignStudio:
         )
         if asset.alt_text:
             caption_text += f"\n\n---\nALT TEXT: {asset.alt_text}"
+
+        if asset.rivals:
+            caption_text += "\n\n---\nCOMPETITIVE INTEL & RIVALS BATTLECARD:\n"
+            for r in asset.rivals:
+                caption_text += f"\n* {r.get('name')}:\n"
+                caption_text += f"  - Current Stance: {r.get('stance', '')}\n"
+                caption_text += f"  - Incumbent Weakness: {r.get('incumbent_weakness', '')}\n"
+                caption_text += f"  - Our Unfair Edge: {r.get('our_edge', '')}\n"
+
+        if asset.competitive_strategy:
+            strat = asset.competitive_strategy
+            if strat.get("strategic_wedge"):
+                caption_text += f"\n---\nSTRATEGIC COUNTER-POSITIONING WEDGE:\n{strat.get('strategic_wedge', '')}\n"
+            pb = strat.get("conquest_playbook", {})
+            if pb:
+                if pb.get("attack_angle"):
+                    caption_text += f"\nATTACK ANGLE:\n{pb.get('attack_angle', '')}\n"
+                if pb.get("campaign_ideas"):
+                    caption_text += "\nMARKETING CONQUEST CAMPAIGN IDEAS:\n" + "\n".join(f"- {c}" for c in pb["campaign_ideas"])
+                if pb.get("landmine_questions"):
+                    caption_text += "\nBUYER LANDMINE QUESTIONS:\n" + "\n".join(f"- {q}" for q in pb["landmine_questions"])
+                if pb.get("growth_tactics"):
+                    caption_text += "\nGTM & SOCIAL GROWTH TACTICS:\n" + "\n".join(f"- {t}" for t in pb["growth_tactics"])
+
         if asset.critique_notes:
             caption_text += "\n\n---\nEXECUTIVE CRITIQUE & POLISH NOTES:\n" + "\n".join(
                 f"- {note}" for note in asset.critique_notes

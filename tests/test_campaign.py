@@ -9,13 +9,63 @@ from PIL import Image
 from fastapi.testclient import TestClient
 import campaign_generator as engine
 from server import app, render_path
-from visual_engine import photo_direction, open_model_image, cloudflare_image, model_setup, LOCAL_MODEL
+from visual_engine import photo_direction, open_model_image, cloudflare_image, model_setup, LOCAL_MODEL, REALISM_MODEL, local_render_dimensions, photography_conditioning
 
 
 class CampaignTests(unittest.TestCase):
+    def test_checkpoint_sharding_preserves_tensor_bytes(self):
+        import json
+        import struct
+        from scripts.shard_local_checkpoint import shard_file
+        payload = bytes(range(32))
+        header = {'__metadata__': {'format': 'pt'},
+                  'a': {'dtype': 'F16', 'shape': [8], 'data_offsets': [0, 16]},
+                  'b': {'dtype': 'F16', 'shape': [8], 'data_offsets': [16, 32]}}
+        encoded = json.dumps(header).encode()
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / 'source.safetensors'
+            source.write_bytes(struct.pack('<Q', len(encoded)) + encoded + payload)
+            destination = Path(directory) / 'shards'
+            result = shard_file(source, destination, 'model', max_bytes=16)
+            self.assertEqual(result['metadata']['total_size'], 32)
+            self.assertEqual(set(result['weight_map']), {'a', 'b'})
+            for key, expected in [('a', payload[:16]), ('b', payload[16:])]:
+                raw = (destination / result['weight_map'][key]).read_bytes()
+                size = struct.unpack('<Q', raw[:8])[0]
+                shard_header = json.loads(raw[8:8+size])
+                self.assertEqual(shard_header[key]['shape'], [8])
+                self.assertEqual(raw[8+size:], expected)
+            self.assertEqual(source.read_bytes(), struct.pack('<Q', len(encoded)) + encoded + payload)
+
+    def test_windows_tensor_reader_overrides_explicit_mmap(self):
+        from scripts.windows_tensor_reader import pread_reader
+        from unittest.mock import Mock
+        original = Mock(return_value='safe tensor context')
+        wrapped = pread_reader(original)
+        self.assertEqual(wrapped('model.safetensors', framework='pt', backend='mmap'), 'safe tensor context')
+        original.assert_called_once_with('model.safetensors', framework='pt', backend='pread')
+
     def test_health_recommends_verified_local_engine(self):
-        with patch.dict(os.environ, {'IMAGE_MODEL': ''}), patch('server.local_model_ready', return_value=True), TestClient(app) as client:
+        with patch.dict(os.environ, {'IMAGE_MODEL': ''}), patch('server.preferred_local_model', return_value=LOCAL_MODEL), TestClient(app) as client:
             self.assertEqual(client.get('/api/health').json()['default_image_model'], LOCAL_MODEL)
+
+    def test_realism_render_uses_sdxl_native_sizes(self):
+        self.assertEqual(local_render_dimensions(1536, 864, REALISM_MODEL), (1344, 768))
+        self.assertEqual(local_render_dimensions(1080, 1350, REALISM_MODEL), (896, 1152))
+        self.assertEqual(local_render_dimensions(1080, 1080, REALISM_MODEL), (1024, 1024))
+        self.assertEqual(local_render_dimensions(1536, 864, LOCAL_MODEL), (1024, 576))
+
+    def test_long_prompt_keeps_product_and_photographic_direction(self):
+        class Tokenizer:
+            model_max_length = 77
+            def encode(self, text, add_special_tokens=False):
+                return text.split()
+        primary, secondary, negative, compacted = photography_conditioning('Tesla Model 3 blue sedan ' + 'coastal road ' * 120, Tokenizer(), Tokenizer())
+        self.assertTrue(primary.startswith('Tesla Model 3'))
+        self.assertIn('balanced exposure', primary)
+        self.assertTrue(compacted)
+        for text in (primary, secondary, negative):
+            self.assertLessEqual(len(text.split()), 75)
 
     def test_local_model_requires_verified_weights(self):
         with patch('visual_engine.local_model_ready', return_value=False):

@@ -37,6 +37,14 @@ Hugging Face [currently lists no included inference credits for free accounts](h
 
 ## Configure
 
+### Photographic quality upgrade
+
+The **RealVisXL 5 — photographic detail, local GPU** option improves on the faster Vega engine with a full-size photography-focused checkpoint, larger native renders and a low-strength detail pass. It runs locally without API charges. After a verified sample enables the checkpoint, automatic model selection prefers it; Vega remains available for faster drafts.
+
+Install its weights with `python scripts/setup_realism_model.py` and generate a sample and activate the verified engine with `python scripts/verify_realism_images.py --activate`. Omit `--activate` to generate an inspectable sample without changing the default. The setup uses the existing isolated CUDA environment. RealVisXL uses OpenRAIL++ rather than Apache 2.0; see [research, sources, settings and limitations](REALISM_RESEARCH.md). More detailed generation takes longer than Vega on an 8 GB GPU.
+
+Old cached renders are invalidated. `output/latest-local-render.json` records the effective prompt, token counts, native resolution, detail-pass settings and elapsed time; `output/local-render-progress.log` shows model loading and diffusion progress. The export path preserves the original photographic contrast and does not apply blanket sharpening.
+
 ### Local engine on this laptop
 
 The isolated Segmind Vega engine uses `.venv-image` and `.model-cache/segmind-vega`. It needs no Cloudflare or Hugging Face API key after downloading the weights. The default selects this engine after a real smoke render creates its readiness marker. Its GPU runtime is separate from the server Python, which can keep using its existing CPU-only PyTorch.

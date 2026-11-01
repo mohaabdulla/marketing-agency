@@ -12,34 +12,88 @@ ROOT = Path(__file__).resolve().parent
 LOCAL_MODEL = 'local:segmind-vega'
 LOCAL_PYTHON = ROOT / '.venv-image' / 'Scripts' / 'python.exe'
 LOCAL_WEIGHTS = ROOT / '.model-cache' / 'segmind-vega'
+REALISM_MODEL = 'local:realvisxl-v5'
+LOCAL_MODELS = {
+    LOCAL_MODEL: {'directory': 'segmind-vega', 'label': 'Segmind Vega — fast local GPU'},
+    REALISM_MODEL: {'directory': 'realvisxl-v5', 'label': 'RealVisXL 5 — photographic detail, local GPU'},
+}
+RENDER_VERSION = 'photo-v5-realism'
 
 
-def local_model_ready():
-    return LOCAL_PYTHON.exists() and (LOCAL_WEIGHTS / '.ready').exists() and (LOCAL_WEIGHTS / 'model_index.json').exists()
+def local_model_ready(model=LOCAL_MODEL):
+    if model not in LOCAL_MODELS:
+        return False
+    weights = ROOT / '.model-cache' / LOCAL_MODELS[model]['directory']
+    return LOCAL_PYTHON.exists() and (weights / '.ready').exists() and (weights / 'model_index.json').exists()
 
 
-def local_image(prompt, seed, width, height, require_ready=True):
-    if require_ready and not local_model_ready():
-        raise RuntimeError('Local image engine is not installed and verified. Run python scripts/setup_local_images.py first.')
+def preferred_local_model():
+    return next((model for model in (REALISM_MODEL, LOCAL_MODEL) if local_model_ready(model)), None)
+
+
+def local_render_dimensions(width, height, model=LOCAL_MODEL):
+    ratio = width / height
+    if model == REALISM_MODEL:
+        return (1344, 768) if ratio > 1.3 else ((896, 1152) if ratio < .9 else (1024, 1024))
+    return (1024, 576) if ratio > 1.3 else ((768, 960) if ratio < .9 else (896, 896))
+
+
+def photography_conditioning(prompt, tokenizer, tokenizer_2):
+    """Respect CLIP's 77-token budget and reserve room for photographic direction."""
+    cleaned = re.sub(r'\b(?:cinematic|hyperrealistic|ultrarealistic|masterpiece|8k|16k|unreal engine|luxury)\b', '', prompt, flags=re.I)
+    cleaned = ' '.join(cleaned.split()).strip(' ,.')
+    suffix = ', professional photograph, natural color, balanced exposure, realistic surface texture'
+    budget = min(tokenizer.model_max_length, tokenizer_2.model_max_length, 77) - 2
+
+    def compact(text, tail='', main_budget=budget):
+        content = text
+        while content and any(len(tok.encode(content.rstrip(' ,.') + tail, add_special_tokens=False)) > main_budget for tok in (tokenizer, tokenizer_2)):
+            content = content.rsplit(' ', 1)[0] if ' ' in content else content[:-1]
+        return content.rstrip(' ,.') + tail
+
+    primary = compact(cleaned, suffix)
+    secondary = compact('Natural product photograph. ' + cleaned,
+        ', subtle reflections, believable perspective, detailed materials')
+    negative = compact('CGI, 3d render, illustration, painting, plastic, waxy, oversaturated, HDR, excessive bloom, crushed shadows, distorted geometry, duplicate wheels, melted panels, illegible logo, text, watermark, oversharpened')
+    return primary, secondary, negative, primary != cleaned + suffix
+
+
+def local_image(prompt, seed, width, height, require_ready=True, model=LOCAL_MODEL):
+    if model not in LOCAL_MODELS:
+        raise RuntimeError('Unsupported local image model.')
+    if require_ready and not local_model_ready(model):
+        raise RuntimeError(model_setup(model)['message'])
     # Render within the laptop GPU's memory budget, then the main pipeline resizes
     # to the exact export size. Each subprocess releases CUDA memory on completion.
     (ROOT / 'output').mkdir(exist_ok=True)
-    ratio = width / height
-    width, height = (1024, 576) if ratio > 1.3 else ((768, 960) if ratio < .9 else (896, 896))
+    output_width, output_height = width, height
+    width, height = local_render_dimensions(width, height, model)
     with _local_lock, tempfile.TemporaryDirectory(prefix='lexnis-render-', dir=ROOT / 'output') as directory:
         output = Path(directory) / 'image.jpg'
         request = Path(directory) / 'request.json'
-        request.write_text(json.dumps(dict(prompt=prompt, seed=seed, width=width, height=height, output=str(output))), encoding='utf-8')
+        request.write_text(json.dumps(dict(prompt=prompt, seed=seed, width=width, height=height, output=str(output),
+            model=model, output_width=output_width, output_height=output_height)), encoding='utf-8')
         try:
-            result = subprocess.run([str(LOCAL_PYTHON), str(ROOT / 'scripts' / 'render_local_image.py'), str(request)],
-                cwd=ROOT, capture_output=True, text=True, timeout=600,
-                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+            # Persist progress while the GPU works; model loading and diffusion
+            # should be distinguishable from a stalled subprocess.
+            with (ROOT / 'output' / 'local-render-progress.log').open('w', encoding='utf-8') as log:
+                result = subprocess.run([str(LOCAL_PYTHON), '-u', str(ROOT / 'scripts' / 'render_local_image.py'), str(request)],
+                    cwd=ROOT, stdout=log, stderr=log, timeout=900,
+                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
             if result.returncode or not output.exists():
-                (ROOT / 'output' / 'local-render-error.log').write_text(result.stderr, encoding='utf-8')
+                details = (ROOT / 'output' / 'local-render-progress.log').read_text(encoding='utf-8')
+                details += f'\nWorker exit code: {result.returncode} (0x{result.returncode & 0xffffffff:08x})\n'
+                (ROOT / 'output' / 'local-render-error.log').write_text(details, encoding='utf-8')
                 raise RuntimeError('Local GPU rendering failed. See output/local-render-error.log for details.')
+            metadata = output.with_suffix('.json')
+            if metadata.exists():
+                (ROOT / 'output' / 'latest-local-render.json').write_bytes(metadata.read_bytes())
+            base = Path(directory) / 'base.jpg'
+            if base.exists():
+                (ROOT / 'output' / 'latest-local-base.jpg').write_bytes(base.read_bytes())
             return output.read_bytes(), True
         except subprocess.TimeoutExpired as exc:
-            raise RuntimeError('Local image generation exceeded ten minutes. Retry with other GPU applications closed.') from exc
+            raise RuntimeError('Local image generation exceeded fifteen minutes. Retry with other GPU applications closed.') from exc
 
 FORMATS = {"portrait": (1080, 1350), "landscape": (1536, 864), "square": (1080, 1080)}
 OPEN_MODELS = {
@@ -53,9 +107,10 @@ _local_lock = threading.Lock()
 
 def model_setup(model):
     """Credential readiness only; never imply that quotas or remote health were tested."""
-    if model == LOCAL_MODEL:
-        ready = local_model_ready()
-        message = 'Install and verify the local image engine with python scripts/setup_local_images.py.'
+    if model in LOCAL_MODELS:
+        ready = local_model_ready(model)
+        message = ('Install the photographic checkpoint with python scripts/setup_realism_model.py and enable it with python scripts/verify_realism_images.py --activate.'
+                   if model == REALISM_MODEL else 'Install and verify the local image engine with python scripts/setup_local_images.py.')
     elif model == "cf:flux-schnell":
         ready = bool(os.getenv("CLOUDFLARE_ACCOUNT_ID") and os.getenv("CLOUDFLARE_API_TOKEN"))
         message = "Add CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN to .env, then restart python server.py."
@@ -71,7 +126,7 @@ def model_setup(model):
         message = "Set POLLINATIONS_API_KEY in .env and restart the server, or select a configured image provider."
     if ready:
         message = ('Local GPU engine verified. Generates on this computer without API keys.'
-                   if model == LOCAL_MODEL else 'Provider configured; availability depends on model access and quota.')
+                   if model in LOCAL_MODELS else 'Provider configured; availability depends on model access and quota.')
     return {"configured": ready, "message": message}
 
 
@@ -103,7 +158,7 @@ def photo_direction(request, theme="", brand=""):
     outdoor = any(word in (theme + " " + request).lower()
                   for word in ("coast", "sunset", "road", "lifestyle", "outdoor", "cinematic"))
     scene = ("On a winding coastal road above the ocean at golden hour, warm sunset sky, "
-             "natural reflections, believable shadows, tasteful cinematic color grading. "
+             "natural reflections, believable shadows, neutral photographic color and balanced exposure. "
              "For a vehicle use a low front three-quarter tracking shot, entire vehicle visible, "
              "sharp body with subtle wheel and road motion blur, 35mm lens."
              if outdoor else
@@ -175,7 +230,7 @@ def compose_ad(image, headline="", brand="", tagline=""):
     for y in range(height):
         top = max(0, 1 - y / (height * .32))
         bottom = max(0, (y - height * .67) / (height * .33))
-        draw.line((0, y, width, y), fill=(0, 0, 0, round(145 * max(top, bottom))))
+        draw.line((0, y, width, y), fill=(0, 0, 0, round(85 * max(top, bottom))))
     max_width = width - pad * 2
 
     def lines(text, size, limit):

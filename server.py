@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from visual_engine import model_setup, LOCAL_MODEL, local_model_ready
+from visual_engine import model_setup, preferred_local_model
 
 from campaign_generator import (
     LexnisCampaignStudio, CampaignAsset, IMAGE_MODELS, DEFAULT_IMAGE_MODEL, RENDERS_DIR,
@@ -104,6 +104,8 @@ class ExportRequest(BaseModel):
     output_format: Literal["portrait", "landscape", "square"] = "portrait"
     image_status: str = "ready"
     warnings: List[str] = Field(default_factory=list)
+    rivals: Optional[List[Dict[str, Any]]] = None
+    competitive_strategy: Optional[Dict[str, Any]] = None
 
 
 @app.get("/")
@@ -119,7 +121,7 @@ def serve_index():
 def health_check():
     """Engine telemetry and health check."""
     studio = LexnisCampaignStudio()
-    default_model = LOCAL_MODEL if local_model_ready() and not os.getenv('IMAGE_MODEL') else DEFAULT_IMAGE_MODEL
+    default_model = os.getenv('IMAGE_MODEL') or preferred_local_model() or DEFAULT_IMAGE_MODEL
     return {
         "status": "online",
         "engine": "Lexnis Campaign Studio (AI Marketing Agency)",
@@ -249,6 +251,8 @@ def export_campaign_endpoint(req: ExportRequest):
             critique_notes=req.critique_notes or [],
             enhanced_prompt=req.enhanced_prompt or "",
             output_format=req.output_format, image_status=req.image_status, warnings=req.warnings,
+            rivals=req.rivals or [],
+            competitive_strategy=req.competitive_strategy or {},
         )
         saved_files = studio.export_campaign(asset, output_dir=str(BASE_DIR / "output"))
         return {

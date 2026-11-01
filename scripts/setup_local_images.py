@@ -13,7 +13,7 @@ if __name__ == '__main__':
         '--index-url', 'https://download.pytorch.org/whl/cu124')
     run('-m', 'pip', 'install', '--no-cache-dir', 'diffusers==0.36.0',
         'transformers>=4.57,<5', 'accelerate>=1.2,<2', 'Pillow>=10,<13',
-        'huggingface_hub>=0.34,<1', 'hf_xet>=1.1,<2', 'safetensors>=0.4')
+        'huggingface_hub>=0.34,<1', 'hf_xet>=1.1,<2', 'safetensors>=0.8,<0.9')
     run('-c', "from huggingface_hub import snapshot_download; "
         "snapshot_download('segmind/Segmind-Vega', local_dir='.model-cache/segmind-vega', "
         "allow_patterns=['*.json','*.txt','*.model','*.fp16.safetensors','tokenizer/*','tokenizer_2/*'])")
