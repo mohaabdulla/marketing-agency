@@ -107,7 +107,7 @@ LEGACY_IMAGE_BASE = "https://image.pollinations.ai/prompt"
 GEMINI_OPENAI_BASE = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 DEFAULT_TEXT_MODEL = os.getenv("TEXT_MODEL", "openai/gpt-5.4-mini")
-DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 DEFAULT_IMAGE_MODEL = os.getenv("IMAGE_MODEL") or preferred_local_model() or "cf:flux-schnell"
 
 # Image models available (Google AI Studio Imagen + FLUX photorealism)
@@ -160,13 +160,41 @@ Return ONLY a JSON object with these keys:
 }"""
 
 
-PROMPT_ENHANCER_PROMPT = """Improve this marketing request while preserving its exact product,
-brand, color, location and user intent. Never select a different product for an ambiguous brand.
-Never add specifications, dates, launch availability, prices or performance claims.
-Use a photographic campaign concept with a clear audience and a single emotional benefit.
-Return JSON with detected_brand, product_name, enhanced_prompt, suggested_tone, suggested_theme.
-Include the original request verbatim in enhanced_prompt. If product is unknown, leave product_name empty.
+PROMPT_ARCHITECT_SYSTEM_PROMPT = """You are an elite Advertising Prompt Architect & Creative Strategy Director.
+Your task is to take a raw user request for a commercial campaign and elevate it into a high-converting, Fortune-500 grade launch prompt that guarantees maximum photographic fidelity, strategic brand alignment, and compelling messaging.
+
+Critical Rules:
+1. Brand & Product Fidelity:
+   - Identify the exact brand and product intended.
+   - Never swap or invent unrelated brands (e.g., if the user asks for Bank of America, do NOT mention Rolex; if Tesla, do not add unrelated brands).
+   - If no brand is specified, use the provided brand.
+2. Strategic Transformation:
+   - Define a specific target customer persona (who is this for?).
+   - Frame a sharp value-proposition hook or emotional angle (why does it matter?).
+   - Specify photographic visual art direction for FLUX/diffusion models: scene setting, lighting (e.g. golden hour, softbox, volumetric rim light), composition (e.g. 35mm lens, low three-quarter angle, generous negative space for typography), and realistic textures (no CGI plastic, no text artifacts).
+3. Construct the "enhanced_prompt":
+   - Write a rich, cohesive launch brief prompt (2-4 sentences) that clearly articulates the product, the strategic audience hook, and the photographic visual atmosphere.
+4. Summarize Improvements:
+   - Provide 3 concise bullet points under "improvements" detailing what was elevated from the raw prompt.
+
+Return strictly valid JSON with this exact schema:
+{
+  "detected_brand": "Brand Name",
+  "product_name": "Product or Service Name",
+  "target_audience": "Specific customer persona",
+  "core_hook_angle": "Core counter-positioning or emotional hook",
+  "visual_art_direction": "Photographic visual composition and lighting guidance",
+  "improvements": [
+    "Identified target customer persona and core value proposition",
+    "Structured photographic scene composition with typography negative space",
+    "Removed ambiguity while strictly preserving brand fidelity"
+  ],
+  "enhanced_prompt": "Complete upgraded prompt for the campaign generator",
+  "suggested_tone": "confident, premium and benefit-driven",
+  "suggested_theme": "Cinematic lifestyle photography"
+}
 """
+PROMPT_ENHANCER_PROMPT = PROMPT_ARCHITECT_SYSTEM_PROMPT
 
 
 COMPETITIVE_INTELLIGENCE_PROMPT = """You are a Chief Marketing Officer and Competitive Strategy Director.
@@ -1059,7 +1087,7 @@ class LexnisCampaignStudio:
         # Fallback models if using Gemini or Pollinations endpoint
         models_to_try = [self.model]
         if getattr(self, "text_engine", "") == "gemini":
-            for m in ["gemini-3.5-flash-lite", "gemini-3.5-flash"]:
+            for m in ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash"]:
                 if m not in models_to_try:
                     models_to_try.append(m)
         elif "pollinations" in getattr(self, "base_url", "").lower() or getattr(self, "text_engine", "") == "pollinations-anonymous":
@@ -1156,32 +1184,73 @@ class LexnisCampaignStudio:
         brief, _ = self._chat_json(STRATEGIST_PROMPT, user, temperature=0.4, fallback_schema=fallback)
         return brief
 
-    def enhance_user_prompt(self, user_prompt: str, brand: Optional[str] = None) -> Dict[str, Any]:
+    def enhance_user_prompt(
+        self,
+        user_prompt: str,
+        brand: Optional[str] = None,
+        guidelines: Optional[str] = None,
+        style_preset: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
-        Transform a conversational, vague or instructional prompt into an executive-grade Fortune-500 launch brief.
-        Also detects the true intended brand (e.g. Tesla instead of Lexnis Technologies).
+        AI Prompt Architect:
+        Transforms raw, conversational, or vague user prompts into executive Fortune-500 launch briefs.
+        Factors in brand detection, client brand guidelines, and creative direction.
         """
         detected_brand, detected_product = detect_brand_and_product(user_prompt, brand or "")
+
+        gl_text = f"\n\nCLIENT BRAND GUIDELINES (STRICT ADHERENCE):\n{guidelines.strip()}" if guidelines else ""
+        style_text = f"\nREQUESTED CREATIVE STYLE: {style_preset}" if style_preset else ""
+
+        brand_label = detected_brand or (brand if brand and brand != "Lexnis Technologies" else "the brand")
+        product_label = detected_product or "flagship innovation"
 
         fallback_enhanced = {
             "detected_brand": detected_brand,
             "product_name": detected_product,
-            "enhanced_prompt": user_prompt + " Create a focused photographic campaign with a clear audience, one emotional benefit and concise copy. Verify any technical claims before use.",
+            "target_audience": f"Discerning customers & decision-makers evaluating {brand_label}",
+            "core_hook_angle": f"Establishing categorical superiority for {brand_label} through tangible, verified performance.",
+            "visual_art_direction": "Cinematic commercial photograph, natural directional lighting, shallow depth of field, generous negative space for typography.",
+            "improvements": [
+                f"Anchored prompt directly to {brand_label} {product_label}",
+                "Structured photographic composition directives for AI visual generator",
+                "Clarified high-converting benefit hook for B2B/B2C audiences"
+            ],
+            "enhanced_prompt": (
+                f"Commercial launch campaign for {brand_label} {product_label}. "
+                f"Core message: {user_prompt.strip()}. "
+                f"Visual direction: Cinematic photography with natural lighting and clean typography negative space. "
+                f"Tone: confident, authoritative, and benefit-driven."
+            ),
             "suggested_tone": "confident, premium and benefit-driven",
             "suggested_theme": "Cinematic lifestyle photography",
         }
 
-        user_message = f"RAW USER REQUEST: {user_prompt}\nCURRENT BRAND FIELD: {brand or detected_brand}"
+        user_message = (
+            f"RAW USER REQUEST: {user_prompt}\n"
+            f"CURRENT BRAND FIELD: {brand or detected_brand}"
+            f"{style_text}{gl_text}"
+        )
 
         try:
-            enhanced, _ = self._chat_json(PROMPT_ENHANCER_PROMPT, user_message, temperature=0.3, fallback_schema=fallback_enhanced)
+            enhanced, _ = self._chat_json(
+                PROMPT_ARCHITECT_SYSTEM_PROMPT,
+                user_message,
+                temperature=0.35,
+                fallback_schema=fallback_enhanced
+            )
             if not enhanced.get("enhanced_prompt"):
                 enhanced["enhanced_prompt"] = fallback_enhanced["enhanced_prompt"]
             if not enhanced.get("detected_brand"):
                 enhanced["detected_brand"] = detected_brand
-            for k in ["enhanced_prompt", "detected_brand", "product_name", "suggested_tone", "suggested_theme"]:
+            if not enhanced.get("improvements") or not isinstance(enhanced.get("improvements"), list):
+                enhanced["improvements"] = fallback_enhanced["improvements"]
+            else:
+                enhanced["improvements"] = [clean_social_text(str(x)) for x in enhanced["improvements"][:4]]
+
+            for k in ["enhanced_prompt", "detected_brand", "product_name", "target_audience", "core_hook_angle", "visual_art_direction", "suggested_tone", "suggested_theme"]:
                 if k in enhanced and isinstance(enhanced[k], str):
                     enhanced[k] = clean_social_text(enhanced[k])
+
             return enhanced
         except Exception:
             return {k: clean_social_text(v) if isinstance(v, str) else v for k, v in fallback_enhanced.items()}
@@ -1654,9 +1723,10 @@ class LexnisCampaignStudio:
             )
 
             models_to_try = [
-                os.getenv("GEMINI_VISION_MODEL", "gemini-3.5-flash-lite"),
-                "gemini-3.5-flash",
-                "gemini-3.8-flash"
+                os.getenv("GEMINI_VISION_MODEL", "gemini-2.5-flash"),
+                "gemini-1.5-flash",
+                "gemini-2.0-flash",
+                "gemini-2.5-pro"
             ]
 
             for m_name in models_to_try:

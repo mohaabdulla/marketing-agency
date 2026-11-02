@@ -247,12 +247,23 @@ def compose_ad(image, headline="", brand="", tagline=""):
         return [prepare_bidi_text(line) for line in wrapped], _load_font(size), size
 
     is_arabic_brand = bool(re.search(r"[\u0600-\u06FF]", brand))
-    brand_lines, font, size = lines(brand, round(height * .030), 2)
-    y = pad
-    for line in brand_lines:
-        x = (width - pad - draw.textlength(line, font=font)) if is_arabic_brand else pad
-        draw.text((x, y), line, font=font, fill="white")
-        y += round(size * 1.3)
+    brand_clean = " ".join(brand.split()).strip()
+    headline_clean = " ".join(headline.split()).strip()
+    brand_already_prominent = bool(
+        brand_clean and headline_clean and (
+            brand_clean.upper() in headline_clean.upper() or
+            headline_clean.upper().startswith(brand_clean.upper()) or
+            headline_clean.upper() == brand_clean.upper()
+        )
+    )
+
+    if not brand_already_prominent:
+        brand_lines, font, size = lines(brand, round(height * .030), 2)
+        y = pad
+        for line in brand_lines:
+            x = (width - pad - draw.textlength(line, font=font)) if is_arabic_brand else pad
+            draw.text((x, y), line, font=font, fill="white")
+            y += round(size * 1.3)
     title_lines, font, size = lines(headline, round(height * .052), 2)
     tag_lines, tag_font, tag_size = lines(tagline, round(height * .022), 2)
     y = height - pad - len(title_lines) * round(size * 1.25) - len(tag_lines) * round(tag_size * 1.4)

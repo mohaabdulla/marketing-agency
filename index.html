@@ -265,6 +265,14 @@
                 <span>Google Research</span>
               </span>
             </label>
+
+            <label class="flex items-center space-x-1.5 cursor-pointer text-slate-300 hover:text-cyan-accent transition-colors select-none" title="AI Prompt Architect improves prompt quality and lets you review & edit before launching">
+              <input type="checkbox" id="review-prompt-toggle" checked class="w-3.5 h-3.5 rounded border-obsidian-700 bg-obsidian-950 text-cyan-accent focus:ring-cyan-accent accent-[#00f0ff] cursor-pointer">
+              <span class="flex items-center space-x-1">
+                <i data-lucide="sparkles" class="w-3 h-3 text-cyan-accent"></i>
+                <span>Review AI Prompt</span>
+              </span>
+            </label>
           </div>
 
           <!-- Action Buttons -->
@@ -845,7 +853,7 @@
         </div>
 
         <!-- FULL WIDTH: Competitive Intel & Rival Conquest Playbook -->
-        <div id="competitive-intel-box" class="w-full bg-obsidian-900/90 border border-amber-500/30 rounded-2xl p-6 sm:p-7 shadow-2xl space-y-6">
+        <div id="competitive-intel-box" class="w-full max-w-full block clear-both col-span-1 lg:col-span-12 bg-obsidian-900/90 border border-amber-500/30 rounded-2xl p-6 sm:p-7 shadow-2xl space-y-6" style="grid-column: 1 / -1; width: 100%; min-width: 100%; box-sizing: border-box;">
           
           <!-- Section Header -->
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-obsidian-800">
@@ -888,7 +896,7 @@
               <i data-lucide="crosshair" class="w-3.5 h-3.5 text-cyan-accent"></i>
               <span>Direct Rivals &amp; Vulnerability Battlecard</span>
             </div>
-            <div id="rivals-cards-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div id="rivals-cards-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 min-w-0">
               <!-- Dynamically rendered competitor cards -->
             </div>
           </div>
@@ -1026,6 +1034,168 @@
     </div>
   </div>
 
+  <!-- AI PROMPT ARCHITECT APPROVAL & REVIEW MODAL -->
+  <div id="prompt-review-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+    <div class="relative w-full max-w-3xl bg-obsidian-900 border border-cyan-500/40 rounded-2xl shadow-2xl p-5 sm:p-6 space-y-4 max-h-[92vh] flex flex-col my-auto overflow-hidden">
+      
+      <!-- Modal Header -->
+      <div class="flex items-start justify-between pb-3 border-b border-obsidian-800 shrink-0">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-violet-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-accent shrink-0 shadow-cyan-glow">
+            <i data-lucide="sparkles" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <h3 class="text-sm sm:text-base font-tech font-bold tracking-wider text-white uppercase">
+                AI Prompt Architect — Optimization &amp; Approval
+              </h3>
+              <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-accent/10 border border-cyan-accent/30 text-cyan-accent font-semibold">
+                Interactive Approval
+              </span>
+            </div>
+            <p class="text-xs font-mono text-slate-400 mt-0.5">
+              Review, edit, or customize the AI-elevated launch prompt before synthesizing assets.
+            </p>
+          </div>
+        </div>
+        <button type="button" id="prompt-review-close-btn" class="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-obsidian-800 transition-colors cursor-pointer" title="Close review">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Scrollable Body -->
+      <div class="space-y-4 overflow-y-auto pr-1 select-text">
+        <!-- Strategic Intelligence Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+          <!-- Detected Brand & Product -->
+          <div class="bg-obsidian-950/90 border border-obsidian-800 rounded-xl p-3 space-y-1">
+            <div class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center space-x-1.5">
+              <i data-lucide="building" class="w-3 h-3 text-cyan-accent"></i>
+              <span>Brand &amp; Product</span>
+            </div>
+            <p id="review-brand-product" class="text-xs font-bold text-white truncate">Lexnis Technologies</p>
+          </div>
+
+          <!-- Target Persona -->
+          <div class="bg-obsidian-950/90 border border-obsidian-800 rounded-xl p-3 space-y-1">
+            <div class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center space-x-1.5">
+              <i data-lucide="users" class="w-3 h-3 text-violet-400"></i>
+              <span>Target Persona</span>
+            </div>
+            <p id="review-target-persona" class="text-xs text-slate-200 truncate">Decision makers &amp; buyers</p>
+          </div>
+
+          <!-- Strategic Hook Angle -->
+          <div class="bg-obsidian-950/90 border border-obsidian-800 rounded-xl p-3 space-y-1">
+            <div class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center space-x-1.5">
+              <i data-lucide="zap" class="w-3 h-3 text-amber-400"></i>
+              <span>Strategic Wedge</span>
+            </div>
+            <p id="review-hook-angle" class="text-xs text-slate-200 truncate">Category superiority</p>
+          </div>
+        </div>
+
+        <!-- AI Upgrades Breakdown & Original Comparison -->
+        <div class="bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-3.5 space-y-2 text-xs font-mono">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] uppercase tracking-wider text-slate-400 font-bold flex items-center space-x-1.5">
+              <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400"></i>
+              <span>AI Strategic Upgrades Made:</span>
+            </span>
+            <button type="button" id="toggle-raw-compare-btn" class="text-[10px] text-cyan-accent hover:underline flex items-center space-x-1 cursor-pointer">
+              <span id="toggle-raw-text">View Raw Input</span>
+            </button>
+          </div>
+          <ul id="review-improvements-list" class="space-y-1 text-[11px] text-slate-300"></ul>
+          <div id="review-raw-box" class="hidden mt-2 p-2.5 rounded bg-obsidian-900 border border-obsidian-800 text-[11px] text-slate-400 italic">
+            <span class="text-[9px] uppercase tracking-wider text-slate-500 font-bold block mb-0.5">Your original input:</span>
+            <p id="review-raw-text"></p>
+          </div>
+        </div>
+
+        <!-- Editable Enhanced Prompt Section -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-xs font-mono">
+            <label for="approved-prompt-input" class="text-white font-bold flex items-center space-x-1.5">
+              <i data-lucide="edit-3" class="w-3.5 h-3.5 text-cyan-accent"></i>
+              <span>AI-Optimized Launch Prompt (Editable):</span>
+            </label>
+            <div class="flex items-center space-x-2 text-[10px] text-slate-400">
+              <span id="approved-char-count">0</span>
+              <span>chars</span>
+            </div>
+          </div>
+
+          <div class="relative">
+            <textarea 
+              id="approved-prompt-input" 
+              rows="4" 
+              class="w-full bg-obsidian-950 border border-cyan-500/50 focus:border-cyan-accent focus:ring-2 focus:ring-cyan-accent/30 rounded-xl p-3.5 text-xs sm:text-sm font-sans text-slate-100 placeholder-slate-600 outline-none transition-all resize-y shadow-inner leading-relaxed"
+              placeholder="Edit the prompt here before generating..."
+            ></textarea>
+          </div>
+          <p class="text-[10px] font-mono text-slate-400 flex items-center space-x-1">
+            <i data-lucide="info" class="w-3 h-3 text-cyan-accent shrink-0"></i>
+            <span>You can freely modify any sentence above. Your edited text will directly guide all models.</span>
+          </p>
+        </div>
+
+        <!-- Quick Re-Flavor Style Chips -->
+        <div class="flex flex-wrap items-center gap-2 pt-1 border-t border-obsidian-800/80 text-[11px] font-mono">
+          <span class="text-slate-400 text-[10px] uppercase font-bold flex items-center space-x-1">
+            <i data-lucide="wand-2" class="w-3 h-3 text-violet-400"></i>
+            <span>Re-Flavor Style:</span>
+          </span>
+          <button type="button" class="prompt-style-chip px-2.5 py-1 rounded-lg bg-obsidian-950 hover:bg-cyan-950/40 text-slate-300 hover:text-cyan-accent border border-obsidian-800 hover:border-cyan-500/30 transition-all cursor-pointer" data-style="Cinematic Lifestyle photography with golden hour lighting">
+            ✨ Cinematic Lifestyle
+          </button>
+          <button type="button" class="prompt-style-chip px-2.5 py-1 rounded-lg bg-obsidian-950 hover:bg-violet-950/40 text-slate-300 hover:text-violet-300 border border-obsidian-800 hover:border-violet-500/30 transition-all cursor-pointer" data-style="Executive B2B high-stakes enterprise technology">
+            💼 Executive B2B
+          </button>
+          <button type="button" class="prompt-style-chip px-2.5 py-1 rounded-lg bg-obsidian-950 hover:bg-amber-950/40 text-slate-300 hover:text-amber-300 border border-obsidian-800 hover:border-amber-500/30 transition-all cursor-pointer" data-style="Aggressive disruptive category challenger with zero compromise">
+            ⚡ Disruptive Challenger
+          </button>
+          <button type="button" class="prompt-style-chip px-2.5 py-1 rounded-lg bg-obsidian-950 hover:bg-emerald-950/40 text-slate-300 hover:text-emerald-300 border border-obsidian-800 hover:border-emerald-500/30 transition-all cursor-pointer" data-style="Apple Minimalist luxury tactile product photography">
+            💎 Minimalist Luxury
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Footer Action Controls -->
+      <div class="flex flex-col-reverse sm:flex-row items-center justify-between gap-3 pt-3 border-t border-obsidian-800 shrink-0">
+        <div class="flex items-center space-x-2 w-full sm:w-auto">
+          <button 
+            type="button" 
+            id="prompt-use-original-btn" 
+            class="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-800 text-slate-300 hover:text-white font-mono text-xs transition-colors cursor-pointer"
+            title="Skip enhancement and use exactly what you typed"
+          >
+            ↩ Use Original
+          </button>
+          <button 
+            type="button" 
+            id="prompt-reoptimize-btn" 
+            class="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-800 text-cyan-accent font-mono text-xs transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+            title="Ask AI to regenerate with a fresh angle"
+          >
+            <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+            <span>Re-Optimize</span>
+          </button>
+        </div>
+
+        <button 
+          type="button" 
+          id="prompt-approve-btn" 
+          class="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-accent via-cyan-400 to-violet-accent hover:from-cyan-300 hover:to-violet-400 text-obsidian-950 font-tech font-bold text-xs tracking-wider uppercase shadow-cyan-glow hover:shadow-dual-glow active:scale-95 transition-all flex items-center justify-center space-x-2 cursor-pointer"
+        >
+          <i data-lucide="check" class="w-4 h-4"></i>
+          <span>Approve &amp; Launch Campaign</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
   <!-- APPLICATION LOGIC SCRIPT -->
   <script>
     // --- DOM Elements ---
@@ -1145,6 +1315,28 @@
     const downloadArCardBtn = document.getElementById('download-ar-card-btn');
     const downloadEnMainBtn = document.getElementById('download-en-main-btn');
     const downloadArMainBtn = document.getElementById('download-ar-main-btn');
+
+    // Prompt Architect Review Elements
+    const reviewPromptToggle = document.getElementById('review-prompt-toggle');
+    const promptReviewModal = document.getElementById('prompt-review-modal');
+    const promptReviewCloseBtn = document.getElementById('prompt-review-close-btn');
+    const reviewBrandProduct = document.getElementById('review-brand-product');
+    const reviewTargetPersona = document.getElementById('review-target-persona');
+    const reviewHookAngle = document.getElementById('review-hook-angle');
+    const reviewImprovementsList = document.getElementById('review-improvements-list');
+    const toggleRawCompareBtn = document.getElementById('toggle-raw-compare-btn');
+    const toggleRawText = document.getElementById('toggle-raw-text');
+    const reviewRawBox = document.getElementById('review-raw-box');
+    const reviewRawText = document.getElementById('review-raw-text');
+    const approvedPromptInput = document.getElementById('approved-prompt-input');
+    const approvedCharCount = document.getElementById('approved-char-count');
+    const promptUseOriginalBtn = document.getElementById('prompt-use-original-btn');
+    const promptReoptimizeBtn = document.getElementById('prompt-reoptimize-btn');
+    const promptApproveBtn = document.getElementById('prompt-approve-btn');
+    const promptStyleChips = document.querySelectorAll('.prompt-style-chip');
+
+    let rawUserPromptText = '';
+    let latestOptimizedPromptData = null;
 
     // --- State ---
     let isPythonBackendActive = false;
@@ -1652,23 +1844,110 @@
 
     // --- Client-Side Prompt Enhancer Fallback ---
     function enhancePromptClientSide(prompt, brand) {
-      return {detected_brand: /\btesla\b/i.test(prompt) ? 'Tesla' : brand,
-        product_name: '', enhanced_prompt: `${prompt} Create a focused photographic campaign. Preserve the exact product and verify technical claims.`,
-        suggested_tone: 'confident, premium and benefit-driven', suggested_theme: 'Cinematic lifestyle photography'};
+      const isTesla = /\btesla\b/i.test(prompt);
+      const isBofa = /\b(bank of america|bofa)\b/i.test(prompt);
+      const detectedBrand = isTesla ? 'Tesla' : (isBofa ? 'Bank of America' : (brand || 'Lexnis Technologies'));
+      return {
+        detected_brand: detectedBrand,
+        product_name: isTesla ? 'Next-Gen Mobility' : (isBofa ? 'Private Wealth Services' : 'Flagship Solution'),
+        target_audience: `Discerning clients & decision-makers evaluating ${detectedBrand}`,
+        core_hook_angle: `Establishing categorical superiority and tangible edge for ${detectedBrand}`,
+        visual_art_direction: 'Cinematic commercial photograph, natural directional lighting, shallow depth of field, clean negative space for typography.',
+        improvements: [
+          `Anchored campaign brief directly to ${detectedBrand}`,
+          'Structured photographic composition directives for AI visual generator',
+          'Sharpened high-converting value proposition hook for social channels'
+        ],
+        enhanced_prompt: `Commercial launch campaign for ${detectedBrand}. Core directive: ${prompt}. Visual direction: Cinematic commercial photography with directional golden-hour lighting, high textural realism, and clean negative space for typography. Tone: authoritative, premium, and benefit-driven.`,
+        suggested_tone: 'confident, premium and benefit-driven',
+        suggested_theme: 'Cinematic lifestyle photography'
+      };
+    }
+
+    // --- Prompt Architect Review Modal Controls ---
+    function openPromptReviewModal(data) {
+      if (!promptReviewModal) return;
+      latestOptimizedPromptData = data;
+
+      // Brand & Product
+      if (reviewBrandProduct) {
+        const brandStr = data.detected_brand || (brandInput ? brandInput.value.trim() : 'The Brand');
+        reviewBrandProduct.textContent = data.product_name ? `${brandStr} — ${data.product_name}` : brandStr;
+      }
+
+      // Persona & Wedge
+      if (reviewTargetPersona) {
+        reviewTargetPersona.textContent = data.target_audience || 'Target decision-makers & enterprise buyers';
+      }
+      if (reviewHookAngle) {
+        reviewHookAngle.textContent = data.core_hook_angle || 'Strategic market superiority';
+      }
+
+      // AI Improvements List
+      if (reviewImprovementsList) {
+        const improvements = (data.improvements && Array.isArray(data.improvements) && data.improvements.length > 0)
+          ? data.improvements
+          : [
+              'Identified target customer persona and core value proposition',
+              'Structured photographic scene composition with typography negative space',
+              'Removed ambiguity while strictly preserving brand fidelity'
+            ];
+        reviewImprovementsList.innerHTML = improvements.map(imp => `
+          <li class="flex items-start space-x-2 text-xs text-slate-300">
+            <span class="text-cyan-accent font-bold mt-0.5">✓</span>
+            <span class="leading-relaxed">${escapeHtml(imp)}</span>
+          </li>
+        `).join('');
+      }
+
+      // Raw User Text Box
+      if (reviewRawText) {
+        reviewRawText.textContent = rawUserPromptText || promptInput.value.trim();
+      }
+
+      // Approved Prompt Textarea
+      if (approvedPromptInput) {
+        approvedPromptInput.value = data.enhanced_prompt || promptInput.value.trim();
+        if (approvedCharCount) {
+          approvedCharCount.textContent = approvedPromptInput.value.length;
+        }
+      }
+
+      // Reveal Modal
+      promptReviewModal.classList.remove('hidden');
+      document.body.classList.add('overflow-hidden');
+      if (approvedPromptInput) {
+        approvedPromptInput.focus();
+      }
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closePromptReviewModal() {
+      if (!promptReviewModal) return;
+      promptReviewModal.classList.add('hidden');
+      document.body.classList.remove('overflow-hidden');
     }
 
     // --- Prompt Enhancer Action ---
-    async function handleEnhancePrompt() {
-      const prompt = promptInput.value.trim();
+    async function handleEnhancePrompt(stylePreset = null) {
+      const prompt = rawUserPromptText || promptInput.value.trim();
       if (!prompt) {
         showToast('Please type a prompt or keyword first to enhance!', false);
         promptInput.focus();
         return;
       }
+      rawUserPromptText = prompt;
 
-      enhancePromptBtn.disabled = true;
-      enhancePromptText.textContent = 'Refining...';
-      enhanceSpinner.classList.remove('hidden');
+      if (enhancePromptBtn) {
+        enhancePromptBtn.disabled = true;
+        if (enhancePromptText) enhancePromptText.textContent = 'Architecting...';
+        if (enhanceSpinner) enhanceSpinner.classList.remove('hidden');
+      }
+
+      if (promptReoptimizeBtn) {
+        promptReoptimizeBtn.disabled = true;
+        promptReoptimizeBtn.innerHTML = '<div class="w-3 h-3 rounded-full border-2 border-cyan-accent/20 border-t-cyan-accent animate-spin"></div><span>Architecting...</span>';
+      }
 
       try {
         let enhancedData = null;
@@ -1678,7 +1957,9 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               prompt: prompt,
-              brand: brandInput.value.trim()
+              brand: brandInput ? brandInput.value.trim() : '',
+              guidelines: currentGuidelines || '',
+              style_preset: stylePreset || ''
             })
           });
           if (resp.ok) {
@@ -1686,46 +1967,106 @@
           }
         }
 
-        if (!enhancedData) {
-          enhancedData = enhancePromptClientSide(prompt, brandInput.value.trim());
+        if (!enhancedData || !enhancedData.enhanced_prompt) {
+          enhancedData = enhancePromptClientSide(prompt, brandInput ? brandInput.value.trim() : '');
         }
 
-        if (enhancedData && enhancedData.enhanced_prompt) {
-          promptInput.value = enhancedData.enhanced_prompt;
-          charCount.textContent = promptInput.value.length;
-
-          if (enhancedData.detected_brand && enhancedData.detected_brand.toLowerCase() !== 'lexnis technologies') {
-            brandInput.value = enhancedData.detected_brand;
-          }
-
-          if (enhanceBadge && enhanceBadgeMsg && enhanceBrandTag) {
-            enhanceBadgeMsg.textContent = `✨ Upgraded to Fortune-500 Launch Brief for ${enhancedData.product_name || enhancedData.detected_brand}`;
-            enhanceBrandTag.textContent = `BRAND: ${enhancedData.detected_brand.toUpperCase()}`;
-            enhanceBadge.classList.remove('hidden');
-          }
-
-          promptInput.classList.add('border-cyan-accent', 'ring-2', 'ring-cyan-accent/30');
-          setTimeout(() => {
-            promptInput.classList.remove('ring-2', 'ring-cyan-accent/30');
-          }, 2000);
-
-          showToast('Prompt successfully enhanced into Executive Launch Brief!');
-        }
+        openPromptReviewModal(enhancedData);
+        showToast('AI Prompt Architect: Review & tweak your enhanced launch brief!');
       } catch (err) {
-        showToast('Enhancement notice: using client optimizer', false);
-        const fallback = enhancePromptClientSide(prompt, brandInput.value.trim());
-        promptInput.value = fallback.enhanced_prompt;
-        charCount.textContent = promptInput.value.length;
-        if (fallback.detected_brand) brandInput.value = fallback.detected_brand;
+        const fallback = enhancePromptClientSide(prompt, brandInput ? brandInput.value.trim() : '');
+        openPromptReviewModal(fallback);
       } finally {
-        enhancePromptBtn.disabled = false;
-        enhancePromptText.textContent = '✨ Enhance Prompt';
-        enhanceSpinner.classList.add('hidden');
+        if (enhancePromptBtn) {
+          enhancePromptBtn.disabled = false;
+          if (enhancePromptText) enhancePromptText.textContent = '✨ Enhance Prompt';
+          if (enhanceSpinner) enhanceSpinner.classList.add('hidden');
+        }
+        if (promptReoptimizeBtn) {
+          promptReoptimizeBtn.disabled = false;
+          promptReoptimizeBtn.innerHTML = '<i data-lucide="refresh-cw" class="w-3 h-3"></i><span>Re-Optimize</span>';
+          if (window.lucide) lucide.createIcons();
+        }
       }
     }
 
     if (enhancePromptBtn) {
-      enhancePromptBtn.addEventListener('click', handleEnhancePrompt);
+      enhancePromptBtn.addEventListener('click', () => handleEnhancePrompt());
+    }
+
+    // Modal listeners
+    if (promptReviewCloseBtn) {
+      promptReviewCloseBtn.addEventListener('click', closePromptReviewModal);
+    }
+
+    if (toggleRawCompareBtn && reviewRawBox && toggleRawText) {
+      toggleRawCompareBtn.addEventListener('click', () => {
+        const isHidden = reviewRawBox.classList.contains('hidden');
+        if (isHidden) {
+          reviewRawBox.classList.remove('hidden');
+          toggleRawText.textContent = 'Hide Original Input';
+        } else {
+          reviewRawBox.classList.add('hidden');
+          toggleRawText.textContent = 'Compare Original Input';
+        }
+      });
+    }
+
+    if (approvedPromptInput && approvedCharCount) {
+      approvedPromptInput.addEventListener('input', () => {
+        approvedCharCount.textContent = approvedPromptInput.value.length;
+      });
+    }
+
+    promptStyleChips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        const style = chip.dataset.style;
+        handleEnhancePrompt(style);
+      });
+    });
+
+    if (promptReoptimizeBtn) {
+      promptReoptimizeBtn.addEventListener('click', () => {
+        handleEnhancePrompt();
+      });
+    }
+
+    if (promptUseOriginalBtn) {
+      promptUseOriginalBtn.addEventListener('click', () => {
+        const originalText = rawUserPromptText || promptInput.value.trim();
+        promptInput.value = originalText;
+        charCount.textContent = originalText.length;
+        closePromptReviewModal();
+        showToast('Using original prompt as requested');
+        executeCampaignGeneration(originalText);
+      });
+    }
+
+    if (promptApproveBtn) {
+      promptApproveBtn.addEventListener('click', () => {
+        const approvedText = approvedPromptInput ? approvedPromptInput.value.trim() : promptInput.value.trim();
+        if (!approvedText) {
+          showToast('Prompt cannot be empty!', false);
+          return;
+        }
+        promptInput.value = approvedText;
+        charCount.textContent = approvedText.length;
+
+        if (latestOptimizedPromptData) {
+          if (latestOptimizedPromptData.detected_brand && latestOptimizedPromptData.detected_brand.toLowerCase() !== 'lexnis technologies') {
+            brandInput.value = latestOptimizedPromptData.detected_brand;
+          }
+          if (enhanceBadge && enhanceBadgeMsg && enhanceBrandTag) {
+            enhanceBadgeMsg.textContent = `✨ Approved Launch Brief for ${latestOptimizedPromptData.product_name || latestOptimizedPromptData.detected_brand}`;
+            enhanceBrandTag.textContent = `BRAND: ${(latestOptimizedPromptData.detected_brand || brandInput.value).toUpperCase()}`;
+            enhanceBadge.classList.remove('hidden');
+          }
+        }
+
+        closePromptReviewModal();
+        showToast('Prompt approved! Synthesizing campaign assets...');
+        executeCampaignGeneration(approvedText);
+      });
     }
 
     // --- Render Dual-Agent Collaborative Dialogue Stream ---
@@ -1806,8 +2147,8 @@
         ];
 
         rivalsCardsGrid.innerHTML = rivalList.map(r => `
-          <div class="bg-obsidian-950/90 border border-obsidian-800 hover:border-amber-500/50 rounded-2xl p-5 space-y-4 transition-all flex flex-col justify-between shadow-xl">
-            <div class="space-y-3">
+          <div class="bg-obsidian-950/90 border border-obsidian-800 hover:border-amber-500/50 rounded-2xl p-5 space-y-4 transition-all flex flex-col justify-between shadow-xl min-w-0 break-words">
+            <div class="space-y-3 min-w-0">
               <div class="flex items-center justify-between pb-2.5 border-b border-obsidian-800">
                 <span class="text-sm font-tech font-bold text-white flex items-center gap-2">
                   <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shrink-0"></span>
@@ -2121,8 +2462,31 @@
 
     // --- Client Fallback Campaign Synthesizer (Zero-Error Guarantee) ---
     // --- Main Campaign Generation Function ---
-    async function handleGenerateCampaign() {
-      const userPrompt = promptInput.value.trim();
+    async function handleGenerateCampaign(approvedPrompt = null) {
+      const userPrompt = (approvedPrompt !== null && typeof approvedPrompt === 'string') 
+        ? approvedPrompt.trim() 
+        : promptInput.value.trim();
+
+      if (!userPrompt) {
+        showError('Empty Campaign Prompt', 'Please describe your campaign concept or pick one of the quick presets.');
+        promptInput.focus();
+        promptInput.classList.add('border-rose-500');
+        setTimeout(() => promptInput.classList.remove('border-rose-500'), 2500);
+        return;
+      }
+
+      // If review toggle is enabled and user hasn't approved yet, open Prompt Architect review modal
+      if (!approvedPrompt && reviewPromptToggle && reviewPromptToggle.checked) {
+        rawUserPromptText = userPrompt;
+        await handleEnhancePrompt();
+        return;
+      }
+
+      // Otherwise execute generation directly
+      await executeCampaignGeneration(userPrompt);
+    }
+
+    async function executeCampaignGeneration(userPrompt) {
       const tone = toneSelect.value;
       const theme = themeSelect.value;
       campaignFormat = formatSelect.value;

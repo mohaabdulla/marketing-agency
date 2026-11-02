@@ -70,6 +70,8 @@ class GenerateRequest(BaseModel):
 class EnhancePromptRequest(BaseModel):
     prompt: str = Field(..., description="Vague, simple or conversational prompt to elevate")
     brand: Optional[str] = Field("Lexnis Technologies", description="Current brand field (if any)")
+    guidelines: Optional[str] = Field("", description="Client brand guidelines or strategic constraints")
+    style_preset: Optional[str] = Field("", description="Optional creative style or prompt flavor")
 
 
 class RenderRequest(BaseModel):
@@ -160,17 +162,31 @@ def search_endpoint(q: str):
 
 @app.post("/api/enhance-prompt")
 def enhance_prompt_endpoint(req: EnhancePromptRequest):
-    """Transform simple or conversational requests into Fortune-500 executive briefs."""
+    """AI Prompt Architect: transform requests into Fortune-500 executive briefs with strategic review breakdown."""
     try:
         studio = LexnisCampaignStudio()
-        result = studio.enhance_user_prompt(req.prompt, req.brand)
+        result = studio.enhance_user_prompt(
+            req.prompt,
+            req.brand,
+            guidelines=req.guidelines or "",
+            style_preset=req.style_preset or "",
+        )
         return {
+            "status": "success",
             "original_prompt": req.prompt,
             "enhanced_prompt": result.get("enhanced_prompt", req.prompt),
             "detected_brand": result.get("detected_brand", req.brand or "Lexnis Technologies"),
             "product_name": result.get("product_name", ""),
-            "suggested_tone": result.get("suggested_tone", "confident, visionary and disruptive"),
-            "suggested_theme": result.get("suggested_theme", "Apple Minimalist Hero (Luxury Tech)")
+            "target_audience": result.get("target_audience", "Discerning customers & decision-makers"),
+            "core_hook_angle": result.get("core_hook_angle", "Category leadership through tangible performance"),
+            "visual_art_direction": result.get("visual_art_direction", "Photographic commercial setting with clean typography negative space"),
+            "improvements": result.get("improvements", [
+                "Clarified core target audience and value proposition",
+                "Constructed photographic lighting and visual composition directives",
+                "Anchored in verified brand tone"
+            ]),
+            "suggested_tone": result.get("suggested_tone", "confident, premium and benefit-driven"),
+            "suggested_theme": result.get("suggested_theme", "Cinematic lifestyle photography")
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
