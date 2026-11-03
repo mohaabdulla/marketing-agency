@@ -184,34 +184,45 @@
             </div>
           </div>
 
-          <!-- Active Guidelines Pill (shown when guidelines loaded) -->
-          <div id="guidelines-active-pill" class="hidden mt-2.5 p-2 rounded-lg bg-emerald-950/30 border border-emerald-500/40 flex items-center justify-between">
-            <div class="flex items-center space-x-2.5 overflow-hidden">
-              <span class="relative flex h-2 w-2 flex-shrink-0">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <div class="flex items-center space-x-2 truncate">
-                <span id="guidelines-active-title" class="text-xs font-mono font-bold text-emerald-300 truncate">brand_guidelines.pdf</span>
-                <span id="guidelines-word-badge" class="px-1.5 py-0.2 rounded text-[10px] font-mono bg-emerald-900/50 text-emerald-200 border border-emerald-500/30">1,240 words</span>
+          <!-- Active Guidelines Container (supports multiple files) -->
+          <div id="guidelines-active-pill" class="hidden mt-2.5 p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/40 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-2.5 overflow-hidden">
+                <span class="relative flex h-2 w-2 flex-shrink-0">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <div class="flex items-center space-x-2 truncate">
+                  <span id="guidelines-active-title" class="text-xs font-mono font-bold text-emerald-300 truncate">brand_guidelines.pdf</span>
+                  <span id="guidelines-word-badge" class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-900/50 text-emerald-200 border border-emerald-500/30">1,240 words</span>
+                </div>
+              </div>
+              <div class="flex items-center space-x-1.5 flex-shrink-0">
+                <button type="button" id="guidelines-add-more-btn" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-cyan-950/60 text-cyan-300 hover:bg-cyan-900/80 border border-cyan-500/30 transition-all flex items-center space-x-1 cursor-pointer" title="Upload additional brand files">
+                  <i data-lucide="plus" class="w-3 h-3"></i>
+                  <span>Add File</span>
+                </button>
+                <button type="button" id="guidelines-preview-btn" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-emerald-900/40 text-emerald-300 hover:bg-emerald-900/70 border border-emerald-500/30 transition-all cursor-pointer">
+                  Preview All
+                </button>
+                <button type="button" id="guidelines-remove-btn" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-rose-950/40 text-rose-300 hover:bg-rose-900/60 border border-rose-500/30 transition-all cursor-pointer">
+                  Clear
+                </button>
               </div>
             </div>
-            <div class="flex items-center space-x-2 flex-shrink-0">
-              <button type="button" id="guidelines-preview-btn" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-emerald-900/40 text-emerald-300 hover:bg-emerald-900/70 border border-emerald-500/30 transition-all">
-                Preview
-              </button>
-              <button type="button" id="guidelines-remove-btn" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-rose-950/40 text-rose-300 hover:bg-rose-900/60 border border-rose-500/30 transition-all">
-                Clear
-              </button>
+
+            <!-- Active File Chips Tray for Multiple Files -->
+            <div id="guidelines-file-chips-tray" class="flex flex-wrap gap-1.5 pt-1.5 border-t border-emerald-500/20">
+              <!-- Dynamically populated file chips -->
             </div>
           </div>
 
-          <!-- Upload Dropzone -->
+          <!-- Upload Dropzone (Supports Multiple Files: PNG, JPG, WebP, SVG, and Docs: PDF, DOCX, TXT, MD) -->
           <div id="guidelines-dropzone" class="mt-2.5 border border-dashed border-obsidian-700 hover:border-cyan-accent/50 rounded-lg p-2.5 text-center cursor-pointer transition-all bg-obsidian-900/30 hover:bg-obsidian-900/60 group">
-            <input type="file" id="guidelines-file-input" class="hidden" accept=".txt,.md,.markdown,.pdf,.docx,.doc,.json,.csv">
+            <input type="file" id="guidelines-file-input" class="hidden" multiple accept=".png,.jpg,.jpeg,.webp,.gif,.bmp,.svg,.pdf,.docx,.doc,.txt,.md,.markdown,.json,.csv,image/*">
             <div class="flex items-center justify-center space-x-2 text-xs font-mono text-slate-400 group-hover:text-cyan-accent transition-colors">
               <i data-lucide="upload-cloud" class="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-accent"></i>
-              <span>Drop style guide / guidelines file here or <span class="text-cyan-accent underline underline-offset-2">upload</span> (.pdf, .docx, .txt, .md, .json)</span>
+              <span>Drop one or multiple style guides, reference images, or files here or <span class="text-cyan-accent underline underline-offset-2">upload</span> (.png, .jpg, .pdf, .docx, .txt, .md)</span>
             </div>
           </div>
 
@@ -420,6 +431,16 @@
                     <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
                   </span>
                   <span class="font-bold text-slate-200 uppercase tracking-wide">Dual Language Showcase</span>
+                </div>
+
+                <!-- Visual Source Switcher (When user uploaded an image) -->
+                <div id="visual-source-switcher" class="hidden items-center space-x-1 bg-obsidian-950 p-0.5 rounded-lg border border-cyan-500/40">
+                  <button type="button" id="btn-show-uploaded" class="px-2.5 py-0.5 rounded text-[10px] font-semibold bg-cyan-accent/25 text-cyan-accent border border-cyan-accent/40 transition-all flex items-center gap-1 cursor-pointer" title="Display ad using your uploaded image">
+                    <span>📸</span> <span>Uploaded Photo Ad</span>
+                  </button>
+                  <button type="button" id="btn-show-ai" class="px-2.5 py-0.5 rounded text-[10px] font-semibold text-slate-400 hover:text-white transition-all flex items-center gap-1 cursor-pointer" title="Display AI-generated visual">
+                    <span>✨</span> <span>AI Visual</span>
+                  </button>
                 </div>
                 <div class="flex items-center space-x-1 bg-obsidian-950 p-0.5 rounded-lg border border-obsidian-800">
                   <button type="button" id="dual-layout-split" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-cyan-accent/20 text-cyan-accent border border-cyan-accent/30 transition-all" title="Side-by-side columns">
@@ -1386,14 +1407,100 @@
     const guidelinesModalBody = document.getElementById('guidelines-modal-body');
     const guidelinesModalClose = document.getElementById('guidelines-modal-close');
     const guidelinesModalDismiss = document.getElementById('guidelines-modal-dismiss');
+    const guidelinesFileChipsTray = document.getElementById('guidelines-file-chips-tray');
+    const guidelinesAddMoreBtn = document.getElementById('guidelines-add-more-btn');
 
+    let activeGuidelineFiles = []; // Array of { id, filename, is_image, thumbnail, file_url, file_path, word_count, guidelines }
     let currentGuidelines = '';
     let currentGuidelinesTitle = '';
+    let currentUploadedImageUrl = '';
+    let currentUploadedEnUrl = '';
+    let currentUploadedArUrl = '';
+    let currentAiEnUrl = '';
+    let currentAiArUrl = '';
+    let activeVisualSource = 'uploaded'; // 'uploaded' or 'ai'
 
-    function updateGuidelinesUI(title, wordCount) {
+    const visualSourceSwitcher = document.getElementById('visual-source-switcher');
+    const btnShowUploaded = document.getElementById('btn-show-uploaded');
+    const btnShowAi = document.getElementById('btn-show-ai');
+
+    function setVisualSource(source) {
+      activeVisualSource = source;
+      if (source === 'uploaded') {
+        if (btnShowUploaded) {
+          btnShowUploaded.className = 'px-2.5 py-0.5 rounded text-[10px] font-semibold bg-cyan-accent/25 text-cyan-accent border border-cyan-accent/40 transition-all flex items-center gap-1 cursor-pointer shadow-sm';
+        }
+        if (btnShowAi) {
+          btnShowAi.className = 'px-2.5 py-0.5 rounded text-[10px] font-semibold text-slate-400 hover:text-white border border-transparent transition-all flex items-center gap-1 cursor-pointer';
+        }
+        currentEnglishImageUrl = currentUploadedEnUrl || currentEnglishImageUrl;
+        currentArabicImageUrl = currentUploadedArUrl || currentArabicImageUrl;
+      } else {
+        if (btnShowAi) {
+          btnShowAi.className = 'px-2.5 py-0.5 rounded text-[10px] font-semibold bg-violet-500/25 text-violet-300 border border-violet-500/40 transition-all flex items-center gap-1 cursor-pointer shadow-sm';
+        }
+        if (btnShowUploaded) {
+          btnShowUploaded.className = 'px-2.5 py-0.5 rounded text-[10px] font-semibold text-slate-400 hover:text-white border border-transparent transition-all flex items-center gap-1 cursor-pointer';
+        }
+        currentEnglishImageUrl = currentAiEnUrl || currentEnglishImageUrl;
+        currentArabicImageUrl = currentAiArUrl || currentArabicImageUrl;
+      }
+      updateDualImages();
+    }
+
+    if (btnShowUploaded) {
+      btnShowUploaded.addEventListener('click', () => setVisualSource('uploaded'));
+    }
+    if (btnShowAi) {
+      btnShowAi.addEventListener('click', () => setVisualSource('ai'));
+    }
+
+    function syncGuidelinesFromActiveFiles() {
+      if (!activeGuidelineFiles || activeGuidelineFiles.length === 0) {
+        clearGuidelinesUI();
+        return;
+      }
+
+      currentGuidelines = activeGuidelineFiles.map(f => f.guidelines).join('\n\n---\n\n');
+      const totalWords = activeGuidelineFiles.reduce((sum, f) => sum + (f.word_count || 0), 0);
+      const hasImage = activeGuidelineFiles.some(f => f.is_image);
+      const title = activeGuidelineFiles.length === 1 
+        ? activeGuidelineFiles[0].filename 
+        : `${activeGuidelineFiles.length} Brand Files Active`;
+
       currentGuidelinesTitle = title;
       if (guidelinesActiveTitle) guidelinesActiveTitle.textContent = title;
-      if (guidelinesWordBadge) guidelinesWordBadge.textContent = `${wordCount.toLocaleString()} words`;
+      if (guidelinesWordBadge) {
+        guidelinesWordBadge.textContent = hasImage 
+          ? `🖼️ ${activeGuidelineFiles.length} Asset${activeGuidelineFiles.length > 1 ? 's' : ''} (${totalWords.toLocaleString()} words)` 
+          : `${totalWords.toLocaleString()} words`;
+      }
+
+      // Render file chips tray
+      if (guidelinesFileChipsTray) {
+        guidelinesFileChipsTray.innerHTML = activeGuidelineFiles.map(f => `
+          <div class="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded-md bg-obsidian-950/90 border border-emerald-500/30 text-[10px] font-mono text-emerald-200 shadow-sm">
+            <span>${f.is_image ? '🖼️' : '📄'}</span>
+            <span class="truncate max-w-[130px] font-semibold">${escapeHtml(f.filename)}</span>
+            <span class="text-slate-400 text-[9px]">(${f.word_count || 0}w)</span>
+            <button type="button" class="remove-guideline-file-btn text-slate-400 hover:text-rose-400 transition-colors ml-0.5 cursor-pointer" data-id="${f.id}" title="Remove file">
+              ✕
+            </button>
+          </div>
+        `).join('');
+
+        // Wire remove buttons for each chip
+        guidelinesFileChipsTray.querySelectorAll('.remove-guideline-file-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const idToRemove = btn.dataset.id;
+            activeGuidelineFiles = activeGuidelineFiles.filter(f => f.id !== idToRemove);
+            syncGuidelinesFromActiveFiles();
+            showToast('Brand file removed.');
+          });
+        });
+      }
+
       if (guidelinesActivePill) guidelinesActivePill.classList.remove('hidden');
       if (guidelinesDropzone) guidelinesDropzone.classList.add('hidden');
       if (guidelinesPasteBox) guidelinesPasteBox.classList.add('hidden');
@@ -1401,40 +1508,104 @@
     }
 
     function clearGuidelinesUI() {
+      activeGuidelineFiles = [];
       currentGuidelines = '';
       currentGuidelinesTitle = '';
       if (guidelinesActivePill) guidelinesActivePill.classList.add('hidden');
       if (guidelinesDropzone) guidelinesDropzone.classList.remove('hidden');
       if (guidelinesFileInput) guidelinesFileInput.value = '';
       if (guidelinesTextInput) guidelinesTextInput.value = '';
+      if (guidelinesFileChipsTray) guidelinesFileChipsTray.innerHTML = '';
       if (pasteToggleLabel) pasteToggleLabel.textContent = 'Paste Rules';
     }
 
-    async function handleGuidelinesFile(file) {
-      if (!file) return;
-      showToast(`Reading and parsing ${file.name}...`);
+    async function handleGuidelinesFiles(files) {
+      if (!files || files.length === 0) return;
+      const fileList = Array.from(files);
+      const isMultiple = fileList.length > 1 || activeGuidelineFiles.length > 0;
+      showToast(`Analyzing ${fileList.length} brand file${fileList.length > 1 ? 's' : ''}...`);
+
       try {
         if (isPythonBackendActive && backendApiBase) {
           const fd = new FormData();
-          fd.append('file', file);
+          fileList.forEach(f => fd.append('files', f));
           const resp = await fetch(`${backendApiBase}/api/upload-guidelines`, {
             method: 'POST',
             body: fd
           });
           if (resp.ok) {
             const data = await resp.json();
-            currentGuidelines = data.guidelines;
-            updateGuidelinesUI(data.filename, data.word_count);
-            showToast(`Brand guidelines active: ${data.word_count} words enforced!`, true);
+            if (data.files && Array.isArray(data.files) && data.files.length > 0) {
+              data.files.forEach(pf => {
+                activeGuidelineFiles.push({
+                  id: 'file_' + Math.random().toString(36).substr(2, 9),
+                  filename: pf.filename,
+                  is_image: pf.is_image,
+                  thumbnail: pf.image_thumbnail || '',
+                  file_url: pf.file_url || '',
+                  file_path: pf.file_path || '',
+                  word_count: pf.word_count,
+                  guidelines: pf.guidelines
+                });
+              });
+            } else {
+              activeGuidelineFiles.push({
+                id: 'file_' + Math.random().toString(36).substr(2, 9),
+                filename: data.filename,
+                is_image: data.is_image,
+                thumbnail: data.image_thumbnail || '',
+                file_url: data.image_url || '',
+                file_path: data.image_path || '',
+                word_count: data.word_count,
+                guidelines: data.guidelines
+              });
+            }
+            if (data.image_url) {
+              currentUploadedImageUrl = data.image_url;
+            } else {
+              const imgF = activeGuidelineFiles.find(f => f.is_image && f.file_url);
+              if (imgF) currentUploadedImageUrl = imgF.file_url;
+            }
+            syncGuidelinesFromActiveFiles();
+            showToast(`Added ${fileList.length} brand asset${fileList.length > 1 ? 's' : ''}! (${activeGuidelineFiles.length} total active)`, true);
             return;
           }
         }
-        // Client fallback for text files
-        const text = await file.text();
-        currentGuidelines = text;
-        const words = text.split(/\s+/).filter(Boolean).length;
-        updateGuidelinesUI(file.name, words);
-        showToast(`Brand guidelines active: ${words} words enforced!`, true);
+
+        // Client fallback for local processing
+        for (const file of fileList) {
+          const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(file.name);
+          if (isImage) {
+            await new Promise(resolve => {
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                const text = `BRAND VISUAL STYLE DIRECTIVES (Extracted from ${file.name}):\n- Reference File: ${file.name}\n- Photographic Directive: Maintain composition, ambient lighting, and material quality matching this reference image.\n- Brand Rule: Align campaign themes and tone to the premium standards established by this reference.`;
+                activeGuidelineFiles.push({
+                  id: 'file_' + Math.random().toString(36).substr(2, 9),
+                  filename: file.name,
+                  is_image: true,
+                  thumbnail: e.target.result,
+                  word_count: text.split(/\s+/).filter(Boolean).length,
+                  guidelines: text
+                });
+                resolve();
+              };
+              reader.readAsDataURL(file);
+            });
+          } else {
+            const text = await file.text();
+            activeGuidelineFiles.push({
+              id: 'file_' + Math.random().toString(36).substr(2, 9),
+              filename: file.name,
+              is_image: false,
+              thumbnail: '',
+              word_count: text.split(/\s+/).filter(Boolean).length,
+              guidelines: text
+            });
+          }
+        }
+        syncGuidelinesFromActiveFiles();
+        showToast(`Added ${fileList.length} brand file${fileList.length > 1 ? 's' : ''}!`, true);
       } catch (err) {
         showToast(`Could not load guidelines: ${err.message}`, false);
       }
@@ -1443,8 +1614,8 @@
     if (guidelinesDropzone && guidelinesFileInput) {
       guidelinesDropzone.addEventListener('click', () => guidelinesFileInput.click());
       guidelinesFileInput.addEventListener('change', (e) => {
-        if (e.target.files && e.target.files[0]) {
-          handleGuidelinesFile(e.target.files[0]);
+        if (e.target.files && e.target.files.length > 0) {
+          handleGuidelinesFiles(e.target.files);
         }
       });
       guidelinesDropzone.addEventListener('dragover', (e) => {
@@ -1457,10 +1628,14 @@
       guidelinesDropzone.addEventListener('drop', (e) => {
         e.preventDefault();
         guidelinesDropzone.classList.remove('border-cyan-accent', 'bg-obsidian-900/80');
-        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
-          handleGuidelinesFile(e.dataTransfer.files[0]);
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          handleGuidelinesFiles(e.dataTransfer.files);
         }
       });
+    }
+
+    if (guidelinesAddMoreBtn && guidelinesFileInput) {
+      guidelinesAddMoreBtn.addEventListener('click', () => guidelinesFileInput.click());
     }
 
     if (guidelinesTogglePaste) {
@@ -1483,10 +1658,16 @@
           showToast('Please type or paste your guidelines text first', false);
           return;
         }
-        currentGuidelines = txt;
-        const words = txt.split(/\s+/).filter(Boolean).length;
-        updateGuidelinesUI('Custom Brand Directives', words);
-        showToast(`Brand guidelines active: ${words} words enforced!`, true);
+        activeGuidelineFiles.push({
+          id: 'text_' + Math.random().toString(36).substr(2, 9),
+          filename: 'Custom Brand Rules',
+          is_image: false,
+          thumbnail: '',
+          word_count: txt.split(/\s+/).filter(Boolean).length,
+          guidelines: txt
+        });
+        syncGuidelinesFromActiveFiles();
+        showToast('Custom brand rules added to directives!', true);
       });
     }
 
@@ -1500,9 +1681,34 @@
     if (guidelinesPreviewBtn) {
       guidelinesPreviewBtn.addEventListener('click', () => {
         if (!currentGuidelines) return;
-        guidelinesModalTitle.textContent = currentGuidelinesTitle || 'Active Brand Guidelines';
-        guidelinesModalBody.textContent = currentGuidelines;
+        guidelinesModalTitle.textContent = currentGuidelinesTitle || 'Active Brand Guidelines & Reference Assets';
+        let bodyHtml = '';
+
+        // Collect all thumbnails from uploaded image references
+        const imagesWithThumbs = activeGuidelineFiles.filter(f => f.thumbnail);
+        if (imagesWithThumbs.length > 0) {
+          bodyHtml += `
+            <div class="mb-4 p-3 bg-obsidian-950 rounded-xl border border-cyan-500/30 space-y-2">
+              <div class="flex items-center space-x-1.5 text-[10px] font-mono text-cyan-accent uppercase font-bold tracking-wider">
+                <i data-lucide="image" class="w-3.5 h-3.5"></i>
+                <span>Active Brand Visual Reference Gallery (${imagesWithThumbs.length})</span>
+              </div>
+              <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
+                ${imagesWithThumbs.map(img => `
+                  <div class="relative bg-obsidian-900 border border-obsidian-700 rounded-lg overflow-hidden group shadow-md flex flex-col items-center">
+                    <img src="${img.thumbnail}" alt="${escapeHtml(img.filename)}" class="h-28 w-full object-cover">
+                    <span class="w-full text-[9px] font-mono text-slate-300 truncate p-1 bg-obsidian-950/90 text-center">${escapeHtml(img.filename)}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }
+
+        bodyHtml += `<div class="whitespace-pre-wrap select-text leading-relaxed font-mono text-xs text-slate-300">${escapeHtml(currentGuidelines)}</div>`;
+        guidelinesModalBody.innerHTML = bodyHtml;
         guidelinesModal.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
       });
     }
 
@@ -2270,7 +2476,7 @@
     // --- Standalone (no server) image URL: FLUX Commercial Photorealism ---
     function constructPollinationsImageUrl(promptDesc, seed) {
       const cleanSubject = `${promptDesc}. Photographic commercial campaign, no added text or watermark.`;
-      return `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanSubject)}?model=flux&seed=${seed}`;
+      return `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanSubject)}?model=flux&seed=${seed}&nologo=true&private=true`;
     }
 
     // --- Server-side render: premium model, exact 1080x1350, headline overlay, no watermark (with key) ---
@@ -2278,22 +2484,20 @@
       const setup = imageModelSetup[imageModelSelect.value];
       currentModelBadge.textContent = imageModelSelect.selectedOptions[0]?.textContent.split('—')[0].trim() || 'IMAGE MODEL';
       if (setup) {
-        watermarkWarning.textContent = setup.message;
-        watermarkWarning.classList.remove('hidden');
+        if (setup.configured === false && (imageModelSelect.value.startsWith('local:') || imageModelSelect.value.startsWith('hf:'))) {
+          watermarkWarning.textContent = setup.message;
+          watermarkWarning.classList.remove('hidden');
+        } else {
+          watermarkWarning.classList.add('hidden');
+        }
       }
-      rerollImageBtn.disabled = setup?.configured === false;
-      rerollImageBtn.title = setup?.configured === false ? setup.message : 'Generate a new visual';
+      rerollImageBtn.disabled = false;
+      rerollImageBtn.title = 'Generate a new visual';
     }
 
     async function rerenderVisual(seed) {
       if (!isPythonBackendActive) {
         showToast('Start python server.py to render the visual.', false);
-        return;
-      }
-      const setup = imageModelSetup[imageModelSelect.value];
-      if (setup?.configured === false) {
-        document.getElementById('campaign-warnings').textContent = setup.message;
-        showToast(setup.message, false);
         return;
       }
       imageLoader.classList.remove('opacity-0', 'pointer-events-none');
@@ -2322,7 +2526,9 @@
             tagline: copyHook.textContent.trim(),
             overlay: enhanceImageCheckbox.checked,
             arabic_headline: arHl,
-            arabic_tagline: arTl
+            arabic_tagline: arTl,
+            uploaded_image_url: activeVisualSource === 'uploaded' ? currentUploadedImageUrl : '',
+            use_uploaded_image: activeVisualSource === 'uploaded'
           })
         });
         if (!resp.ok) {
@@ -2343,8 +2549,18 @@
         currentWarnings = currentWarnings.filter(w => w.startsWith('No web evidence') || w.includes('text generation'));
         document.getElementById('campaign-warnings').textContent = currentWarnings.join(' ');
         currentCleanImageUrl = resolveBackendUrl(data.clean_image_url);
-        currentEnglishImageUrl = resolveBackendUrl(data.image_url);
-        currentArabicImageUrl = resolveBackendUrl(data.arabic_image_url || '');
+        
+        if (activeVisualSource === 'uploaded') {
+          currentUploadedEnUrl = resolveBackendUrl(data.image_url);
+          currentUploadedArUrl = resolveBackendUrl(data.arabic_image_url || '');
+          currentEnglishImageUrl = currentUploadedEnUrl;
+          currentArabicImageUrl = currentUploadedArUrl;
+        } else {
+          currentAiEnUrl = resolveBackendUrl(data.image_url);
+          currentAiArUrl = resolveBackendUrl(data.arabic_image_url || '');
+          currentEnglishImageUrl = currentAiEnUrl;
+          currentArabicImageUrl = currentAiArUrl;
+        }
         watermarkWarning.classList.toggle('hidden', !!data.watermark_free);
         setVisualMode(currentVisualMode);
 
@@ -2542,7 +2758,9 @@
               image_model: imageModelSelect.value,
               output_format: campaignFormat,
               enhance_image: enhanceImageCheckbox.checked,
-              guidelines: currentGuidelines || ''
+              guidelines: currentGuidelines || '',
+              uploaded_image_url: currentUploadedImageUrl || '',
+              use_uploaded_image: !!currentUploadedImageUrl
             })
           });
 
@@ -2572,6 +2790,25 @@
           currentEnglishImageUrl = finalImageUrl;
           currentArabicImageUrl = resolveBackendUrl(pyData.arabic_image_url || '');
           currentCleanImageUrl = resolveBackendUrl(pyData.clean_image_url || '');
+
+          currentUploadedEnUrl = resolveBackendUrl(pyData.uploaded_image_url || '');
+          currentUploadedArUrl = resolveBackendUrl(pyData.uploaded_arabic_url || '');
+          currentAiEnUrl = resolveBackendUrl(pyData.ai_image_url || pyData.image_url || '');
+          currentAiArUrl = resolveBackendUrl(pyData.ai_arabic_url || pyData.arabic_image_url || '');
+
+          if (pyData.has_uploaded_asset && currentUploadedEnUrl) {
+            if (visualSourceSwitcher) {
+              visualSourceSwitcher.classList.remove('hidden');
+              visualSourceSwitcher.classList.add('flex');
+            }
+            setVisualSource('uploaded');
+          } else {
+            if (visualSourceSwitcher) {
+              visualSourceSwitcher.classList.add('hidden');
+              visualSourceSwitcher.classList.remove('flex');
+            }
+            setVisualSource('ai');
+          }
           currentSeed = pyData.seed;
           currentSearchResults = pyData.search_results || [];
           currentAgentDialogue = pyData.agent_dialogue || [];

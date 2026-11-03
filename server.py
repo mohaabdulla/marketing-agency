@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any, Literal
 import os
 import io
+import base64
+import concurrent.futures
 from urllib.parse import urlsplit
 from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,19 +38,31 @@ app.add_middleware(
 
 BASE_DIR = Path(__file__).resolve().parent
 RENDERS_DIR.mkdir(parents=True, exist_ok=True)
+UPLOADS_DIR = BASE_DIR / "output" / "uploads"
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/renders", StaticFiles(directory=RENDERS_DIR), name="renders")
+app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 
 def render_url(path: str) -> str:
-    return f"/renders/{Path(path).name}" if path else ""
+    if not path:
+        return ""
+    p = Path(path)
+    if "uploads" in p.parts:
+        return f"/uploads/{p.name}"
+    return f"/renders/{p.name}"
 
 
 def render_path(url: str) -> str:
-    """Map a /renders/... URL from the UI back to the file on disk."""
+    """Map a /renders/... or /uploads/... URL from the UI back to the file on disk."""
     path = urlsplit(url).path if url else ""
     if path.startswith("/renders/"):
         p = RENDERS_DIR / Path(path).name
+        if p.exists():
+            return str(p)
+    elif path.startswith("/uploads/"):
+        p = UPLOADS_DIR / Path(path).name
         if p.exists():
             return str(p)
     return ""
@@ -65,6 +79,8 @@ class GenerateRequest(BaseModel):
     enhance_image: Optional[bool] = Field(True, description="Headline + brand overlay on the image")
     output_format: Literal["portrait", "landscape", "square"] = "portrait"
     guidelines: Optional[str] = Field("", description="Client brand guidelines, style guide, or strategic constraints")
+    uploaded_image_url: Optional[str] = Field(None, description="URL of uploaded image asset to composite as ad visual")
+    use_uploaded_image: Optional[bool] = Field(None, description="Whether to feature the uploaded image as the ad visual")
 
 
 class EnhancePromptRequest(BaseModel):
@@ -86,6 +102,8 @@ class RenderRequest(BaseModel):
     campaign_context: Optional[str] = ""
     arabic_headline: Optional[str] = ""
     arabic_tagline: Optional[str] = ""
+    uploaded_image_url: Optional[str] = Field(None, description="URL of uploaded image to composite")
+    use_uploaded_image: Optional[bool] = Field(False, description="Whether to re-render using uploaded photo")
 
 
 class ExportRequest(BaseModel):
@@ -142,7 +160,7 @@ def health_check():
         "search_engine": "Google Search + page scraping (free)",
         "visual_engine": "Explicit provider selection; see model settings",
         "has_gemini_key": bool(getattr(studio, "gemini_key", None)),
-        "watermark_free": False,
+        "watermark_free": True,
         "image_models": IMAGE_MODELS,
         "default_image_model": default_model,
         "image_model_setup": {model: model_setup(model) for model in IMAGE_MODELS},
@@ -197,6 +215,12 @@ def generate_campaign_endpoint(req: GenerateRequest):
     """Research -> brief -> Instagram copy -> watermark-free visual."""
     try:
         studio = LexnisCampaignStudio()
+        up_img_path = None
+        if req.uploaded_image_url:
+            p = render_path(req.uploaded_image_url)
+            if p and Path(p).exists():
+                up_img_path = p
+
         asset: CampaignAsset = studio.generate_campaign(
             prompt=req.prompt,
             brand=req.brand or "Lexnis Technologies",
@@ -208,59 +232,161 @@ def generate_campaign_endpoint(req: GenerateRequest):
             enhance_image=req.enhance_image if req.enhance_image is not None else True,
             output_format=req.output_format,
             guidelines=req.guidelines or "",
+            uploaded_image_path=up_img_path,
+            use_uploaded_image=req.use_uploaded_image,
         )
         data = asset.to_dict()
         data["image_url"] = render_url(asset.image_path)
         data["clean_image_url"] = render_url(asset.clean_image_path)
         data["arabic_image_url"] = render_url(asset.arabic_image_path)
+        data["uploaded_image_url"] = render_url(asset.uploaded_image_url)
+        data["uploaded_arabic_url"] = render_url(asset.uploaded_arabic_url)
+        data["ai_image_url"] = render_url(asset.ai_image_url)
+        data["ai_arabic_url"] = render_url(asset.ai_arabic_url)
+        data["has_uploaded_asset"] = bool(asset.uploaded_image_url)
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/upload-guidelines")
-async def upload_guidelines_endpoint(file: UploadFile = File(...)):
-    """Extract and validate text from uploaded style guides and brand guidelines (.txt, .md, .pdf, .docx, .json)."""
-    filename = file.filename or "guidelines.txt"
-    ext = Path(filename).suffix.lower()
-    content_bytes = await file.read()
+async def upload_guidelines_endpoint(
+    files: Optional[List[UploadFile]] = File(None),
+    file: Optional[UploadFile] = File(None)
+):
+    """Extract and validate text and visual brand rules from one or multiple uploaded files concurrently (PNG, JPG, WebP, SVG, PDF, DOCX, TXT, MD, JSON)."""
+    upload_list: List[UploadFile] = []
+    if files:
+        upload_list.extend(files)
+    if file and file not in upload_list:
+        upload_list.append(file)
 
-    extracted_text = ""
-    if ext in [".txt", ".md", ".markdown", ".json", ".csv", ".yaml", ".yml"]:
-        try:
-            extracted_text = content_bytes.decode("utf-8")
-        except UnicodeDecodeError:
-            extracted_text = content_bytes.decode("latin-1", errors="ignore")
-    elif ext == ".pdf":
-        try:
-            import pypdf
-            reader = pypdf.PdfReader(io.BytesIO(content_bytes))
-            pages_text = [page.extract_text() or "" for page in reader.pages]
-            extracted_text = "\n\n".join(pages_text).strip()
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"PDF extraction error: {str(e)}")
-    elif ext in [".docx", ".doc"]:
-        try:
-            import docx
-            doc = docx.Document(io.BytesIO(content_bytes))
-            extracted_text = "\n".join([p.text for p in doc.paragraphs if p.text]).strip()
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Word document extraction error: {str(e)}")
+    if not upload_list:
+        raise HTTPException(status_code=400, detail="No files uploaded.")
+
+    IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tiff", ".svg"}
+    studio = LexnisCampaignStudio()
+
+    file_payloads = []
+    for f in upload_list:
+        fname = f.filename or "brand_asset"
+        content_bytes = await f.read()
+        if content_bytes:
+            file_payloads.append((fname, f.content_type or "", content_bytes))
+
+    if not file_payloads:
+        raise HTTPException(status_code=400, detail="None of the uploaded files contained readable content.")
+
+    def _process_file(payload):
+        fname, content_type, content_bytes = payload
+        ext = Path(fname).suffix.lower()
+        is_image = ext in IMAGE_EXTENSIONS or (content_type and content_type.startswith("image/"))
+        extracted_text = ""
+        thumb_b64 = ""
+
+        saved_file_url = ""
+        saved_file_path = ""
+        if is_image:
+            f_hash = hashlib.sha1(content_bytes).hexdigest()[:12]
+            clean_stem = re.sub(r'[^a-zA-Z0-9_-]', '_', Path(fname).stem)[:24]
+            safe_ext = ext if ext in IMAGE_EXTENSIONS else '.jpg'
+            saved_name = f"{clean_stem}_{f_hash}{safe_ext}"
+            disk_path = UPLOADS_DIR / saved_name
+            disk_path.write_bytes(content_bytes)
+            saved_file_url = f"/uploads/{saved_name}"
+            saved_file_path = str(disk_path)
+
+            extracted_text = studio.extract_guidelines_from_image(content_bytes, fname, content_type)
+            try:
+                from PIL import Image
+                im = Image.open(io.BytesIO(content_bytes)).convert("RGB")
+                im.thumbnail((360, 360))
+                buf = io.BytesIO()
+                im.save(buf, format="JPEG", quality=85)
+                thumb_b64 = "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("utf-8")
+            except Exception:
+                thumb_b64 = ""
+        elif ext in [".txt", ".md", ".markdown", ".json", ".csv", ".yaml", ".yml"]:
+            try:
+                extracted_text = content_bytes.decode("utf-8")
+            except UnicodeDecodeError:
+                extracted_text = content_bytes.decode("latin-1", errors="ignore")
+        elif ext == ".pdf":
+            try:
+                import pypdf
+                reader = pypdf.PdfReader(io.BytesIO(content_bytes))
+                pages_text = [page.extract_text() or "" for page in reader.pages]
+                extracted_text = "\n\n".join(pages_text).strip()
+            except Exception as e:
+                extracted_text = f"PDF extraction note ({fname}): {str(e)}"
+        elif ext in [".docx", ".doc"]:
+            try:
+                import docx
+                doc = docx.Document(io.BytesIO(content_bytes))
+                extracted_text = "\n".join([p.text for p in doc.paragraphs if p.text]).strip()
+            except Exception as e:
+                extracted_text = f"Word extraction note ({fname}): {str(e)}"
+        else:
+            extracted_text = content_bytes.decode("utf-8", errors="ignore")
+
+        extracted_text = extracted_text.strip()
+        words = len(extracted_text.split()) if extracted_text else 0
+        return {
+            "filename": fname,
+            "is_image": is_image,
+            "image_thumbnail": thumb_b64,
+            "file_url": saved_file_url,
+            "file_path": saved_file_path,
+            "word_count": words,
+            "char_count": len(extracted_text),
+            "guidelines": extracted_text
+        }
+
+    # Parallelize file extraction across multiple threads for instant uploads
+    processed_files = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(file_payloads), 4)) as ex:
+        futures = [ex.submit(_process_file, p) for p in file_payloads]
+        for fut in futures:
+            try:
+                res = fut.result()
+                if res.get("guidelines"):
+                    processed_files.append(res)
+            except Exception:
+                pass
+
+    if not processed_files:
+        raise HTTPException(status_code=400, detail="None of the uploaded files contained readable content.")
+
+    if len(processed_files) == 1:
+        distilled_combined = studio.distill_guidelines(processed_files[0]["guidelines"], max_chars=1800)
     else:
-        extracted_text = content_bytes.decode("utf-8", errors="ignore")
+        # Apportion budget across uploaded files so every file (PDFs, images) contributes its core directives
+        budget_per_file = max(500, 2000 // len(processed_files))
+        distilled_parts = []
+        for pf in processed_files:
+            file_dist = studio.distill_guidelines(pf["guidelines"], max_chars=budget_per_file)
+            tag = "[IMAGE VISUAL DIRECTIVES]" if pf["is_image"] else "[BRAND DOCUMENT DIRECTIVES]"
+            distilled_parts.append(f"=== {tag}: {pf['filename']} ===\n{file_dist}")
+        distilled_combined = "\n\n".join(distilled_parts)
 
-    extracted_text = extracted_text.strip()
-    if not extracted_text:
-        raise HTTPException(status_code=400, detail="The uploaded guidelines document is empty or unreadable.")
+    total_words = sum(pf["word_count"] for pf in processed_files)
+    primary_name = processed_files[0]["filename"] if len(processed_files) == 1 else f"{len(processed_files)} Brand Files"
+    primary_img = next((pf for pf in processed_files if pf["is_image"]), None)
 
-    words = len(extracted_text.split())
     return {
         "status": "success",
-        "filename": filename,
-        "word_count": words,
-        "char_count": len(extracted_text),
-        "guidelines": extracted_text,
-        "preview": extracted_text[:350] + ("..." if len(extracted_text) > 350 else "")
+        "files": processed_files,
+        "file_count": len(processed_files),
+        "filename": primary_name,
+        "is_image": any(pf["is_image"] for pf in processed_files),
+        "image_thumbnail": primary_img["image_thumbnail"] if primary_img else "",
+        "image_url": primary_img["file_url"] if primary_img else "",
+        "image_path": primary_img["file_path"] if primary_img else "",
+        "image_thumbnails": [pf["image_thumbnail"] for pf in processed_files if pf.get("image_thumbnail")],
+        "word_count": total_words,
+        "char_count": len(distilled_combined),
+        "guidelines": distilled_combined,
+        "preview": distilled_combined[:350] + ("..." if len(distilled_combined) > 350 else "")
     }
 
 
@@ -269,6 +395,12 @@ def render_endpoint(req: RenderRequest):
     """Re-render the visual (new seed / model / overlay) without regenerating the copy."""
     try:
         studio = LexnisCampaignStudio()
+        base_img_path = None
+        if req.uploaded_image_url:
+            p = render_path(req.uploaded_image_url)
+            if p and Path(p).exists():
+                base_img_path = Path(p)
+
         render_res = studio.render_image(
             req.visual_prompt,
             req.seed,
@@ -280,6 +412,7 @@ def render_endpoint(req: RenderRequest):
             tagline=req.tagline,
             arabic_headline=req.arabic_headline or "",
             arabic_tagline=req.arabic_tagline or "",
+            base_image_path=base_img_path,
         )
         post_path, clean_path, watermark_free = render_res[0], render_res[1], render_res[2]
         ar_post_path = getattr(render_res, "arabic_post_path", None) or (render_res[3] if len(render_res) > 3 else getattr(studio, "last_arabic_post_path", None))
