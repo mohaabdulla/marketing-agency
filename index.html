@@ -290,6 +290,16 @@
           <div class="flex items-center space-x-3 w-full sm:w-auto">
             <button 
               type="button" 
+              id="template-swap-btn" 
+              class="hidden sm:inline-flex px-4 py-3 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-violet-500/40 hover:border-violet-400 text-violet-300 hover:text-white font-tech font-bold text-xs tracking-wider uppercase transition-all items-center space-x-2 cursor-pointer shadow-sm"
+              title="Autonomous Template Subject-Replacement & 2.5D Pop-Out Compositing Engine"
+            >
+              <i data-lucide="layers" class="w-3.5 h-3.5 text-violet-400"></i>
+              <span>2.5D Template Swap</span>
+            </button>
+
+            <button 
+              type="button" 
               id="instant-demo-btn" 
               class="hidden sm:inline-flex px-4 py-3 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-700 hover:border-cyan-accent/50 text-slate-300 hover:text-cyan-accent font-tech font-bold text-xs tracking-wider uppercase transition-all items-center space-x-2"
               title="Preview with sample campaign data and Flux visual"
@@ -1051,6 +1061,116 @@
         <button type="button" id="guidelines-modal-dismiss" class="px-4 py-1.5 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 text-xs font-mono text-slate-300">
           Close
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2.5D POP-OUT TEMPLATE ENGINE MODAL -->
+  <div id="template-swap-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+    <div class="relative w-full max-w-4xl bg-obsidian-900 border border-violet-500/40 rounded-2xl shadow-2xl p-5 sm:p-6 space-y-4 max-h-[92vh] flex flex-col my-auto overflow-hidden">
+      <!-- Modal Header -->
+      <div class="flex items-start justify-between pb-3 border-b border-obsidian-800 shrink-0">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-cyan-500/20 border border-violet-500/40 flex items-center justify-center text-violet-400 shrink-0 shadow-sm">
+            <i data-lucide="layers" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <h3 class="text-sm sm:text-base font-tech font-bold tracking-wider text-white uppercase">
+                2.5D Pop-Out Template Engine — Subject Replacement
+              </h3>
+              <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/30 text-violet-300 font-semibold">
+                Autonomous Compositor
+              </span>
+            </div>
+            <p class="text-xs font-mono text-slate-400 mt-0.5">
+              Cleanly replaces template subjects, eliminates fringes with alpha matting, and layers head pop-out over typography.
+            </p>
+          </div>
+        </div>
+        <button type="button" id="template-swap-modal-close" class="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Modal Content Body -->
+      <div class="space-y-4 overflow-y-auto pr-1 flex-1">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Template Picker -->
+          <div class="bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-3.5 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-slate-300 uppercase flex items-center gap-1.5">
+                <span>🖼️</span> <span>1. Template Graphic</span>
+              </span>
+              <span id="swap-template-badge" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-950/40 text-cyan-300 border border-cyan-800/40">Default Benchmark</span>
+            </div>
+            <div id="swap-template-dropzone" class="border border-dashed border-obsidian-700 hover:border-violet-500/50 rounded-lg p-3 text-center cursor-pointer transition-all bg-obsidian-900/40 hover:bg-obsidian-900/80">
+              <input type="file" id="swap-template-input" class="hidden" accept="image/*">
+              <div id="swap-template-preview-box" class="h-44 flex flex-col items-center justify-center space-y-2 text-slate-400">
+                <img id="swap-template-preview-img" src="/static/assets/template_reference.jpg" class="max-h-36 rounded object-contain border border-obsidian-800" onerror="this.src='https://images.unsplash.com/photo-1557804506-669a67965ba0?w=400&q=80'">
+                <span class="text-[11px] font-mono text-slate-400">Click or drop new template image</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Subject Picker -->
+          <div class="bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-3.5 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-slate-300 uppercase flex items-center gap-1.5">
+                <span>👤</span> <span>2. New Subject Portrait</span>
+              </span>
+              <span id="swap-subject-badge" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-violet-950/40 text-violet-300 border border-violet-800/40">Raw Portrait</span>
+            </div>
+            <div id="swap-subject-dropzone" class="border border-dashed border-obsidian-700 hover:border-violet-500/50 rounded-lg p-3 text-center cursor-pointer transition-all bg-obsidian-900/40 hover:bg-obsidian-900/80">
+              <input type="file" id="swap-subject-input" class="hidden" accept="image/*">
+              <div id="swap-subject-preview-box" class="h-44 flex flex-col items-center justify-center space-y-2 text-slate-400">
+                <img id="swap-subject-preview-img" src="/static/assets/raw_subject.jpg" class="max-h-36 rounded object-contain border border-obsidian-800" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&q=80'">
+                <span class="text-[11px] font-mono text-slate-400">Click or drop subject photo</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Result Box (Hidden until generated) -->
+        <div id="swap-result-container" class="hidden p-4 rounded-xl bg-obsidian-950 border border-violet-500/40 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <span class="text-emerald-400 text-xs font-mono font-bold flex items-center gap-1">
+                <span>✓</span> <span>2.5D POP-OUT COMPOSITE READY</span>
+              </span>
+              <span class="text-[10px] font-mono text-slate-400 px-1.5 py-0.5 bg-obsidian-900 rounded border border-obsidian-800">808 × 1024</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <a id="swap-result-download" href="#" download="popout_campaign_ad.jpg" class="px-2.5 py-1 text-xs font-mono font-bold rounded bg-cyan-950 text-cyan-300 hover:bg-cyan-900 border border-cyan-500/30 transition-all flex items-center gap-1">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i> <span>Download</span>
+              </a>
+              <button type="button" id="swap-apply-to-campaign-btn" class="px-2.5 py-1 text-xs font-mono font-bold rounded bg-violet-950 text-violet-300 hover:bg-violet-900 border border-violet-500/30 transition-all flex items-center gap-1">
+                <i data-lucide="send" class="w-3.5 h-3.5"></i> <span>Set as Campaign Ad</span>
+              </button>
+            </div>
+          </div>
+          <div class="flex justify-center bg-obsidian-900/60 p-2 rounded-lg">
+            <img id="swap-result-img" class="max-h-80 rounded shadow-2xl object-contain border border-obsidian-800" src="" alt="2.5D Pop-Out Result">
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="pt-3 border-t border-obsidian-800 flex items-center justify-between shrink-0">
+        <button type="button" id="swap-load-benchmark-btn" class="px-3 py-1.5 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 text-xs font-mono text-slate-300 flex items-center gap-1.5 transition-colors cursor-pointer" title="Load Sekawan Media and portrait test assets">
+          <i data-lucide="refresh-cw" class="w-3 h-3 text-cyan-accent"></i>
+          <span>Load Test Benchmark</span>
+        </button>
+
+        <div class="flex items-center space-x-2.5">
+          <button type="button" id="template-swap-modal-cancel" class="px-4 py-2 rounded-xl bg-obsidian-800 hover:bg-obsidian-700 text-xs font-mono text-slate-300 transition-colors cursor-pointer">
+            Cancel
+          </button>
+          <button type="button" id="template-swap-execute-btn" class="px-6 py-2 rounded-xl bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-500 hover:from-violet-500 hover:to-cyan-400 text-white font-tech font-bold text-xs tracking-wider uppercase shadow-md active:scale-95 transition-all flex items-center space-x-2 cursor-pointer">
+            <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+            <span id="swap-btn-label">Generate 2.5D Pop-Out</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -2760,7 +2880,8 @@
               enhance_image: enhanceImageCheckbox.checked,
               guidelines: currentGuidelines || '',
               uploaded_image_url: currentUploadedImageUrl || '',
-              use_uploaded_image: !!currentUploadedImageUrl
+              uploaded_image_urls: activeGuidelineFiles.filter(f => f.is_image && f.file_url).map(f => f.file_url),
+              use_uploaded_image: !!currentUploadedImageUrl || activeGuidelineFiles.some(f => f.is_image)
             })
           });
 
@@ -3303,6 +3424,162 @@ Deployable directly into legacy PLC racks and air-gapped SCADA environments, Lex
           handleGenerateCampaign();
         }
       });
+    }
+
+    // ==========================================
+    // 2.5D POP-OUT TEMPLATE ENGINE CLIENT LOGIC
+    // ==========================================
+    const templateSwapBtn = document.getElementById('template-swap-btn');
+    const templateSwapModal = document.getElementById('template-swap-modal');
+    const templateSwapModalClose = document.getElementById('template-swap-modal-close');
+    const templateSwapModalCancel = document.getElementById('template-swap-modal-cancel');
+    const templateSwapExecuteBtn = document.getElementById('template-swap-execute-btn');
+    const swapBtnLabel = document.getElementById('swap-btn-label');
+    const swapTemplateDropzone = document.getElementById('swap-template-dropzone');
+    const swapTemplateInput = document.getElementById('swap-template-input');
+    const swapTemplatePreviewImg = document.getElementById('swap-template-preview-img');
+    const swapTemplateBadge = document.getElementById('swap-template-badge');
+    const swapSubjectDropzone = document.getElementById('swap-subject-dropzone');
+    const swapSubjectInput = document.getElementById('swap-subject-input');
+    const swapSubjectPreviewImg = document.getElementById('swap-subject-preview-img');
+    const swapSubjectBadge = document.getElementById('swap-subject-badge');
+    const swapLoadBenchmarkBtn = document.getElementById('swap-load-benchmark-btn');
+    const swapResultContainer = document.getElementById('swap-result-container');
+    const swapResultImg = document.getElementById('swap-result-img');
+    const swapResultDownload = document.getElementById('swap-result-download');
+    const swapApplyBtn = document.getElementById('swap-apply-to-campaign-btn');
+
+    let selectedTemplateFile = null;
+    let selectedSubjectFile = null;
+    let lastSwapImageUrl = '';
+
+    if (templateSwapBtn && templateSwapModal) {
+      templateSwapBtn.addEventListener('click', () => {
+        templateSwapModal.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+      });
+
+      const closeSwapModal = () => {
+        templateSwapModal.classList.add('hidden');
+      };
+      if (templateSwapModalClose) templateSwapModalClose.addEventListener('click', closeSwapModal);
+      if (templateSwapModalCancel) templateSwapModalCancel.addEventListener('click', closeSwapModal);
+
+      // Template Dropzone & Input
+      if (swapTemplateDropzone && swapTemplateInput) {
+        swapTemplateDropzone.addEventListener('click', () => swapTemplateInput.click());
+        swapTemplateInput.addEventListener('change', (e) => {
+          if (e.target.files && e.target.files[0]) {
+            selectedTemplateFile = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              swapTemplatePreviewImg.src = ev.target.result;
+              swapTemplateBadge.textContent = selectedTemplateFile.name.slice(0, 18);
+              swapTemplateBadge.className = 'text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950/40 text-emerald-300 border border-emerald-800/40';
+            };
+            reader.readAsDataURL(selectedTemplateFile);
+          }
+        });
+      }
+
+      // Subject Dropzone & Input
+      if (swapSubjectDropzone && swapSubjectInput) {
+        swapSubjectDropzone.addEventListener('click', () => swapSubjectInput.click());
+        swapSubjectInput.addEventListener('change', (e) => {
+          if (e.target.files && e.target.files[0]) {
+            selectedSubjectFile = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              swapSubjectPreviewImg.src = ev.target.result;
+              swapSubjectBadge.textContent = selectedSubjectFile.name.slice(0, 18);
+              swapSubjectBadge.className = 'text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950/40 text-emerald-300 border border-emerald-800/40';
+            };
+            reader.readAsDataURL(selectedSubjectFile);
+          }
+        });
+      }
+
+      // Load Benchmark Button
+      if (swapLoadBenchmarkBtn) {
+        swapLoadBenchmarkBtn.addEventListener('click', () => {
+          selectedTemplateFile = null;
+          selectedSubjectFile = null;
+          swapTemplateBadge.textContent = 'Default Benchmark';
+          swapTemplateBadge.className = 'text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-950/40 text-cyan-300 border border-cyan-800/40';
+          swapSubjectBadge.textContent = 'Raw Portrait';
+          swapSubjectBadge.className = 'text-[10px] font-mono px-1.5 py-0.5 rounded bg-violet-950/40 text-violet-300 border border-violet-800/40';
+          showToast('Loaded Sekawan Media benchmark template and raw subject.');
+        });
+      }
+
+      // Execute 2.5D Pop-Out Compositor
+      if (templateSwapExecuteBtn) {
+        templateSwapExecuteBtn.addEventListener('click', async () => {
+          try {
+            templateSwapExecuteBtn.disabled = true;
+            swapBtnLabel.textContent = 'Synthesizing 2.5D Pop-Out...';
+
+            const formData = new FormData();
+            if (selectedTemplateFile) {
+              formData.append('template_file', selectedTemplateFile);
+            } else {
+              formData.append('template_url', 'template_reference.jpg');
+            }
+
+            if (selectedSubjectFile) {
+              formData.append('subject_file', selectedSubjectFile);
+            } else {
+              formData.append('subject_url', 'raw_subject.jpg');
+            }
+
+            const response = await fetch('/api/template-swap', {
+              method: 'POST',
+              body: formData,
+            });
+
+            if (!response.ok) {
+              const err = await response.json();
+              throw new Error(err.detail || 'Template swap failed.');
+            }
+
+            const data = await response.json();
+            lastSwapImageUrl = data.image_url;
+
+            if (swapResultContainer && swapResultImg) {
+              swapResultImg.src = data.image_url;
+              if (swapResultDownload) swapResultDownload.href = data.image_url;
+              swapResultContainer.classList.remove('hidden');
+              swapResultContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            showToast('2.5D Pop-Out Template Swap successfully created!');
+          } catch (err) {
+            console.error(err);
+            showToast('Error: ' + err.message, true);
+          } finally {
+            templateSwapExecuteBtn.disabled = false;
+            swapBtnLabel.textContent = 'Generate 2.5D Pop-Out';
+          }
+        });
+      }
+
+      // Apply result to campaign view
+      if (swapApplyBtn) {
+        swapApplyBtn.addEventListener('click', () => {
+          if (lastSwapImageUrl) {
+            currentEnglishImageUrl = lastSwapImageUrl;
+            currentCleanImageUrl = lastSwapImageUrl;
+            updateImageSource(lastSwapImageUrl);
+            closeSwapModal();
+            if (resultsSection) {
+              emptyState.classList.add('hidden');
+              resultsSection.classList.remove('hidden');
+              resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+            showToast('2.5D Pop-Out Ad set as campaign visual!');
+          }
+        });
+      }
     }
   </script>
 </body>

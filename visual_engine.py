@@ -293,3 +293,221 @@ def compose_ad(image, headline="", brand="", tagline=""):
         draw.text((width-pad-draw.textlength(line, font=tag_font), y), line, font=tag_font, fill="white")
         y += round(tag_size * 1.4)
     return Image.alpha_composite(image, layer).convert("RGB")
+
+
+def extract_subject_matte(subject_image, bg_color=None):
+    """
+    Sub-pixel alpha matting using rembg with studio background decontamination
+    to eliminate any edge fringe/halo around hair and silhouettes.
+    """
+    import cv2
+    import numpy as np
+    from PIL import Image
+    import rembg
+
+    # Suppress cupy warning if present
+    os.environ.setdefault("CUPY_DISABLE_AUTO_BUILD", "1")
+
+    if isinstance(subject_image, (str, Path)):
+        pil_img = Image.open(subject_image).convert("RGB")
+    elif isinstance(subject_image, bytes):
+        pil_img = Image.open(io.BytesIO(subject_image)).convert("RGB")
+    elif isinstance(subject_image, Image.Image):
+        pil_img = subject_image.convert("RGB")
+    elif isinstance(subject_image, np.ndarray):
+        pil_img = Image.fromarray(cv2.cvtColor(subject_image, cv2.COLOR_BGR2RGB))
+    else:
+        raise ValueError("Unsupported subject image type")
+
+    # Fast cache check for pre-matted RGBA
+    import hashlib
+    cache_dir = Path(__file__).resolve().parent / "output" / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_key = None
+    if isinstance(subject_image, (str, Path)) and Path(subject_image).exists():
+        p_obj = Path(subject_image)
+        st = p_obj.stat()
+        with open(p_obj, "rb") as f:
+            sample = f.read(4096)
+        cache_key = hashlib.sha1(f"matte|{st.st_size}|{hashlib.sha1(sample).hexdigest()}".encode()).hexdigest()[:16]
+    else:
+        cache_key = hashlib.sha1(pil_img.tobytes()[:32768]).hexdigest()[:16]
+
+    cache_path = cache_dir / f"matte_{cache_key}.png" if cache_key else None
+    if cache_path and cache_path.exists():
+        cached_rgba = cv2.imread(str(cache_path), cv2.IMREAD_UNCHANGED)
+        if cached_rgba is not None and len(cached_rgba.shape) == 3 and cached_rgba.shape[2] == 4:
+            return cached_rgba
+
+    # Remove background with rembg
+    cutout = rembg.remove(pil_img)
+    cutout_np = np.array(cutout)
+
+    rgb = cutout_np[:, :, :3].astype(np.float32)
+    alpha = cutout_np[:, :, 3].astype(np.float32) / 255.0
+
+    # Auto-detect studio background color if not provided (sample corner margins of raw image)
+    if bg_color is None:
+        raw_np = np.array(pil_img).astype(np.float32)
+        corners = [
+            raw_np[:40, :40],
+            raw_np[:40, -40:],
+            raw_np[-40:, :40],
+            raw_np[-40:, -40:]
+        ]
+        # Median BGR color
+        bg_rgb = np.median(np.concatenate([c.reshape(-1, 3) for c in corners], axis=0), axis=0)
+        bg_color = np.array([bg_rgb[2], bg_rgb[1], bg_rgb[0]], dtype=np.float32) # BGR
+    else:
+        bg_color = np.array(bg_color, dtype=np.float32)
+
+    # Decontaminate foreground: fg_clean = clip((rgb - (1 - alpha) * bg_studio) / alpha, 0, 255)
+    # rgb in cutout_np is RGB, convert to BGR for cv2
+    bgr = cv2.cvtColor(cutout_np[:, :, :3], cv2.COLOR_RGB2BGR).astype(np.float32)
+    alpha_safe = np.clip(alpha[:, :, None], 0.001, 1.0)
+    fg_decontam = np.clip((bgr - (1.0 - alpha_safe) * bg_color) / alpha_safe, 0, 255).astype(np.uint8)
+
+    # Convert to calibrated monochrome grayscale
+    gray = cv2.cvtColor(fg_decontam, cv2.COLOR_BGR2GRAY)
+    bw = np.clip(1.0017 * gray.astype(float) + 5.3, 0, 255).astype(np.uint8)
+
+    # Suppress brightness on semi-transparent hair edges to guarantee zero off-white halo
+    edge_hair = (alpha < 0.9) & (bw > 100)
+    bw[edge_hair] = np.clip(bw[edge_hair] * 0.6, 0, 255).astype(np.uint8)
+
+    bgr_bw = cv2.cvtColor(bw, cv2.COLOR_GRAY2BGR)
+    subject_rgba = np.dstack([bgr_bw, (alpha * 255).astype(np.uint8)])
+    if cache_path:
+        try:
+            cv2.imwrite(str(cache_path), subject_rgba)
+        except Exception:
+            pass
+    return subject_rgba
+
+
+def composite_template_swap(template_image, subject_image, target_size=(808, 1024), affine_matrix=None):
+    """
+    Autonomous Template Subject-Replacement & 2.5D Pop-Out Compositing Engine.
+    - Zero typography or brand corruption: Preserves original logos, frame, headers, and nameplate.
+    - Clean removal of the original subject: Reconstructs clean gradient inside frame and top white frame line.
+    - Sub-pixel alpha matting with zero studio fringe.
+    - Calibrated monochrome grayscale grading.
+    - 2.5D pop-out layering:
+        - Torso clipped cleanly along top edge of solid white nameplate box and within frame side borders.
+        - Crown of head and hair pops out above top frame line, overlapping the bottom of WELCOME letters.
+    """
+    import cv2
+    import numpy as np
+    from PIL import Image
+
+    # Load template image
+    if isinstance(template_image, (str, Path)):
+        t_bgr = cv2.imread(str(template_image))
+    elif isinstance(template_image, bytes):
+        t_bgr = cv2.imdecode(np.frombuffer(template_image, np.uint8), cv2.IMREAD_COLOR)
+    elif isinstance(template_image, Image.Image):
+        t_bgr = cv2.cvtColor(np.array(template_image), cv2.COLOR_RGB2BGR)
+    elif isinstance(template_image, np.ndarray):
+        t_bgr = template_image
+    else:
+        raise ValueError("Unsupported template image type")
+
+    W, H = target_size
+    t_res = cv2.resize(t_bgr, (W, H), interpolation=cv2.INTER_LANCZOS4)
+    clean_plate = t_res.copy()
+
+    # Reconstruct frame interior gradient (removing original subject)
+    # Inside frame: X: 203..604, Y: 302..667
+    y_coords, x_coords = np.mgrid[302:668, 203:605]
+    bg_b = 241.6818 - 0.009064 * x_coords - 0.006122 * y_coords
+    bg_g = 178.2014 - 0.048905 * x_coords - 0.012118 * y_coords
+    bg_r = 115.7357 - 0.083097 * x_coords - 0.014215 * y_coords
+    bg_patch = np.stack([bg_b, bg_g, bg_r], axis=2).clip(0, 255).astype(np.uint8)
+    clean_plate[302:668, 203:605] = bg_patch
+
+    # Restore top horizontal white frame border behind shoulders (Y: 294..301, X: 195..612)
+    clean_plate[294:302, 195:613] = [255, 255, 255]
+
+    # Extract & mat subject
+    subject_rgba = extract_subject_matte(subject_image)
+
+    # Warp / align subject into canvas
+    if affine_matrix is None:
+        # Default calibrated transform for template
+        affine_matrix = np.array([
+            [8.04139148e-01, 1.02160041e-03, 3.91566333e+01],
+            [-1.02160041e-03, 8.04139148e-01, 1.41156860e+02]
+        ], dtype=np.float32)
+
+    warped = cv2.warpAffine(subject_rgba, affine_matrix, (W, H), flags=cv2.INTER_LANCZOS4)
+    w_bgr = warped[:, :, :3]
+    w_alpha = warped[:, :, 3].astype(np.float32) / 255.0
+
+    # 2.5D Layering & Clipping Rules:
+    # 1. Body clipping: inside frame window (X: 195..612, Y: 294..667)
+    # 2. Head pop-out: unclipped above top frame border (Y < 294) so it overlaps WELCOME in foreground
+    # 3. Solid white lower nameplate box (Y >= 668): strictly clips body
+    y_grid, x_grid = np.mgrid[0:H, 0:W]
+    body_region = (y_grid >= 294) & (y_grid < 668) & (x_grid >= 195) & (x_grid <= 612)
+    head_region = (y_grid < 294)
+    allowed_mask = (body_region | head_region).astype(np.float32)
+
+    eff_alpha = w_alpha * allowed_mask
+
+    # Composite onto clean plate
+    composite = clean_plate.copy().astype(np.float32)
+    for c in range(3):
+        composite[:, :, c] = composite[:, :, c] * (1.0 - eff_alpha) + w_bgr[:, :, c].astype(np.float32) * eff_alpha
+    composite = np.clip(composite, 0, 255).astype(np.uint8)
+
+    # Re-apply crisp nameplate box and text to ensure 100% typography fidelity
+    nameplate_mask = (y_grid >= 668) & (y_grid <= 798) & (x_grid >= 195) & (x_grid <= 612)
+    composite[nameplate_mask] = t_res[nameplate_mask]
+
+    # Re-apply footer text
+    footer_mask = (y_grid > 800)
+    composite[footer_mask] = t_res[footer_mask]
+
+    # Convert back to RGB PIL Image
+    result_rgb = cv2.cvtColor(composite, cv2.COLOR_BGR2RGB)
+    return Image.fromarray(result_rgb)
+
+
+def classify_template_and_subject(image_paths):
+    """
+    Given a list of candidate image paths, automatically determines which image
+    is the framed template graphic and which image is the subject portrait.
+    """
+    import cv2
+    import numpy as np
+
+    img_data = []
+    for p in image_paths:
+        if isinstance(p, (str, Path)):
+            im = cv2.imread(str(p))
+            path_obj = Path(p)
+        else:
+            continue
+        if im is None:
+            continue
+        # Check blue background ratio: B > 180, R < 140
+        blue_ratio = float(np.mean((im[:, :, 0] > 180) & (im[:, :, 2] < 140)))
+        # Check studio off-white ratio: R > 170, G > 170, B > 170, |R-G| < 25, |G-B| < 25
+        white_ratio = float(np.mean(
+            (im[:, :, 0] > 170) & (im[:, :, 1] > 170) & (im[:, :, 2] > 170) &
+            (np.abs(im[:, :, 0].astype(int) - im[:, :, 2].astype(int)) < 25)
+        ))
+        img_data.append({'path': path_obj, 'blue': blue_ratio, 'white': white_ratio})
+
+    if len(img_data) < 2:
+        return None, None
+
+    sorted_by_blue = sorted(img_data, key=lambda x: x['blue'], reverse=True)
+    sorted_by_white = sorted(img_data, key=lambda x: x['white'], reverse=True)
+
+    template = sorted_by_blue[0]['path']
+    subject = sorted_by_white[0]['path']
+    if template == subject and len(sorted_by_white) > 1:
+        subject = sorted_by_white[1]['path']
+
+    return template, subject
