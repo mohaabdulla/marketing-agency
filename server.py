@@ -96,6 +96,13 @@ class GenerateRequest(BaseModel):
     uploaded_image_url: Optional[str] = Field(None, description="URL of uploaded image asset to composite as ad visual")
     uploaded_image_urls: Optional[List[str]] = Field(default_factory=list, description="URLs of multiple uploaded images")
     use_uploaded_image: Optional[bool] = Field(None, description="Whether to feature the uploaded image as the ad visual")
+    company_url: Optional[str] = Field(None, description="Company website URL for real-time Brand DNA extraction")
+    recolor_to_brand: Optional[bool] = Field(True, description="Whether template visual should adapt colors to brand flow")
+
+
+class AnalyzeWebsiteRequest(BaseModel):
+    url: str = Field(..., description="Company website URL to extract brand DNA from")
+    brand: Optional[str] = Field("Lexnis Technologies", description="Brand name")
 
 
 class GenerateGuidelinesRequest(BaseModel):
@@ -274,6 +281,8 @@ def generate_campaign_endpoint(req: GenerateRequest):
             uploaded_image_path=up_img_path,
             uploaded_image_paths=all_up_paths,
             use_uploaded_image=req.use_uploaded_image if req.use_uploaded_image is not None else (len(all_up_paths) > 0),
+            company_url=req.company_url,
+            recolor_to_brand=req.recolor_to_brand if req.recolor_to_brand is not None else True,
         )
         data = asset.to_dict()
         data["image_url"] = render_url(asset.image_path)
@@ -286,7 +295,20 @@ def generate_campaign_endpoint(req: GenerateRequest):
         data["has_uploaded_asset"] = bool(asset.uploaded_image_url)
         data["guidelines"] = asset.guidelines
         data["guidelines_source"] = getattr(asset, "guidelines_source", "none")
+        data["company_url"] = getattr(asset, "company_url", req.company_url or "")
+        data["brand_dna"] = getattr(asset, "brand_dna", {})
         return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/analyze-website")
+def analyze_website_endpoint(req: AnalyzeWebsiteRequest):
+    """Extract brand DNA (colors, typography, hashtag, aesthetic) from company website."""
+    try:
+        studio = LexnisCampaignStudio()
+        dna = studio.analyze_company_website(req.url, brand=req.brand)
+        return dna
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -561,6 +583,9 @@ async def template_swap_endpoint(
     person_name: Optional[str] = Form(None),
     person_title: Optional[str] = Form(None),
     brand_name: Optional[str] = Form(None),
+    brand_tag: Optional[str] = Form(None),
+    company_url: Optional[str] = Form(None),
+    recolor_gradient: Optional[bool] = Form(False),
 ):
     """
     Autonomous Template Subject-Replacement & 2.5D Pop-Out Compositing Endpoint.
@@ -568,6 +593,7 @@ async def template_swap_endpoint(
     Executes sub-pixel hair matting, studio background decontamination,
     calibrated monochrome grading, and 2.5D pop-out layering.
     Dynamically personalizes the nameplate (person_name, person_title) and brand header.
+    Adapts colors, fonts and hashtags to follow company brand guidelines and website style.
     """
     import hashlib
     import time
@@ -602,13 +628,29 @@ async def template_swap_endpoint(
         if not t_bytes or not s_bytes:
             raise HTTPException(status_code=400, detail="Both template and subject images are required.")
 
+        brand_colors = None
+        final_tag = brand_tag
+        if company_url or (brand_name and "lexnis" in brand_name.lower()):
+            try:
+                studio = LexnisCampaignStudio()
+                dna = studio.analyze_company_website(company_url or "https://lexnis.com", brand=brand_name)
+                if dna:
+                    brand_colors = dna.get("brand_colors")
+                    if not final_tag:
+                        final_tag = dna.get("brand_tag")
+            except Exception:
+                pass
+
         result_pil = composite_template_swap(
             t_bytes,
             s_bytes,
             target_size=(808, 1024),
             person_name=person_name,
             person_title=person_title,
-            brand_name=brand_name
+            brand_name=brand_name,
+            brand_tag=final_tag,
+            brand_colors=brand_colors,
+            recolor_gradient=recolor_gradient
         )
         token = hashlib.sha1(f"swap_{time.time()}".encode()).hexdigest()[:12]
         out_filename = f"template_swap_{token}.jpg"

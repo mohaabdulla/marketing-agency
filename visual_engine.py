@@ -392,7 +392,10 @@ def composite_template_swap(
     affine_matrix=None,
     person_name: str = None,
     person_title: str = None,
-    brand_name: str = None
+    brand_name: str = None,
+    brand_tag: str = None,
+    brand_colors: dict = None,
+    recolor_gradient: bool = False
 ):
     """
     Autonomous Template Subject-Replacement & 2.5D Pop-Out Compositing Engine.
@@ -401,13 +404,15 @@ def composite_template_swap(
     - Sub-pixel alpha matting with zero studio fringe.
     - Calibrated monochrome grayscale grading.
     - Resolution-Adaptive Scaling: Automatically scales and centers ANY subject resolution (1024x683, 1600x1068, 4K).
-    - Dynamic Personalization: Updates nameplate to featured person & role, and updates brand header.
+    - Dynamic Personalization: Updates nameplate to featured person & role, and updates brand header & hashtag.
+    - Brand Theme Flow: Adapts colors and fonts to follow company brand guidelines and website style.
     - 2.5D pop-out layering:
         - Torso clipped cleanly along top edge of solid white nameplate box and within frame side borders.
         - Crown of head and hair pops out above top frame line, overlapping the bottom of WELCOME letters.
     """
     import cv2
     import numpy as np
+    import re
     from PIL import Image, ImageDraw, ImageFont
 
     # Load template image
@@ -437,6 +442,58 @@ def composite_template_swap(
 
     # Restore top horizontal white frame border behind shoulders (Y: 294..301, X: 195..612)
     clean_plate[294:302, 195:613] = [255, 255, 255]
+
+    # Clean top-left logo and top-right hashtag on clean_plate
+    hy, hx = np.mgrid[45:95, 45:280]
+    clean_plate[45:95, 45:280] = np.stack([
+        241.6818 - 0.009064 * hx - 0.006122 * hy,
+        178.2014 - 0.048905 * hx - 0.012118 * hy,
+        115.7357 - 0.083097 * hx - 0.014215 * hy
+    ], axis=2).clip(0, 255).astype(np.uint8)
+
+    ty, tx = np.mgrid[45:95, 540:770]
+    clean_plate[45:95, 540:770] = np.stack([
+        241.6818 - 0.009064 * tx - 0.006122 * ty,
+        178.2014 - 0.048905 * tx - 0.012118 * ty,
+        115.7357 - 0.083097 * tx - 0.014215 * ty
+    ], axis=2).clip(0, 255).astype(np.uint8)
+
+    # Optional: Recolor background gradient to company brand palette
+    if recolor_gradient and brand_colors and isinstance(brand_colors, dict):
+        def parse_c(hex_str, default_bgr):
+            if hex_str and isinstance(hex_str, str) and hex_str.startswith('#') and len(hex_str) == 7:
+                try:
+                    r = int(hex_str[1:3], 16)
+                    g = int(hex_str[3:5], 16)
+                    b = int(hex_str[5:7], 16)
+                    return np.array([b, g, r], dtype=np.float32)
+                except Exception:
+                    pass
+            return default_bgr
+
+        c1 = parse_c(brand_colors.get('gradient_start') or brand_colors.get('primary'), np.array([28, 16, 8], dtype=np.float32))
+        c2 = parse_c(brand_colors.get('gradient_end') or brand_colors.get('secondary'), np.array([72, 42, 16], dtype=np.float32))
+
+        y_all, x_all = np.mgrid[0:H, 0:W]
+        diag = (x_all / float(W) * 0.35 + y_all / float(H) * 0.65)
+        brand_grad = (c1[None, None, :] * (1.0 - diag[:, :, None]) + c2[None, None, :] * diag[:, :, None]).clip(0, 255).astype(np.uint8)
+
+        orig_bg = np.stack([
+            (241.6818 - 0.009064 * x_all - 0.006122 * y_all).clip(0, 255),
+            (178.2014 - 0.048905 * x_all - 0.012118 * y_all).clip(0, 255),
+            (115.7357 - 0.083097 * x_all - 0.014215 * y_all).clip(0, 255)
+        ], axis=2)
+
+        diff_r = (clean_plate[:, :, 2].astype(np.float32) - orig_bg[:, :, 2])
+        white_mask = (diff_r > 35).astype(np.float32)
+        white_mask[302:668, 203:605] = 0.0
+        white_mask[294:302, 195:613] = 1.0
+        white_mask[294:800, 195:203] = 1.0
+        white_mask[294:800, 604:613] = 1.0
+        white_mask[668:800, 195:613] = 1.0
+
+        white_smooth = cv2.GaussianBlur(white_mask, (3, 3), 0)[:, :, None]
+        clean_plate = (brand_grad.astype(np.float32) * (1.0 - white_smooth) + np.array([255, 255, 255], dtype=np.float32) * white_smooth).clip(0, 255).astype(np.uint8)
 
     # Extract & mat subject
     subject_rgba = extract_subject_matte(subject_image)
@@ -508,7 +565,16 @@ def composite_template_swap(
             font_name_bold = ImageFont.load_default()
             font_title_sub = ImageFont.load_default()
 
+        # Adapt text color to brand primary color if available, else #1B75E8
         blue_brand = (27, 117, 232) # #1B75E8
+        if brand_colors and isinstance(brand_colors, dict):
+            pri_hex = brand_colors.get("primary", "")
+            if pri_hex and pri_hex.startswith("#") and len(pri_hex) == 7:
+                try:
+                    blue_brand = (int(pri_hex[1:3], 16), int(pri_hex[3:5], 16), int(pri_hex[5:7], 16))
+                except Exception:
+                    pass
+
         clean_name = person_name.strip()
         parts = clean_name.split()
         if len(parts) >= 2 and len(clean_name) > 12:
@@ -528,37 +594,55 @@ def composite_template_swap(
 
     # Footer Text
     footer_mask = (y_grid > 800)
-    composite[footer_mask] = t_res[footer_mask]
+    if not recolor_gradient:
+        composite[footer_mask] = t_res[footer_mask]
 
-    # Dynamic Top-Left Brand Logo Update (if brand is Lexnis or custom)
+    # Dynamic Top-Left Brand Logo & Top-Right Hashtag Update
     if brand_name and ("sekawan" not in brand_name.lower()):
-        header_y, header_x = np.mgrid[45:95, 45:280]
-        hb_b = 241.6818 - 0.009064 * header_x - 0.006122 * header_y
-        hb_g = 178.2014 - 0.048905 * header_x - 0.012118 * header_y
-        hb_r = 115.7357 - 0.083097 * header_x - 0.014215 * header_y
-        clean_header = np.stack([hb_b, hb_g, hb_r], axis=2).clip(0, 255).astype(np.uint8)
-        composite[45:95, 45:280] = clean_header
+        comp_pil = Image.fromarray(cv2.cvtColor(composite, cv2.COLOR_BGR2RGB))
+        draw_top = ImageDraw.Draw(comp_pil)
 
-        header_pil = Image.fromarray(cv2.cvtColor(composite[45:95, 45:280], cv2.COLOR_BGR2RGB))
-        h_draw = ImageDraw.Draw(header_pil)
-        font_h = None
+        # Load fonts
+        f_brand = None
+        f_tag = None
         for fpath in ['static/fonts/Poppins-Bold.ttf', 'C:/Windows/Fonts/segoeuib.ttf', 'C:/Windows/Fonts/arialbd.ttf']:
             if Path(fpath).exists():
                 try:
-                    font_h = ImageFont.truetype(fpath, 20)
+                    f_brand = ImageFont.truetype(fpath, 20)
+                    f_tag = ImageFont.truetype(fpath.replace('Bold', 'Regular').replace('bd', ''), 16)
                     break
                 except Exception:
                     pass
-        if not font_h:
-            font_h = ImageFont.load_default()
+        if not f_brand:
+            f_brand = ImageFont.load_default()
+            f_tag = ImageFont.load_default()
 
+        # 1. Render Top-Left Logo / Mark
         display_brand = brand_name.upper()
         if "LEXNIS" in display_brand:
-            h_draw.text((8, 14), "LEXNIS »", font=font_h, fill=(255, 255, 255))
+            draw_top.text((53, 59), "LEXNIS »", font=f_brand, fill=(255, 255, 255))
         else:
-            h_draw.text((8, 14), display_brand[:18], font=font_h, fill=(255, 255, 255))
+            draw_top.text((53, 59), display_brand[:20], font=f_brand, fill=(255, 255, 255))
 
-        composite[45:95, 45:280] = cv2.cvtColor(np.array(header_pil), cv2.COLOR_RGB2BGR)
+        # 2. Render Top-Right Corporate Hashtag (e.g. #LexnisTeam)
+        final_tag = brand_tag or f"#{re.sub(r'[^a-zA-Z0-9]', '', brand_name)}Team"
+        draw_top.text((585, 61), final_tag, font=f_tag, fill=(255, 255, 255))
+
+        # 3. Render Footer caption if recolored
+        if recolor_gradient:
+            f_footer = None
+            for fpath in ['static/fonts/Poppins-Regular.ttf', 'C:/Windows/Fonts/segoeui.ttf', 'C:/Windows/Fonts/arial.ttf']:
+                if Path(fpath).exists():
+                    try:
+                        f_footer = ImageFont.truetype(fpath, 16)
+                        break
+                    except Exception:
+                        pass
+            if not f_footer:
+                f_footer = ImageFont.load_default()
+            draw_top.text((170, 835), "We are so excited to have you on our team!", font=f_footer, fill=(255, 255, 255))
+
+        composite = cv2.cvtColor(np.array(comp_pil), cv2.COLOR_RGB2BGR)
 
     # Convert back to RGB PIL Image
     result_rgb = cv2.cvtColor(composite, cv2.COLOR_BGR2RGB)

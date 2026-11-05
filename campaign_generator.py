@@ -198,6 +198,36 @@ Return strictly valid JSON with this exact schema:
 PROMPT_ENHANCER_PROMPT = PROMPT_ARCHITECT_SYSTEM_PROMPT
 
 
+BRAND_DNA_PROMPT = """You are an elite Brand Identity Director & Design Technologist.
+Given raw scraped metadata, CSS styles, colors, and content from a company website, extract and synthesize the definitive Brand DNA in strict JSON format:
+{
+  "company_name": "Official brand/company name",
+  "domain": "company domain",
+  "tagline": "Hero tagline or value proposition",
+  "industry": "Primary industry / sector",
+  "brand_tag": "#BrandNameTeam (official corporate community hashtag, alphanumeric only)",
+  "typography": {
+    "primary_font": "Primary font name (e.g. Poppins, Inter, Montserrat, Roboto, etc.)",
+    "secondary_font": "Secondary font name",
+    "heading_style": "Geometric Bold / Clean Modern / Editorial Serif",
+    "body_style": "High-Legibility Modern Sans"
+  },
+  "brand_colors": {
+    "primary": "#HEX (dominant primary brand color)",
+    "secondary": "#HEX (supporting corporate dark or deep tone)",
+    "accent": "#HEX (vibrant brand accent color)",
+    "text_primary": "#FFFFFF or #HEX",
+    "text_secondary": "#HEX (muted body tone)",
+    "gradient_start": "#HEX",
+    "gradient_end": "#HEX"
+  },
+  "visual_aesthetic": "Detailed summary of visual style, photography aesthetic, negative space, lighting, and art direction",
+  "guidelines_summary": "Actionable 2-3 sentence brand styling rules for posters, social ad artboards, and marketing campaigns."
+}
+Return ONLY valid RFC 8259 JSON. Never include markdown formatting or codeblocks.
+"""
+
+
 COMPETITIVE_INTELLIGENCE_PROMPT = """You are a Chief Marketing Officer and Competitive Strategy Director.
 Analyze the target company/brand, flagship product/service, and market landscape to identify their primary rivals and formulate an aggressive, high-status counter-positioning playbook that gives this brand an unfair market edge.
 
@@ -342,6 +372,8 @@ class CampaignAsset:
     has_uploaded_asset: bool = False
     guidelines: str = ""
     guidelines_source: str = "none"
+    company_url: str = ""
+    brand_dna: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -1631,6 +1663,156 @@ class LexnisCampaignStudio:
             f"- **Integrity Mandate**: Maintain absolute documentation and factual integrity across all brand touchpoints."
         )
 
+    def analyze_company_website(self, url: str, brand: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Extract structured Brand DNA from a company website URL:
+        - Corporate color palette (Primary, Secondary, Accent, Gradient start/end)
+        - Typography (Primary heading, body, font families)
+        - Official Brand Hashtag (e.g. #LexnisTeam)
+        - Aesthetic style & photography direction
+        - Brand Guidelines summary
+        Used to dynamically adapt visual templates (colors, fonts, wording) to the company's brand flow.
+        """
+        import re
+        from urllib.parse import urlparse
+
+        clean_url = (url or "").strip()
+        if not clean_url:
+            clean_url = "https://lexnis.com"
+        if not clean_url.startswith("http://") and not clean_url.startswith("https://"):
+            clean_url = "https://" + clean_url
+
+        parsed = urlparse(clean_url)
+        domain = parsed.netloc.lower().replace("www.", "")
+        target_brand = brand or ("Lexnis Technologies" if "lexnis" in domain else domain.split(".")[0].capitalize())
+
+        # 1. High-fidelity verified defaults for Lexnis Technologies (from 16-page brand book)
+        if "lexnis" in domain or (target_brand and "lexnis" in target_brand.lower()):
+            return {
+                "company_name": "Lexnis Technologies",
+                "url": clean_url,
+                "domain": domain or "lexnis.com",
+                "tagline": "Industrial AI & Enterprise Intelligence Infrastructure",
+                "industry": "Enterprise AI & Scalable Systems",
+                "brand_tag": "#LexnisTeam",
+                "typography": {
+                    "primary_font": "Poppins",
+                    "secondary_font": "Inter",
+                    "heading_style": "Geometric Bold Sans (Poppins Bold)",
+                    "body_style": "High-Legibility Modern Sans (Inter)"
+                },
+                "brand_colors": {
+                    "primary": "#08101E",
+                    "secondary": "#132E4F",
+                    "accent": "#00F0FF",
+                    "text_primary": "#FFFFFF",
+                    "text_secondary": "#94A3B8",
+                    "gradient_start": "#08101E",
+                    "gradient_end": "#132E4F"
+                },
+                "visual_aesthetic": "Futuristic enterprise minimalism with volumetric rim light, high-contrast dark navy tones, and crisp geometric sans-serif typography.",
+                "guidelines_summary": "Color harmony: Dark enterprise navy (#08101E -> #132E4F) with electric cyan accents (#00F0FF). Primary typography is Poppins Bold. Official brand hashtag is #LexnisTeam. Layouts must feature crisp white framing with high-contrast executive portraiture."
+            }
+
+        # 2. Live Web Scraping for custom domains
+        scraped_title = ""
+        scraped_desc = ""
+        scraped_h1 = ""
+        scraped_fonts = []
+        scraped_colors = []
+
+        if requests:
+            try:
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                }
+                resp = requests.get(clean_url, headers=headers, timeout=6)
+                if resp.status_code == 200:
+                    html_text = resp.text
+                    if BeautifulSoup:
+                        soup = BeautifulSoup(html_text, "html.parser")
+                        scraped_title = soup.title.string.strip() if soup.title and soup.title.string else ""
+                        meta_desc = soup.find("meta", attrs={"name": "description"}) or soup.find("meta", attrs={"property": "og:description"})
+                        if meta_desc and meta_desc.get("content"):
+                            scraped_desc = meta_desc["content"].strip()
+                        og_site = soup.find("meta", attrs={"property": "og:site_name"})
+                        if og_site and og_site.get("content"):
+                            target_brand = og_site["content"].strip()
+                        h1 = soup.find("h1")
+                        if h1:
+                            scraped_h1 = h1.get_text().strip()
+
+                        # Extract font links
+                        for link in soup.find_all("link", href=True):
+                            href = link["href"]
+                            if "fonts.googleapis.com" in href:
+                                m = re.search(r"family=([^&:]+)", href)
+                                if m:
+                                    scraped_fonts.append(m.group(1).replace("+", " "))
+
+                    # Regex extract CSS hex colors
+                    hex_matches = re.findall(r"#(?:[0-9a-fA-F]{3}){1,2}\b", html_text[:100000])
+                    scraped_colors = [c.upper() for c in set(hex_matches) if c.upper() not in {"#000000", "#FFFFFF", "#FFF", "#000", "#111111", "#F5F5F5", "#EEEEEE"}][:8]
+            except Exception:
+                pass
+
+        # 3. Clean Brand Tag
+        clean_tag_name = re.sub(r'[^a-zA-Z0-9]', '', target_brand)
+        default_tag = f"#{clean_tag_name}Team" if clean_tag_name else "#BrandTeam"
+
+        # 4. Fallback schema for custom domain
+        primary_col = scraped_colors[0] if scraped_colors else "#08101E"
+        secondary_col = scraped_colors[1] if len(scraped_colors) > 1 else "#132E4F"
+        accent_col = scraped_colors[2] if len(scraped_colors) > 2 else "#00F0FF"
+
+        fallback_dna = {
+            "company_name": target_brand,
+            "url": clean_url,
+            "domain": domain,
+            "tagline": scraped_desc or scraped_h1 or f"Next-generation solutions by {target_brand}",
+            "industry": "Technology & Innovation",
+            "brand_tag": default_tag,
+            "typography": {
+                "primary_font": scraped_fonts[0] if scraped_fonts else "Poppins",
+                "secondary_font": "Inter",
+                "heading_style": "Geometric Bold Sans",
+                "body_style": "Modern Clean Sans"
+            },
+            "brand_colors": {
+                "primary": primary_col,
+                "secondary": secondary_col,
+                "accent": accent_col,
+                "text_primary": "#FFFFFF",
+                "text_secondary": "#94A3B8",
+                "gradient_start": primary_col,
+                "gradient_end": secondary_col
+            },
+            "visual_aesthetic": f"Clean minimalist corporate aesthetic with balanced negative space, modern typography, and branded tones matching {clean_url}.",
+            "guidelines_summary": f"Brand palette: {primary_col} gradient with {accent_col} accents. Typography: {scraped_fonts[0] if scraped_fonts else 'Poppins'}. Official community hashtag: {default_tag}."
+        }
+
+        # 5. Optional LLM Synthesis if API available
+        try:
+            user_msg = (
+                f"WEBSITE URL: {clean_url}\n"
+                f"DOMAIN: {domain}\n"
+                f"BRAND HINT: {target_brand}\n"
+                f"SCRAPED TITLE: {scraped_title}\n"
+                f"SCRAPED DESCRIPTION: {scraped_desc}\n"
+                f"SCRAPED H1: {scraped_h1}\n"
+                f"SCRAPED FONTS: {', '.join(scraped_fonts) if scraped_fonts else 'None detected'}\n"
+                f"SCRAPED CSS COLORS: {', '.join(scraped_colors) if scraped_colors else 'None detected'}\n"
+            )
+            parsed_dna, _ = self._chat_json(
+                BRAND_DNA_PROMPT,
+                user_msg,
+                temperature=0.3,
+                fallback_schema=fallback_dna
+            )
+            return parsed_dna
+        except Exception:
+            return fallback_dna
+
     def synthesize_brief_and_strategy(
         self,
         prompt: str,
@@ -2378,6 +2560,8 @@ class LexnisCampaignStudio:
         uploaded_image_path: Optional[str] = None,
         uploaded_image_paths: Optional[List[str]] = None,
         use_uploaded_image: Optional[bool] = None,
+        company_url: Optional[str] = None,
+        recolor_to_brand: bool = True,
     ) -> CampaignAsset:
         """
         Run the full agency pipeline with Dual-Agent Collaborative refinement:
@@ -2388,7 +2572,23 @@ class LexnisCampaignStudio:
         theme = theme or "Cinematic lifestyle photography"
         brand = brand or "Lexnis Technologies"
 
-        # 0. Intelligent Brand Detection & Executive Prompt Enhancement
+        # 0. Live Brand DNA extraction from company website
+        brand_dna = None
+        if company_url:
+            step(f"Extracting live Brand DNA from {company_url}...")
+            try:
+                brand_dna = self.analyze_company_website(company_url, brand=brand)
+                if brand_dna and isinstance(brand_dna, dict):
+                    detected_company = brand_dna.get("company_name")
+                    if detected_company and (not brand or brand == "Lexnis Technologies" and "lexnis" not in detected_company.lower()):
+                        brand = detected_company
+                    dna_summary = brand_dna.get("guidelines_summary")
+                    if dna_summary and dna_summary not in guidelines:
+                        guidelines = f"{guidelines}\n\nWEBSITE BRAND DNA ({company_url}):\n{dna_summary}".strip()
+            except Exception:
+                brand_dna = None
+
+        # Intelligent Brand Detection & Executive Prompt Enhancement
         detected_brand, detected_prod = detect_brand_and_product(prompt, brand)
         if detected_brand:
             brand = detected_brand
@@ -2529,9 +2729,26 @@ class LexnisCampaignStudio:
 
         person_name, person_title = detect_featured_person(effective_prompt)
 
+        # Brand styling & hashtag extraction
+        brand_colors = None
+        brand_tag = None
+        if brand_dna:
+            brand_colors = brand_dna.get("brand_colors")
+            brand_tag = brand_dna.get("brand_tag")
+        if not brand_colors and "lexnis" in brand.lower():
+            brand_colors = {
+                "primary": "#08101E",
+                "secondary": "#132E4F",
+                "accent": "#00F0FF",
+                "gradient_start": "#08101E",
+                "gradient_end": "#132E4F"
+            }
+        if not brand_tag:
+            brand_tag = f"#{re.sub(r'[^a-zA-Z0-9]', '', brand)}Team"
+
         if t_file and s_file and (use_uploaded_image is not False):
             step("Executing autonomous 2.5D pop-out template subject replacement...")
-            swap_key = hashlib.sha1(f"swap|{t_file.name}|{s_file.name}|{person_name}|{person_title}|{brand}".encode()).hexdigest()[:16]
+            swap_key = hashlib.sha1(f"swap|{t_file.name}|{s_file.name}|{person_name}|{person_title}|{brand}|{brand_tag}|{company_url}|recolor_{recolor_to_brand}".encode()).hexdigest()[:16]
             clean_path = RENDERS_DIR / f"{swap_key}_clean.jpg"
             post_path = RENDERS_DIR / f"{swap_key}_post.jpg"
             if not clean_path.exists():
@@ -2540,7 +2757,10 @@ class LexnisCampaignStudio:
                     s_file,
                     person_name=person_name,
                     person_title=person_title,
-                    brand_name=brand
+                    brand_name=brand,
+                    brand_tag=brand_tag,
+                    brand_colors=brand_colors,
+                    recolor_gradient=recolor_to_brand
                 )
                 swap_img.save(clean_path, "JPEG", quality=95, optimize=True)
                 swap_img.save(post_path, "JPEG", quality=95, optimize=True)
@@ -2724,6 +2944,8 @@ class LexnisCampaignStudio:
             arabic=arabic_pack,
             guidelines=guidelines,
             guidelines_source=guidelines_source,
+            company_url=company_url or "",
+            brand_dna=brand_dna or {},
         )
 
     def template_swap_composite(

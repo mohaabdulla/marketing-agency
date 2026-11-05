@@ -510,13 +510,155 @@
       </section>
 
       <!-- ========================================== -->
-      <!-- STAGE 3: CAMPAIGN PROMPT & CONCEPT STUDIO -->
+      <!-- STAGE 3: COMPANY WEBSITE & BRAND FLOW INTELLIGENCE -->
       <!-- ========================================== -->
       <section class="bg-obsidian-900/80 backdrop-blur-md border border-obsidian-800 rounded-2xl p-6 shadow-xl space-y-5">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div class="flex items-center space-x-2">
-              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gradient-to-r from-cyan-950 to-violet-950 text-cyan-300 border border-cyan-500/40 uppercase">STAGE 3</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gradient-to-r from-emerald-950 to-cyan-950 text-emerald-300 border border-emerald-500/40 uppercase">STAGE 3</span>
+              <h2 class="text-lg font-tech font-bold text-white flex items-center space-x-2">
+                <i data-lucide="globe" class="w-5 h-5 text-emerald-400"></i>
+                <span>COMPANY WEBSITE &amp; BRAND FLOW INTELLIGENCE</span>
+              </h2>
+            </div>
+            <p class="text-xs text-slate-400 font-mono mt-1">Research corporate website to extract brand palette, typography, official community hashtag, and styling flow</p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <span class="text-[11px] font-mono text-slate-400">Sample Template = Framing &amp; Pop-Out • Website + Guidelines = Colors, Fonts &amp; Words</span>
+          </div>
+        </div>
+
+        <div class="p-4 rounded-xl bg-obsidian-950/70 border border-obsidian-800 space-y-4">
+          <!-- URL Input Bar -->
+          <div class="space-y-2">
+            <label class="block text-xs font-mono font-bold text-slate-300 uppercase tracking-wider">
+              Company Website URL (Optional / Recommended)
+            </label>
+            <div class="flex flex-col sm:flex-row gap-2">
+              <div class="relative flex-1">
+                <i data-lucide="link" class="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                <input 
+                  type="url" 
+                  id="company-url-input" 
+                  placeholder="https://lexnis.com (or enter your company website)" 
+                  value="https://lexnis.com"
+                  class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-obsidian-900 border border-obsidian-700 text-white placeholder-slate-500 text-sm font-mono focus:border-cyan-500 focus:outline-none transition-all shadow-inner"
+                >
+              </div>
+              <button 
+                type="button" 
+                id="btn-analyze-website"
+                class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-tech font-bold text-xs tracking-wider uppercase transition-all flex items-center justify-center space-x-2 shadow-lg hover:shadow-cyan-500/20 active:scale-95 cursor-pointer shrink-0"
+              >
+                <i data-lucide="sparkles" class="w-4 h-4"></i>
+                <span id="btn-analyze-website-text">Research &amp; Extract Brand DNA</span>
+                <svg id="website-spinner" class="animate-spin -ml-1 mr-1 h-3.5 w-3.5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              </button>
+            </div>
+            
+            <!-- Preset Quick Chips -->
+            <div class="flex items-center gap-2 pt-1 text-[11px] font-mono text-slate-400">
+              <span>Quick Presets:</span>
+              <button type="button" class="preset-url-chip px-2 py-0.5 rounded bg-obsidian-800 hover:bg-obsidian-700 text-cyan-300 border border-cyan-500/30 cursor-pointer" data-url="https://lexnis.com">
+                lexnis.com (Verified Book)
+              </button>
+              <button type="button" class="preset-url-chip px-2 py-0.5 rounded bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 border border-obsidian-700 hover:border-slate-500 cursor-pointer" data-url="https://stripe.com">
+                stripe.com
+              </button>
+            </div>
+          </div>
+
+          <!-- Live Brand DNA Card -->
+          <div id="brand-dna-container" class="mt-3 p-4 rounded-xl bg-obsidian-900 border border-emerald-500/30 space-y-3">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-obsidian-800 pb-3">
+              <div class="flex items-center space-x-2">
+                <span id="dna-brand-badge" class="px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/40">
+                  LEXNIS TECHNOLOGIES
+                </span>
+                <span id="dna-tag-badge" class="px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                  <i data-lucide="hash" class="w-3 h-3"></i> <span id="dna-tag-text">#LexnisTeam</span>
+                </span>
+                <span class="text-[10px] font-mono text-slate-400" id="dna-domain-text">lexnis.com</span>
+              </div>
+              <div class="flex items-center space-x-1.5 text-[11px] font-mono text-emerald-400">
+                <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+                <span>Brand Flow Active</span>
+              </div>
+            </div>
+
+            <!-- Brand DNA Tokens Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+              <!-- Colors -->
+              <div class="p-3 rounded-lg bg-obsidian-950 border border-obsidian-800 space-y-2">
+                <div class="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <i data-lucide="palette" class="w-3 h-3 text-cyan-400"></i> Corporate Color Flow
+                </div>
+                <div class="flex items-center gap-2" id="dna-colors-row">
+                  <div class="flex items-center gap-1">
+                    <span class="w-5 h-5 rounded border border-white/20 shadow" id="dna-swatch-pri" style="background-color: #08101E;" title="Primary Dark: #08101E"></span>
+                    <span class="text-[10px] font-mono text-slate-300" id="dna-hex-pri">#08101E</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span class="w-5 h-5 rounded border border-white/20 shadow" id="dna-swatch-sec" style="background-color: #132E4F;" title="Secondary Navy: #132E4F"></span>
+                    <span class="text-[10px] font-mono text-slate-300" id="dna-hex-sec">#132E4F</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span class="w-5 h-5 rounded border border-white/20 shadow" id="dna-swatch-acc" style="background-color: #00F0FF;" title="Accent Cyan: #00F0FF"></span>
+                    <span class="text-[10px] font-mono text-slate-300" id="dna-hex-acc">#00F0FF</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Typography -->
+              <div class="p-3 rounded-lg bg-obsidian-950 border border-obsidian-800 space-y-2">
+                <div class="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <i data-lucide="type" class="w-3 h-3 text-violet-400"></i> Corporate Typography
+                </div>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span id="dna-font-pri" class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-violet-950 text-violet-300 border border-violet-500/40">
+                    Poppins Bold
+                  </span>
+                  <span id="dna-font-sec" class="px-2 py-0.5 rounded text-[11px] font-mono bg-obsidian-800 text-slate-300 border border-obsidian-700">
+                    Inter Regular
+                  </span>
+                </div>
+              </div>
+
+              <!-- Aesthetic & Tone -->
+              <div class="p-3 rounded-lg bg-obsidian-950 border border-obsidian-800 space-y-1">
+                <div class="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <i data-lucide="eye" class="w-3 h-3 text-amber-400"></i> Aesthetic Flow
+                </div>
+                <p id="dna-aesthetic-text" class="text-[11px] font-mono text-slate-300 line-clamp-2">
+                  Futuristic enterprise minimalism with sharp rim light, dark navy gradient, and crisp white framing.
+                </p>
+              </div>
+            </div>
+
+            <!-- Directive Explanatory Note -->
+            <div class="text-[11px] font-mono text-slate-400 flex items-start gap-1.5 pt-1">
+              <i data-lucide="info" class="w-3.5 h-3.5 text-cyan-400 shrink-0 mt-0.5"></i>
+              <span>
+                <strong>How it works:</strong> The sample uploaded in Stage 2 dictates the 2.5D pop-out framing. The background colors, nameplate font, and corporate tags (e.g. <code>#LexnisTeam</code>) automatically flow from this Brand DNA.
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- STAGE 4: CAMPAIGN PROMPT & CONCEPT STUDIO -->
+      <!-- ========================================== -->
+      <section class="bg-obsidian-900/80 backdrop-blur-md border border-obsidian-800 rounded-2xl p-6 shadow-xl space-y-5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gradient-to-r from-cyan-950 to-violet-950 text-cyan-300 border border-cyan-500/40 uppercase">STAGE 4</span>
               <h2 class="text-lg font-tech font-bold text-white flex items-center space-x-2">
                 <i data-lucide="sparkles" class="w-5 h-5 text-cyan-accent"></i>
                 <span>CAMPAIGN PROMPT &amp; CONCEPT STUDIO</span>
@@ -2670,9 +2812,15 @@
           const pName = (personNameInput && personNameInput.value.trim()) || '';
           const pTitle = (personTitleInput && personTitleInput.value.trim()) || '';
           const bName = (brandInput && brandInput.value.trim()) || 'Lexnis Technologies';
+          const cUrl = (companyUrlInput && companyUrlInput.value.trim()) || currentCompanyUrl || '';
           if (pName) formData.append('person_name', pName);
           if (pTitle) formData.append('person_title', pTitle);
           if (bName) formData.append('brand_name', bName);
+          if (cUrl) formData.append('company_url', cUrl);
+          if (currentBrandDna && currentBrandDna.brand_tag) {
+            formData.append('brand_tag', currentBrandDna.brand_tag);
+          }
+          formData.append('recolor_gradient', 'true');
 
           const resp = await fetch(`${backendApiBase}/api/template-swap`, {
             method: 'POST',
@@ -2709,6 +2857,126 @@
         if (quickSwapResultBox) quickSwapResultBox.classList.add('hidden');
       });
     }
+
+    // ==========================================
+    // STAGE 3: COMPANY WEBSITE & BRAND FLOW JS
+    // ==========================================
+    const companyUrlInput = document.getElementById('company-url-input');
+    const btnAnalyzeWebsite = document.getElementById('btn-analyze-website');
+    const btnAnalyzeWebsiteText = document.getElementById('btn-analyze-website-text');
+    const websiteSpinner = document.getElementById('website-spinner');
+    const dnaBrandBadge = document.getElementById('dna-brand-badge');
+    const dnaTagBadge = document.getElementById('dna-tag-badge');
+    const dnaTagText = document.getElementById('dna-tag-text');
+    const dnaDomainText = document.getElementById('dna-domain-text');
+    const dnaSwatchPri = document.getElementById('dna-swatch-pri');
+    const dnaHexPri = document.getElementById('dna-hex-pri');
+    const dnaSwatchSec = document.getElementById('dna-swatch-sec');
+    const dnaHexSec = document.getElementById('dna-hex-sec');
+    const dnaSwatchAcc = document.getElementById('dna-swatch-acc');
+    const dnaHexAcc = document.getElementById('dna-hex-acc');
+    const dnaFontPri = document.getElementById('dna-font-pri');
+    const dnaFontSec = document.getElementById('dna-font-sec');
+    const dnaAestheticText = document.getElementById('dna-aesthetic-text');
+
+    let currentCompanyUrl = 'https://lexnis.com';
+    let currentBrandDna = null;
+
+    function applyBrandDnaToUI(dna) {
+      if (!dna) return;
+      currentBrandDna = dna;
+      if (dna.company_name && dnaBrandBadge) {
+        dnaBrandBadge.textContent = dna.company_name.toUpperCase();
+        if (brandInput && (!brandInput.value || brandInput.value === 'Lexnis Technologies')) {
+          brandInput.value = dna.company_name;
+        }
+      }
+      if (dna.brand_tag && dnaTagText) {
+        dnaTagText.textContent = dna.brand_tag;
+      }
+      if (dna.domain && dnaDomainText) {
+        dnaDomainText.textContent = dna.domain;
+      }
+      const colors = dna.brand_colors || {};
+      if (colors.primary && dnaSwatchPri && dnaHexPri) {
+        dnaSwatchPri.style.backgroundColor = colors.primary;
+        dnaHexPri.textContent = colors.primary;
+      }
+      if (colors.secondary && dnaSwatchSec && dnaHexSec) {
+        dnaSwatchSec.style.backgroundColor = colors.secondary;
+        dnaHexSec.textContent = colors.secondary;
+      }
+      if (colors.accent && dnaSwatchAcc && dnaHexAcc) {
+        dnaSwatchAcc.style.backgroundColor = colors.accent;
+        dnaHexAcc.textContent = colors.accent;
+      }
+      const typo = dna.typography || {};
+      if (typo.primary_font && dnaFontPri) {
+        dnaFontPri.textContent = typo.primary_font + ' Bold';
+      }
+      if (typo.secondary_font && dnaFontSec) {
+        dnaFontSec.textContent = typo.secondary_font + ' Regular';
+      }
+      if (dna.visual_aesthetic && dnaAestheticText) {
+        dnaAestheticText.textContent = dna.visual_aesthetic;
+      }
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    async function handleAnalyzeWebsite(targetUrl = null) {
+      const url = targetUrl || (companyUrlInput ? companyUrlInput.value.trim() : '');
+      if (!url) {
+        showToast('Please enter a company website URL', false);
+        return;
+      }
+      currentCompanyUrl = url;
+      if (companyUrlInput) companyUrlInput.value = url;
+
+      if (btnAnalyzeWebsite) btnAnalyzeWebsite.disabled = true;
+      if (btnAnalyzeWebsiteText) btnAnalyzeWebsiteText.textContent = 'Extracting Brand DNA...';
+      if (websiteSpinner) websiteSpinner.classList.remove('hidden');
+
+      try {
+        const resp = await fetch(`${backendApiBase}/api/analyze-website`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: url,
+            brand: (brandInput && brandInput.value.trim()) || 'Lexnis Technologies'
+          })
+        });
+
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${resp.status}`);
+        }
+
+        const dna = await resp.json();
+        applyBrandDnaToUI(dna);
+        showToast(`✓ Brand DNA extracted: ${dna.company_name} (${dna.brand_tag})`, true);
+      } catch (err) {
+        showToast(`Website analysis warning: ${err.message}. Using corporate fallback.`, false);
+      } finally {
+        if (btnAnalyzeWebsite) btnAnalyzeWebsite.disabled = false;
+        if (btnAnalyzeWebsiteText) btnAnalyzeWebsiteText.textContent = 'Research & Extract Brand DNA';
+        if (websiteSpinner) websiteSpinner.classList.add('hidden');
+        if (window.lucide) window.lucide.createIcons();
+      }
+    }
+
+    if (btnAnalyzeWebsite) {
+      btnAnalyzeWebsite.addEventListener('click', () => handleAnalyzeWebsite());
+    }
+
+    document.querySelectorAll('.preset-url-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const url = chip.getAttribute('data-url');
+        if (url) {
+          if (companyUrlInput) companyUrlInput.value = url;
+          handleAnalyzeWebsite(url);
+        }
+      });
+    });
 
     function renderVisionTypographer(analysis, enHeadline, enTagline, arHeadline, arTagline) {
       if (!visionTypographerBox) return;
@@ -3777,6 +4045,8 @@
               output_format: campaignFormat,
               enhance_image: enhanceImageCheckbox.checked,
               guidelines: currentGuidelines || '',
+              company_url: (companyUrlInput && companyUrlInput.value.trim()) || currentCompanyUrl || '',
+              recolor_to_brand: true,
               uploaded_image_url: finalUploadedUrl,
               uploaded_image_urls: finalUploadedUrls,
               use_uploaded_image: useAssets && (finalUploadedUrls.length > 0)
@@ -3789,6 +4059,9 @@
           }
 
           const pyData = await pyResponse.json();
+          if (pyData.brand_dna && Object.keys(pyData.brand_dna).length > 0) {
+            applyBrandDnaToUI(pyData.brand_dna);
+          }
           currentWarnings = pyData.warnings || [];
           currentImageStatus = pyData.image_status;
           document.getElementById('campaign-warnings').textContent = currentWarnings.join(' ');
