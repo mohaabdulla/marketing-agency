@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any, Literal
 import os
 import io
+import re
+import hashlib
 import base64
 import concurrent.futures
 from urllib.parse import urlsplit
@@ -40,8 +42,12 @@ BASE_DIR = Path(__file__).resolve().parent
 RENDERS_DIR.mkdir(parents=True, exist_ok=True)
 UPLOADS_DIR = BASE_DIR / "output" / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+TEST_ASSETS_DIR = BASE_DIR / "test_assets"
+TEST_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+
 app.mount("/renders", StaticFiles(directory=RENDERS_DIR), name="renders")
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
+app.mount("/test_assets", StaticFiles(directory=TEST_ASSETS_DIR), name="test_assets")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 
@@ -51,11 +57,13 @@ def render_url(path: str) -> str:
     p = Path(path)
     if "uploads" in p.parts:
         return f"/uploads/{p.name}"
+    if "test_assets" in p.parts:
+        return f"/test_assets/{p.name}"
     return f"/renders/{p.name}"
 
 
 def render_path(url: str) -> str:
-    """Map a /renders/... or /uploads/... URL from the UI back to the file on disk."""
+    """Map a /renders/..., /uploads/..., or /test_assets/... URL from the UI back to the file on disk."""
     path = urlsplit(url).path if url else ""
     if path.startswith("/renders/"):
         p = RENDERS_DIR / Path(path).name
@@ -65,6 +73,12 @@ def render_path(url: str) -> str:
         p = UPLOADS_DIR / Path(path).name
         if p.exists():
             return str(p)
+    elif path.startswith("/test_assets/"):
+        p = TEST_ASSETS_DIR / Path(path).name
+        if p.exists():
+            return str(p)
+    elif url and Path(url).exists():
+        return str(Path(url))
     return ""
 
 
@@ -82,6 +96,12 @@ class GenerateRequest(BaseModel):
     uploaded_image_url: Optional[str] = Field(None, description="URL of uploaded image asset to composite as ad visual")
     uploaded_image_urls: Optional[List[str]] = Field(default_factory=list, description="URLs of multiple uploaded images")
     use_uploaded_image: Optional[bool] = Field(None, description="Whether to feature the uploaded image as the ad visual")
+
+
+class GenerateGuidelinesRequest(BaseModel):
+    brand: Optional[str] = Field("Lexnis Technologies", description="Brand name to research")
+    prompt: Optional[str] = Field("", description="Optional campaign or product concept")
+    use_search: Optional[bool] = Field(True, description="Enable real-time market research via Google/web")
 
 
 class EnhancePromptRequest(BaseModel):
@@ -227,8 +247,10 @@ def generate_campaign_endpoint(req: GenerateRequest):
             if p and Path(p).exists() and str(p) not in all_up_paths:
                 all_up_paths.append(str(p))
 
-        # Check UPLOADS_DIR if less than 2 candidates
-        if len(all_up_paths) < 2 and UPLOADS_DIR.exists():
+        # Only supplement from UPLOADS_DIR if user requested using uploaded assets or prompt specifies swap
+        prompt_lower = (req.prompt or "").lower()
+        needs_swap = any(k in prompt_lower for k in ["girl", "blue image", "white background", "template", "portrait", "sekawan", "swap", "replace", "face", "uploaded"])
+        if (req.use_uploaded_image or needs_swap) and len(all_up_paths) < 2 and UPLOADS_DIR.exists():
             recent_uploads = sorted(UPLOADS_DIR.glob("*.*"), key=lambda f: f.stat().st_mtime, reverse=True)
             for f in recent_uploads:
                 if f.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"} and str(f) not in all_up_paths:
@@ -262,9 +284,131 @@ def generate_campaign_endpoint(req: GenerateRequest):
         data["ai_image_url"] = render_url(asset.ai_image_url)
         data["ai_arabic_url"] = render_url(asset.ai_arabic_url)
         data["has_uploaded_asset"] = bool(asset.uploaded_image_url)
+        data["guidelines"] = asset.guidelines
+        data["guidelines_source"] = getattr(asset, "guidelines_source", "none")
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/generate-guidelines")
+def generate_guidelines_endpoint(req: GenerateGuidelinesRequest):
+    """Synthesize market-researched brand guidelines & competitive directives on demand."""
+    try:
+        studio = LexnisCampaignStudio()
+        brand = req.brand or "Lexnis Technologies"
+        guidelines = studio.generate_market_research_guidelines(
+            brand=brand,
+            prompt=req.prompt or "",
+            use_search=req.use_search if req.use_search is not None else True
+        )
+        words = len(guidelines.split()) if guidelines else 0
+        return {
+            "status": "success",
+            "brand": brand,
+            "guidelines": guidelines,
+            "word_count": words,
+            "char_count": len(guidelines),
+            "source": "market_research",
+            "preview": guidelines[:350] + ("..." if len(guidelines) > 350 else "")
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/upload-visual")
+async def upload_visual_endpoint(
+    file: UploadFile = File(...),
+    slot: Optional[str] = Form("subject")
+):
+    """
+    Dedicated endpoint for visual assets:
+    - Target Subject / Product portrait to feature
+    - Template graphic / Reference layout to populate
+    Saves the file to disk, calculates dimensions, and generates an optimized thumbnail.
+    """
+    try:
+        content_bytes = await file.read()
+        if not content_bytes:
+            raise HTTPException(status_code=400, detail="Empty visual file uploaded.")
+
+        fname = file.filename or "visual_asset.jpg"
+        ext = Path(fname).suffix.lower()
+        if ext not in {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}:
+            ext = ".jpg"
+
+        f_hash = hashlib.sha1(content_bytes).hexdigest()[:12]
+        clean_stem = re.sub(r'[^a-zA-Z0-9_-]', '_', Path(fname).stem)[:24]
+        saved_name = f"{slot}_{clean_stem}_{f_hash}{ext}"
+        disk_path = UPLOADS_DIR / saved_name
+        disk_path.write_bytes(content_bytes)
+
+        width, height = 0, 0
+        thumb_b64 = ""
+        try:
+            from PIL import Image
+            im = Image.open(io.BytesIO(content_bytes)).convert("RGB")
+            width, height = im.size
+            im.thumbnail((400, 400))
+            buf = io.BytesIO()
+            im.save(buf, format="JPEG", quality=85)
+            thumb_b64 = "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("utf-8")
+        except Exception:
+            pass
+
+        return {
+            "status": "success",
+            "filename": fname,
+            "file_url": f"/uploads/{saved_name}",
+            "file_path": str(disk_path),
+            "thumbnail": thumb_b64,
+            "width": width,
+            "height": height,
+            "slot": slot
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/sample-visuals")
+def sample_visuals_endpoint():
+    """List pre-packaged high-fidelity sample visual assets & templates for 1-click loading."""
+    samples = [
+        {
+            "id": "sekawan-popout",
+            "title": "Sekawan Media 2.5D Pop-Out",
+            "subtitle": "Blue Polaroid Template + Studio Portrait",
+            "description": "Composites raw studio portrait into Sekawan Media template in monochrome B&W with head popping out over WELCOME typography.",
+            "template_url": "/test_assets/template_reference.jpg",
+            "subject_url": "/test_assets/raw_subject.jpg",
+            "preview_url": "/test_assets/target_ground_truth.jpg",
+            "mode": "template_swap",
+            "suggested_prompt": "Template swap: Replace original subject with new subject in monochrome B&W with 2.5D head pop-out over WELCOME typography"
+        },
+        {
+            "id": "raw-portrait-only",
+            "title": "Studio Portrait (Woman in Abaya)",
+            "subtitle": "Raw High-Res Subject Photo",
+            "description": "Clean studio portrait on plain background, ready for subject feature or template compositing.",
+            "template_url": "",
+            "subject_url": "/test_assets/raw_subject.jpg",
+            "preview_url": "/test_assets/raw_subject.jpg",
+            "mode": "feature_subject",
+            "suggested_prompt": "A high-end commercial campaign portrait featuring a professional leader with studio lighting and ample negative space"
+        },
+        {
+            "id": "template-only",
+            "title": "Sekawan Media Template Graphic",
+            "subtitle": "Blue Gradient Polaroid Frame",
+            "description": "Official Sekawan Media graphic template with logo, header tags, WELCOME title, and nameplate box.",
+            "template_url": "/test_assets/template_reference.jpg",
+            "subject_url": "",
+            "preview_url": "/test_assets/template_reference.jpg",
+            "mode": "template_only",
+            "suggested_prompt": "Official Sekawan Media team announcement graphic with clean typography and brand gradient"
+        }
+    ]
+    return {"status": "success", "samples": samples}
 
 
 @app.post("/api/upload-guidelines")
@@ -414,12 +558,16 @@ async def template_swap_endpoint(
     subject_file: Optional[UploadFile] = File(None),
     template_url: Optional[str] = Form(None),
     subject_url: Optional[str] = Form(None),
+    person_name: Optional[str] = Form(None),
+    person_title: Optional[str] = Form(None),
+    brand_name: Optional[str] = Form(None),
 ):
     """
     Autonomous Template Subject-Replacement & 2.5D Pop-Out Compositing Endpoint.
     Accepts template and raw subject via file uploads or URLs.
     Executes sub-pixel hair matting, studio background decontamination,
     calibrated monochrome grading, and 2.5D pop-out layering.
+    Dynamically personalizes the nameplate (person_name, person_title) and brand header.
     """
     import hashlib
     import time
@@ -454,7 +602,14 @@ async def template_swap_endpoint(
         if not t_bytes or not s_bytes:
             raise HTTPException(status_code=400, detail="Both template and subject images are required.")
 
-        result_pil = composite_template_swap(t_bytes, s_bytes, target_size=(808, 1024))
+        result_pil = composite_template_swap(
+            t_bytes,
+            s_bytes,
+            target_size=(808, 1024),
+            person_name=person_name,
+            person_title=person_title,
+            brand_name=brand_name
+        )
         token = hashlib.sha1(f"swap_{time.time()}".encode()).hexdigest()[:12]
         out_filename = f"template_swap_{token}.jpg"
         out_path = RENDERS_DIR / out_filename
@@ -464,7 +619,9 @@ async def template_swap_endpoint(
             "status": "ready",
             "image_url": render_url(str(out_path)),
             "message": "Template swap with 2.5D pop-out layering successfully generated",
-            "dimensions": {"width": 808, "height": 1024}
+            "dimensions": {"width": 808, "height": 1024},
+            "person_name": person_name,
+            "person_title": person_title
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

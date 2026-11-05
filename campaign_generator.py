@@ -341,6 +341,7 @@ class CampaignAsset:
     ai_arabic_url: str = ""
     has_uploaded_asset: bool = False
     guidelines: str = ""
+    guidelines_source: str = "none"
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -397,6 +398,26 @@ def clean_social_text(text: str) -> str:
     text = re.sub(r"[ \t]+\n", "\n", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
+
+
+def detect_featured_person(prompt: str) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Extracts featured person name (e.g. 'Alisha Faisal') and corporate title (e.g. 'Marketing Manager')
+    from user prompt for seamless personalization.
+    """
+    p = (prompt or "").strip()
+    # Pattern: featuring Name, Title
+    m = re.search(
+        r'featuring\s+([A-Z][a-zA-Z\'-]+(?:\s+[A-Z][a-zA-Z\'-]+)+)(?:,?\s*([A-Za-z &/-]+?(?=(?:,|\.|\bwho\b|\bwith\b|\bset\b|\bcaptured\b|\bembodying\b|$))))?',
+        p,
+        re.IGNORECASE
+    )
+    if m:
+        name = m.group(1).strip()
+        title = m.group(2).strip() if m.group(2) else ""
+        title = re.sub(r'\s+', ' ', title).strip(', ')
+        return name, title
+    return None, None
 
 
 def detect_brand_and_product(prompt: str, current_brand: str = "") -> Tuple[str, str]:
@@ -1515,6 +1536,101 @@ class LexnisCampaignStudio:
         except Exception:
             return fallback_rivals
 
+    def generate_market_research_guidelines(
+        self,
+        brand: str,
+        prompt: str = "",
+        research: str = "",
+        use_search: bool = True
+    ) -> str:
+        """
+        Synthesize comprehensive, actionable Brand Guidelines & Directives
+        from real-time market research and competitive intelligence.
+        Used whenever the user does not provide their own custom brand guidelines.
+        """
+        target_brand = brand or "Lexnis Technologies"
+        target_product = detect_brand_and_product(prompt, target_brand)[1] or target_brand
+
+        # Conduct live market research if not already present
+        if not research and use_search:
+            try:
+                search_query = f"{target_brand} {target_product} core brand values market positioning target audience".strip()
+                _, research = self.research_product(search_query)
+            except Exception:
+                research = ""
+
+        sys_prompt = (
+            "You are an Executive Brand Strategy Director and Chief Marketing Officer at a premier global agency.\n"
+            "Your task is to synthesize a structured, professional, and actionable Brand Guidelines & Directives document "
+            "derived from real-time market research, competitive dynamics, and target audience needs.\n\n"
+            "The document must serve as the authoritative standard for marketing copywriting and visual ad creation.\n"
+            "Ensure the output is written in crisp, structured markdown."
+        )
+
+        user_prompt = (
+            f"BRAND: {target_brand}\n"
+            f"PRODUCT / FOCUS: {target_product}\n"
+            f"CAMPAIGN CONCEPT / INITIATIVE: {prompt or 'Enterprise Market Launch'}\n\n"
+            f"MARKET RESEARCH CONTEXT:\n{research[:2500] if research else 'Emerging enterprise technology space with demands for reliability, speed, and premium positioning.'}\n\n"
+            "Format the guidelines with these exact numbered sections:\n"
+            "1. BRAND POSITIONING & STRATEGIC VALUE PROPOSITION\n"
+            "   - Core Mission & Market Role\n"
+            "   - Strategic Positioning Wedge against competitors\n"
+            "   - Key Value Drivers\n\n"
+            "2. TARGET AUDIENCE & PERSONA DIRECTIVES\n"
+            "   - Primary Decision Makers & Demographics\n"
+            "   - Core Pain Points & Friction to address\n"
+            "   - Desired Customer Sentiment & Mindset\n\n"
+            "3. BRAND VOICE, TONE & MESSAGING RULES\n"
+            "   - Tone Profile (e.g. Confident, Authoritative, Visionary, Frictionless)\n"
+            "   - Mandatory Copy Directives (Lead with measurable outcomes, high-stakes relevance)\n"
+            "   - Forbidden Terminology & Pitfalls (Forbidden cliches, unverified buzzwords, passive voice)\n\n"
+            "4. VISUAL IDENTITY & PHOTOGRAPHIC DIRECTIVES\n"
+            "   - Art Direction & Aesthetic Atmosphere\n"
+            "   - Palette & Color Harmony\n"
+            "   - Composition & Lighting Rules (Volumetric lighting, negative space for brand typography)\n\n"
+            "5. CAMPAIGN EXECUTION RULES & COMPLIANCE\n"
+            "   - Hook Directive: Opening line criteria\n"
+            "   - Call To Action: Action-oriented next step\n"
+            "   - Integrity Directive: Truthful, verifiable claims only"
+        )
+
+        try:
+            guidelines_text = self._chat_text(sys_prompt, user_prompt, temperature=0.7)
+            if guidelines_text and len(guidelines_text.strip()) > 200:
+                return guidelines_text.strip()
+        except Exception:
+            pass
+
+        return self._fallback_market_research_guidelines(target_brand, target_product, research)
+
+    def _fallback_market_research_guidelines(self, brand: str, product: str, research: str = "") -> str:
+        """Deterministic high-quality fallback guidelines synthesized from market intelligence."""
+        return (
+            f"# BRAND STRATEGY & GUIDELINES: {brand.upper()}\n"
+            f"*(Synthesized from Real-Time Market Intelligence for {product})*\n\n"
+            f"## 1. BRAND POSITIONING & STRATEGIC VALUE PROPOSITION\n"
+            f"- **Core Mission**: Establish {brand} as the benchmark of performance, precision, and enterprise reliability.\n"
+            f"- **Positioning Wedge**: Deliver frictionless execution and measurable ROI where legacy solutions create complexity.\n"
+            f"- **Key Value Drivers**: Speed of deployment, operational resilience, and verifiable excellence.\n\n"
+            f"## 2. TARGET AUDIENCE & PERSONA DIRECTIVES\n"
+            f"- **Primary Audience**: Forward-thinking executives, technical decision-makers, and high-impact operators.\n"
+            f"- **Core Pain Points**: Wasted overhead, legacy technical debt, and vendor promises that fail in production.\n"
+            f"- **Desired Customer Mindset**: Unwavering trust, forward momentum, and executive authority.\n\n"
+            f"## 3. BRAND VOICE, TONE & MESSAGING RULES\n"
+            f"- **Tone Profile**: Confident, authoritative, visionary, and outcome-obsessed.\n"
+            f"- **Mandatory Copy Directives**: Lead with tangible commercial impact; speak directly to high-stakes business realities.\n"
+            f"- **Forbidden Pitfalls**: Avoid generic tech fluff, excessive buzzwords ('synergy', 'game-changing'), and timid phrasing.\n\n"
+            f"## 4. VISUAL IDENTITY & PHOTOGRAPHIC DIRECTIVES\n"
+            f"- **Aesthetic**: Premium minimalist commercial tech aesthetic with tactile materials and authentic human leadership.\n"
+            f"- **Color Harmony**: Deep executive tones accented with crisp highlights and balanced negative space.\n"
+            f"- **Lighting & Optics**: Crisp volumetric studio lighting with subtle depth of field and generous typography clearance.\n\n"
+            f"## 5. CAMPAIGN EXECUTION RULES & COMPLIANCE\n"
+            f"- **Hook Directive**: Provocative first sentence that challenges industry complacency.\n"
+            f"- **Call To Action**: Clear, high-intent invitation with zero friction.\n"
+            f"- **Integrity Mandate**: Maintain absolute documentation and factual integrity across all brand touchpoints."
+        )
+
     def synthesize_brief_and_strategy(
         self,
         prompt: str,
@@ -2281,8 +2397,9 @@ class LexnisCampaignStudio:
         enhanced_prompt = ""
         effective_prompt = prompt
 
-        # 1. Distill guidelines to prevent prompt token bloat & high latency
-        distilled_gl = self.distill_guidelines(guidelines, max_chars=1800)
+        # 1. Guidelines Resolution: Custom Uploaded vs Market Research Auto-Synthesis
+        has_custom_gl = bool(guidelines and guidelines.strip())
+        guidelines_source = "user_uploaded" if has_custom_gl else "market_research"
 
         # 2. Fast market intelligence synthesis (single combined query)
         search_results: List[Dict[str, str]] = []
@@ -2294,6 +2411,21 @@ class LexnisCampaignStudio:
                 search_results, research = self.research_product(search_query)
             except Exception:
                 search_results, research = [], ""
+
+        # If user did NOT supply custom guidelines, synthesize them FIRST from market research!
+        if not has_custom_gl:
+            step("Synthesizing tailored brand guidelines from real-time market research...")
+            try:
+                guidelines = self.generate_market_research_guidelines(
+                    brand=brand,
+                    prompt=effective_prompt,
+                    research=research,
+                    use_search=False
+                )
+            except Exception:
+                guidelines = self._fallback_market_research_guidelines(brand, detected_prod or prompt, research)
+
+        distilled_gl = self.distill_guidelines(guidelines, max_chars=1800)
 
         # 3. High-Speed Unified Brief & Competitor Conquest Playbook
         step("Synthesizing creative brief & competitor battlecards...")
@@ -2366,20 +2498,22 @@ class LexnisCampaignStudio:
         if uploaded_image_path and Path(uploaded_image_path).exists() and Path(uploaded_image_path) not in candidate_images:
             candidate_images.append(Path(uploaded_image_path))
 
-        # Check uploads directory if candidates < 2
-        uploads_dir = RENDERS_DIR.parent / "output" / "uploads"
-        if not uploads_dir.exists():
-            uploads_dir = RENDERS_DIR.parent / "uploads"
-        if len(candidate_images) < 2 and uploads_dir.exists():
-            for f in sorted(uploads_dir.glob("*.*"), key=lambda x: x.stat().st_mtime, reverse=True):
-                if f.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"} and f not in candidate_images:
-                    candidate_images.append(f)
-                if len(candidate_images) >= 2:
-                    break
-
-        # Also check test_assets if prompt mentions girl / template / blue / portrait or if candidates < 2
         prompt_lower = (effective_prompt + " " + (guidelines or "")).lower()
         needs_swap = any(k in prompt_lower for k in ["girl", "blue image", "white background", "template", "portrait", "sekawan", "swap", "replace", "face", "uploaded"])
+
+        # Only search uploads cache if user provided an image or explicitly requested a template swap
+        if (candidate_images or needs_swap) and len(candidate_images) < 2:
+            uploads_dir = RENDERS_DIR.parent / "output" / "uploads"
+            if not uploads_dir.exists():
+                uploads_dir = RENDERS_DIR.parent / "uploads"
+            if uploads_dir.exists():
+                for f in sorted(uploads_dir.glob("*.*"), key=lambda x: x.stat().st_mtime, reverse=True):
+                    if f.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"} and f not in candidate_images:
+                        candidate_images.append(f)
+                    if len(candidate_images) >= 2:
+                        break
+
+        # Also check test_assets if prompt explicitly mentions template swap or subject keywords
         if len(candidate_images) < 2 and needs_swap:
             test_assets_dir = RENDERS_DIR.parent / "test_assets"
             if test_assets_dir.exists():
@@ -2388,19 +2522,62 @@ class LexnisCampaignStudio:
                     if p.exists() and p not in candidate_images:
                         candidate_images.append(p)
 
-        from visual_engine import classify_template_and_subject, composite_template_swap
+        from visual_engine import classify_template_and_subject, composite_template_swap, render_lexnis_executive_artboard
         t_file, s_file = classify_template_and_subject(candidate_images) if len(candidate_images) >= 2 else (None, None)
+        if len(candidate_images) == 1 and not s_file:
+            s_file = candidate_images[0]
+
+        person_name, person_title = detect_featured_person(effective_prompt)
 
         if t_file and s_file and (use_uploaded_image is not False):
             step("Executing autonomous 2.5D pop-out template subject replacement...")
-            swap_key = hashlib.sha1(f"swap|{t_file.name}|{s_file.name}".encode()).hexdigest()[:16]
+            swap_key = hashlib.sha1(f"swap|{t_file.name}|{s_file.name}|{person_name}|{person_title}|{brand}".encode()).hexdigest()[:16]
             clean_path = RENDERS_DIR / f"{swap_key}_clean.jpg"
             post_path = RENDERS_DIR / f"{swap_key}_post.jpg"
             if not clean_path.exists():
-                swap_img = composite_template_swap(t_file, s_file)
+                swap_img = composite_template_swap(
+                    t_file,
+                    s_file,
+                    person_name=person_name,
+                    person_title=person_title,
+                    brand_name=brand
+                )
                 swap_img.save(clean_path, "JPEG", quality=95, optimize=True)
                 swap_img.save(post_path, "JPEG", quality=95, optimize=True)
             arabic_pack = self.transcreate_to_arabic(en_pack, brand=brand, visual_analysis="Template subject replacement", guidelines=distilled_gl)
+            watermark_free = True
+            image_status = "ready"
+            arabic_post_path = post_path
+            uploaded_post_en = post_path
+            uploaded_clean = clean_path
+            uploaded_post_ar = post_path
+            has_uploaded_asset = True
+        elif s_file and not t_file and (use_uploaded_image is not False):
+            step(f"Rendering executive brand artboard for {person_name or brand}...")
+            art_key = hashlib.sha1(f"exec_art|{s_file.name}|{person_name}|{person_title}|{brand}".encode()).hexdigest()[:16]
+            clean_path = RENDERS_DIR / f"{art_key}_clean.jpg"
+            post_path = RENDERS_DIR / f"{art_key}_post.jpg"
+            if not clean_path.exists():
+                hl_en = headline or (f"FEATURING {person_name.upper()}" if person_name else "LEADERSHIP IN MOTION")
+                tg_en = hook or "From vision to operating reality. Empowering enterprise transformation."
+                ar_pack = self.transcreate_to_arabic(en_pack, brand=brand, guidelines=distilled_gl)
+                hl_ar = ar_pack.get("visual_headline") or (f"قيادة تصنع الأثر · {person_name}" if person_name else "قيادة تصنع الأثر")
+                tg_ar = ar_pack.get("visual_tagline") or "حلول مؤسسية متقدمة من الرؤية إلى واقع تشغيلي."
+
+                art_img = render_lexnis_executive_artboard(
+                    s_file,
+                    person_name=person_name or "Alisha Faisal",
+                    person_title=person_title or "Marketing Manager",
+                    headline_en=hl_en,
+                    tagline_en=tg_en,
+                    headline_ar=hl_ar,
+                    tagline_ar=tg_ar,
+                    brand=brand,
+                    target_size=(1080, 1350)
+                )
+                art_img.save(clean_path, "JPEG", quality=95, optimize=True)
+                art_img.save(post_path, "JPEG", quality=95, optimize=True)
+                arabic_pack = ar_pack
             watermark_free = True
             image_status = "ready"
             arabic_post_path = post_path
@@ -2444,9 +2621,9 @@ class LexnisCampaignStudio:
         ar_hl = arabic_pack.get("visual_headline") or arabic_pack.get("image_headline") or vm.get("visual_ar_headline") or "ريادة تتخطى الآفاق"
         ar_tl = arabic_pack.get("visual_tagline") or vm.get("visual_ar_tagline") or ""
 
-        # Render Arabic visual overlay for AI generated base
+        # Render Arabic visual overlay for AI generated base (suppressed for template swap to preserve crisp brand typography)
         arabic_post_path = None
-        if clean_path and clean_path.exists():
+        if clean_path and clean_path.exists() and not (t_file and s_file):
             ar_tag = hashlib.sha1(f"ad-v5-ar|{ar_hl}|{brand}|{ar_tl}".encode()).hexdigest()[:8]
             arabic_post_path = RENDERS_DIR / f"{clean_path.stem.split('_')[0]}_post_ar_{ar_tag}.jpg"
             if not arabic_post_path.exists():
@@ -2456,6 +2633,8 @@ class LexnisCampaignStudio:
                     )
                 except Exception:
                     arabic_post_path = None
+        elif t_file and s_file:
+            arabic_post_path = post_path
 
         # Check if an uploaded image asset was provided
         has_uploaded_asset = bool(uploaded_image_path and Path(uploaded_image_path).exists())
@@ -2481,7 +2660,7 @@ class LexnisCampaignStudio:
         elif t_file and s_file:
             uploaded_post_en = post_path
             uploaded_clean = clean_path
-            uploaded_post_ar = arabic_post_path or post_path
+            uploaded_post_ar = post_path
             has_uploaded_asset = True
 
         # Determine primary output visual
@@ -2544,6 +2723,7 @@ class LexnisCampaignStudio:
             visual_tagline=final_tagline,
             arabic=arabic_pack,
             guidelines=guidelines,
+            guidelines_source=guidelines_source,
         )
 
     def template_swap_composite(

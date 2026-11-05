@@ -101,15 +101,428 @@
     <!-- Main Workspace Area -->
     <div class="grid grid-cols-1 gap-8">
 
-      <!-- Prompt Input Studio Section -->
+      <!-- ========================================== -->
+      <!-- STAGE 1: BRAND GUIDELINES & DIRECTIVES SECTION -->
+      <!-- ========================================== -->
+      <section id="guidelines-card" class="bg-obsidian-900/80 backdrop-blur-md border border-obsidian-800 rounded-2xl p-6 shadow-xl space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950/80 text-cyan-accent border border-cyan-500/40 uppercase">STAGE 1</span>
+              <h2 class="text-lg font-tech font-bold text-white flex items-center space-x-2">
+                <i data-lucide="shield-check" class="w-5 h-5 text-cyan-accent"></i>
+                <span>BRAND GUIDELINES &amp; STRATEGY DIRECTIVES</span>
+              </h2>
+            </div>
+            <p class="text-xs text-slate-400 font-mono mt-1">
+              Upload your company's official brand book / style guide — or let our market research engine synthesize custom guidelines automatically.
+            </p>
+          </div>
+
+          <!-- Quick Action Buttons -->
+          <div class="flex items-center space-x-2">
+            <button 
+              type="button" 
+              id="btn-auto-research-guidelines" 
+              class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-violet-600/30 via-indigo-600/30 to-cyan-500/30 hover:from-violet-600/50 hover:to-cyan-500/50 text-cyan-200 border border-cyan-500/40 font-mono text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer shadow-sm active:scale-95 group"
+              title="Synthesize comprehensive brand guidelines from real-time market research"
+            >
+              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-cyan-400 group-hover:rotate-12 transition-transform"></i>
+              <span id="btn-auto-research-text">🔍 Auto-Generate from Market Research</span>
+            </button>
+
+            <button type="button" id="guidelines-toggle-paste" class="px-3 py-1.5 rounded-xl bg-obsidian-950 border border-obsidian-800 hover:border-slate-600 text-xs font-mono text-slate-300 transition-colors flex items-center space-x-1.5 cursor-pointer">
+              <i data-lucide="type" class="w-3.5 h-3.5 text-slate-400"></i>
+              <span id="paste-toggle-label">Paste / Edit Rules</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Mode A: When No Guidelines Active (Split Option Cards) -->
+        <div id="guidelines-empty-state" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Option 1: Upload Custom Guidelines Document -->
+          <div id="guidelines-dropzone" class="border border-dashed border-obsidian-700 hover:border-cyan-accent/50 rounded-xl p-4 text-center cursor-pointer transition-all bg-obsidian-950/60 hover:bg-obsidian-900/60 group flex flex-col justify-center items-center space-y-2">
+            <input type="file" id="guidelines-file-input" class="hidden" multiple accept=".png,.jpg,.jpeg,.webp,.gif,.bmp,.svg,.pdf,.docx,.doc,.txt,.md,.markdown,.json,.csv,image/*">
+            <div class="w-10 h-10 rounded-full bg-cyan-950/60 border border-cyan-500/30 flex items-center justify-center text-cyan-accent group-hover:scale-110 transition-transform">
+              <i data-lucide="upload-cloud" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <p class="text-xs font-mono font-bold text-slate-200 group-hover:text-cyan-accent transition-colors">
+                Upload Specific Brand Guidelines
+              </p>
+              <p class="text-[11px] font-mono text-slate-500 mt-0.5">
+                Drop PDF, DOCX, TXT, MD or style guide images (.png, .jpg)
+              </p>
+            </div>
+            <span class="text-[10px] font-mono text-cyan-accent underline underline-offset-2">Browse files</span>
+          </div>
+
+          <!-- Option 2: Automated Market Research Directives Callout -->
+          <div class="border border-obsidian-800 rounded-xl p-4 bg-obsidian-950/60 flex flex-col justify-between space-y-3">
+            <div class="space-y-1.5">
+              <div class="flex items-center space-x-2">
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-violet-950/70 text-violet-300 border border-violet-500/30 flex items-center gap-1">
+                  <i data-lucide="sparkles" class="w-3 h-3 text-violet-400"></i> AI Auto-Pilot
+                </span>
+                <span class="text-xs font-mono font-bold text-slate-200">No Guideline? We Research &amp; Build It</span>
+              </div>
+              <p class="text-[11px] font-mono text-slate-400 leading-relaxed">
+                If no custom guideline is uploaded, our engine automatically conducts real-time market research on your brand, synthesizes target personas, tone directives, and positioning rules, and generates the post to match.
+              </p>
+            </div>
+            <div class="flex items-center justify-between pt-1 border-t border-obsidian-800/60 text-[10px] font-mono text-slate-500">
+              <span>Automatic upon campaign creation</span>
+              <button type="button" id="btn-quick-research-guidelines" class="text-cyan-400 hover:text-cyan-300 underline underline-offset-2 font-bold cursor-pointer">
+                Preview research now →
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mode B: Active Guidelines Display (Visible when either custom or market research guidelines are loaded) -->
+        <div id="guidelines-active-pill" class="hidden p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/40 space-y-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center space-x-3 overflow-hidden">
+              <span class="relative flex h-2.5 w-2.5 flex-shrink-0">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+              <div class="truncate">
+                <div class="flex items-center space-x-2">
+                  <span id="guidelines-active-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-900/60 text-emerald-200 border border-emerald-500/40 uppercase">
+                    CUSTOM GUIDELINE ACTIVE
+                  </span>
+                  <span id="guidelines-word-badge" class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-800">
+                    1,240 words
+                  </span>
+                </div>
+                <h3 id="guidelines-active-title" class="text-xs font-mono font-bold text-slate-200 mt-1 truncate">
+                  brand_guidelines.pdf
+                </h3>
+              </div>
+            </div>
+
+            <!-- Action Buttons for Active Guidelines -->
+            <div class="flex items-center space-x-2 flex-shrink-0">
+              <button type="button" id="guidelines-preview-btn" class="px-3 py-1 text-xs font-mono font-bold rounded-lg bg-emerald-900/50 text-emerald-200 hover:bg-emerald-900/80 border border-emerald-500/40 transition-all cursor-pointer flex items-center space-x-1.5">
+                <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                <span>Preview / Edit Directives</span>
+              </button>
+              <button type="button" id="guidelines-add-more-btn" class="px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-cyan-950/60 text-cyan-300 hover:bg-cyan-900/80 border border-cyan-500/30 transition-all flex items-center space-x-1 cursor-pointer" title="Upload additional brand files">
+                <i data-lucide="plus" class="w-3 h-3"></i>
+                <span>Add File</span>
+              </button>
+              <button type="button" id="guidelines-remove-btn" class="px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-rose-950/40 text-rose-300 hover:bg-rose-900/60 border border-rose-500/30 transition-all cursor-pointer" title="Reset guidelines">
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <!-- Active File Chips Tray for Multiple Files -->
+          <div id="guidelines-file-chips-tray" class="flex flex-wrap gap-1.5 pt-2 border-t border-emerald-500/20">
+            <!-- Dynamically populated file chips -->
+          </div>
+        </div>
+
+        <!-- Direct Paste Textarea (toggleable) -->
+        <div id="guidelines-paste-box" class="hidden p-3 rounded-xl bg-obsidian-950 border border-obsidian-800 space-y-2">
+          <textarea id="guidelines-text-input" rows="5" placeholder="Paste custom brand voice rules, forbidden words, mandatory positioning hooks, target customer traits..." class="w-full bg-obsidian-900 border border-obsidian-700 focus:border-cyan-accent rounded-lg p-3 text-xs font-mono text-slate-200 placeholder-slate-600 outline-none resize-none"></textarea>
+          <div class="flex justify-end space-x-2">
+            <button type="button" id="guidelines-cancel-paste-btn" class="px-3 py-1 text-xs font-mono rounded bg-obsidian-900 text-slate-400 hover:text-white border border-obsidian-700 transition-all cursor-pointer">
+              Cancel
+            </button>
+            <button type="button" id="guidelines-apply-text-btn" class="px-3 py-1 text-xs font-mono rounded bg-cyan-accent/20 text-cyan-accent hover:bg-cyan-accent/30 border border-cyan-accent/40 font-bold transition-all cursor-pointer">
+              Enforce Custom Guidelines
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- STAGE 2: VISUAL ASSETS, REFERENCE TEMPLATES & SAMPLE IMAGES -->
+      <!-- ============================================================ -->
+      <section id="visual-assets-section" class="bg-obsidian-900/80 backdrop-blur-md border border-obsidian-800 rounded-2xl p-6 shadow-xl space-y-5">
+        <!-- Section Header -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-violet-950/90 text-violet-300 border border-violet-500/50 uppercase">STAGE 2</span>
+              <h2 class="text-lg font-tech font-bold text-white flex items-center space-x-2">
+                <i data-lucide="image" class="w-5 h-5 text-violet-400"></i>
+                <span>VISUAL ASSETS, REFERENCE TEMPLATES &amp; SAMPLES</span>
+              </h2>
+            </div>
+            <p class="text-xs text-slate-400 font-mono mt-1">
+              Upload the specific portrait or product image you want the campaign to use, upload reference template graphics, or pick ready-to-test sample images.
+            </p>
+          </div>
+
+          <!-- Quick Actions & Sample Presets -->
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-[11px] font-mono text-slate-400 flex items-center gap-1">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-cyan-accent"></i>
+              <span>Sample Images:</span>
+            </span>
+            <div class="flex flex-wrap gap-1.5" id="sample-visual-chips">
+              <button 
+                type="button" 
+                id="btn-sample-popout" 
+                class="sample-visual-chip text-[11px] font-mono bg-violet-950/70 hover:bg-violet-900/90 hover:text-white text-violet-200 border border-violet-500/50 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95" 
+                title="Load Sekawan Media blue Polaroid template + studio subject portrait in abaya (1-click benchmark test)"
+              >
+                <span>⚡ Sekawan 2.5D Pop-Out</span>
+              </button>
+              <button 
+                type="button" 
+                id="btn-sample-portrait" 
+                class="sample-visual-chip text-[11px] font-mono bg-obsidian-950 hover:bg-obsidian-800 hover:text-emerald-300 text-slate-300 border border-obsidian-700 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer active:scale-95" 
+                title="Load raw portrait subject photo only"
+              >
+                <span>👤 Studio Portrait Only</span>
+              </button>
+              <button 
+                type="button" 
+                id="btn-sample-template" 
+                class="sample-visual-chip text-[11px] font-mono bg-obsidian-950 hover:bg-obsidian-800 hover:text-cyan-accent text-slate-300 border border-obsidian-700 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer active:scale-95" 
+                title="Load Sekawan Media blue template graphic only"
+              >
+                <span>🖼️ Blue Template Only</span>
+              </button>
+              <button 
+                type="button" 
+                id="btn-clear-visuals" 
+                class="text-[11px] font-mono bg-rose-950/40 hover:bg-rose-900/70 text-rose-300 hover:text-white border border-rose-500/30 px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer hidden" 
+                title="Clear all visual assets and return to AI prompt generation"
+              >
+                <i data-lucide="trash-2" class="w-3 h-3"></i>
+                <span>Clear</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Two Primary Image Slots: Slot 1 (Subject to Use) & Slot 2 (Template Graphic) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- CARD A: TARGET SUBJECT / PRODUCT IMAGE (The image we want it to use) -->
+          <div class="bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-4 space-y-3 flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-2">
+                <span class="w-6 h-6 rounded-lg bg-emerald-950/80 border border-emerald-500/40 flex items-center justify-center text-xs">👤</span>
+                <div>
+                  <h3 class="text-xs font-mono font-bold text-slate-200 uppercase">1. Subject / Product Photo to Use</h3>
+                  <p class="text-[11px] font-mono text-slate-400">The person portrait, face, or product hardware to feature or insert</p>
+                </div>
+              </div>
+              <span id="subject-status-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-obsidian-900 text-slate-500 border border-obsidian-800 uppercase">
+                Not Loaded
+              </span>
+            </div>
+
+            <!-- Subject Empty Dropzone -->
+            <div id="subject-dropzone" class="border border-dashed border-obsidian-700 hover:border-emerald-500/60 rounded-xl p-4 text-center cursor-pointer transition-all bg-obsidian-900/40 hover:bg-obsidian-900/80 group flex flex-col items-center justify-center min-h-[140px] space-y-2">
+              <input type="file" id="subject-file-input" class="hidden" accept="image/*">
+              <div class="w-9 h-9 rounded-xl bg-obsidian-800 border border-obsidian-700 flex items-center justify-center text-slate-400 group-hover:text-emerald-400 group-hover:border-emerald-500/40 transition-all">
+                <i data-lucide="user-plus" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <p class="text-xs font-mono font-bold text-slate-300 group-hover:text-emerald-300 transition-colors">
+                  Upload Target Subject / Product
+                </p>
+                <p class="text-[10px] font-mono text-slate-500 mt-0.5">
+                  Drop portrait, model photo, or product image (JPG, PNG, WebP)
+                </p>
+              </div>
+            </div>
+
+            <!-- Subject Active Preview (Hidden initially) -->
+            <div id="subject-preview-card" class="hidden p-3 rounded-xl bg-emerald-950/20 border border-emerald-500/30 space-y-2.5">
+              <div class="flex items-start space-x-3">
+                <div class="relative shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-obsidian-900 border border-emerald-500/40 shadow-inner flex items-center justify-center">
+                  <img id="subject-preview-img" src="" alt="Target Subject" class="w-full h-full object-cover">
+                </div>
+                <div class="flex-1 min-w-0 space-y-1">
+                  <div class="flex items-center space-x-1.5">
+                    <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-emerald-900/70 text-emerald-300 border border-emerald-500/40 uppercase">
+                      ACTIVE SUBJECT
+                    </span>
+                    <span id="subject-dimensions-tag" class="text-[10px] font-mono text-slate-400 px-1 rounded bg-obsidian-900 border border-obsidian-800">
+                      1024 × 682
+                    </span>
+                  </div>
+                  <h4 id="subject-filename-text" class="text-xs font-mono font-bold text-slate-200 truncate">
+                    raw_subject.jpg
+                  </h4>
+                  <p class="text-[10px] font-mono text-emerald-400/90 flex items-center gap-1">
+                    <i data-lucide="check" class="w-3 h-3"></i> Ready for 2.5D matting &amp; compositing
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-center justify-end space-x-2 pt-1 border-t border-emerald-500/20">
+                <button type="button" id="btn-replace-subject" class="px-2.5 py-1 text-[11px] font-mono rounded bg-obsidian-900 hover:bg-obsidian-800 text-slate-300 hover:text-white border border-obsidian-700 cursor-pointer transition-colors">
+                  Replace
+                </button>
+                <button type="button" id="btn-remove-subject" class="px-2.5 py-1 text-[11px] font-mono rounded bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-white border border-rose-500/30 cursor-pointer transition-colors">
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD B: TEMPLATE GRAPHIC / SAMPLE LAYOUT -->
+          <div class="bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-4 space-y-3 flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-2">
+                <span class="w-6 h-6 rounded-lg bg-cyan-950/80 border border-cyan-500/40 flex items-center justify-center text-xs">🖼️</span>
+                <div>
+                  <h3 class="text-xs font-mono font-bold text-slate-200 uppercase">2. Template Graphic / Reference Ad</h3>
+                  <p class="text-[11px] font-mono text-slate-400">Polaroid frame, corporate poster, or graphic style template</p>
+                </div>
+              </div>
+              <span id="template-status-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-obsidian-900 text-slate-500 border border-obsidian-800 uppercase">
+                Not Loaded
+              </span>
+            </div>
+
+            <!-- Template Empty Dropzone -->
+            <div id="template-dropzone" class="border border-dashed border-obsidian-700 hover:border-cyan-500/60 rounded-xl p-4 text-center cursor-pointer transition-all bg-obsidian-900/40 hover:bg-obsidian-900/80 group flex flex-col items-center justify-center min-h-[140px] space-y-2">
+              <input type="file" id="template-file-input" class="hidden" accept="image/*">
+              <div class="w-9 h-9 rounded-xl bg-obsidian-800 border border-obsidian-700 flex items-center justify-center text-slate-400 group-hover:text-cyan-accent group-hover:border-cyan-500/40 transition-all">
+                <i data-lucide="layout" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <p class="text-xs font-mono font-bold text-slate-300 group-hover:text-cyan-accent transition-colors">
+                  Upload Template / Style Graphic
+                </p>
+                <p class="text-[10px] font-mono text-slate-500 mt-0.5">
+                  Drop brand poster, framed graphic, or layout reference
+                </p>
+              </div>
+            </div>
+
+            <!-- Template Active Preview (Hidden initially) -->
+            <div id="template-preview-card" class="hidden p-3 rounded-xl bg-cyan-950/20 border border-cyan-500/30 space-y-2.5">
+              <div class="flex items-start space-x-3">
+                <div class="relative shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-obsidian-900 border border-cyan-500/40 shadow-inner flex items-center justify-center">
+                  <img id="template-preview-img" src="" alt="Template Reference" class="w-full h-full object-cover">
+                </div>
+                <div class="flex-1 min-w-0 space-y-1">
+                  <div class="flex items-center space-x-1.5">
+                    <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-cyan-900/70 text-cyan-300 border border-cyan-500/40 uppercase">
+                      ACTIVE TEMPLATE
+                    </span>
+                    <span id="template-dimensions-tag" class="text-[10px] font-mono text-slate-400 px-1 rounded bg-obsidian-900 border border-obsidian-800">
+                      808 × 1024
+                    </span>
+                  </div>
+                  <h4 id="template-filename-text" class="text-xs font-mono font-bold text-slate-200 truncate">
+                    template_reference.jpg
+                  </h4>
+                  <p class="text-[10px] font-mono text-cyan-400/90 flex items-center gap-1">
+                    <i data-lucide="check" class="w-3 h-3"></i> Clean plate &amp; typography preservation armed
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-center justify-end space-x-2 pt-1 border-t border-cyan-500/20">
+                <button type="button" id="btn-replace-template" class="px-2.5 py-1 text-[11px] font-mono rounded bg-obsidian-900 hover:bg-obsidian-800 text-slate-300 hover:text-white border border-obsidian-700 cursor-pointer transition-colors">
+                  Replace
+                </button>
+                <button type="button" id="btn-remove-template" class="px-2.5 py-1 text-[11px] font-mono rounded bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-white border border-rose-500/30 cursor-pointer transition-colors">
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dynamic Person & Role Personalization Strip -->
+        <div id="personalization-strip" class="p-3.5 rounded-xl bg-obsidian-950/90 border border-obsidian-800 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-mono font-bold text-slate-300 flex items-center gap-1.5">
+              <i data-lucide="user-check" class="w-3.5 h-3.5 text-cyan-accent"></i>
+              <span>Featured Person &amp; Role Personalization</span>
+            </span>
+            <span class="text-[10px] font-mono text-slate-500">Auto-detected from prompt or edit manually</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+            <div class="flex items-center space-x-2">
+              <span class="text-slate-400 w-24 shrink-0">Person Name:</span>
+              <input id="person-name-input" type="text" placeholder="e.g. Alisha Faisal" class="w-full bg-obsidian-900 border border-obsidian-700 text-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-accent">
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="text-slate-400 w-24 shrink-0">Role / Title:</span>
+              <input id="person-title-input" type="text" placeholder="e.g. Marketing Manager" class="w-full bg-obsidian-900 border border-obsidian-700 text-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-accent">
+            </div>
+          </div>
+        </div>
+
+        <!-- Visual Engine Mode Indicator & Quick Action Bar -->
+        <div id="visual-engine-status-bar" class="p-3.5 rounded-xl bg-obsidian-950 border border-obsidian-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
+          <div class="flex items-center space-x-3">
+            <span id="visual-mode-indicator" class="relative flex h-2.5 w-2.5">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-500 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-400"></span>
+            </span>
+            <div>
+              <span id="visual-mode-title" class="font-bold text-slate-300">PURE AI GENERATION MODE</span>
+              <p id="visual-mode-desc" class="text-[11px] text-slate-500">No custom visual assets loaded. Will generate photorealistic imagery from campaign prompt.</p>
+            </div>
+          </div>
+
+          <div class="flex items-center space-x-3">
+            <label class="flex items-center space-x-1.5 text-slate-300 hover:text-cyan-accent cursor-pointer select-none" title="When checked, the campaign visual will use your loaded visual assets instead of generating from scratch">
+              <input type="checkbox" id="use-uploaded-assets-toggle" checked class="w-3.5 h-3.5 rounded border-obsidian-700 bg-obsidian-950 text-cyan-accent focus:ring-cyan-accent accent-[#00f0ff] cursor-pointer">
+              <span>Use Assets in Campaign</span>
+            </label>
+
+            <button 
+              type="button" 
+              id="btn-quick-test-swap" 
+              class="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-cyan-600 hover:from-violet-500 hover:to-cyan-500 text-white font-tech font-bold text-xs tracking-wider uppercase transition-all shadow-sm active:scale-95 flex items-center space-x-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+              <span id="quick-test-swap-text">⚡ Quick Test Swap</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Test Swap Result Container (Collapsible) -->
+        <div id="quick-swap-result-box" class="hidden p-4 rounded-xl bg-obsidian-950 border border-violet-500/40 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/40 uppercase">
+                ✓ 2.5D POP-OUT COMPOSITE READY
+              </span>
+              <span class="text-[11px] font-mono text-slate-400">808 × 1024 • Sub-pixel hair matting • Head pop-out over typography</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <a id="quick-swap-download-link" href="#" download="popout_composite.jpg" class="px-2.5 py-1 text-xs font-mono font-bold rounded bg-cyan-950 text-cyan-300 hover:bg-cyan-900 border border-cyan-500/30 transition-all flex items-center gap-1">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i> <span>Download</span>
+              </a>
+              <button type="button" id="btn-close-quick-swap" class="p-1 rounded text-slate-400 hover:text-white cursor-pointer">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+          <div class="flex justify-center bg-obsidian-900/60 p-2 rounded-lg">
+            <img id="quick-swap-result-img" class="max-h-96 rounded shadow-2xl object-contain border border-obsidian-800" src="" alt="2.5D Pop-out Result">
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- STAGE 3: CAMPAIGN PROMPT & CONCEPT STUDIO -->
+      <!-- ========================================== -->
       <section class="bg-obsidian-900/80 backdrop-blur-md border border-obsidian-800 rounded-2xl p-6 shadow-xl space-y-5">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 class="text-lg font-tech font-bold text-white flex items-center space-x-2">
-              <i data-lucide="sparkles" class="w-5 h-5 text-cyan-accent"></i>
-              <span>CAMPAIGN PROMPT &amp; CONCEPT STUDIO</span>
-            </h2>
-            <p class="text-xs text-slate-400 font-mono mt-0.5">Define your industrial AI innovation, target use-case, or hardware/software launch</p>
+            <div class="flex items-center space-x-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gradient-to-r from-cyan-950 to-violet-950 text-cyan-300 border border-cyan-500/40 uppercase">STAGE 3</span>
+              <h2 class="text-lg font-tech font-bold text-white flex items-center space-x-2">
+                <i data-lucide="sparkles" class="w-5 h-5 text-cyan-accent"></i>
+                <span>CAMPAIGN PROMPT &amp; CONCEPT STUDIO</span>
+              </h2>
+            </div>
+            <p class="text-xs text-slate-400 font-mono mt-1">Define your industrial AI innovation, target use-case, or hardware/software launch</p>
           </div>
 
           <!-- Quick Actions & Presets -->
@@ -166,75 +579,6 @@
             <span id="enhance-badge-msg">✨ Upgraded to Fortune-500 Executive Launch Brief</span>
           </div>
           <span id="enhance-brand-tag" class="px-2 py-0.5 rounded text-[10px] bg-cyan-accent/20 text-cyan-accent border border-cyan-accent/30 font-bold">BRAND: TESLA</span>
-        </div>
-
-        <!-- Brand Guidelines / Style Guide Directives Section -->
-        <div id="guidelines-card" class="rounded-xl bg-obsidian-950/90 border border-obsidian-800 p-3 transition-all">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center space-x-2">
-              <i data-lucide="shield-check" class="w-4 h-4 text-cyan-accent"></i>
-              <span class="text-xs font-tech font-bold tracking-wider uppercase text-slate-200">Brand Guidelines &amp; Directives</span>
-              <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-950/60 text-cyan-300 border border-cyan-500/30">Targeted Compliance</span>
-            </div>
-            <div class="flex items-center space-x-3">
-              <button type="button" id="guidelines-toggle-paste" class="text-[11px] font-mono text-slate-400 hover:text-cyan-accent transition-colors flex items-center space-x-1">
-                <i data-lucide="type" class="w-3 h-3"></i>
-                <span id="paste-toggle-label">Paste Rules</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Active Guidelines Container (supports multiple files) -->
-          <div id="guidelines-active-pill" class="hidden mt-2.5 p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/40 space-y-2.5">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center space-x-2.5 overflow-hidden">
-                <span class="relative flex h-2 w-2 flex-shrink-0">
-                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <div class="flex items-center space-x-2 truncate">
-                  <span id="guidelines-active-title" class="text-xs font-mono font-bold text-emerald-300 truncate">brand_guidelines.pdf</span>
-                  <span id="guidelines-word-badge" class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-900/50 text-emerald-200 border border-emerald-500/30">1,240 words</span>
-                </div>
-              </div>
-              <div class="flex items-center space-x-1.5 flex-shrink-0">
-                <button type="button" id="guidelines-add-more-btn" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-cyan-950/60 text-cyan-300 hover:bg-cyan-900/80 border border-cyan-500/30 transition-all flex items-center space-x-1 cursor-pointer" title="Upload additional brand files">
-                  <i data-lucide="plus" class="w-3 h-3"></i>
-                  <span>Add File</span>
-                </button>
-                <button type="button" id="guidelines-preview-btn" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-emerald-900/40 text-emerald-300 hover:bg-emerald-900/70 border border-emerald-500/30 transition-all cursor-pointer">
-                  Preview All
-                </button>
-                <button type="button" id="guidelines-remove-btn" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-rose-950/40 text-rose-300 hover:bg-rose-900/60 border border-rose-500/30 transition-all cursor-pointer">
-                  Clear
-                </button>
-              </div>
-            </div>
-
-            <!-- Active File Chips Tray for Multiple Files -->
-            <div id="guidelines-file-chips-tray" class="flex flex-wrap gap-1.5 pt-1.5 border-t border-emerald-500/20">
-              <!-- Dynamically populated file chips -->
-            </div>
-          </div>
-
-          <!-- Upload Dropzone (Supports Multiple Files: PNG, JPG, WebP, SVG, and Docs: PDF, DOCX, TXT, MD) -->
-          <div id="guidelines-dropzone" class="mt-2.5 border border-dashed border-obsidian-700 hover:border-cyan-accent/50 rounded-lg p-2.5 text-center cursor-pointer transition-all bg-obsidian-900/30 hover:bg-obsidian-900/60 group">
-            <input type="file" id="guidelines-file-input" class="hidden" multiple accept=".png,.jpg,.jpeg,.webp,.gif,.bmp,.svg,.pdf,.docx,.doc,.txt,.md,.markdown,.json,.csv,image/*">
-            <div class="flex items-center justify-center space-x-2 text-xs font-mono text-slate-400 group-hover:text-cyan-accent transition-colors">
-              <i data-lucide="upload-cloud" class="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-accent"></i>
-              <span>Drop one or multiple style guides, reference images, or files here or <span class="text-cyan-accent underline underline-offset-2">upload</span> (.png, .jpg, .pdf, .docx, .txt, .md)</span>
-            </div>
-          </div>
-
-          <!-- Direct Paste Textarea (toggleable) -->
-          <div id="guidelines-paste-box" class="hidden mt-2.5">
-            <textarea id="guidelines-text-input" rows="3" placeholder="Paste custom brand voice rules, forbidden words, mandatory positioning hooks, target customer traits..." class="w-full bg-obsidian-900 border border-obsidian-700 focus:border-cyan-accent rounded-lg p-2.5 text-xs font-mono text-slate-200 placeholder-slate-600 outline-none resize-none"></textarea>
-            <div class="flex justify-end space-x-2 mt-1.5">
-              <button type="button" id="guidelines-apply-text-btn" class="px-3 py-1 text-xs font-mono rounded bg-cyan-accent/20 text-cyan-accent hover:bg-cyan-accent/30 border border-cyan-accent/40 font-bold transition-all">
-                Enforce Custom Guidelines
-              </button>
-            </div>
-          </div>
         </div>
 
         <!-- Advanced Tone & Target Modifiers (Optional) -->
@@ -1044,23 +1388,35 @@
     </div>
   </div>
 
-  <!-- Guidelines Preview Modal -->
+  <!-- Guidelines Preview & Edit Modal -->
   <div id="guidelines-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
-    <div class="bg-obsidian-900 border border-obsidian-700 rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl overflow-hidden">
+    <div class="bg-obsidian-900 border border-obsidian-700 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
       <div class="p-4 border-b border-obsidian-800 flex items-center justify-between">
         <div class="flex items-center space-x-2">
           <i data-lucide="shield-check" class="w-4 h-4 text-cyan-accent"></i>
           <span id="guidelines-modal-title" class="text-sm font-tech font-bold text-white tracking-wider uppercase">Active Brand Guidelines &amp; Directives</span>
         </div>
-        <button type="button" id="guidelines-modal-close" class="text-slate-400 hover:text-white p-1 rounded-lg">
+        <button type="button" id="guidelines-modal-close" class="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
       </div>
-      <div class="p-5 overflow-y-auto font-mono text-xs text-slate-300 leading-relaxed whitespace-pre-wrap select-text max-h-[60vh]" id="guidelines-modal-body"></div>
-      <div class="p-3 border-t border-obsidian-800 flex justify-end">
-        <button type="button" id="guidelines-modal-dismiss" class="px-4 py-1.5 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 text-xs font-mono text-slate-300">
-          Close
-        </button>
+      <div class="p-4 flex-1 flex flex-col space-y-2 overflow-hidden">
+        <div class="flex items-center justify-between text-[11px] font-mono text-slate-400">
+          <span id="guidelines-modal-subtitle">Review or adjust directives. All generated campaign copy and visuals enforce these rules:</span>
+          <span id="guidelines-modal-words">0 words</span>
+        </div>
+        <textarea id="guidelines-modal-textarea" class="w-full flex-1 min-h-[300px] max-h-[50vh] bg-obsidian-950 border border-obsidian-800 focus:border-cyan-accent rounded-xl p-3.5 font-mono text-xs text-slate-200 leading-relaxed outline-none resize-none shadow-inner select-text"></textarea>
+      </div>
+      <div class="p-3 border-t border-obsidian-800 flex justify-between items-center bg-obsidian-950/40">
+        <span class="text-[10px] font-mono text-slate-500">Edit rules freely — changes take effect immediately</span>
+        <div class="flex items-center space-x-2">
+          <button type="button" id="guidelines-modal-dismiss" class="px-4 py-1.5 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 text-xs font-mono text-slate-300 transition-colors cursor-pointer">
+            Close
+          </button>
+          <button type="button" id="guidelines-modal-save-btn" class="px-4 py-1.5 rounded-lg bg-cyan-accent/20 hover:bg-cyan-accent/30 text-cyan-accent border border-cyan-accent/40 text-xs font-mono font-bold transition-all cursor-pointer">
+            Save Directives
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -1509,9 +1865,11 @@
 
     // Guidelines State & Elements
     const guidelinesCard = document.getElementById('guidelines-card');
+    const guidelinesEmptyState = document.getElementById('guidelines-empty-state');
     const guidelinesDropzone = document.getElementById('guidelines-dropzone');
     const guidelinesFileInput = document.getElementById('guidelines-file-input');
     const guidelinesActivePill = document.getElementById('guidelines-active-pill');
+    const guidelinesActiveBadge = document.getElementById('guidelines-active-badge');
     const guidelinesActiveTitle = document.getElementById('guidelines-active-title');
     const guidelinesWordBadge = document.getElementById('guidelines-word-badge');
     const guidelinesPreviewBtn = document.getElementById('guidelines-preview-btn');
@@ -1521,10 +1879,15 @@
     const guidelinesPasteBox = document.getElementById('guidelines-paste-box');
     const guidelinesTextInput = document.getElementById('guidelines-text-input');
     const guidelinesApplyTextBtn = document.getElementById('guidelines-apply-text-btn');
+    const guidelinesCancelPasteBtn = document.getElementById('guidelines-cancel-paste-btn');
+    const btnAutoResearchGuidelines = document.getElementById('btn-auto-research-guidelines');
+    const btnQuickResearchGuidelines = document.getElementById('btn-quick-research-guidelines');
 
     const guidelinesModal = document.getElementById('guidelines-modal');
     const guidelinesModalTitle = document.getElementById('guidelines-modal-title');
-    const guidelinesModalBody = document.getElementById('guidelines-modal-body');
+    const guidelinesModalTextarea = document.getElementById('guidelines-modal-textarea');
+    const guidelinesModalWords = document.getElementById('guidelines-modal-words');
+    const guidelinesModalSaveBtn = document.getElementById('guidelines-modal-save-btn');
     const guidelinesModalClose = document.getElementById('guidelines-modal-close');
     const guidelinesModalDismiss = document.getElementById('guidelines-modal-dismiss');
     const guidelinesFileChipsTray = document.getElementById('guidelines-file-chips-tray');
@@ -1575,7 +1938,7 @@
       btnShowAi.addEventListener('click', () => setVisualSource('ai'));
     }
 
-    function syncGuidelinesFromActiveFiles() {
+    function syncGuidelinesFromActiveFiles(source = 'custom') {
       if (!activeGuidelineFiles || activeGuidelineFiles.length === 0) {
         clearGuidelinesUI();
         return;
@@ -1584,9 +1947,10 @@
       currentGuidelines = activeGuidelineFiles.map(f => f.guidelines).join('\n\n---\n\n');
       const totalWords = activeGuidelineFiles.reduce((sum, f) => sum + (f.word_count || 0), 0);
       const hasImage = activeGuidelineFiles.some(f => f.is_image);
+      const isMarketRes = source === 'market_research' || activeGuidelineFiles.some(f => f.is_market_research);
       const title = activeGuidelineFiles.length === 1 
         ? activeGuidelineFiles[0].filename 
-        : `${activeGuidelineFiles.length} Brand Files Active`;
+        : `${activeGuidelineFiles.length} Brand Directives Active`;
 
       currentGuidelinesTitle = title;
       if (guidelinesActiveTitle) guidelinesActiveTitle.textContent = title;
@@ -1595,13 +1959,22 @@
           ? `🖼️ ${activeGuidelineFiles.length} Asset${activeGuidelineFiles.length > 1 ? 's' : ''} (${totalWords.toLocaleString()} words)` 
           : `${totalWords.toLocaleString()} words`;
       }
+      if (guidelinesActiveBadge) {
+        if (isMarketRes) {
+          guidelinesActiveBadge.textContent = 'AI MARKET RESEARCH DIRECTIVES';
+          guidelinesActiveBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-violet-950/80 text-violet-300 border border-violet-500/40 uppercase';
+        } else {
+          guidelinesActiveBadge.textContent = 'CUSTOM GUIDELINES ENFORCED';
+          guidelinesActiveBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-900/60 text-emerald-200 border border-emerald-500/40 uppercase';
+        }
+      }
 
       // Render file chips tray
       if (guidelinesFileChipsTray) {
         guidelinesFileChipsTray.innerHTML = activeGuidelineFiles.map(f => `
           <div class="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded-md bg-obsidian-950/90 border border-emerald-500/30 text-[10px] font-mono text-emerald-200 shadow-sm">
-            <span>${f.is_image ? '🖼️' : '📄'}</span>
-            <span class="truncate max-w-[130px] font-semibold">${escapeHtml(f.filename)}</span>
+            <span>${f.is_image ? '🖼️' : (f.is_market_research ? '✨' : '📄')}</span>
+            <span class="truncate max-w-[150px] font-semibold">${escapeHtml(f.filename)}</span>
             <span class="text-slate-400 text-[9px]">(${f.word_count || 0}w)</span>
             <button type="button" class="remove-guideline-file-btn text-slate-400 hover:text-rose-400 transition-colors ml-0.5 cursor-pointer" data-id="${f.id}" title="Remove file">
               ✕
@@ -1615,13 +1988,14 @@
             e.stopPropagation();
             const idToRemove = btn.dataset.id;
             activeGuidelineFiles = activeGuidelineFiles.filter(f => f.id !== idToRemove);
-            syncGuidelinesFromActiveFiles();
-            showToast('Brand file removed.');
+            syncGuidelinesFromActiveFiles(isMarketRes ? 'market_research' : 'custom');
+            showToast('Brand directive removed.');
           });
         });
       }
 
       if (guidelinesActivePill) guidelinesActivePill.classList.remove('hidden');
+      if (guidelinesEmptyState) guidelinesEmptyState.classList.add('hidden');
       if (guidelinesDropzone) guidelinesDropzone.classList.add('hidden');
       if (guidelinesPasteBox) guidelinesPasteBox.classList.add('hidden');
       if (pasteToggleLabel) pasteToggleLabel.textContent = 'Edit Rules';
@@ -1632,6 +2006,7 @@
       currentGuidelines = '';
       currentGuidelinesTitle = '';
       if (guidelinesActivePill) guidelinesActivePill.classList.add('hidden');
+      if (guidelinesEmptyState) guidelinesEmptyState.classList.remove('hidden');
       if (guidelinesDropzone) guidelinesDropzone.classList.remove('hidden');
       if (guidelinesFileInput) guidelinesFileInput.value = '';
       if (guidelinesTextInput) guidelinesTextInput.value = '';
@@ -1798,45 +2173,541 @@
       });
     }
 
+    async function handleAutoResearchGuidelines() {
+      const brandVal = brandInput ? brandInput.value.trim() : 'Lexnis Technologies';
+      const promptVal = promptInput ? promptInput.value.trim() : '';
+      const searchEnabled = searchToggle ? searchToggle.checked : true;
+
+      const btn = document.getElementById('btn-auto-research-guidelines');
+      const btnText = document.getElementById('btn-auto-research-text');
+      const originalText = btnText ? btnText.textContent : '🔍 Auto-Generate from Market Research';
+
+      if (btnText) btnText.textContent = '⏳ Researching Market & Competitors...';
+      if (btn) btn.disabled = true;
+      showToast(`Analyzing real-time market landscape for ${brandVal || 'brand'}...`);
+
+      try {
+        const resp = await fetch(`${backendApiBase}/api/generate-guidelines`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            brand: brandVal || 'Lexnis Technologies',
+            prompt: promptVal,
+            use_search: searchEnabled
+          })
+        });
+
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${resp.status}`);
+        }
+
+        const data = await resp.json();
+        currentGuidelines = data.guidelines || '';
+        currentGuidelinesTitle = `${brandVal || 'Brand'} Strategic Market Directives`;
+
+        activeGuidelineFiles = [{
+          id: 'market_res_' + Date.now(),
+          filename: `${brandVal || 'Brand'} Strategic Directives`,
+          is_image: false,
+          thumbnail: '',
+          word_count: data.word_count || currentGuidelines.split(/\s+/).filter(Boolean).length,
+          guidelines: currentGuidelines,
+          is_market_research: true
+        }];
+
+        syncGuidelinesFromActiveFiles('market_research');
+        showToast(`✨ Generated ${data.word_count || 350}w Brand Guidelines from market research!`, true);
+      } catch (err) {
+        showToast(`Failed to generate guidelines: ${err.message}`, false);
+      } finally {
+        if (btnText) btnText.textContent = originalText;
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    if (btnAutoResearchGuidelines) {
+      btnAutoResearchGuidelines.addEventListener('click', handleAutoResearchGuidelines);
+    }
+    if (btnQuickResearchGuidelines) {
+      btnQuickResearchGuidelines.addEventListener('click', handleAutoResearchGuidelines);
+    }
+
+    if (guidelinesCancelPasteBtn) {
+      guidelinesCancelPasteBtn.addEventListener('click', () => {
+        if (guidelinesPasteBox) guidelinesPasteBox.classList.add('hidden');
+      });
+    }
+
     if (guidelinesPreviewBtn) {
       guidelinesPreviewBtn.addEventListener('click', () => {
         if (!currentGuidelines) return;
-        guidelinesModalTitle.textContent = currentGuidelinesTitle || 'Active Brand Guidelines & Reference Assets';
-        let bodyHtml = '';
+        if (guidelinesModalTitle) guidelinesModalTitle.textContent = currentGuidelinesTitle || 'Active Brand Guidelines & Strategy Directives';
+        if (guidelinesModalTextarea) guidelinesModalTextarea.value = currentGuidelines;
+        const words = currentGuidelines.split(/\s+/).filter(Boolean).length;
+        if (guidelinesModalWords) guidelinesModalWords.textContent = `${words.toLocaleString()} words`;
+        if (guidelinesModal) guidelinesModal.classList.remove('hidden');
+      });
+    }
 
-        // Collect all thumbnails from uploaded image references
-        const imagesWithThumbs = activeGuidelineFiles.filter(f => f.thumbnail);
-        if (imagesWithThumbs.length > 0) {
-          bodyHtml += `
-            <div class="mb-4 p-3 bg-obsidian-950 rounded-xl border border-cyan-500/30 space-y-2">
-              <div class="flex items-center space-x-1.5 text-[10px] font-mono text-cyan-accent uppercase font-bold tracking-wider">
-                <i data-lucide="image" class="w-3.5 h-3.5"></i>
-                <span>Active Brand Visual Reference Gallery (${imagesWithThumbs.length})</span>
-              </div>
-              <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
-                ${imagesWithThumbs.map(img => `
-                  <div class="relative bg-obsidian-900 border border-obsidian-700 rounded-lg overflow-hidden group shadow-md flex flex-col items-center">
-                    <img src="${img.thumbnail}" alt="${escapeHtml(img.filename)}" class="h-28 w-full object-cover">
-                    <span class="w-full text-[9px] font-mono text-slate-300 truncate p-1 bg-obsidian-950/90 text-center">${escapeHtml(img.filename)}</span>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          `;
+    if (guidelinesModalSaveBtn) {
+      guidelinesModalSaveBtn.addEventListener('click', () => {
+        if (!guidelinesModalTextarea) return;
+        const newTxt = guidelinesModalTextarea.value.trim();
+        if (!newTxt) {
+          showToast('Directives cannot be completely empty', false);
+          return;
         }
-
-        bodyHtml += `<div class="whitespace-pre-wrap select-text leading-relaxed font-mono text-xs text-slate-300">${escapeHtml(currentGuidelines)}</div>`;
-        guidelinesModalBody.innerHTML = bodyHtml;
-        guidelinesModal.classList.remove('hidden');
-        if (window.lucide) lucide.createIcons();
+        currentGuidelines = newTxt;
+        if (activeGuidelineFiles.length > 0) {
+          activeGuidelineFiles[0].guidelines = newTxt;
+          activeGuidelineFiles[0].word_count = newTxt.split(/\s+/).filter(Boolean).length;
+        } else {
+          activeGuidelineFiles = [{
+            id: 'custom_' + Date.now(),
+            filename: 'Custom Guidelines & Directives',
+            is_image: false,
+            thumbnail: '',
+            word_count: newTxt.split(/\s+/).filter(Boolean).length,
+            guidelines: newTxt
+          }];
+        }
+        syncGuidelinesFromActiveFiles('custom');
+        if (guidelinesModal) guidelinesModal.classList.add('hidden');
+        showToast('Saved custom brand directives!', true);
       });
     }
 
     if (guidelinesModalClose) {
-      guidelinesModalClose.addEventListener('click', () => guidelinesModal.classList.add('hidden'));
+      guidelinesModalClose.addEventListener('click', () => guidelinesModal && guidelinesModal.classList.add('hidden'));
     }
     if (guidelinesModalDismiss) {
-      guidelinesModalDismiss.addEventListener('click', () => guidelinesModal.classList.add('hidden'));
+      guidelinesModalDismiss.addEventListener('click', () => guidelinesModal && guidelinesModal.classList.add('hidden'));
+    }
+
+    // ========================================================
+    // STAGE 2: VISUAL ASSETS, REFERENCE TEMPLATES & SAMPLE IMAGES
+    // ========================================================
+    let activeSubjectAsset = null;  // { url, path, filename, width, height, thumb }
+    let activeTemplateAsset = null; // { url, path, filename, width, height, thumb }
+
+    const btnSamplePopout = document.getElementById('btn-sample-popout');
+    const btnSamplePortrait = document.getElementById('btn-sample-portrait');
+    const btnSampleTemplate = document.getElementById('btn-sample-template');
+    const btnClearVisuals = document.getElementById('btn-clear-visuals');
+
+    const subjectStatusBadge = document.getElementById('subject-status-badge');
+    const subjectDropzone = document.getElementById('subject-dropzone');
+    const subjectFileInput = document.getElementById('subject-file-input');
+    const subjectPreviewCard = document.getElementById('subject-preview-card');
+    const subjectPreviewImg = document.getElementById('subject-preview-img');
+    const subjectDimensionsTag = document.getElementById('subject-dimensions-tag');
+    const subjectFilenameText = document.getElementById('subject-filename-text');
+    const btnReplaceSubject = document.getElementById('btn-replace-subject');
+    const btnRemoveSubject = document.getElementById('btn-remove-subject');
+
+    const personNameInput = document.getElementById('person-name-input');
+    const personTitleInput = document.getElementById('person-title-input');
+
+    function autoDetectFeaturedPerson(text) {
+      if (!text) return;
+      const m = text.match(/featuring\s+([A-Z][a-zA-Z\'-]+(?:\s+[A-Z][a-zA-Z\'-]+)+)(?:,?\s*([A-Za-z &/-]+?(?=(?:,|\.|\bwho\b|\bwith\b|\bset\b|\bcaptured\b|\bembodying\b|$))))?/i);
+      if (m && m[1]) {
+        if (personNameInput && !personNameInput.value.trim()) {
+          personNameInput.value = m[1].trim();
+        }
+        if (personTitleInput && m[2] && !personTitleInput.value.trim()) {
+          personTitleInput.value = m[2].trim().replace(/\s+/g, ' ');
+        }
+      }
+    }
+
+    const templateStatusBadge = document.getElementById('template-status-badge');
+    const templateDropzone = document.getElementById('template-dropzone');
+    const templateFileInput = document.getElementById('template-file-input');
+    const templatePreviewCard = document.getElementById('template-preview-card');
+    const templatePreviewImg = document.getElementById('template-preview-img');
+    const templateDimensionsTag = document.getElementById('template-dimensions-tag');
+    const templateFilenameText = document.getElementById('template-filename-text');
+    const btnReplaceTemplate = document.getElementById('btn-replace-template');
+    const btnRemoveTemplate = document.getElementById('btn-remove-template');
+
+    const visualModeIndicator = document.getElementById('visual-mode-indicator');
+    const visualModeTitle = document.getElementById('visual-mode-title');
+    const visualModeDesc = document.getElementById('visual-mode-desc');
+    const useUploadedAssetsToggle = document.getElementById('use-uploaded-assets-toggle');
+    const btnQuickTestSwap = document.getElementById('btn-quick-test-swap');
+    const quickTestSwapText = document.getElementById('quick-test-swap-text');
+
+    const quickSwapResultBox = document.getElementById('quick-swap-result-box');
+    const quickSwapDownloadLink = document.getElementById('quick-swap-download-link');
+    const btnCloseQuickSwap = document.getElementById('btn-close-quick-swap');
+    const quickSwapResultImg = document.getElementById('quick-swap-result-img');
+
+    function updateVisualStageUI() {
+      // 1. Update Subject Slot
+      if (activeSubjectAsset) {
+        if (subjectDropzone) subjectDropzone.classList.add('hidden');
+        if (subjectPreviewCard) subjectPreviewCard.classList.remove('hidden');
+        if (subjectPreviewImg) subjectPreviewImg.src = activeSubjectAsset.thumb || activeSubjectAsset.url;
+        if (subjectFilenameText) subjectFilenameText.textContent = activeSubjectAsset.filename || 'Subject Photo';
+        if (subjectDimensionsTag) {
+          subjectDimensionsTag.textContent = (activeSubjectAsset.width && activeSubjectAsset.height)
+            ? `${activeSubjectAsset.width} × ${activeSubjectAsset.height}`
+            : 'Target Subject';
+        }
+        if (subjectStatusBadge) {
+          subjectStatusBadge.textContent = 'ACTIVE SUBJECT';
+          subjectStatusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/40 uppercase';
+        }
+      } else {
+        if (subjectDropzone) subjectDropzone.classList.remove('hidden');
+        if (subjectPreviewCard) subjectPreviewCard.classList.add('hidden');
+        if (subjectStatusBadge) {
+          subjectStatusBadge.textContent = 'NOT LOADED';
+          subjectStatusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-obsidian-900 text-slate-500 border border-obsidian-800 uppercase';
+        }
+      }
+
+      // 2. Update Template Slot
+      if (activeTemplateAsset) {
+        if (templateDropzone) templateDropzone.classList.add('hidden');
+        if (templatePreviewCard) templatePreviewCard.classList.remove('hidden');
+        if (templatePreviewImg) templatePreviewImg.src = activeTemplateAsset.thumb || activeTemplateAsset.url;
+        if (templateFilenameText) templateFilenameText.textContent = activeTemplateAsset.filename || 'Template Graphic';
+        if (templateDimensionsTag) {
+          templateDimensionsTag.textContent = (activeTemplateAsset.width && activeTemplateAsset.height)
+            ? `${activeTemplateAsset.width} × ${activeTemplateAsset.height}`
+            : 'Template Reference';
+        }
+        if (templateStatusBadge) {
+          templateStatusBadge.textContent = 'ACTIVE TEMPLATE';
+          templateStatusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/40 uppercase';
+        }
+      } else {
+        if (templateDropzone) templateDropzone.classList.remove('hidden');
+        if (templatePreviewCard) templatePreviewCard.classList.add('hidden');
+        if (templateStatusBadge) {
+          templateStatusBadge.textContent = 'NOT LOADED';
+          templateStatusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-obsidian-900 text-slate-500 border border-obsidian-800 uppercase';
+        }
+      }
+
+      // 3. Update Engine Status Bar & Mode
+      if (activeSubjectAsset && activeTemplateAsset) {
+        if (visualModeTitle) {
+          visualModeTitle.textContent = '✨ 2.5D POP-OUT TEMPLATE ENGINE READY';
+          visualModeTitle.className = 'font-bold text-violet-300';
+        }
+        if (visualModeDesc) {
+          visualModeDesc.textContent = 'Will cleanly remove original subject, apply sub-pixel hair matting, monochrome grading, and layer head pop-out over typography with zero corruption.';
+        }
+        if (visualModeIndicator) {
+          visualModeIndicator.innerHTML = '<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-violet-400"></span>';
+        }
+        if (btnQuickTestSwap) {
+          btnQuickTestSwap.disabled = false;
+          btnQuickTestSwap.classList.remove('opacity-40', 'cursor-not-allowed');
+        }
+      } else if (activeSubjectAsset) {
+        if (visualModeTitle) {
+          visualModeTitle.textContent = '📸 HERO SUBJECT / PRODUCT PHOTO ACTIVE';
+          visualModeTitle.className = 'font-bold text-emerald-300';
+        }
+        if (visualModeDesc) {
+          visualModeDesc.textContent = 'Will feature your uploaded subject/product image as the primary hero visual for the campaign.';
+        }
+        if (visualModeIndicator) {
+          visualModeIndicator.innerHTML = '<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>';
+        }
+        if (btnQuickTestSwap) {
+          btnQuickTestSwap.disabled = true;
+          btnQuickTestSwap.classList.add('opacity-40', 'cursor-not-allowed');
+        }
+      } else if (activeTemplateAsset) {
+        if (visualModeTitle) {
+          visualModeTitle.textContent = '🎨 TEMPLATE GRAPHIC & STYLE REFERENCE ACTIVE';
+          visualModeTitle.className = 'font-bold text-cyan-300';
+        }
+        if (visualModeDesc) {
+          visualModeDesc.textContent = 'Will use the template composition, brand geometry, and colors to guide campaign generation.';
+        }
+        if (visualModeIndicator) {
+          visualModeIndicator.innerHTML = '<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-400"></span>';
+        }
+        if (btnQuickTestSwap) {
+          btnQuickTestSwap.disabled = true;
+          btnQuickTestSwap.classList.add('opacity-40', 'cursor-not-allowed');
+        }
+      } else {
+        if (visualModeTitle) {
+          visualModeTitle.textContent = '🤖 PURE AI GENERATION MODE';
+          visualModeTitle.className = 'font-bold text-slate-300';
+        }
+        if (visualModeDesc) {
+          visualModeDesc.textContent = 'No custom visual assets loaded. Will generate photorealistic imagery from campaign prompt.';
+        }
+        if (visualModeIndicator) {
+          visualModeIndicator.innerHTML = '<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-500 opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-400"></span>';
+        }
+        if (btnQuickTestSwap) {
+          btnQuickTestSwap.disabled = true;
+          btnQuickTestSwap.classList.add('opacity-40', 'cursor-not-allowed');
+        }
+      }
+
+      if (btnClearVisuals) {
+        btnClearVisuals.classList.toggle('hidden', !activeSubjectAsset && !activeTemplateAsset);
+      }
+
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    async function uploadVisualAssetFile(file, slot = 'subject') {
+      if (!file) return;
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('slot', slot);
+
+      try {
+        showToast(`Uploading ${slot === 'subject' ? 'subject portrait' : 'template graphic'}...`, true);
+        const resp = await fetch(`${backendApiBase}/api/upload-visual`, {
+          method: 'POST',
+          body: formData
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || `Upload failed: ${resp.status}`);
+        }
+        const data = await resp.json();
+        const assetObj = {
+          url: data.file_url,
+          path: data.file_path,
+          filename: data.filename,
+          width: data.width,
+          height: data.height,
+          thumb: data.thumbnail || data.file_url
+        };
+
+        if (slot === 'subject') {
+          activeSubjectAsset = assetObj;
+          currentUploadedImageUrl = data.file_url;
+          showToast(`Subject image ready: ${data.filename} (${data.width}×${data.height})`, true);
+        } else {
+          activeTemplateAsset = assetObj;
+          showToast(`Template graphic ready: ${data.filename} (${data.width}×${data.height})`, true);
+        }
+        updateVisualStageUI();
+      } catch (err) {
+        showToast(`Error uploading visual asset: ${err.message}`, false);
+      }
+    }
+
+    // Connect Subject Slot Listeners
+    if (subjectDropzone && subjectFileInput) {
+      subjectDropzone.addEventListener('click', () => subjectFileInput.click());
+      subjectFileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          uploadVisualAssetFile(e.target.files[0], 'subject');
+        }
+      });
+      subjectDropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        subjectDropzone.classList.add('border-emerald-400', 'bg-obsidian-900/90');
+      });
+      subjectDropzone.addEventListener('dragleave', () => {
+        subjectDropzone.classList.remove('border-emerald-400', 'bg-obsidian-900/90');
+      });
+      subjectDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        subjectDropzone.classList.remove('border-emerald-400', 'bg-obsidian-900/90');
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+          uploadVisualAssetFile(e.dataTransfer.files[0], 'subject');
+        }
+      });
+    }
+
+    if (btnReplaceSubject && subjectFileInput) {
+      btnReplaceSubject.addEventListener('click', () => subjectFileInput.click());
+    }
+    if (btnRemoveSubject) {
+      btnRemoveSubject.addEventListener('click', () => {
+        activeSubjectAsset = null;
+        if (currentUploadedImageUrl === (activeSubjectAsset && activeSubjectAsset.url)) {
+          currentUploadedImageUrl = '';
+        }
+        updateVisualStageUI();
+        showToast('Removed subject portrait', true);
+      });
+    }
+
+    // Connect Template Slot Listeners
+    if (templateDropzone && templateFileInput) {
+      templateDropzone.addEventListener('click', () => templateFileInput.click());
+      templateFileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          uploadVisualAssetFile(e.target.files[0], 'template');
+        }
+      });
+      templateDropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        templateDropzone.classList.add('border-cyan-accent', 'bg-obsidian-900/90');
+      });
+      templateDropzone.addEventListener('dragleave', () => {
+        templateDropzone.classList.remove('border-cyan-accent', 'bg-obsidian-900/90');
+      });
+      templateDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        templateDropzone.classList.remove('border-cyan-accent', 'bg-obsidian-900/90');
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+          uploadVisualAssetFile(e.dataTransfer.files[0], 'template');
+        }
+      });
+    }
+
+    if (btnReplaceTemplate && templateFileInput) {
+      btnReplaceTemplate.addEventListener('click', () => templateFileInput.click());
+    }
+    if (btnRemoveTemplate) {
+      btnRemoveTemplate.addEventListener('click', () => {
+        activeTemplateAsset = null;
+        updateVisualStageUI();
+        showToast('Removed template graphic', true);
+      });
+    }
+
+    // Connect Sample Buttons
+    if (btnSamplePopout) {
+      btnSamplePopout.addEventListener('click', () => {
+        activeTemplateAsset = {
+          url: '/test_assets/template_reference.jpg',
+          path: 'test_assets/template_reference.jpg',
+          filename: 'template_reference.jpg',
+          width: 808,
+          height: 1024,
+          thumb: '/test_assets/template_reference.jpg'
+        };
+        activeSubjectAsset = {
+          url: '/test_assets/raw_subject.jpg',
+          path: 'test_assets/raw_subject.jpg',
+          filename: 'raw_subject.jpg',
+          width: 1024,
+          height: 682,
+          thumb: '/test_assets/raw_subject.jpg'
+        };
+        currentUploadedImageUrl = '/test_assets/raw_subject.jpg';
+        updateVisualStageUI();
+
+        if (promptInput && (!promptInput.value.trim() || promptInput.value.includes('Tesla'))) {
+          promptInput.value = 'Template swap: Replace original subject with new subject in monochrome B&W with 2.5D head pop-out over WELCOME typography';
+          if (charCount) charCount.textContent = promptInput.value.length;
+        }
+        showToast('Loaded Sekawan 2.5D Pop-Out Benchmark (Template + Subject Portrait)!', true);
+      });
+    }
+
+    if (btnSamplePortrait) {
+      btnSamplePortrait.addEventListener('click', () => {
+        activeSubjectAsset = {
+          url: '/test_assets/raw_subject.jpg',
+          path: 'test_assets/raw_subject.jpg',
+          filename: 'raw_subject.jpg',
+          width: 1024,
+          height: 682,
+          thumb: '/test_assets/raw_subject.jpg'
+        };
+        activeTemplateAsset = null;
+        currentUploadedImageUrl = '/test_assets/raw_subject.jpg';
+        updateVisualStageUI();
+        showToast('Loaded Studio Portrait (Woman in Abaya) as Subject to Use!', true);
+      });
+    }
+
+    if (btnSampleTemplate) {
+      btnSampleTemplate.addEventListener('click', () => {
+        activeTemplateAsset = {
+          url: '/test_assets/template_reference.jpg',
+          path: 'test_assets/template_reference.jpg',
+          filename: 'template_reference.jpg',
+          width: 808,
+          height: 1024,
+          thumb: '/test_assets/template_reference.jpg'
+        };
+        activeSubjectAsset = null;
+        updateVisualStageUI();
+        showToast('Loaded Sekawan Media Template Graphic!', true);
+      });
+    }
+
+    if (btnClearVisuals) {
+      btnClearVisuals.addEventListener('click', () => {
+        activeSubjectAsset = null;
+        activeTemplateAsset = null;
+        currentUploadedImageUrl = '';
+        if (quickSwapResultBox) quickSwapResultBox.classList.add('hidden');
+        updateVisualStageUI();
+        showToast('Cleared all visual assets — back to pure AI prompt mode.', true);
+      });
+    }
+
+    // Connect Quick Test Swap Button
+    if (btnQuickTestSwap) {
+      btnQuickTestSwap.addEventListener('click', async () => {
+        if (!activeSubjectAsset || !activeTemplateAsset) {
+          showToast('Please load both a Template Graphic and a Subject Photo first', false);
+          return;
+        }
+
+        btnQuickTestSwap.disabled = true;
+        if (quickTestSwapText) quickTestSwapText.textContent = 'Compositing...';
+        showToast('Running autonomous 2.5D pop-out compositor...', true);
+
+        try {
+          const formData = new FormData();
+          formData.append('template_url', activeTemplateAsset.url);
+          formData.append('subject_url', activeSubjectAsset.url);
+
+          const pName = (personNameInput && personNameInput.value.trim()) || '';
+          const pTitle = (personTitleInput && personTitleInput.value.trim()) || '';
+          const bName = (brandInput && brandInput.value.trim()) || 'Lexnis Technologies';
+          if (pName) formData.append('person_name', pName);
+          if (pTitle) formData.append('person_title', pTitle);
+          if (bName) formData.append('brand_name', bName);
+
+          const resp = await fetch(`${backendApiBase}/api/template-swap`, {
+            method: 'POST',
+            body: formData
+          });
+
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.detail || `Template swap error: HTTP ${resp.status}`);
+          }
+
+          const data = await resp.json();
+          if (quickSwapResultImg && data.image_url) {
+            quickSwapResultImg.src = data.image_url;
+            if (quickSwapDownloadLink) quickSwapDownloadLink.href = data.image_url;
+            if (quickSwapResultBox) {
+              quickSwapResultBox.classList.remove('hidden');
+              quickSwapResultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+            showToast('2.5D Pop-out composite successfully generated!', true);
+          }
+        } catch (err) {
+          showToast(`Quick Test Swap failed: ${err.message}`, false);
+        } finally {
+          btnQuickTestSwap.disabled = false;
+          if (quickTestSwapText) quickTestSwapText.textContent = '⚡ Quick Test Swap';
+          if (window.lucide) window.lucide.createIcons();
+        }
+      });
+    }
+
+    if (btnCloseQuickSwap) {
+      btnCloseQuickSwap.addEventListener('click', () => {
+        if (quickSwapResultBox) quickSwapResultBox.classList.add('hidden');
+      });
     }
 
     function renderVisionTypographer(analysis, enHeadline, enTagline, arHeadline, arTagline) {
@@ -2141,6 +3012,7 @@
       // Setup textarea character counter
       promptInput.addEventListener('input', () => {
         charCount.textContent = promptInput.value.length;
+        autoDetectFeaturedPerson(promptInput.value);
       });
     });
 
@@ -2865,6 +3737,32 @@
           statusMessage.textContent = imageModelSelect.value.startsWith('local:')
             ? 'Researching and writing campaign, then rendering on your GPU. Keep this page open...'
             : 'Researching product → brief → copy → visual...';
+          const useAssets = (useUploadedAssetsToggle && typeof useUploadedAssetsToggle.checked === 'boolean')
+            ? useUploadedAssetsToggle.checked
+            : true;
+          let finalUploadedUrls = [];
+          let finalUploadedUrl = '';
+
+          if (useAssets) {
+            if (activeTemplateAsset && activeTemplateAsset.url && activeSubjectAsset && activeSubjectAsset.url) {
+              // Both template and subject loaded -> autonomous 2.5D pop-out swap!
+              finalUploadedUrls = [activeTemplateAsset.url, activeSubjectAsset.url];
+              finalUploadedUrl = activeSubjectAsset.url;
+            } else if (activeSubjectAsset && activeSubjectAsset.url) {
+              finalUploadedUrl = activeSubjectAsset.url;
+              finalUploadedUrls = [activeSubjectAsset.url];
+            } else if (activeTemplateAsset && activeTemplateAsset.url) {
+              finalUploadedUrl = activeTemplateAsset.url;
+              finalUploadedUrls = [activeTemplateAsset.url];
+            } else if (currentUploadedImageUrl) {
+              finalUploadedUrl = currentUploadedImageUrl;
+              finalUploadedUrls = [currentUploadedImageUrl];
+            } else if (activeGuidelineFiles.some(f => f.is_image && f.file_url)) {
+              finalUploadedUrls = activeGuidelineFiles.filter(f => f.is_image && f.file_url).map(f => f.file_url);
+              finalUploadedUrl = finalUploadedUrls[0] || '';
+            }
+          }
+
           const pyResponse = await fetch(`${backendApiBase}/api/generate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2879,9 +3777,9 @@
               output_format: campaignFormat,
               enhance_image: enhanceImageCheckbox.checked,
               guidelines: currentGuidelines || '',
-              uploaded_image_url: currentUploadedImageUrl || '',
-              uploaded_image_urls: activeGuidelineFiles.filter(f => f.is_image && f.file_url).map(f => f.file_url),
-              use_uploaded_image: !!currentUploadedImageUrl || activeGuidelineFiles.some(f => f.is_image)
+              uploaded_image_url: finalUploadedUrl,
+              uploaded_image_urls: finalUploadedUrls,
+              use_uploaded_image: useAssets && (finalUploadedUrls.length > 0)
             })
           });
 
@@ -2894,6 +3792,24 @@
           currentWarnings = pyData.warnings || [];
           currentImageStatus = pyData.image_status;
           document.getElementById('campaign-warnings').textContent = currentWarnings.join(' ');
+
+          if (pyData.guidelines) {
+            currentGuidelines = pyData.guidelines;
+            const src = pyData.guidelines_source || 'market_research';
+            if (!activeGuidelineFiles || activeGuidelineFiles.length === 0) {
+              activeGuidelineFiles = [{
+                id: 'auto_res_' + Date.now(),
+                filename: `${pyData.brand || 'Brand'} Strategic Directives`,
+                is_image: false,
+                thumbnail: '',
+                word_count: pyData.guidelines.split(/\s+/).filter(Boolean).length,
+                guidelines: pyData.guidelines,
+                is_market_research: src === 'market_research'
+              }];
+              syncGuidelinesFromActiveFiles(src);
+            }
+          }
+
           generatedText = pyData.raw_response || `${pyData.hook}\n\n${pyData.caption}`;
           parsed = {
             hook: pyData.hook,
