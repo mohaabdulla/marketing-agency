@@ -1784,21 +1784,25 @@ class LexnisCampaignStudio:
                 "brand_tag": "#LexnisTeam",
                 "typography": {
                     "primary_font": "Poppins",
-                    "secondary_font": "Inter",
-                    "heading_style": "Geometric Bold Sans (Poppins Bold)",
-                    "body_style": "High-Legibility Modern Sans (Inter)"
+                    "secondary_font": "Poppins Medium",
+                    "arabic_font": "Cairo",
+                    "heading_style": "Geometric Bold Sans (Poppins Bold 700 / Cairo Bold 700)",
+                    "body_style": "High-Legibility Modern Sans (Poppins Regular 400 / Almarai Regular)"
                 },
                 "brand_colors": {
-                    "primary": "#08101E",
-                    "secondary": "#132E4F",
-                    "accent": "#00F0FF",
+                    "primary": "#131724",
+                    "secondary": "#023024",
+                    "accent": "#53B849",
+                    "accent_lime": "#BCD755",
+                    "accent_yellow": "#FFBD23",
                     "text_primary": "#FFFFFF",
-                    "text_secondary": "#94A3B8",
-                    "gradient_start": "#08101E",
-                    "gradient_end": "#132E4F"
+                    "text_secondary": "#E2E8F0",
+                    "gradient_start": "#131724",
+                    "gradient_end": "#023024",
+                    "division_marketing": "#FF5C8A"
                 },
-                "visual_aesthetic": "Futuristic enterprise minimalism with volumetric rim light, high-contrast dark navy tones, and crisp geometric sans-serif typography.",
-                "guidelines_summary": "Color harmony: Dark enterprise navy (#08101E -> #132E4F) with electric cyan accents (#00F0FF). Primary typography is Poppins Bold. Official brand hashtag is #LexnisTeam. Layouts must feature crisp white framing with high-contrast executive portraiture."
+                "visual_aesthetic": "Enterprise transformation minimalism with 135° Depth Gradient (#131724 -> #023024), Tech Green & Lime dual open chevrons, Core Chevron Field pattern, and Poppins/Cairo bilingual typography.",
+                "guidelines_summary": "Color harmony: Tier 1 Dark Navy (#131724) to Deep Forest (#023024) 135° Depth Gradient, with Tech Green (#53B849) signal and Lime Green (#BCD755) acceleration cues. Primary typography: Poppins Bold 700 / Cairo Bold 700. Official brand hashtag: #LexnisTeam."
             }
 
         # 2. Live Web Scraping for custom domains
@@ -1899,6 +1903,92 @@ class LexnisCampaignStudio:
             return parsed_dna
         except Exception:
             return fallback_dna
+
+    def extract_brand_dna_from_guidelines(self, guidelines_text: str, default_brand: str = "Lexnis Technologies") -> Dict[str, Any]:
+        """
+        Extract structured Brand DNA from uploaded brand guidelines text/document:
+        - Prioritizes official brand book specifications (Lexnis 16-page Brand System Expansion)
+        - Locks corporate color architecture (Tier 1 Solids, Tier 2 Gradients, Tier 3 Division Accents)
+        - Locks typography pairs (Poppins + Cairo / Tajawal / Almarai)
+        - Locks corporate hashtag (#LexnisTeam) and right-facing chevron governance rules
+        """
+        import re
+        txt_lower = (guidelines_text or "").lower()
+        if "lexnis" in txt_lower or "edition 01" in txt_lower or "forward architecture" in txt_lower or "deep forest" in txt_lower:
+            return {
+                "company_name": "Lexnis Technologies",
+                "domain": "lexnis.com",
+                "brand_tag": "#LexnisTeam",
+                "brand_colors": {
+                    "primary": "#131724",
+                    "secondary": "#023024",
+                    "accent": "#53B849",
+                    "accent_lime": "#BCD755",
+                    "accent_yellow": "#FFBD23",
+                    "text_primary": "#FFFFFF",
+                    "text_secondary": "#E2E8F0",
+                    "gradient_start": "#131724",
+                    "gradient_end": "#023024",
+                    "division_cybersecurity": "#00C2FF",
+                    "division_managed_it": "#6675FF",
+                    "division_ai": "#8C5CFF",
+                    "division_webapp": "#2EC4B6",
+                    "division_marketing": "#FF5C8A",
+                    "division_activations": "#FF7A30"
+                },
+                "typography": {
+                    "primary_font": "Poppins",
+                    "secondary_font": "Poppins Medium",
+                    "arabic_font": "Cairo",
+                    "arabic_secondary": "Tajawal",
+                    "heading_style": "Geometric Bold Sans (Poppins Bold 700 / Cairo Bold 700)",
+                    "body_style": "High-Legibility Modern Sans (Poppins Regular 400 / Almarai Regular)"
+                },
+                "visual_aesthetic": "Enterprise transformation minimalism with 135° Depth Gradient (#131724 -> #023024), Tech Green & Lime dual open chevrons, Core Chevron Field pattern, and Poppins/Cairo bilingual typography.",
+                "governance_rules": {
+                    "chevrons": "Strictly right-facing open chevrons (336x284), never mirrored, never rotated. Arrow 1 = Tech Green #53B849, Arrow 2 = Lime Green #BCD755.",
+                    "clear_space": "Equal to the height of 'L' around wordmark.",
+                    "substrate": "Depth Gradient (#131724 -> #023024) with Core Chevron Field at 10-12% opacity."
+                },
+                "guidelines_summary": "Brand guidelines locked: Tier 1 Dark Navy (#131724) to Deep Forest (#023024) Depth Gradient with Tech Green (#53B849) and Lime Green (#BCD755) dual chevrons. Poppins & Cairo typography. #LexnisTeam.",
+                "locked_by_guidelines": True,
+                "source": "uploaded_guidelines"
+            }
+
+        # Custom guidelines extraction
+        hex_codes = list(dict.fromkeys(re.findall(r'#([0-9a-fA-F]{6})', guidelines_text)))
+        pri_hex = f"#{hex_codes[0]}" if hex_codes else "#131724"
+        sec_hex = f"#{hex_codes[1]}" if len(hex_codes) > 1 else "#023024"
+        acc_hex = f"#{hex_codes[2]}" if len(hex_codes) > 2 else "#53B849"
+
+        tag_match = re.search(r'#([A-Za-z0-9_]{3,30})', guidelines_text)
+        tag = f"#{tag_match.group(1)}" if tag_match else f"#{re.sub(r'[^a-zA-Z0-9]', '', default_brand)}Team"
+
+        return {
+            "company_name": default_brand,
+            "domain": "custom",
+            "brand_tag": tag,
+            "brand_colors": {
+                "primary": pri_hex,
+                "secondary": sec_hex,
+                "accent": acc_hex,
+                "gradient_start": pri_hex,
+                "gradient_end": sec_hex,
+                "text_primary": "#FFFFFF",
+                "text_secondary": "#E2E8F0"
+            },
+            "typography": {
+                "primary_font": "Poppins",
+                "secondary_font": "Inter",
+                "arabic_font": "Cairo",
+                "heading_style": "Geometric Bold Sans",
+                "body_style": "Clean Modern Sans"
+            },
+            "visual_aesthetic": f"Custom brand directives following uploaded guidelines with primary {pri_hex} and accent {acc_hex}.",
+            "guidelines_summary": f"Custom brand guidelines: Palette {pri_hex} / {sec_hex} with accent {acc_hex}. Tag: {tag}.",
+            "locked_by_guidelines": True,
+            "source": "uploaded_guidelines"
+        }
 
     def synthesize_brief_and_strategy(
         self,
@@ -2662,9 +2752,12 @@ class LexnisCampaignStudio:
         theme = theme or "Cinematic lifestyle photography"
         brand = brand or "Lexnis Technologies"
 
-        # 0. Live Brand DNA extraction from company website
+        # 0. Live Brand DNA extraction: Stage 1 Guidelines (Highest priority) or company website
         brand_dna = None
-        if company_url:
+        has_custom_gl = bool(guidelines and guidelines.strip())
+        if has_custom_gl:
+            brand_dna = self.extract_brand_dna_from_guidelines(guidelines, default_brand=brand)
+        elif company_url:
             step(f"Extracting live Brand DNA from {company_url}...")
             try:
                 brand_dna = self.analyze_company_website(company_url, brand=brand)
@@ -2831,14 +2924,15 @@ class LexnisCampaignStudio:
             brand_tag = brand_dna.get("brand_tag")
         if not brand_colors and "lexnis" in brand.lower():
             brand_colors = {
-                "primary": "#08101E",
-                "secondary": "#132E4F",
-                "accent": "#00F0FF",
-                "gradient_start": "#08101E",
-                "gradient_end": "#132E4F"
+                "primary": "#131724",
+                "secondary": "#023024",
+                "accent": "#53B849",
+                "accent_lime": "#BCD755",
+                "gradient_start": "#131724",
+                "gradient_end": "#023024"
             }
         if not brand_tag:
-            brand_tag = f"#{re.sub(r'[^a-zA-Z0-9]', '', brand)}Team"
+            brand_tag = "#LexnisTeam" if "lexnis" in brand.lower() else f"#{re.sub(r'[^a-zA-Z0-9]', '', brand)}Team"
 
         if t_file and s_file and (use_uploaded_image is not False):
             step("Executing autonomous 2.5D pop-out template subject replacement...")

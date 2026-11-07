@@ -662,16 +662,20 @@
                 </div>
                 <div class="flex items-center gap-2" id="dna-colors-row">
                   <div class="flex items-center gap-1">
-                    <span class="w-5 h-5 rounded border border-white/20 shadow" id="dna-swatch-pri" style="background-color: #08101E;" title="Primary Dark: #08101E"></span>
-                    <span class="text-[10px] font-mono text-slate-300" id="dna-hex-pri">#08101E</span>
+                    <span class="w-5 h-5 rounded border border-white/20 shadow" id="dna-swatch-pri" style="background-color: #131724;" title="Primary Dark Navy: #131724"></span>
+                    <span class="text-[10px] font-mono text-slate-300" id="dna-hex-pri">#131724</span>
                   </div>
                   <div class="flex items-center gap-1">
-                    <span class="w-5 h-5 rounded border border-white/20 shadow" id="dna-swatch-sec" style="background-color: #132E4F;" title="Secondary Navy: #132E4F"></span>
-                    <span class="text-[10px] font-mono text-slate-300" id="dna-hex-sec">#132E4F</span>
+                    <span class="w-5 h-5 rounded border border-white/20 shadow" id="dna-swatch-sec" style="background-color: #023024;" title="Secondary Deep Forest: #023024"></span>
+                    <span class="text-[10px] font-mono text-slate-300" id="dna-hex-sec">#023024</span>
                   </div>
                   <div class="flex items-center gap-1">
-                    <span class="w-5 h-5 rounded border border-white/20 shadow" id="dna-swatch-acc" style="background-color: #00F0FF;" title="Accent Cyan: #00F0FF"></span>
-                    <span class="text-[10px] font-mono text-slate-300" id="dna-hex-acc">#00F0FF</span>
+                    <span class="w-5 h-5 rounded border border-white/20 shadow" id="dna-swatch-acc" style="background-color: #53B849;" title="Tech Green Signal: #53B849"></span>
+                    <span class="text-[10px] font-mono text-slate-300" id="dna-hex-acc">#53B849</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span class="w-5 h-5 rounded border border-white/20 shadow" id="dna-swatch-lime" style="background-color: #BCD755;" title="Lime Acceleration: #BCD755"></span>
+                    <span class="text-[10px] font-mono text-slate-300" id="dna-hex-lime">#BCD755</span>
                   </div>
                 </div>
               </div>
@@ -683,10 +687,10 @@
                 </div>
                 <div class="flex flex-wrap items-center gap-1.5">
                   <span id="dna-font-pri" class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-violet-950 text-violet-300 border border-violet-500/40">
-                    Poppins Bold
+                    Poppins Bold 700
                   </span>
                   <span id="dna-font-sec" class="px-2 py-0.5 rounded text-[11px] font-mono bg-obsidian-800 text-slate-300 border border-obsidian-700">
-                    Inter Regular
+                    Cairo / Tajawal
                   </span>
                 </div>
               </div>
@@ -697,7 +701,7 @@
                   <i data-lucide="eye" class="w-3 h-3 text-amber-400"></i> Aesthetic Flow
                 </div>
                 <p id="dna-aesthetic-text" class="text-[11px] font-mono text-slate-300 line-clamp-2">
-                  Futuristic enterprise minimalism with sharp rim light, dark navy gradient, and crisp white framing.
+                  135° Depth Gradient (#131724 -> #023024) with Tech Green & Lime dual open chevrons, Core Chevron Field pattern, and Poppins/Cairo bilingual typography.
                 </p>
               </div>
             </div>
@@ -2370,7 +2374,14 @@
               if (imgF) currentUploadedImageUrl = imgF.file_url;
             }
             syncGuidelinesFromActiveFiles();
-            showToast(`Added ${fileList.length} brand asset${fileList.length > 1 ? 's' : ''}! (${activeGuidelineFiles.length} total active)`, true);
+
+            // Automatically populate and lock Stage 3 Brand DNA from Stage 1 Guidelines
+            if (data.brand_dna && Object.keys(data.brand_dna).length > 0) {
+              applyBrandDnaToUI(data.brand_dna);
+              showToast(`🔒 Brand DNA locked from Stage 1 guidelines: ${data.brand_dna.company_name} (${data.brand_dna.brand_tag || '#LexnisTeam'})`, true);
+            } else {
+              showToast(`Added ${fileList.length} brand asset${fileList.length > 1 ? 's' : ''}! (${activeGuidelineFiles.length} total active)`, true);
+            }
             return;
           }
         }
@@ -3198,12 +3209,20 @@
         dnaSwatchAcc.style.backgroundColor = colors.accent;
         dnaHexAcc.textContent = colors.accent;
       }
+      const swatchLime = document.getElementById('dna-swatch-lime');
+      const hexLime = document.getElementById('dna-hex-lime');
+      if (colors.accent_lime && swatchLime && hexLime) {
+        swatchLime.style.backgroundColor = colors.accent_lime;
+        hexLime.textContent = colors.accent_lime;
+      }
       const typo = dna.typography || {};
       if (typo.primary_font && dnaFontPri) {
-        dnaFontPri.textContent = typo.primary_font + ' Bold';
+        dnaFontPri.textContent = typo.primary_font + ' Bold 700';
       }
-      if (typo.secondary_font && dnaFontSec) {
-        dnaFontSec.textContent = typo.secondary_font + ' Regular';
+      if (typo.arabic_font && dnaFontSec) {
+        dnaFontSec.textContent = typo.arabic_font + ' / ' + (typo.secondary_font || 'Poppins Medium');
+      } else if (typo.secondary_font && dnaFontSec) {
+        dnaFontSec.textContent = typo.secondary_font;
       }
       if (dna.visual_aesthetic && dnaAestheticText) {
         dnaAestheticText.textContent = dna.visual_aesthetic;
@@ -3240,8 +3259,14 @@
         }
 
         const dna = await resp.json();
-        applyBrandDnaToUI(dna);
-        showToast(`✓ Brand DNA extracted: ${dna.company_name} (${dna.brand_tag})`, true);
+        if (currentBrandDna && currentBrandDna.locked_by_guidelines) {
+          const merged = { ...dna, brand_colors: currentBrandDna.brand_colors, typography: currentBrandDna.typography, locked_by_guidelines: true };
+          applyBrandDnaToUI(merged);
+          showToast(`✓ Website context merged (Stage 1 Brand Guidelines colors remain locked)`, true);
+        } else {
+          applyBrandDnaToUI(dna);
+          showToast(`✓ Brand DNA extracted: ${dna.company_name} (${dna.brand_tag})`, true);
+        }
       } catch (err) {
         showToast(`Website analysis warning: ${err.message}. Using corporate fallback.`, false);
       } finally {

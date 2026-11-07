@@ -575,6 +575,9 @@ async def upload_guidelines_endpoint(
     primary_name = processed_files[0]["filename"] if len(processed_files) == 1 else f"{len(processed_files)} Brand Files"
     primary_img = next((pf for pf in processed_files if pf["is_image"]), None)
 
+    # Extract structured Brand DNA directly from uploaded guidelines (highest-priority source of truth)
+    brand_dna = studio.extract_brand_dna_from_guidelines(distilled_combined, default_brand="Lexnis Technologies")
+
     return {
         "status": "success",
         "files": processed_files,
@@ -588,7 +591,8 @@ async def upload_guidelines_endpoint(
         "word_count": total_words,
         "char_count": len(distilled_combined),
         "guidelines": distilled_combined,
-        "preview": distilled_combined[:350] + ("..." if len(distilled_combined) > 350 else "")
+        "preview": distilled_combined[:350] + ("..." if len(distilled_combined) > 350 else ""),
+        "brand_dna": brand_dna
     }
 
 

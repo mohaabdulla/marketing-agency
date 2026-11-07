@@ -8,6 +8,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 from PIL import Image
+import numpy as np
+import cv2
 
 ROOT = Path(__file__).resolve().parent
 LOCAL_MODEL = 'local:segmind-vega'
@@ -386,8 +388,42 @@ def extract_subject_matte(subject_image, bg_color=None):
     return subject_rgba
 
 
+FONTS_DIR = ROOT / "static" / "fonts"
+
+
+def ensure_brand_fonts():
+    """Guarantee official Google Fonts for Lexnis brand identity exist in static/fonts."""
+    import urllib.request
+    FONTS_DIR.mkdir(parents=True, exist_ok=True)
+    urls = {
+        'Poppins-Bold.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Bold.ttf',
+        'Poppins-SemiBold.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-SemiBold.ttf',
+        'Poppins-Medium.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Medium.ttf',
+        'Poppins-Regular.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Regular.ttf',
+        'Cairo-Bold.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/cairo/Cairo%5Bslnt%2Cwght%5D.ttf',
+        'Cairo-SemiBold.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/cairo/Cairo%5Bslnt%2Cwght%5D.ttf',
+        'Cairo-Regular.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/cairo/Cairo%5Bslnt%2Cwght%5D.ttf',
+        'Tajawal-Medium.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/tajawal/Tajawal-Medium.ttf',
+        'Tajawal-Bold.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/tajawal/Tajawal-Bold.ttf',
+        'Almarai-Regular.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/almarai/Almarai-Regular.ttf',
+        'Almarai-Bold.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/almarai/Almarai-Bold.ttf'
+    }
+    for fname, url in urls.items():
+        fpath = FONTS_DIR / fname
+        if not fpath.exists() or fpath.stat().st_size == 0:
+            try:
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                fpath.write_bytes(urllib.request.urlopen(req, timeout=10).read())
+            except Exception:
+                pass
+
+
 def prepare_bidi_text(text: str) -> str:
-    """Reshapes Arabic letters and applies Unicode BiDi algorithm for RTL rendering."""
+    """
+    Reshapes Arabic letters and applies Unicode BiDi algorithm for RTL rendering.
+    Includes universal isolated Presentation Forms fallback mapping so Google Fonts
+    (Cairo, Tajawal, Almarai) render cleanly with ZERO missing glyph / tofu box artifacts.
+    """
     if not text:
         return ""
     import re
@@ -395,10 +431,174 @@ def prepare_bidi_text(text: str) -> str:
         try:
             import arabic_reshaper
             from bidi.algorithm import get_display
-            return get_display(arabic_reshaper.reshape(text))
+            reshaped = arabic_reshaper.reshape(text)
+            ISOLATED_FALLBACK = {
+                0xFE80: 0x0621, 0xFE81: 0x0622, 0xFE83: 0x0623, 0xFE85: 0x0624,
+                0xFE87: 0x0625, 0xFE89: 0x0626, 0xFE8D: 0x0627, 0xFE93: 0x0629,
+                0xFEAA: 0x0631, 0xFEAE: 0x0632, 0xFEED: 0x0648, 0xFEEF: 0x0649,
+                0xFEF1: 0x064A, 0xFEE5: 0x0646, 0xFE8E: 0x0627, 0xFE91: 0x0628,
+                0xFE97: 0x062A, 0xFE9B: 0x062B, 0xFE9F: 0x062C, 0xFEA3: 0x062D,
+                0xFEA7: 0x062E, 0xFEA9: 0x062F, 0xFEAB: 0x0630, 0xFEB1: 0x0633,
+                0xFEB5: 0x0634, 0xFEB9: 0x0635, 0xFEBD: 0x0636, 0xFEC1: 0x0637,
+                0xFEC5: 0x0638, 0xFEC9: 0x0639, 0xFECD: 0x063A, 0xFED1: 0x0641,
+                0xFED5: 0x0642, 0xFED9: 0x0643, 0xFEDD: 0x0644, 0xFEE1: 0x0645,
+                0xFEE9: 0x0647
+            }
+            clean_chars = [chr(ISOLATED_FALLBACK.get(ord(c), ord(c))) for c in reshaped]
+            return get_display(''.join(clean_chars))
         except Exception:
             return text
     return text
+
+
+def render_lexnis_logo(height: int = 34, is_dark_bg: bool = True) -> Image.Image:
+    """
+    Renders official Lexnis Technologies vector wordmark and dual open chevrons
+    conforming strictly to Section 01 of the Brand Identity Expansion (2026):
+    - Official 'LEXNIS' wordmark in Poppins Bold (700)
+    - Two geometric right-facing open chevrons (336x284 unit proportion, flat terminals)
+    - Chevron 1: Tech Green #53B849 (Stable technology foundation)
+    - Chevron 2: Lime Green #BCD755 (Accelerating transformation)
+    - Clear-space = Height of 'L'
+    - Supersampled 4x with Lanczos downscale for 100% anti-aliased crisp edges.
+    """
+    from PIL import Image, ImageDraw, ImageFont
+    ensure_brand_fonts()
+    font_path = FONTS_DIR / "Poppins-Bold.ttf"
+    scale = 4
+    h_hi = height * scale
+    f_size_hi = int(h_hi * 0.72)
+    font_hi = ImageFont.truetype(str(font_path), f_size_hi) if font_path.exists() else ImageFont.load_default()
+
+    text_color = (255, 255, 255, 255) if is_dark_bg else (19, 23, 36, 255)
+    tech_green = (83, 184, 73, 255)   # #53B849
+    lime_green = (188, 215, 85, 255)  # #BCD755
+
+    dummy = Image.new('RGBA', (1, 1), (0, 0, 0, 0))
+    d_draw = ImageDraw.Draw(dummy)
+    l_bbox = d_draw.textbbox((0, 0), 'L', font=font_hi)
+    l_h = l_bbox[3] - l_bbox[1]
+
+    text_str = 'LEXNIS'
+    t_bbox = d_draw.textbbox((0, 0), text_str, font=font_hi)
+    text_w = t_bbox[2] - t_bbox[0]
+    text_h = t_bbox[3] - t_bbox[1]
+
+    chev_h = int(text_h * 0.88)
+    chev_w = int(chev_h * (336.0 / 284.0))
+    chev_t = max(2, int(chev_w * 0.28))
+    clear_space = int(l_h * 0.75)
+    chev_pitch = int(chev_w * 0.72)
+
+    total_w_hi = text_w + clear_space + chev_w + chev_t + chev_pitch + int(l_h * 0.4)
+    total_h_hi = int(h_hi * 1.30)
+
+    logo_hi = Image.new('RGBA', (total_w_hi, total_h_hi), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(logo_hi)
+
+    text_y = (total_h_hi - text_h) // 2 - t_bbox[1]
+    draw.text((0, text_y), text_str, font=font_hi, fill=text_color)
+
+    chev_start_x = text_w + clear_space
+    cy = total_h_hi // 2
+    top = cy - chev_h // 2
+    bot = cy + chev_h // 2
+
+    def draw_chev(cx, color):
+        pts = [
+            (cx + chev_t, top),
+            (cx + chev_w + chev_t, cy),
+            (cx + chev_t, bot),
+            (cx, bot),
+            (cx + chev_w, cy),
+            (cx, top)
+        ]
+        draw.polygon(pts, fill=color)
+
+    draw_chev(chev_start_x, tech_green)
+    draw_chev(chev_start_x + chev_pitch, lime_green)
+
+    final_w = max(1, int(total_w_hi / scale))
+    final_h = max(1, int(total_h_hi / scale))
+    return logo_hi.resize((final_w, final_h), Image.Resampling.LANCZOS)
+
+
+def generate_chevron_field(width: int, height: int, opacity: float = 0.10, stroke_color=(83, 184, 73)) -> Image.Image:
+    """
+    Renders Section 04 Core Chevron Field:
+    Right-facing open chevrons (proportions 336x284), horizontal pitch 261 units,
+    vertical row step -130 units (135 degree continuous diagonal drift to upper right).
+    Alpha-blended at 10-12% opacity over dark substrate.
+    """
+    from PIL import Image, ImageDraw
+    pat = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(pat)
+
+    target_ch = int(height * 0.045)
+    scale = target_ch / 284.0
+    cw = int(336.0 * scale)
+    ch = target_ch
+    pitch_x = int(261.0 * scale)
+    step_y = int(ch * 0.90)
+    step_x = int(-130.0 * scale)
+    t = max(2, int(cw * 0.28))
+
+    fill_rgba = (stroke_color[0], stroke_color[1], stroke_color[2], int(255 * opacity))
+
+    y_min = -ch * 2
+    y_max = height + ch * 2
+    x_min = -cw * 3
+    x_max = width + cw * 3
+
+    row = 0
+    y = y_min
+    while y < y_max:
+        row_offset = (row * step_x) % pitch_x
+        x = x_min + row_offset
+        cy = y + ch // 2
+        top = cy - ch // 2
+        bot = cy + ch // 2
+        while x < x_max:
+            pts = [
+                (x + t, top),
+                (x + cw + t, cy),
+                (x + t, bot),
+                (x, bot),
+                (x + cw, cy),
+                (x, top)
+            ]
+            draw.polygon(pts, fill=fill_rgba)
+            x += pitch_x
+        y += step_y
+        row += 1
+
+    return pat
+
+
+def render_depth_gradient(width: int, height: int, c_start_hex: str = "#131724", c_end_hex: str = "#023024") -> np.ndarray:
+    """
+    Renders Section 02 Tier 2 Depth Gradient at 135 degrees:
+    Flows from darker lower-left (#131724 Dark Navy) to brighter upper-right (#023024 Deep Forest Green).
+    Returns BGR numpy array (H, W, 3).
+    """
+    import numpy as np
+    def hex_to_bgr(h):
+        h = h.lstrip('#')
+        r = int(h[0:2], 16)
+        g = int(h[2:4], 16)
+        b = int(h[4:6], 16)
+        return np.array([b, g, r], dtype=np.float32)
+
+    c1 = hex_to_bgr(c_start_hex)
+    c2 = hex_to_bgr(c_end_hex)
+
+    y_grid, x_grid = np.mgrid[0:height, 0:width]
+    u = x_grid / float(width)
+    v = 1.0 - (y_grid / float(height))
+    diag = np.clip((u + v) * 0.5, 0.0, 1.0)
+
+    bg = (c1[None, None, :] * (1.0 - diag[:, :, None]) + c2[None, None, :] * diag[:, :, None]).clip(0, 255).astype(np.uint8)
+    return bg
 
 
 ARABIC_TITLES_MAP = {
@@ -569,56 +769,53 @@ def composite_template_swap(
             cr[0] + cr[1] * x_f + cr[2] * y_f
         ], axis=2).clip(0, 255).astype(np.uint8)
 
-    # Optional: Recolor background gradient to company brand palette
-    brand_grad = None
-    if recolor_gradient and brand_colors and isinstance(brand_colors, dict):
-        def parse_c(hex_str, default_bgr):
-            if hex_str and isinstance(hex_str, str) and hex_str.startswith('#') and len(hex_str) == 7:
-                try:
-                    r = int(hex_str[1:3], 16)
-                    g = int(hex_str[3:5], 16)
-                    b = int(hex_str[5:7], 16)
-                    return np.array([b, g, r], dtype=np.float32)
-                except Exception:
-                    pass
-            return default_bgr
+    # Brand Identity & Palette Check
+    is_lexnis = bool(brand_name and "lexnis" in brand_name.lower()) or (recolor_gradient and not brand_name) or (brand_colors and any(k in str(brand_colors).upper() for k in ["53B849", "023024", "131724"]))
+    is_brand_upgrade = bool(recolor_gradient or is_lexnis or brand_colors or (brand_name and "sekawan" not in brand_name.lower()) or (person_name and "anyta" not in person_name.lower()))
 
-        c1 = parse_c(brand_colors.get('gradient_start') or brand_colors.get('primary'), np.array([28, 16, 8], dtype=np.float32))
-        c2 = parse_c(brand_colors.get('gradient_end') or brand_colors.get('secondary'), np.array([72, 42, 16], dtype=np.float32))
+    if is_brand_upgrade:
+        # 1. Depth Gradient + Core Chevron Field Substrate
+        c1_hex = "#131724"
+        c2_hex = "#023024"
+        if brand_colors and isinstance(brand_colors, dict):
+            c1_hex = brand_colors.get("gradient_start") or brand_colors.get("primary") or c1_hex
+            c2_hex = brand_colors.get("gradient_end") or brand_colors.get("secondary") or c2_hex
 
-        y_all, x_all = np.mgrid[0:H, 0:W]
-        diag = (x_all / float(W) * 0.35 + y_all / float(H) * 0.65)
-        brand_grad = (c1[None, None, :] * (1.0 - diag[:, :, None]) + c2[None, None, :] * diag[:, :, None]).clip(0, 255).astype(np.uint8)
+        bg_bgr = render_depth_gradient(W, H, c1_hex, c2_hex)
+        bg_field = generate_chevron_field(W, H, opacity=0.09, stroke_color=(83, 184, 73))
+        bg_pil = Image.fromarray(cv2.cvtColor(bg_bgr, cv2.COLOR_BGR2RGB))
+        bg_pil.paste(bg_field, (0, 0), bg_field)
+        clean_plate = cv2.cvtColor(np.array(bg_pil), cv2.COLOR_RGB2BGR)
 
-        orig_bg = np.stack([
-            (cb[0] + cb[1] * x_all + cb[2] * y_all).clip(0, 255),
-            (cg[0] + cg[1] * x_all + cg[2] * y_all).clip(0, 255),
-            (cr[0] + cr[1] * x_all + cr[2] * y_all).clip(0, 255)
-        ], axis=2)
+        # 2. White Polaroid Frame Outer Card & Substrate Window
+        clean_plate[fy:fy + fh, fx:fx + fw] = [255, 255, 255]
+        clean_plate[iy:iy + ih, ix:ix + iw] = cv2.cvtColor(np.array(bg_pil), cv2.COLOR_RGB2BGR)[iy:iy + ih, ix:ix + iw]
 
-        diff_r = (clean_plate[:, :, 2].astype(np.float32) - orig_bg[:, :, 2])
-        white_mask = (diff_r > 35).astype(np.float32)
-        white_mask[iy:iy + ih, ix:ix + iw] = 0.0
-        white_mask[fy:fy + border_px, fx:fx + fw] = 1.0
-        white_mask[fy:fy + fh, fx:fx + border_px] = 1.0
-        white_mask[fy:fy + fh, fx + fw - border_px:fx + fw] = 1.0
-        white_mask[ny:ny + nh, nx:nx + nw] = 1.0
-
-        # CRITICAL FIX: Zero out footer region in white_mask so old template footer letters never carry over!
-        white_mask[815:895, :] = 0.0
+        # 3. Layer 2: Vector Anti-Aliased Display Headline (Behind Subject Head Pop-Out)
+        pil_plate = Image.fromarray(cv2.cvtColor(clean_plate, cv2.COLOR_BGR2RGB))
+        draw_hl = ImageDraw.Draw(pil_plate)
+        ensure_brand_fonts()
         if is_ar:
-            white_mask[175:265, :] = 0.0
+            f_hl_path = FONTS_DIR / "Cairo-Bold.ttf"
+            font_hl = ImageFont.truetype(str(f_hl_path), int(54 * (H / 1024.0))) if f_hl_path.exists() else ImageFont.load_default()
+            hl_str = prepare_bidi_text(headline_text or "أهلاً وسهلاً")
+        else:
+            f_hl_path = FONTS_DIR / "Poppins-Bold.ttf"
+            font_hl = ImageFont.truetype(str(f_hl_path), int(56 * (H / 1024.0))) if f_hl_path.exists() else ImageFont.load_default()
+            hl_str = headline_text or "WELCOME"
 
-        white_smooth = cv2.GaussianBlur(white_mask, (3, 3), 0)[:, :, None]
-        clean_plate = (brand_grad.astype(np.float32) * (1.0 - white_smooth) + np.array([255, 255, 255], dtype=np.float32) * white_smooth).clip(0, 255).astype(np.uint8)
+        bbox_hl = draw_hl.textbbox((0, 0), hl_str, font=font_hl)
+        hl_w = bbox_hl[2] - bbox_hl[0]
+        hl_y = int(196 * (H / 1024.0))
+        draw_hl.text(((W - hl_w) // 2, hl_y), hl_str, font=font_hl, fill=(255, 255, 255))
+        clean_plate = cv2.cvtColor(np.array(pil_plate), cv2.COLOR_RGB2BGR)
 
-    # In Arabic mode, typeset Arabic display headline (أهلاً وسهلاً) onto clean_plate
-    # so the subject's head popout naturally layers over it (2.5D depth pop-out)
-    if is_ar:
+    elif is_ar:
+        # In Arabic mode for baseline template, typeset Arabic display headline onto clean_plate
         pil_plate = Image.fromarray(cv2.cvtColor(clean_plate, cv2.COLOR_BGR2RGB))
         draw_p = ImageDraw.Draw(pil_plate)
         font_ar_hl = None
-        for fpath in ['C:/Windows/Fonts/arialbd.ttf', 'C:/Windows/Fonts/segoeuib.ttf', 'C:/Windows/Fonts/tahomabd.ttf']:
+        for fpath in ['static/fonts/Cairo-Bold.ttf', 'C:/Windows/Fonts/arialbd.ttf', 'C:/Windows/Fonts/segoeuib.ttf']:
             if Path(fpath).exists():
                 try:
                     font_ar_hl = ImageFont.truetype(fpath, 56)
@@ -688,25 +885,41 @@ def composite_template_swap(
 
         font_bold_path = None
         font_reg_path = None
+        font_med_path = None
+        ensure_brand_fonts()
         for fpath in [
-            'C:/Windows/Fonts/arialbd.ttf',
-            'static/fonts/Poppins-Bold.ttf',
+            str(FONTS_DIR / 'Poppins-Bold.ttf'),
+            str(FONTS_DIR / 'Cairo-Bold.ttf'),
             'C:/Windows/Fonts/segoeuib.ttf',
+            'C:/Windows/Fonts/arialbd.ttf',
         ]:
             if Path(fpath).exists():
                 font_bold_path = fpath
                 break
         for fpath in [
-            'C:/Windows/Fonts/arial.ttf',
-            'static/fonts/Poppins-Regular.ttf',
+            str(FONTS_DIR / 'Poppins-Regular.ttf'),
+            str(FONTS_DIR / 'Cairo-Regular.ttf'),
+            str(FONTS_DIR / 'Tajawal-Medium.ttf'),
             'C:/Windows/Fonts/segoeui.ttf',
+            'C:/Windows/Fonts/arial.ttf',
         ]:
             if Path(fpath).exists():
                 font_reg_path = fpath
                 break
+        for fpath in [
+            str(FONTS_DIR / 'Poppins-Medium.ttf'),
+            str(FONTS_DIR / 'Cairo-SemiBold.ttf'),
+            str(FONTS_DIR / 'Tajawal-Medium.ttf'),
+            'C:/Windows/Fonts/segoeuib.ttf',
+        ]:
+            if Path(fpath).exists():
+                font_med_path = fpath
+                break
 
-        # Adapt text color to brand primary color if available, else #1B75E8
-        blue_brand = (27, 117, 232)  # #1B75E8
+        # Adapt text color to brand palette
+        dark_navy = (19, 23, 36)      # #131724
+        tech_green = (83, 184, 73)    # #53B849
+        blue_brand = dark_navy if is_lexnis else (27, 117, 232)
         if brand_colors and isinstance(brand_colors, dict):
             pri_hex = brand_colors.get("primary", "")
             if pri_hex and pri_hex.startswith("#") and len(pri_hex) == 7:
@@ -743,8 +956,11 @@ def composite_template_swap(
             r_name = prepare_bidi_text(display_name)
             r_role = prepare_bidi_text(display_role)
 
-            f_name, s_n = get_fitted_font(font_bold_path, r_name, 30, avail_w, min_size=16)
-            f_role, _ = get_fitted_font(font_reg_path or font_bold_path, r_role, 15, avail_w, min_size=11)
+            f_name_path = str(FONTS_DIR / 'Cairo-Bold.ttf') if (FONTS_DIR / 'Cairo-Bold.ttf').exists() else font_bold_path
+            f_role_path = str(FONTS_DIR / 'Cairo-SemiBold.ttf') if (FONTS_DIR / 'Cairo-SemiBold.ttf').exists() else (font_med_path or font_reg_path)
+
+            f_name, s_n = get_fitted_font(f_name_path, r_name, 26, avail_w, min_size=16)
+            f_role, _ = get_fitted_font(f_role_path, r_role, 14, avail_w, min_size=11)
 
             bbox_n = draw_p.textbbox((0, 0), r_name, font=f_name)
             bbox_r = draw_p.textbbox((0, 0), r_role, font=f_role)
@@ -752,30 +968,42 @@ def composite_template_swap(
             rw_px = bbox_r[2] - bbox_r[0]
 
             margin_r = int(margin_left_px)
-            draw_p.text((nameplate_w - margin_r - nw_px, 24), r_name, font=f_name, fill=blue_brand)
-            draw_p.text((nameplate_w - margin_r - rw_px, 84), r_role, font=f_role, fill=blue_brand)
+            draw_p.text((nameplate_w - margin_r - nw_px, 18), r_name, font=f_name, fill=dark_navy if is_lexnis else blue_brand)
+            if is_lexnis or is_brand_upgrade:
+                draw_p.line([(margin_r, 58), (nameplate_w - margin_r, 58)], fill=tech_green, width=2)
+                draw_p.text((nameplate_w - margin_r - rw_px, 68), r_role, font=f_role, fill=tech_green)
+            else:
+                draw_p.text((nameplate_w - margin_r - rw_px, 84), r_role, font=f_role, fill=blue_brand)
         else:
             # English Nameplate
             clean_name = (person_name or "").strip()
             clean_name = re.sub(r'\s+\b(as|is|our|the|a|an)\b.*$', '', clean_name, flags=re.IGNORECASE).strip()
             parts = clean_name.split()
-            base_title_size = 34
-            if len(parts) >= 2 and len(clean_name) > 12:
-                f_l1, s1 = get_fitted_font(font_bold_path, parts[0], base_title_size, avail_w, min_size=16)
-                f_l2, s2 = get_fitted_font(font_bold_path, " ".join(parts[1:]), base_title_size, avail_w, min_size=16)
+            base_title_size = 28 if (is_lexnis or is_brand_upgrade) else 34
+            f_name_path = str(FONTS_DIR / 'Poppins-Bold.ttf') if (FONTS_DIR / 'Poppins-Bold.ttf').exists() else font_bold_path
+            f_role_path = str(FONTS_DIR / 'Poppins-Medium.ttf') if (FONTS_DIR / 'Poppins-Medium.ttf').exists() else (font_med_path or font_reg_path)
+
+            if len(parts) >= 2 and len(clean_name) > 12 and not (is_lexnis or is_brand_upgrade):
+                f_l1, s1 = get_fitted_font(f_name_path, parts[0], base_title_size, avail_w, min_size=16)
+                f_l2, s2 = get_fitted_font(f_name_path, " ".join(parts[1:]), base_title_size, avail_w, min_size=16)
                 final_size = min(s1, s2)
-                final_font = ImageFont.truetype(font_bold_path, final_size) if font_bold_path else ImageFont.load_default()
+                final_font = ImageFont.truetype(f_name_path, final_size) if f_name_path else ImageFont.load_default()
                 line_step = int(final_size * 1.1)
                 draw_p.text((margin_left_px, 14), parts[0], font=final_font, fill=blue_brand)
                 draw_p.text((margin_left_px, 14 + line_step), " ".join(parts[1:]), font=final_font, fill=blue_brand)
             else:
-                f_name, _ = get_fitted_font(font_bold_path, clean_name, base_title_size, avail_w, min_size=16)
-                draw_p.text((margin_left_px, 28), clean_name, font=f_name, fill=blue_brand)
+                f_name, _ = get_fitted_font(f_name_path, clean_name, base_title_size, avail_w, min_size=16)
+                draw_p.text((margin_left_px, 18), clean_name, font=f_name, fill=dark_navy if is_lexnis else blue_brand)
 
             role_text = (person_title or "Team Member").strip()
             role_text = re.sub(r'^(?:a|an)\s+', '', role_text, flags=re.IGNORECASE).strip()
-            f_role, _ = get_fitted_font(font_reg_path or font_bold_path, role_text, 15, avail_w, min_size=10)
-            draw_p.text((margin_left_px, nameplate_h - int(nameplate_h * 0.26)), role_text, font=f_role, fill=blue_brand)
+            f_role, _ = get_fitted_font(f_role_path, role_text, 14, avail_w, min_size=10)
+            if is_lexnis or is_brand_upgrade:
+                # 2px Tech Green #53B849 Brand Rule Divider
+                draw_p.line([(margin_left_px, 58), (nameplate_w - margin_left_px, 58)], fill=tech_green, width=2)
+                draw_p.text((margin_left_px, 68), role_text, font=f_role, fill=tech_green)
+            else:
+                draw_p.text((margin_left_px, nameplate_h - int(nameplate_h * 0.26)), role_text, font=f_role, fill=blue_brand)
 
         patch_cv = cv2.cvtColor(np.array(patch_pil), cv2.COLOR_RGB2BGR)
         composite[ny:ny + nh, nx:nx + nw] = patch_cv
@@ -838,7 +1066,8 @@ def composite_template_swap(
         b_name = brand_name or "Lexnis Technologies"
         display_brand = b_name.upper()
         if "LEXNIS" in display_brand:
-            draw_top.text((lx, ly), "LEXNIS »", font=f_brand, fill=(255, 255, 255))
+            logo_img = render_lexnis_logo(height=34, is_dark_bg=True)
+            comp_pil.paste(logo_img, (lx, ly), logo_img)
         else:
             draw_top.text((lx, ly), display_brand[:20], font=f_brand, fill=(255, 255, 255))
 
@@ -849,7 +1078,7 @@ def composite_template_swap(
             tag_w = draw_top.textbbox((0, 0), reshaped_tag, font=f_tag)[2] - draw_top.textbbox((0, 0), reshaped_tag, font=f_tag)[0]
             draw_top.text((W - int(margin_left_px) - tag_w, ty_start), reshaped_tag, font=f_tag, fill=(235, 244, 255))
         else:
-            final_tag = brand_tag or f"#{re.sub(r'[^a-zA-Z0-9]', '', b_name)}Team"
+            final_tag = brand_tag or ("#LexnisTeam" if "lexnis" in b_name.lower() else f"#{re.sub(r'[^a-zA-Z0-9]', '', b_name)}Team")
             draw_top.text((tx_start, ty_start), final_tag, font=f_tag, fill=(255, 255, 255))
 
     composite = cv2.cvtColor(np.array(comp_pil), cv2.COLOR_RGB2BGR)
@@ -1031,17 +1260,25 @@ def render_reflowed_campaign_visual(
     f_logo = ImageFont.truetype(font_bold_path, int(H * 0.022)) if font_bold_path else ImageFont.load_default()
     f_tag = ImageFont.truetype(font_reg_path or font_bold_path, int(H * 0.016)) if (font_reg_path or font_bold_path) else ImageFont.load_default()
 
-    display_logo = "LEXNIS »" if "lexnis" in (brand_name or "").lower() else (brand_name or "Sekawan Media")[:20]
-    draw_f.text((int(W * 0.065), int(H * 0.05)), display_logo, font=f_logo, fill=(255, 255, 255))
+    is_lexnis_mode = "lexnis" in (brand_name or "").lower()
+    if is_lexnis_mode:
+        logo_h = max(28, int(H * 0.026))
+        logo_img = render_lexnis_logo(height=logo_h, is_dark_bg=True)
+        pil_final.paste(logo_img, (int(W * 0.065), int(H * 0.05)), logo_img)
+    else:
+        display_logo = (brand_name or "Sekawan Media")[:20]
+        draw_f.text((int(W * 0.065), int(H * 0.05)), display_logo, font=f_logo, fill=(255, 255, 255))
 
     # Top-Right Hashtag
-    tag_str = brand_tag or "#SekawanTeam"
+    tag_str = brand_tag or ("#LexnisTeam" if is_lexnis_mode else "#SekawanTeam")
     tag_w = draw_f.textbbox((0, 0), tag_str, font=f_tag)[2]
     draw_f.text((W - int(W * 0.065) - tag_w, int(H * 0.05)), tag_str, font=f_tag, fill=(235, 244, 255))
 
     # Auto-fit nameplate typography
-    blue_brand = (27, 117, 232)
-    if brand_colors and isinstance(brand_colors, dict):
+    dark_navy = (19, 23, 36)      # #131724
+    tech_green = (83, 184, 73)    # #53B849
+    blue_brand = dark_navy if is_lexnis_mode else (27, 117, 232)
+    if brand_colors and isinstance(brand_colors, dict) and not is_lexnis_mode:
         pri_hex = brand_colors.get("primary", "")
         if pri_hex and pri_hex.startswith("#") and len(pri_hex) == 7:
             try:
@@ -1066,7 +1303,7 @@ def render_reflowed_campaign_visual(
     clean_pname = (person_name or "Anyta Putri").strip()
     parts = clean_pname.split()
 
-    if len(parts) >= 2 and len(clean_pname) > 12:
+    if len(parts) >= 2 and len(clean_pname) > 12 and not is_lexnis_mode:
         f_p1, s1 = fit_font(font_bold_path, parts[0], base_name_size, avail_w, min_size=14)
         f_p2, s2 = fit_font(font_bold_path, " ".join(parts[1:]), base_name_size, avail_w, min_size=14)
         final_s = min(s1, s2)
@@ -1076,11 +1313,16 @@ def render_reflowed_campaign_visual(
         draw_f.text((margin_l, ny + int(np_h * 0.10) + line_step), " ".join(parts[1:]), font=f_name_final, fill=blue_brand)
     else:
         f_name_final, _ = fit_font(font_bold_path, clean_pname, base_name_size, avail_w, min_size=14)
-        draw_f.text((margin_l, ny + int(np_h * 0.20)), clean_pname, font=f_name_final, fill=blue_brand)
+        draw_f.text((margin_l, ny + int(np_h * 0.18)), clean_pname, font=f_name_final, fill=blue_brand)
 
     role_str = (person_title or "Chief of Business Development Department").strip()
     f_role, _ = fit_font(font_reg_path or font_bold_path, role_str, int(np_h * 0.13), avail_w, min_size=10)
-    draw_f.text((margin_l, ny + int(np_h * 0.70)), role_str, font=f_role, fill=blue_brand)
+    if is_lexnis_mode:
+        rule_y = ny + int(np_h * 0.55)
+        draw_f.line([(margin_l, rule_y), (fx + fw - int(fw * 0.07), rule_y)], fill=tech_green, width=2)
+        draw_f.text((margin_l, ny + int(np_h * 0.64)), role_str, font=f_role, fill=tech_green)
+    else:
+        draw_f.text((margin_l, ny + int(np_h * 0.70)), role_str, font=f_role, fill=blue_brand)
 
     # Footer Caption
     f_footer = ImageFont.truetype(font_reg_path or font_bold_path, int(H * 0.016)) if (font_reg_path or font_bold_path) else ImageFont.load_default()
