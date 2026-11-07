@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from visual_engine import model_setup, preferred_local_model, composite_template_swap
+from visual_engine import model_setup, preferred_local_model, composite_template_swap, sanitize_brand_tag
 
 from campaign_generator import (
     LexnisCampaignStudio, CampaignAsset, IMAGE_MODELS, DEFAULT_IMAGE_MODEL, RENDERS_DIR,
@@ -719,26 +719,26 @@ async def template_swap_endpoint(
             raise HTTPException(status_code=400, detail="Both template and subject images are required.")
 
         brand_colors = None
-        final_tag = brand_tag
+        final_tag = sanitize_brand_tag(brand_tag, brand_name or "Lexnis Technologies")
         if company_url or (brand_name and "lexnis" in brand_name.lower()):
             try:
                 studio = LexnisCampaignStudio()
                 dna = studio.analyze_company_website(company_url or "https://lexnis.com", brand=brand_name)
                 if dna:
                     brand_colors = dna.get("brand_colors")
-                    if not final_tag:
-                        final_tag = dna.get("brand_tag")
+                    if not brand_tag:
+                        final_tag = sanitize_brand_tag(dna.get("brand_tag"), brand_name or "Lexnis Technologies")
             except Exception:
                 pass
 
         bp_path = BASE_DIR / "static" / "assets" / "learned_blueprint.json"
         bp_param = str(bp_path) if bp_path.exists() else None
 
-        # Render primary image
+        # Render primary image (1080x1350 Instagram / LinkedIn Feed master)
         result_pil = composite_template_swap(
             t_bytes,
             s_bytes,
-            target_size=(808, 1024),
+            target_size=(1080, 1350),
             person_name=person_name,
             person_title=person_title,
             brand_name=brand_name,
@@ -761,7 +761,7 @@ async def template_swap_endpoint(
             ar_pil = composite_template_swap(
                 t_bytes,
                 s_bytes,
-                target_size=(808, 1024),
+                target_size=(1080, 1350),
                 person_name=person_name,
                 person_title=person_title,
                 brand_name=brand_name,

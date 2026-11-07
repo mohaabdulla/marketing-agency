@@ -35,7 +35,7 @@ from typing import Dict, Any, Optional, List, Tuple
 from pathlib import Path
 from dataclasses import dataclass, asdict, field
 
-from visual_engine import OPEN_MODELS, FORMATS, photo_direction, open_model_image, compose_ad, cloudflare_image, LOCAL_MODEL, LOCAL_MODELS, preferred_local_model, local_image, RENDER_VERSION
+from visual_engine import OPEN_MODELS, FORMATS, photo_direction, open_model_image, compose_ad, cloudflare_image, LOCAL_MODEL, LOCAL_MODELS, preferred_local_model, local_image, RENDER_VERSION, sanitize_brand_tag
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -1962,7 +1962,8 @@ class LexnisCampaignStudio:
         acc_hex = f"#{hex_codes[2]}" if len(hex_codes) > 2 else "#53B849"
 
         tag_match = re.search(r'#([A-Za-z0-9_]{3,30})', guidelines_text)
-        tag = f"#{tag_match.group(1)}" if tag_match else f"#{re.sub(r'[^a-zA-Z0-9]', '', default_brand)}Team"
+        raw_tag = f"#{tag_match.group(1)}" if tag_match else None
+        tag = sanitize_brand_tag(raw_tag, default_brand)
 
         return {
             "company_name": default_brand,
@@ -2931,8 +2932,7 @@ class LexnisCampaignStudio:
                 "gradient_start": "#131724",
                 "gradient_end": "#023024"
             }
-        if not brand_tag:
-            brand_tag = "#LexnisTeam" if "lexnis" in brand.lower() else f"#{re.sub(r'[^a-zA-Z0-9]', '', brand)}Team"
+        brand_tag = sanitize_brand_tag(brand_tag, brand)
 
         if t_file and s_file and (use_uploaded_image is not False):
             step("Executing autonomous 2.5D pop-out template subject replacement...")
@@ -2944,6 +2944,7 @@ class LexnisCampaignStudio:
                 swap_img = composite_template_swap(
                     t_file,
                     s_file,
+                    target_size=(1080, 1350),
                     person_name=person_name,
                     person_title=person_title,
                     brand_name=brand,
@@ -2966,6 +2967,7 @@ class LexnisCampaignStudio:
                 swap_ar_img = composite_template_swap(
                     t_file,
                     s_file,
+                    target_size=(1080, 1350),
                     person_name=person_name,
                     person_title=person_title,
                     brand_name=brand,
