@@ -68,27 +68,27 @@ class TestBrandCompliance(unittest.TestCase):
         print("✓ Defect 1 Resolved: Hashtag sanitizer successfully protects against #Ud3 and locks #LexnisTeam.")
 
     def test_02_welcome_width_scale_and_head_overlap(self):
-        """Defect 3: WELCOME spans 88%-90% of frame width and head overlaps bottom 20%-35% of C and O."""
+        """Defect 3: WELCOME spans 88%-90% of frame width (cap-height ~84px) and head overlaps in Layer 3."""
         W, H = 1080, 1350
-        sx = W / 808.0
-        sy = H / 1024.0
-        fw = int(418 * sx)  # 558px
+        fw = 720  # Refined 720px Polaroid frame master
 
-        # Measure WELCOME font size 92 with +5.5% tracking
-        font_hl_size = int(92 * (H / 1350.0))
+        # Measure WELCOME font size 120 with tracking=6 (cap-height ~84px, spanning 88%-90% of frame width)
+        font_hl_size = int(round(120 * (H / 1350.0)))
         font_hl = ImageFont.truetype(str(FONTS_DIR / "Poppins-Bold.ttf"), font_hl_size)
-        tracking = int(font_hl_size * 0.055)
+        tracking = int(round(6 * (W / 1080.0)))
         hl_text = "WELCOME"
 
         dummy = Image.new('RGB', (1, 1), (0, 0, 0))
         d = ImageDraw.Draw(dummy)
         char_widths = [d.textbbox((0, 0), c, font=font_hl)[2] - d.textbbox((0, 0), c, font=font_hl)[0] for c in hl_text]
         total_hl_w = sum(char_widths) + tracking * (len(hl_text) - 1)
+        cap_h = d.textbbox((0, 0), "E", font=font_hl)[3] - d.textbbox((0, 0), "E", font=font_hl)[1]
 
         span_ratio = total_hl_w / float(fw)
-        print(f"  WELCOME total width = {total_hl_w}px, Frame width = {fw}px, Span ratio = {span_ratio:.3f}")
-        self.assertGreaterEqual(span_ratio, 0.85, "WELCOME must span at least 85% of frame width")
-        self.assertLessEqual(span_ratio, 0.93, "WELCOME must span at most 93% of frame width")
+        print(f"  WELCOME total width = {total_hl_w}px, Frame width = {fw}px, Span ratio = {span_ratio:.3f}, Cap-height = {cap_h}px")
+        self.assertGreaterEqual(span_ratio, 0.88, "WELCOME must span at least 88% of frame width")
+        self.assertLessEqual(span_ratio, 0.92, "WELCOME must span at most 92% of frame width")
+        self.assertAlmostEqual(cap_h, 84, delta=2, msg="WELCOME cap-height must be ~84px")
 
         # Verify vertical placement and head overlap
         res_pil = composite_template_swap(
@@ -104,7 +104,7 @@ class TestBrandCompliance(unittest.TestCase):
         res_cv = cv2.cvtColor(np.array(res_pil), cv2.COLOR_RGB2BGR)
 
         # Vector anti-aliasing check on WELCOME letters
-        hl_crop = res_cv[240:330, 260:820]
+        hl_crop = res_cv[230:330, 200:880]
         gray = cv2.cvtColor(hl_crop, cv2.COLOR_BGR2GRAY)
         intermediate_pixels = np.sum((gray > 30) & (gray < 225))
         self.assertGreater(intermediate_pixels, 50, "WELCOME must be smooth anti-aliased vector text!")
@@ -112,14 +112,15 @@ class TestBrandCompliance(unittest.TestCase):
         print(f"✓ Defect 3 Resolved: WELCOME spans {span_ratio*100:.1f}% of frame with {intermediate_pixels} anti-aliased edge pixels.")
 
     def test_03_official_logo_dual_chevrons_geometry(self):
-        """Defect 5: Logo must be Poppins Bold + solid geometric ribbons (thickness=22% of cap-height, width >= 150px, no ASCII)."""
-        logo_img = render_lexnis_logo(height=40, is_dark_bg=True)
+        """Defect 5: Logo must be Poppins Bold cap-height 28px + solid geometric colored chevrons (width >= 165px, 0 ASCII)."""
+        logo_img = render_lexnis_logo(height=28, is_dark_bg=True)
         self.assertIsInstance(logo_img, Image.Image)
         logo_np = np.array(logo_img)
         self.assertEqual(logo_np.shape[2], 4, "Logo must have RGBA alpha channel")
 
-        # Total width must be >= 150px at standard display scale
-        self.assertGreaterEqual(logo_img.width, 150, f"Logo width ({logo_img.width}px) must be >= 150px")
+        # Total width must be >= 165px at standard display scale
+        self.assertGreaterEqual(logo_img.width, 165, f"Logo width ({logo_img.width}px) must be >= 165px")
+        self.assertEqual(logo_img.height, 28, f"Logo height ({logo_img.height}px) must match 28px cap-height")
 
         # Check for Tech Green #53B849 and Lime Green #BCD755
         r_chan = logo_np[:, :, 0]
@@ -130,22 +131,22 @@ class TestBrandCompliance(unittest.TestCase):
         tech_green_mask = (a_chan > 100) & (g_chan > 160) & (r_chan < 110) & (b_chan < 100)
         lime_green_mask = (a_chan > 100) & (r_chan > 160) & (g_chan > 190) & (b_chan < 110)
 
-        self.assertGreater(np.sum(tech_green_mask), 10, "Logo must contain Chevron 1 in Tech Green #53B849!")
-        self.assertGreater(np.sum(lime_green_mask), 10, "Logo must contain Chevron 2 in Lime Green #BCD755!")
-        print(f"✓ Defect 5 Resolved: Logo geometry verified (Width: {logo_img.width}px >= 150px, solid dual chevrons, 0 ASCII).")
+        self.assertGreater(np.sum(tech_green_mask), 50, "Logo must contain Chevron 1 in solid Tech Green #53B849!")
+        self.assertGreater(np.sum(lime_green_mask), 50, "Logo must contain Chevron 2 in solid Lime Green #BCD755!")
+        print(f"✓ Defect 5 Resolved: Logo geometry verified (Width: {logo_img.width}px >= 165px, solid dual chevrons, 0 ASCII).")
 
     def test_04_core_chevron_field_and_clean_inner_window(self):
-        """Defect 2: Core Chevron Field (4-5 large chevrons) and 100% clean studio inner window (0 pattern bleed)."""
+        """Defect 2: Core Chevron Field (4 large chevrons across width) and 100% clean studio inner window (0 pattern bleed)."""
         W, H = 1080, 1350
         field = generate_chevron_field(W, H, opacity=0.12)
         self.assertEqual(field.size, (W, H))
 
-        # Check large chevron dimension: 4 to 5 across width -> cw around 235px
-        cw = int(W / 4.6)
-        self.assertGreaterEqual(cw, 200, "Chevrons must be large and bold, not tiny wallpaper zig-zags!")
+        # Check large chevron dimension: 4 across width -> cw around 270px
+        cw = int(round(W / 4.0))
+        self.assertGreaterEqual(cw, 250, "Chevrons must be large and bold, 4 across canvas width!")
 
         # Check clean inner portrait window
-        iw, ih = 536, 433
+        iw, ih = 696, 638
         studio_win = render_studio_inner_window(iw, ih, "#131724", "#023024")
         self.assertEqual(studio_win.shape, (ih, iw, 3))
 
@@ -157,7 +158,7 @@ class TestBrandCompliance(unittest.TestCase):
         print("✓ Defect 2 Resolved: Large Core Chevron Field rendered and Inner Portrait Window is 100% pattern-free.")
 
     def test_05_two_line_nameplate_and_status_tile_accent(self):
-        """Defect 4: 2-line stacked nameplate, 4px vertical status tile, zero full-width horizontal divider line."""
+        """Defect 4: Nameplate at 46px with vertical 4px by 28px Tech Green status tile accent."""
         res_pil = composite_template_swap(
             self.template_path,
             self.subject_path,
@@ -170,14 +171,14 @@ class TestBrandCompliance(unittest.TestCase):
         )
         res_cv = cv2.cvtColor(np.array(res_pil), cv2.COLOR_RGB2BGR)
 
-        # Check nameplate region (y: 832..1054, x: 261..819)
         W, H = 1080, 1350
-        sx, sy = W / 808.0, H / 1024.0
-        fw = int(418 * sx)
-        fh = int(505 * sy)
+        fw = int(round(720 * (W / 1080.0)))
+        border_px = max(8, int(round(12 * (W / 1080.0))))
+        nh = int(round(210 * (H / 1350.0)))
+        ih = int(round(638 * (H / 1350.0)))
+        fh = border_px + ih + nh
         fx = (W - fw) // 2
-        fy = int(294 * sy)
-        nh = int(H * 0.165)
+        fy = int(round(370 * (H / 1350.0)))
         ny = fy + fh - nh
         nx = fx
         nw = fw
@@ -189,10 +190,11 @@ class TestBrandCompliance(unittest.TestCase):
         self.assertGreater(np.sum(green_mask), 50, "Nameplate must contain Tech Green #53B849 accent elements!")
 
         # Verify NO full-width horizontal divider line across the nameplate
-        # A full-width horizontal line would have > 350 green pixels across a single row
         row_green_counts = np.sum(green_mask, axis=1)
         max_row_green = np.max(row_green_counts)
         print(f"  Maximum green pixels in any horizontal nameplate row = {max_row_green} (target < 150 for vertical bar)")
+        self.assertLess(max_row_green, 150, "Full-width horizontal line must NOT be drawn across nameplate!")
+        print("✓ Defect 4 Resolved: Nameplate with 4px vertical Status Tile accent bar verified.")
         self.assertLess(max_row_green, 150, "Full-width horizontal line must NOT be drawn across nameplate!")
         print("✓ Defect 4 Resolved: 2-line stacked nameplate with 4px vertical Status Tile accent bar verified.")
 

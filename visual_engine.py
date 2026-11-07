@@ -475,24 +475,25 @@ def sanitize_brand_tag(raw_tag: str, brand_name: str = "Lexnis") -> str:
     return tag
 
 
-def render_lexnis_logo(height: int = 42, is_dark_bg: bool = True) -> Image.Image:
+def render_lexnis_logo(height: int = 28, is_dark_bg: bool = True) -> Image.Image:
     """
     Renders official Lexnis Technologies vector wordmark and dual open chevrons
     conforming strictly to Section 01 of the Brand Identity Expansion (2026):
-    - Official 'LEXNIS' wordmark in Poppins Bold (700) with -2% tracking
-    - Two geometric right-facing solid chevrons (336x284 proportion, 22% ribbon thickness, flat terminals)
-    - Chevron 1: Tech Green #53B849 (Stable technology foundation)
-    - Chevron 2: Lime Green #BCD755 (Accelerating transformation)
-    - Clear-space = Height of 'L'
-    - Total width >= 165px at standard display height.
+    - Official 'LEXNIS' wordmark in Poppins Bold (700) with tight -15 tracking
+    - Cap-height: 28px at standard display scale (or height param)
+    - Two solid filled geometric chevron polygons (336x284 proportion, 52° angle, flat horizontal cuts)
+    - Chevron 1: Solid filled with Tech Green #53B849
+    - Chevron 2: Solid filled with Lime Green #BCD755
+    - Total lockup width >= 165px
     - Supersampled 4x with Lanczos downscale for 100% anti-aliased crisp edges.
     """
     from PIL import Image, ImageDraw, ImageFont
+    import math
     ensure_brand_fonts()
     font_path = FONTS_DIR / "Poppins-Bold.ttf"
     scale = 4
     h_hi = height * scale
-    f_size_hi = int(h_hi * 0.72)
+    f_size_hi = int(round(h_hi * (158.0 / 112.0)))
     font_hi = ImageFont.truetype(str(font_path), f_size_hi) if font_path.exists() else ImageFont.load_default()
 
     text_color = (255, 255, 255, 255) if is_dark_bg else (19, 23, 36, 255)
@@ -505,79 +506,78 @@ def render_lexnis_logo(height: int = 42, is_dark_bg: bool = True) -> Image.Image
     l_h = l_bbox[3] - l_bbox[1]
 
     text_str = 'LEXNIS'
-    tracking_hi = int(-0.02 * f_size_hi)
+    tracking_hi = int(round(-0.015 * f_size_hi))
     char_widths = []
     for c in text_str:
         cb = d_draw.textbbox((0, 0), c, font=font_hi)
         char_widths.append(cb[2] - cb[0])
     text_w_hi = sum(char_widths) + tracking_hi * (len(text_str) - 1)
-    text_h_hi = l_h
 
-    # Dual chevrons: solid ribbon thickness = 22% of cap-height
-    ribbon_t_hi = max(4, int(0.22 * l_h))
-    chev_h_hi = int(l_h * 0.92)
-    chev_w_hi = int(chev_h_hi * (336.0 / 284.0))
-    clear_space_hi = int(l_h * 0.85)
-    chev_pitch_hi = int(chev_w_hi * 0.75)
+    # Dual chevrons: Solid geometric polygons (336x284 proportion, 52° angle, flat horizontal cuts)
+    chev_h_hi = l_h
+    chev_w_hi = int(round(chev_h_hi * (336.0 / 284.0)))
+    dx_hi = int(round((chev_h_hi / 2.0) / math.tan(math.radians(52.0))))
+    t_hi = chev_w_hi - dx_hi
+    pitch_hi = int(round(chev_h_hi * (261.0 / 284.0)))
 
-    total_w_hi = text_w_hi + clear_space_hi + chev_w_hi + ribbon_t_hi + chev_pitch_hi + int(l_h * 0.3)
-    total_h_hi = int(h_hi * 1.35)
+    gap_hi = int(round(l_h * 0.70))
+    total_w_hi = text_w_hi + gap_hi + pitch_hi + chev_w_hi
+    total_h_hi = l_h
 
     logo_hi = Image.new('RGBA', (total_w_hi, total_h_hi), (0, 0, 0, 0))
     draw = ImageDraw.Draw(logo_hi)
 
     cur_x = 0
-    y_pos = (total_h_hi - text_h_hi) // 2 - l_bbox[1]
+    y_pos = -l_bbox[1]
     for c in text_str:
         draw.text((cur_x, y_pos), c, font=font_hi, fill=text_color)
         cb = d_draw.textbbox((0, 0), c, font=font_hi)
         cur_x += (cb[2] - cb[0]) + tracking_hi
 
-    chev_start_x = text_w_hi + clear_space_hi
-    cy = total_h_hi // 2
-    top = cy - chev_h_hi // 2
-    bot = cy + chev_h_hi // 2
-
-    def draw_ribbon_chev(cx, color):
+    cx1 = text_w_hi + gap_hi
+    def draw_solid_chev(x0, color):
+        cy = total_h_hi / 2.0
         pts = [
-            (cx + ribbon_t_hi, top),
-            (cx + chev_w_hi + ribbon_t_hi, cy),
-            (cx + ribbon_t_hi, bot),
-            (cx, bot),
-            (cx + chev_w_hi, cy),
-            (cx, top)
+            (x0, 0),
+            (x0 + t_hi, 0),
+            (x0 + chev_w_hi, cy),
+            (x0 + t_hi, total_h_hi),
+            (x0, total_h_hi),
+            (x0 + dx_hi, cy)
         ]
         draw.polygon(pts, fill=color)
 
-    draw_ribbon_chev(chev_start_x, tech_green)
-    draw_ribbon_chev(chev_start_x + chev_pitch_hi, lime_green)
+    draw_solid_chev(cx1, tech_green)
+    draw_solid_chev(cx1 + pitch_hi, lime_green)
 
-    final_w = max(1, int(total_w_hi / scale))
-    final_h = max(1, int(total_h_hi / scale))
+    final_w = max(1, int(round(total_w_hi / float(scale))))
+    final_h = max(1, int(round(total_h_hi / float(scale))))
     return logo_hi.resize((final_w, final_h), Image.Resampling.LANCZOS)
 
 
 def generate_chevron_field(width: int, height: int, opacity: float = 0.12, stroke_color=(83, 184, 73)) -> Image.Image:
     """
     Renders Section 04 Core Chevron Field:
-    Right-facing geometric chevrons (proportions 336x284), 4 to 5 large bold chevrons across width.
+    Right-facing geometric chevrons (proportions 336x284), 4 large bold chevrons across width.
     Continuous diagonal drift toward upper right.
     Signature Gradient stops: #023024 -> #53B849.
-    Alpha-blended at 10-14% opacity over dark substrate.
+    Alpha-blended at 12% opacity over dark substrate.
     """
     from PIL import Image, ImageDraw
     import numpy as np
+    import math
 
     pat = Image.new('RGBA', (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(pat)
 
-    # 4 to 5 large bold chevrons across width (proportions 336x284)
-    cw = int(width / 4.6)
-    ch = int(cw * (284.0 / 336.0))
-    pitch_x = int(cw * (261.0 / 336.0))
-    step_y = int(ch * 0.72)
-    step_x = int(-cw * (130.0 / 336.0))
-    t = int(cw * 0.22)
+    # 4 large bold chevrons across canvas width (proportions 336x284)
+    cw = int(round(width / 4.0))
+    ch = int(round(cw * (284.0 / 336.0)))
+    pitch_x = int(round(cw * (261.0 / 336.0)))
+    step_y = int(round(ch * 0.72))
+    step_x = int(round(cw * (-130.0 / 336.0)))
+    dx = int(round((ch / 2.0) / math.tan(math.radians(52.0))))
+    t = cw - dx
 
     # Signature Gradient stops: #023024 -> #53B849
     c_start = np.array([2, 48, 36], dtype=np.float32)
@@ -649,7 +649,7 @@ def render_studio_inner_window(iw: int, ih: int, c_start_hex: str = "#131724", c
     cy = ih * 0.45
     radius = iw * 0.55
     dist = np.sqrt((x_grid - cx)**2 + (y_grid - cy)**2)
-    glow_factor = np.clip(1.0 - (dist / radius), 0.0, 1.0)**2 * 0.28
+    glow_factor = np.clip(1.0 - (dist / radius), 0.0, 1.0)**2 * 0.25
 
     final_win = (bg * (1.0 - glow_factor[:, :, None]) + glow_bgr[None, None, :] * glow_factor[:, :, None]).clip(0, 255).astype(np.uint8)
     return final_win
@@ -781,7 +781,25 @@ def composite_template_swap(
     is_brand_upgrade = bool(recolor_gradient or is_lexnis or brand_colors or (brand_name and "sekawan" not in brand_name.lower()) or (person_name and "anyta" not in person_name.lower()))
 
     # Frame & element geometry
-    if bp_dict and "elements" in bp_dict:
+    if is_brand_upgrade and (W >= 1000 and H >= 1200):
+        # Strict Master Artboard Geometry for 1080x1350 (4:5)
+        fw = int(round(720 * (W / 1080.0)))
+        border_px = max(8, int(round(12 * (W / 1080.0))))
+        nh = int(round(210 * (H / 1350.0)))
+        ih = int(round(638 * (H / 1350.0)))
+        fh = border_px + ih + nh
+        fx = (W - fw) // 2
+        fy = int(round(370 * (H / 1350.0)))
+        nx = fx
+        ny = fy + fh - nh
+        nw = fw
+        ix = fx + border_px
+        iy = fy + border_px
+        iw = fw - 2 * border_px
+        lx = int(round(72 * (W / 1080.0)))
+        ly = int(round(72 * (H / 1350.0)))
+        margin_left_px = int(round(64 * (W / 1080.0)))
+    elif bp_dict and "elements" in bp_dict:
         elems = bp_dict.get("elements", {})
         pf = elems.get("polaroid_frame", {})
         raw_fx, raw_fy, raw_fw, raw_fh = pf.get("outer_bbox", [195, 294, 418, 505])
@@ -808,6 +826,8 @@ def composite_template_swap(
         logo_box = [int(52 * sx), int(58 * sy), int(128 * sx), int(34 * sy)]
         tag_box = [int(596 * sx), int(74 * sy), int(137 * sx), int(14 * sy)]
         margin_left_px = int(38 * sx)
+        lx, ly, lw, lh = logo_box
+        tx_start, ty_start, tw, th = tag_box
     else:
         fw = int(418 * sx)
         fh = int(505 * sy)
@@ -829,9 +849,8 @@ def composite_template_swap(
         logo_box = [int(52 * sx), int(58 * sy), int(128 * sx), int(34 * sy)]
         tag_box = [int(596 * sx), int(74 * sy), int(137 * sx), int(14 * sy)]
         margin_left_px = int(38 * sx)
-
-    lx, ly, lw, lh = logo_box
-    tx_start, ty_start, tw, th = tag_box
+        lx, ly, lw, lh = logo_box
+        tx_start, ty_start, tw, th = tag_box
 
     ensure_brand_fonts()
 
@@ -865,27 +884,27 @@ def composite_template_swap(
 
         if is_ar:
             f_hl_path = FONTS_DIR / "Cairo-Bold.ttf"
-            font_hl_size = int(60 * (H / 1350.0))
+            font_hl_size = int(round(76 * (H / 1350.0)))
             font_hl = ImageFont.truetype(str(f_hl_path), font_hl_size) if f_hl_path.exists() else ImageFont.load_default()
-            hl_raw = headline_text or "مرحباً بك في فريقنا"
+            hl_raw = headline_text or "ريادة رقمية بلا حدود"
             hl_str = prepare_bidi_text(hl_raw)
             bbox_hl = draw_hl.textbbox((0, 0), hl_str, font=font_hl)
             hl_w = bbox_hl[2] - bbox_hl[0]
-            hl_cap_h = bbox_hl[3] - bbox_hl[1]
-            hl_bottom_y = fy - int(88 * sy)
-            hl_y = hl_bottom_y - hl_cap_h
+            # 24px breathing room above head (head crown at y ~ 299)
+            hl_bottom_y = int(round((299 - 24) * sy))
+            hl_y = hl_bottom_y - (bbox_hl[3] - bbox_hl[1])
             draw_hl.text(((W - hl_w) // 2, hl_y), hl_str, font=font_hl, fill=(255, 255, 255))
         else:
             f_hl_path = FONTS_DIR / "Poppins-Bold.ttf"
-            font_hl_size = int(92 * (H / 1350.0))
+            font_hl_size = int(round(120 * (H / 1350.0)))
             font_hl = ImageFont.truetype(str(f_hl_path), font_hl_size) if f_hl_path.exists() else ImageFont.load_default()
-            tracking = int(font_hl_size * 0.055)
+            tracking = int(round(6 * (W / 1080.0)))
             hl_text = (headline_text or "WELCOME").upper()
             char_widths = [draw_hl.textbbox((0, 0), c, font=font_hl)[2] - draw_hl.textbbox((0, 0), c, font=font_hl)[0] for c in hl_text]
             total_hl_w = sum(char_widths) + tracking * (len(hl_text) - 1)
             hl_x_start = (W - total_hl_w) // 2
             hl_cap_h = draw_hl.textbbox((0, 0), "E", font=font_hl)[3] - draw_hl.textbbox((0, 0), "E", font=font_hl)[1]
-            hl_bottom_y = fy - int(70 * sy)
+            hl_bottom_y = fy - int(round(52 * sy))
             hl_y = hl_bottom_y - hl_cap_h
 
             cur_x = hl_x_start
@@ -901,9 +920,12 @@ def composite_template_swap(
         H_sub, W_sub = subject_rgba.shape[:2]
 
         if affine_matrix is None:
+            scale_f = 1.15 if is_brand_upgrade else 1.0
+            x_shift = -(scale_f - 1.0) * 400 if is_brand_upgrade else 0.0
+            y_shift = -(scale_f - 1.0) * 50 if is_brand_upgrade else 0.0
             base_affine = np.array([
-                [8.04139148e-01, 1.02160041e-03, 3.91566333e+01],
-                [-1.02160041e-03, 8.04139148e-01, 1.41156860e+02]
+                [8.04139148e-01 * scale_f, 1.02160041e-03, 3.91566333e+01 + x_shift],
+                [-1.02160041e-03, 8.04139148e-01 * scale_f, 1.41156860e+02 + y_shift]
             ], dtype=np.float32)
 
             affine = base_affine.copy()
@@ -953,90 +975,86 @@ def composite_template_swap(
             r_name = prepare_bidi_text(display_name)
             r_role = prepare_bidi_text(display_role)
 
-            font_name_size = int(50 * (H / 1350.0))
-            font_role_size = int(25 * (H / 1350.0))
+            font_name_size = int(round(46 * (H / 1350.0)))
+            font_role_size = int(round(22 * (H / 1350.0)))
             f_name = ImageFont.truetype(str(FONTS_DIR / "Cairo-Bold.ttf"), font_name_size)
-            f_role = ImageFont.truetype(str(FONTS_DIR / "Cairo-SemiBold.ttf"), font_role_size)
+            tajawal_p = FONTS_DIR / "Tajawal-Medium.ttf"
+            f_role = ImageFont.truetype(str(tajawal_p if tajawal_p.exists() else FONTS_DIR / "Cairo-SemiBold.ttf"), font_role_size)
 
-            margin_r = int(40 * sx)
-            y_name = int(30 * sy)
+            margin_r = int(round(64 * (W / 1080.0)))
+            y_name = int(round(36 * (H / 1350.0)))
             bbox_n = draw_np.textbbox((0, 0), r_name, font=f_name)
             nw_px = bbox_n[2] - bbox_n[0]
-            nh_px = bbox_n[3] - bbox_n[1]
-            draw_np.text((nw - margin_r - nw_px, y_name), r_name, font=f_name, fill=dark_navy)
+            x_right = nw - margin_r
+            draw_np.text((x_right - nw_px, y_name), r_name, font=f_name, fill=dark_navy)
 
-            y_role = y_name + nh_px + int(14 * sy)
+            y_role = y_name + (bbox_n[3] - bbox_n[1]) + int(round(14 * (H / 1350.0)))
+            y_bar = y_role - int(round(2 * (H / 1350.0)))
+            bar_h = int(round(28 * (H / 1350.0)))
             bbox_r = draw_np.textbbox((0, 0), r_role, font=f_role)
             rw_px = bbox_r[2] - bbox_r[0]
-            rh_px = bbox_r[3] - bbox_r[1]
-            bar_h = max(int(font_role_size * 0.95), rh_px)
-            bar_x = nw - margin_r
-            draw_np.rectangle([bar_x - 4, y_role + 2, bar_x, y_role + 2 + bar_h], fill=tech_green)
-            draw_np.text((bar_x - 14 - rw_px, y_role), r_role, font=f_role, fill=tech_green)
+            draw_np.rectangle([x_right - 4, y_bar, x_right, y_bar + bar_h], fill=tech_green)
+            draw_np.text((x_right - 4 - 10 - rw_px, y_role), r_role, font=f_role, fill=tech_green)
 
         else:
-            # English 2-Line Stacked Nameplate with 4px Status Tile Accent
+            # English Nameplate
             clean_name = (person_name or "Alisha Faisal").strip()
             clean_name = re.sub(r'\s+\b(as|is|our|the|a|an)\b.*$', '', clean_name, flags=re.IGNORECASE).strip()
-            parts = clean_name.split()
 
-            font_name_size = int(48 * (H / 1350.0))
-            font_role_size = int(21 * (H / 1350.0))
+            font_name_size = int(round(46 * (H / 1350.0)))
+            font_role_size = int(round(22 * (H / 1350.0)))
             font_bold = ImageFont.truetype(str(FONTS_DIR / "Poppins-Bold.ttf"), font_name_size)
             font_role = ImageFont.truetype(str(FONTS_DIR / "Poppins-Medium.ttf"), font_role_size)
 
-            margin_l = int(38 * sx)
-            y_l1 = int(26 * sy)
-            y_l2 = y_l1 + int(font_name_size * 1.05)
+            margin_l = int(round(64 * (W / 1080.0)))
+            y_name = int(round(36 * (H / 1350.0)))
 
-            if len(parts) >= 2:
-                p1 = parts[0]
-                p2 = " ".join(parts[1:])
-                draw_np.text((margin_l, y_l1), p1, font=font_bold, fill=dark_navy)
-                draw_np.text((margin_l, y_l2), p2, font=font_bold, fill=dark_navy)
-                y_role = y_l2 + int(font_name_size * 1.15)
-            else:
-                draw_np.text((margin_l, y_l1), clean_name, font=font_bold, fill=dark_navy)
-                y_role = y_l1 + int(font_name_size * 1.3)
+            draw_np.text((margin_l, y_name), clean_name, font=font_bold, fill=dark_navy)
+            bbox_n = draw_np.textbbox((margin_l, y_name), clean_name, font=font_bold)
+
+            y_role = bbox_n[3] + int(round(14 * (H / 1350.0)))
+            y_bar = y_role - int(round(2 * (H / 1350.0)))
+            bar_h = int(round(28 * (H / 1350.0)))
 
             role_text = (person_title or "Marketing Manager").strip()
             role_text = re.sub(r'^(?:a|an)\s+', '', role_text, flags=re.IGNORECASE).strip()
 
-            # Vertical 4px Status Tile Accent Bar in Tech Green #53B849 (ZERO full-width horizontal divider line!)
-            bar_h = int(font_role_size * 0.95)
-            draw_np.rectangle([margin_l, y_role + 2, margin_l + 4, y_role + 2 + bar_h], fill=tech_green)
-            draw_np.text((margin_l + 14, y_role), role_text, font=font_role, fill=tech_green)
+            # Vertical 4px Status Tile Accent Bar in Tech Green #53B849
+            draw_np.rectangle([margin_l, y_bar, margin_l + 4, y_bar + bar_h], fill=tech_green)
+            draw_np.text((margin_l + 4 + 10, y_role), role_text, font=font_role, fill=tech_green)
 
         np_cv = cv2.cvtColor(np.array(np_pil), cv2.COLOR_RGB2BGR)
         composite[ny:ny + nh, nx:nx + nw] = np_cv
 
-        # 7. Layer 5: Top Header with Official Logo & Sanitized Hashtag
+        # 7. Layer 5: Top Header with Official Solid Logo & Sanitized Hashtag (72px Safety Margin)
         comp_pil = Image.fromarray(cv2.cvtColor(composite, cv2.COLOR_BGR2RGB))
         draw_top = ImageDraw.Draw(comp_pil)
 
-        logo_h = int(40 * (H / 1350.0))
+        logo_h = int(round(28 * (H / 1350.0)))
         logo_img = render_lexnis_logo(height=logo_h, is_dark_bg=True)
         comp_pil.paste(logo_img, (lx, ly), logo_img)
 
-        f_tag = ImageFont.truetype(str(FONTS_DIR / ("Cairo-Bold.ttf" if is_ar else "Poppins-Medium.ttf")), int(20 * (H / 1350.0)))
+        f_tag = ImageFont.truetype(str(FONTS_DIR / ("Cairo-Bold.ttf" if is_ar else "Poppins-Medium.ttf")), int(round(20 * (H / 1350.0))))
         final_tag = sanitize_brand_tag(brand_tag, brand_name or "Lexnis Technologies")
         if is_ar:
             final_tag = brand_tag if (brand_tag and re.search(r"[\u0600-\u06FF]", brand_tag)) else "#فريق_لكسنس"
             r_tag = prepare_bidi_text(final_tag)
             tag_w = draw_top.textbbox((0, 0), r_tag, font=f_tag)[2] - draw_top.textbbox((0, 0), r_tag, font=f_tag)[0]
-            draw_top.text((W - lx - tag_w, ly + int(8 * sy)), r_tag, font=f_tag, fill=(255, 255, 255))
+            draw_top.text((W - lx - tag_w, ly + int(round(4 * (H / 1350.0)))), r_tag, font=f_tag, fill=(255, 255, 255))
         else:
             tag_w = draw_top.textbbox((0, 0), final_tag, font=f_tag)[2] - draw_top.textbbox((0, 0), final_tag, font=f_tag)[0]
-            draw_top.text((W - lx - tag_w, ly + int(8 * sy)), final_tag, font=f_tag, fill=(255, 255, 255))
+            draw_top.text((W - lx - tag_w, ly + int(round(4 * (H / 1350.0)))), final_tag, font=f_tag, fill=(255, 255, 255))
 
         # 8. Layer 6: Clean Single Footer Caption (ZERO duplication / ghost lines)
-        f_foot = ImageFont.truetype(str(FONTS_DIR / ("Cairo-SemiBold.ttf" if is_ar else "Poppins-Regular.ttf")), int((24 if is_ar else 20) * (H / 1350.0)))
+        f_foot = ImageFont.truetype(str(FONTS_DIR / ("Cairo-SemiBold.ttf" if is_ar else "Poppins-Regular.ttf")), int(round((22 if is_ar else 20) * (H / 1350.0))))
         foot_str = footer_text or ("نحن سعداء جداً بانضمامك إلى فريقنا!" if is_ar else "We are so excited to have you on our team!")
         display_foot = prepare_bidi_text(foot_str) if is_ar else foot_str
         bbox_foot = draw_top.textbbox((0, 0), display_foot, font=f_foot)
         foot_w = bbox_foot[2] - bbox_foot[0]
-        foot_y = fy + fh + int(56 * sy)
+        foot_y = fy + fh + int(round(44 * (H / 1350.0)))
         draw_top.text(((W - foot_w) // 2, foot_y), display_foot, font=f_foot, fill=(255, 255, 255))
+
+        return comp_pil
 
         return comp_pil
 
