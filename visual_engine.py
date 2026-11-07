@@ -475,7 +475,7 @@ def sanitize_brand_tag(raw_tag: str, brand_name: str = "Lexnis") -> str:
     return tag
 
 
-def render_lexnis_logo(height: int = 40, is_dark_bg: bool = True) -> Image.Image:
+def render_lexnis_logo(height: int = 42, is_dark_bg: bool = True) -> Image.Image:
     """
     Renders official Lexnis Technologies vector wordmark and dual open chevrons
     conforming strictly to Section 01 of the Brand Identity Expansion (2026):
@@ -484,7 +484,7 @@ def render_lexnis_logo(height: int = 40, is_dark_bg: bool = True) -> Image.Image
     - Chevron 1: Tech Green #53B849 (Stable technology foundation)
     - Chevron 2: Lime Green #BCD755 (Accelerating transformation)
     - Clear-space = Height of 'L'
-    - Total width >= 150px at standard display height.
+    - Total width >= 165px at standard display height.
     - Supersampled 4x with Lanczos downscale for 100% anti-aliased crisp edges.
     """
     from PIL import Image, ImageDraw, ImageFont
@@ -865,14 +865,15 @@ def composite_template_swap(
 
         if is_ar:
             f_hl_path = FONTS_DIR / "Cairo-Bold.ttf"
-            font_hl_size = int(68 * sy)
+            font_hl_size = int(60 * (H / 1350.0))
             font_hl = ImageFont.truetype(str(f_hl_path), font_hl_size) if f_hl_path.exists() else ImageFont.load_default()
-            hl_raw = headline_text or "أهلاً وسهلاً"
+            hl_raw = headline_text or "مرحباً بك في فريقنا"
             hl_str = prepare_bidi_text(hl_raw)
             bbox_hl = draw_hl.textbbox((0, 0), hl_str, font=font_hl)
             hl_w = bbox_hl[2] - bbox_hl[0]
             hl_cap_h = bbox_hl[3] - bbox_hl[1]
-            hl_y = fy - hl_cap_h - int(16 * sy)
+            hl_bottom_y = fy - int(88 * sy)
+            hl_y = hl_bottom_y - hl_cap_h
             draw_hl.text(((W - hl_w) // 2, hl_y), hl_str, font=font_hl, fill=(255, 255, 255))
         else:
             f_hl_path = FONTS_DIR / "Poppins-Bold.ttf"
@@ -952,21 +953,23 @@ def composite_template_swap(
             r_name = prepare_bidi_text(display_name)
             r_role = prepare_bidi_text(display_role)
 
-            font_name_size = int(46 * sy)
-            font_role_size = int(21 * sy)
+            font_name_size = int(50 * (H / 1350.0))
+            font_role_size = int(25 * (H / 1350.0))
             f_name = ImageFont.truetype(str(FONTS_DIR / "Cairo-Bold.ttf"), font_name_size)
             f_role = ImageFont.truetype(str(FONTS_DIR / "Cairo-SemiBold.ttf"), font_role_size)
 
-            margin_r = int(38 * sx)
-            y_l1 = int(26 * sy)
+            margin_r = int(40 * sx)
+            y_name = int(30 * sy)
             bbox_n = draw_np.textbbox((0, 0), r_name, font=f_name)
             nw_px = bbox_n[2] - bbox_n[0]
-            draw_np.text((nw - margin_r - nw_px, y_l1), r_name, font=f_name, fill=dark_navy)
+            nh_px = bbox_n[3] - bbox_n[1]
+            draw_np.text((nw - margin_r - nw_px, y_name), r_name, font=f_name, fill=dark_navy)
 
-            y_role = y_l1 + int(font_name_size * 1.15)
+            y_role = y_name + nh_px + int(14 * sy)
             bbox_r = draw_np.textbbox((0, 0), r_role, font=f_role)
             rw_px = bbox_r[2] - bbox_r[0]
-            bar_h = int(font_role_size * 0.95)
+            rh_px = bbox_r[3] - bbox_r[1]
+            bar_h = max(int(font_role_size * 0.95), rh_px)
             bar_x = nw - margin_r
             draw_np.rectangle([bar_x - 4, y_role + 2, bar_x, y_role + 2 + bar_h], fill=tech_green)
             draw_np.text((bar_x - 14 - rw_px, y_role), r_role, font=f_role, fill=tech_green)
@@ -1027,8 +1030,8 @@ def composite_template_swap(
             draw_top.text((W - lx - tag_w, ly + int(8 * sy)), final_tag, font=f_tag, fill=(255, 255, 255))
 
         # 8. Layer 6: Clean Single Footer Caption (ZERO duplication / ghost lines)
-        f_foot = ImageFont.truetype(str(FONTS_DIR / ("Cairo-Regular.ttf" if is_ar else "Poppins-Regular.ttf")), int(20 * (H / 1350.0)))
-        foot_str = footer_text or ("نحن متحمسون جداً لانضمامك إلى فريقنا!" if is_ar else "We are so excited to have you on our team!")
+        f_foot = ImageFont.truetype(str(FONTS_DIR / ("Cairo-SemiBold.ttf" if is_ar else "Poppins-Regular.ttf")), int((24 if is_ar else 20) * (H / 1350.0)))
+        foot_str = footer_text or ("نحن سعداء جداً بانضمامك إلى فريقنا!" if is_ar else "We are so excited to have you on our team!")
         display_foot = prepare_bidi_text(foot_str) if is_ar else foot_str
         bbox_foot = draw_top.textbbox((0, 0), display_foot, font=f_foot)
         foot_w = bbox_foot[2] - bbox_foot[0]
@@ -1543,9 +1546,9 @@ def render_lexnis_executive_artboard(
     white = (255, 255, 255)
     light_slate = (200, 215, 230)
 
-    # Top Brand Header
-    draw.text((64, 60), "LEXNIS", font=font_logo, fill=white)
-    draw.text((188, 60), "»", font=font_logo, fill=tech_green)
+    # Top Brand Header - Official Poppins Bold + Dual Right-Facing Geometric Chevrons
+    logo_img = render_lexnis_logo(height=36, is_dark_bg=True)
+    img.paste(logo_img, (64, 52), logo_img)
     draw.text((64, 100), "TECHNOLOGIES BAHRAIN · BRAND SYSTEM", font=font_tag, fill=lime_green)
     draw.text((W - 270, 60), "EXECUTIVE LEADERSHIP", font=font_tag, fill=lime_green)
 
@@ -1588,12 +1591,16 @@ def classify_template_and_subject(image_paths):
         if im is None:
             continue
         # Check blue background ratio: B > 180, R < 140
-        blue_ratio = float(np.mean((im[:, :, 0] > 180) & (im[:, :, 2] < 140)))
+        stem_lower = path_obj.stem.lower()
+        t_bias = 0.5 if any(k in stem_lower for k in ["template", "sekawan", "frame", "layout"]) else 0.0
+        s_bias = 0.5 if any(k in stem_lower for k in ["subject", "portrait", "raw", "person", "woman", "leader"]) else 0.0
+
+        blue_ratio = float(np.mean((im[:, :, 0] > 180) & (im[:, :, 2] < 140))) + t_bias
         # Check studio off-white ratio: R > 170, G > 170, B > 170, |R-G| < 25, |G-B| < 25
         white_ratio = float(np.mean(
             (im[:, :, 0] > 170) & (im[:, :, 1] > 170) & (im[:, :, 2] > 170) &
             (np.abs(im[:, :, 0].astype(int) - im[:, :, 2].astype(int)) < 25)
-        ))
+        )) + s_bias
         img_data.append({'path': path_obj, 'blue': blue_ratio, 'white': white_ratio})
 
     if len(img_data) < 2:

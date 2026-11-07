@@ -3011,18 +3011,22 @@
           formData.append('template_url', activeTemplateAsset.url);
           formData.append('subject_url', activeSubjectAsset.url);
 
-          const pName = (personNameInput && personNameInput.value.trim()) || '';
-          const pTitle = (personTitleInput && personTitleInput.value.trim()) || '';
+          const pName = (personNameInput && personNameInput.value.trim()) || 'Alisha Faisal';
+          const pTitle = (personTitleInput && personTitleInput.value.trim()) || 'Marketing Manager';
           const bName = (brandInput && brandInput.value.trim()) || 'Lexnis Technologies';
-          const cUrl = (companyUrlInput && companyUrlInput.value.trim()) || currentCompanyUrl || '';
-          if (pName) formData.append('person_name', pName);
-          if (pTitle) formData.append('person_title', pTitle);
-          if (bName) formData.append('brand_name', bName);
-          if (cUrl) formData.append('company_url', cUrl);
+          const cUrl = (companyUrlInput && companyUrlInput.value.trim()) || currentCompanyUrl || 'https://lexnis.com';
+          formData.append('person_name', pName);
+          formData.append('person_title', pTitle);
+          formData.append('brand_name', bName);
+          formData.append('company_url', cUrl);
           if (currentBrandDna && currentBrandDna.brand_tag) {
             formData.append('brand_tag', currentBrandDna.brand_tag);
+          } else {
+            formData.append('brand_tag', '#LexnisTeam');
           }
           formData.append('recolor_gradient', 'true');
+          const lang = campaignLanguageSelect ? campaignLanguageSelect.value : 'both';
+          formData.append('language', lang);
 
           const resp = await fetch(`${backendApiBase}/api/template-swap`, {
             method: 'POST',
@@ -3035,6 +3039,13 @@
           }
 
           const data = await resp.json();
+          if (data.arabic_image_url) {
+            currentArabicImageUrl = data.arabic_image_url;
+          }
+          if (data.image_url) {
+            currentEnglishImageUrl = data.image_url;
+            currentImageUrl = data.image_url;
+          }
           if (quickSwapResultImg && data.image_url) {
             quickSwapResultImg.src = data.image_url;
             if (quickSwapDownloadLink) quickSwapDownloadLink.href = data.image_url;
@@ -3179,7 +3190,29 @@
     const dnaAestheticText = document.getElementById('dna-aesthetic-text');
 
     let currentCompanyUrl = 'https://lexnis.com';
-    let currentBrandDna = null;
+    const LEXNIS_DEFAULT_DNA = {
+      company_name: 'Lexnis Technologies',
+      brand_tag: '#LexnisTeam',
+      domain: 'lexnis.com',
+      brand_colors: {
+        primary: '#131724',
+        secondary: '#023024',
+        accent: '#53B849',
+        accent_lime: '#BCD755',
+        accent_yellow: '#FFBD23',
+        gradient_start: '#131724',
+        gradient_end: '#023024'
+      },
+      typography: {
+        primary_font: 'Poppins',
+        secondary_font: 'Poppins Medium',
+        arabic_font: 'Cairo Bold / Tajawal Medium',
+        heading_style: 'Poppins Bold 700 / Cairo Bold 700'
+      },
+      visual_aesthetic: 'Enterprise transformation minimalism with 135° Depth Gradient (#131724 -> #023024), Tech Green & Lime dual open chevrons, Core Chevron Field pattern, and Poppins/Cairo bilingual typography.',
+      locked_by_guidelines: true
+    };
+    let currentBrandDna = { ...LEXNIS_DEFAULT_DNA };
 
     function applyBrandDnaToUI(dna) {
       if (!dna) return;
@@ -3865,6 +3898,11 @@
     window.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
       checkBackendEngine();
+
+      // Initialize Verified Lexnis Brand DNA
+      if (currentBrandDna) {
+        applyBrandDnaToUI(currentBrandDna);
+      }
 
       // Initialize Post Type Hub
       selectPostType('team_welcome');
@@ -5351,6 +5389,23 @@ Deployable directly into legacy PLC racks and air-gapped SCADA environments, Lex
               formData.append('subject_url', 'raw_subject.jpg');
             }
 
+            const pName = (personNameInput && personNameInput.value.trim()) || 'Alisha Faisal';
+            const pTitle = (personTitleInput && personTitleInput.value.trim()) || 'Marketing Manager';
+            const bName = (brandInput && brandInput.value.trim()) || 'Lexnis Technologies';
+            const cUrl = (companyUrlInput && companyUrlInput.value.trim()) || currentCompanyUrl || 'https://lexnis.com';
+            formData.append('person_name', pName);
+            formData.append('person_title', pTitle);
+            formData.append('brand_name', bName);
+            formData.append('company_url', cUrl);
+            if (currentBrandDna && currentBrandDna.brand_tag) {
+              formData.append('brand_tag', currentBrandDna.brand_tag);
+            } else {
+              formData.append('brand_tag', '#LexnisTeam');
+            }
+            formData.append('recolor_gradient', 'true');
+            const lang = campaignLanguageSelect ? campaignLanguageSelect.value : 'both';
+            formData.append('language', lang);
+
             const response = await fetch('/api/template-swap', {
               method: 'POST',
               body: formData,
@@ -5363,6 +5418,13 @@ Deployable directly into legacy PLC racks and air-gapped SCADA environments, Lex
 
             const data = await response.json();
             lastSwapImageUrl = data.image_url;
+            if (data.arabic_image_url) {
+              currentArabicImageUrl = data.arabic_image_url;
+            }
+            if (data.image_url) {
+              currentEnglishImageUrl = data.image_url;
+              currentImageUrl = data.image_url;
+            }
 
             if (swapResultContainer && swapResultImg) {
               swapResultImg.src = data.image_url;

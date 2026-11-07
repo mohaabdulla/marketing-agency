@@ -2883,7 +2883,7 @@ class LexnisCampaignStudio:
             candidate_images.append(Path(uploaded_image_path))
 
         prompt_lower = (effective_prompt + " " + (guidelines or "")).lower()
-        needs_swap = any(k in prompt_lower for k in ["girl", "blue image", "white background", "template", "portrait", "sekawan", "swap", "replace", "face", "uploaded"])
+        needs_swap = (post_type == "team_welcome") or any(k in prompt_lower for k in ["girl", "blue image", "white background", "template", "portrait", "sekawan", "swap", "replace", "face", "uploaded", "welcome"])
 
         # Only search uploads cache if user provided an image or explicitly requested a template swap
         if (candidate_images or needs_swap) and len(candidate_images) < 2:
@@ -2936,7 +2936,7 @@ class LexnisCampaignStudio:
 
         if t_file and s_file and (use_uploaded_image is not False):
             step("Executing autonomous 2.5D pop-out template subject replacement...")
-            swap_key = hashlib.sha1(f"swap|{t_file.name}|{s_file.name}|{person_name}|{person_title}|{brand}|{brand_tag}|{company_url}|recolor_{recolor_to_brand}".encode()).hexdigest()[:16]
+            swap_key = hashlib.sha1(f"swap_v3_1080x1350|{t_file.name}|{s_file.name}|{person_name}|{person_title}|{brand}|{brand_tag}|{company_url}|recolor_{recolor_to_brand}".encode()).hexdigest()[:16]
             clean_path = RENDERS_DIR / f"{swap_key}_clean.jpg"
             post_path = RENDERS_DIR / f"{swap_key}_post.jpg"
             post_ar_path = RENDERS_DIR / f"{swap_key}_post_ar.jpg"
@@ -2959,8 +2959,8 @@ class LexnisCampaignStudio:
             arabic_pack = self.transcreate_to_arabic(en_pack, brand=brand, visual_analysis="Template subject replacement", guidelines=distilled_gl)
 
             # Arabic localized copy & design tokens
-            ar_hl = arabic_pack.get("visual_headline") or arabic_pack.get("image_headline") or "أهلاً وسهلاً"
-            ar_tl = arabic_pack.get("visual_tagline") or "نحن متحمسون جداً لانضمامك إلى فريقنا!"
+            ar_hl = arabic_pack.get("visual_headline") or arabic_pack.get("image_headline") or "مرحباً بك في فريقنا"
+            ar_tl = arabic_pack.get("visual_tagline") or "نحن سعداء جداً بانضمامك إلى فريقنا!"
             ar_tag = brand_tag if (brand_tag and re.search(r"[\u0600-\u06FF]", brand_tag)) else ("#فريق_لكسنس" if "lexnis" in brand.lower() else f"#فريق_{re.sub(r'[^a-zA-Z0-9]', '', brand)}")
 
             if not post_ar_path.exists():
@@ -3171,7 +3171,7 @@ class LexnisCampaignStudio:
         self,
         template_image: Any,
         subject_image: Any,
-        target_size: tuple = (808, 1024),
+        target_size: tuple = (1080, 1350),
         out_dir: Path = RENDERS_DIR,
     ) -> Path:
         """Autonomous template subject-replacement and 2.5D pop-out compositing."""

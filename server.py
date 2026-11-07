@@ -718,16 +718,22 @@ async def template_swap_endpoint(
         if not t_bytes or not s_bytes:
             raise HTTPException(status_code=400, detail="Both template and subject images are required.")
 
+        brand_name = brand_name or "Lexnis Technologies"
+        person_name = person_name or "Alisha Faisal"
+        person_title = person_title or "Marketing Manager"
+        if "lexnis" in brand_name.lower() or (company_url and "lexnis" in company_url.lower()):
+            recolor_gradient = True
+
         brand_colors = None
-        final_tag = sanitize_brand_tag(brand_tag, brand_name or "Lexnis Technologies")
-        if company_url or (brand_name and "lexnis" in brand_name.lower()):
+        final_tag = sanitize_brand_tag(brand_tag, brand_name)
+        if company_url or "lexnis" in brand_name.lower():
             try:
                 studio = LexnisCampaignStudio()
                 dna = studio.analyze_company_website(company_url or "https://lexnis.com", brand=brand_name)
                 if dna:
                     brand_colors = dna.get("brand_colors")
                     if not brand_tag:
-                        final_tag = sanitize_brand_tag(dna.get("brand_tag"), brand_name or "Lexnis Technologies")
+                        final_tag = sanitize_brand_tag(dna.get("brand_tag"), brand_name)
             except Exception:
                 pass
 
@@ -757,7 +763,7 @@ async def template_swap_endpoint(
 
         arabic_url = None
         if language in ("ar", "both"):
-            ar_tag = brand_tag if (brand_tag and re.search(r"[\u0600-\u06FF]", brand_tag)) else ("#فريق_لكسنس" if "lexnis" in (brand_name or "").lower() else f"#فريق_{re.sub(r'[^a-zA-Z0-9]', '', brand_name or 'Lexnis')}")
+            ar_tag = brand_tag if (brand_tag and re.search(r"[\u0600-\u06FF]", brand_tag)) else ("#فريق_لكسنس" if "lexnis" in brand_name.lower() else f"#فريق_{re.sub(r'[^a-zA-Z0-9]', '', brand_name)}")
             ar_pil = composite_template_swap(
                 t_bytes,
                 s_bytes,
@@ -770,8 +776,8 @@ async def template_swap_endpoint(
                 recolor_gradient=recolor_gradient,
                 blueprint=bp_param,
                 language="ar",
-                headline_text=headline_text if (language == "ar" and headline_text) else "أهلاً وسهلاً",
-                footer_text=footer_text if (language == "ar" and footer_text) else "نحن متحمسون جداً لانضمامك إلى فريقنا!"
+                headline_text=headline_text if (language == "ar" and headline_text) else "مرحباً بك في فريقنا",
+                footer_text=footer_text if (language == "ar" and footer_text) else "نحن سعداء جداً بانضمامك إلى فريقنا!"
             )
             ar_filename = f"template_swap_{token}_ar.jpg"
             ar_path = RENDERS_DIR / ar_filename
@@ -783,7 +789,7 @@ async def template_swap_endpoint(
             "image_url": render_url(str(out_path)) if language != "ar" else arabic_url,
             "arabic_image_url": arabic_url,
             "message": "Template swap with 2.5D pop-out layering successfully generated",
-            "dimensions": {"width": 808, "height": 1024},
+            "dimensions": {"width": 1080, "height": 1350},
             "person_name": person_name,
             "person_title": person_title,
             "language": language
