@@ -1,0 +1,231 @@
+{
+  "canvas": {
+    "width": 808,
+    "height": 1024,
+    "original_width": 735,
+    "original_height": 931,
+    "aspect_ratio": "4:5",
+    "bg_gradient": [
+      "#70B5F7",
+      "#267EE2"
+    ],
+    "gradient_angle_deg": 193.3,
+    "bg_coefficients": {
+      "b": [
+        247.28923238224607,
+        -0.01478325466766219,
+        -0.008217238723129818
+      ],
+      "g": [
+        181.06945784213738,
+        -0.05041783570794804,
+        -0.013642159479393883
+      ],
+      "r": [
+        112.24820888587972,
+        -0.07640338846783964,
+        -0.01172302141737206
+      ]
+    }
+  },
+  "elements": {
+    "logo": {
+      "text": "Sekawan Media",
+      "bbox": [
+        52,
+        58,
+        128,
+        34
+      ],
+      "bbox_norm": [
+        0.0644,
+        0.0566,
+        0.1584,
+        0.0332
+      ],
+      "width_pct": 0.1584,
+      "height_pct": 0.0332,
+      "margin_top_pct": 0.0566,
+      "margin_left_pct": 0.0644,
+      "aspect_ratio": 3.76,
+      "color": "#FFFFFF",
+      "z_index": 40
+    },
+    "hashtag": {
+      "text": "#SekawanTeam",
+      "bbox": [
+        596,
+        74,
+        137,
+        14
+      ],
+      "bbox_norm": [
+        0.7376,
+        0.0723,
+        0.1696,
+        0.0137
+      ],
+      "font_size_px": 14,
+      "font_size_pct": 0.0137,
+      "align": "right",
+      "color": "#EBF4FF",
+      "z_index": 40
+    },
+    "headline": {
+      "text": "WELCOME",
+      "bbox": [
+        177,
+        194,
+        450,
+        57
+      ],
+      "bbox_norm": [
+        0.2191,
+        0.1895,
+        0.5569,
+        0.0557
+      ],
+      "cap_height_px": 57,
+      "cap_height_pct": 0.0557,
+      "font_size_px": 73,
+      "font_size_pct": 0.0713,
+      "tracking": 0.04,
+      "weight": 800,
+      "color": "#FFFFFF",
+      "align": "center",
+      "z_index": 10
+    },
+    "polaroid_frame": {
+      "outer_bbox": [
+        195,
+        293,
+        418,
+        506
+      ],
+      "outer_bbox_norm": [
+        0.2413,
+        0.2861,
+        0.5173,
+        0.4941
+      ],
+      "inner_window": [
+        203,
+        302,
+        402,
+        364
+      ],
+      "inner_window_norm": [
+        0.2512,
+        0.2949,
+        0.4975,
+        0.3555
+      ],
+      "border_px": 8,
+      "border_px_pct": 0.0099,
+      "nameplate_box": [
+        195,
+        666,
+        418,
+        133
+      ],
+      "nameplate_box_norm": [
+        0.2413,
+        0.6504,
+        0.5173,
+        0.1299
+      ],
+      "nameplate_height_pct": 0.1299,
+      "color": "#FFFFFF",
+      "z_index": 20
+    },
+    "subject_slot": {
+      "bbox": [
+        201,
+        218,
+        375,
+        450
+      ],
+      "bbox_norm": [
+        0.2488,
+        0.2129,
+        0.4641,
+        0.4395
+      ],
+      "head_popout_height_above_frame": 75,
+      "head_popout_over_frame_pct": 0.0732,
+      "frame_fill_width_pct": 0.933,
+      "overlaps_element": "headline",
+      "clip_bottom_to": "nameplate_top",
+      "clip_sides_to": "inner_window",
+      "grayscale": true,
+      "z_index": 30
+    },
+    "nameplate_title": {
+      "text": "Anyta Putri",
+      "bbox": [
+        223,
+        682,
+        126,
+        76
+      ],
+      "bbox_norm": [
+        0.276,
+        0.666,
+        0.1559,
+        0.0742
+      ],
+      "font_size_px": 34,
+      "font_size_pct": 0.0332,
+      "line_height": 1.05,
+      "weight": 700,
+      "color": "#1B75E8",
+      "align": "left",
+      "margin_left_px": 28,
+      "margin_left_pct": 0.067,
+      "z_index": 40
+    },
+    "nameplate_role": {
+      "text": "Chief of Business Development Department",
+      "bbox": [
+        224,
+        774,
+        313,
+        13
+      ],
+      "bbox_norm": [
+        0.2772,
+        0.7559,
+        0.3874,
+        0.0127
+      ],
+      "font_size_px": 13,
+      "font_size_pct": 0.0127,
+      "weight": 500,
+      "color": "#1B75E8",
+      "align": "left",
+      "margin_left_px": 29,
+      "margin_left_pct": 0.0694,
+      "z_index": 40
+    },
+    "footer": {
+      "text": "We are so excited to have you on our team!",
+      "bbox": [
+        174,
+        846,
+        460,
+        22
+      ],
+      "bbox_norm": [
+        0.2153,
+        0.8262,
+        0.5693,
+        0.0215
+      ],
+      "font_size_px": 22,
+      "font_size_pct": 0.0215,
+      "color": "#FFFFFF",
+      "align": "center",
+      "z_index": 40
+    }
+  }
+}

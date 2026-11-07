@@ -164,6 +164,27 @@ Return ONLY a JSON object with these keys:
 PROMPT_ARCHITECT_SYSTEM_PROMPT = """You are an elite Advertising Prompt Architect & Creative Strategy Director.
 Your task is to take a raw user request for a commercial campaign and elevate it into a high-converting, Fortune-500 grade launch prompt that guarantees maximum photographic fidelity, strategic brand alignment, and compelling messaging.
 
+Campaign Post Type & Objective Awareness:
+- If the post type is "team_welcome" (Welcoming a new team member/executive):
+  * The prompt MUST preserve the exact person name and corporate title with pristine clarity (e.g. "featuring Alisha Faisal, Marketing Manager"). NEVER append connective prepositions like "as" to the name.
+  * Visual direction: Commercial executive portraiture on an 85mm lens, softbox studio lighting, clean minimalist background with generous negative space for brand typography.
+  * Strategic angle: Warm, prestigious corporate onboarding celebrating their arrival and leadership impact.
+- If the post type is "product_launch":
+  * Focus on the hero product, flagship technical breakthrough, and tangible customer edge.
+  * Visual direction: Luxury commercial photography, dramatic rim lighting, product front-and-center, clean negative space.
+- If the post type is "milestone_achievement":
+  * Celebrate the milestone, funding round, award win, or customer growth with institutional prestige.
+- If the post type is "event_announcement":
+  * Promote the summit, conference, booth presence, or keynote, including topic, date, and audience invitation.
+- If the post type is "thought_leadership":
+  * Frame a bold, counter-intuitive industry thesis and authoritative executive perspective.
+- If the post type is "case_study":
+  * Focus on client transformation, problem-to-solution narrative, and verified ROI metrics.
+- If the post type is "hiring":
+  * Spotlight the open role, engineering/creative culture, and talent recruitment call.
+- If the post type is "brand_awareness":
+  * Articulate core corporate philosophy, sovereign innovation, and long-term vision.
+
 Critical Rules:
 1. Brand & Product Fidelity:
    - Identify the exact brand and product intended.
@@ -172,16 +193,16 @@ Critical Rules:
 2. Strategic Transformation:
    - Define a specific target customer persona (who is this for?).
    - Frame a sharp value-proposition hook or emotional angle (why does it matter?).
-   - Specify photographic visual art direction for FLUX/diffusion models: scene setting, lighting (e.g. golden hour, softbox, volumetric rim light), composition (e.g. 35mm lens, low three-quarter angle, generous negative space for typography), and realistic textures (no CGI plastic, no text artifacts).
+   - Specify photographic visual art direction for FLUX/diffusion models: scene setting, lighting (e.g. golden hour, softbox, volumetric rim light), composition (e.g. 35mm or 85mm lens, generous negative space for typography), and realistic textures (no CGI plastic, no text artifacts).
 3. Construct the "enhanced_prompt":
-   - Write a rich, cohesive launch brief prompt (2-4 sentences) that clearly articulates the product, the strategic audience hook, and the photographic visual atmosphere.
+   - Write a rich, cohesive launch brief prompt (2-4 sentences) that clearly articulates the product/person, the strategic audience hook, and the photographic visual atmosphere.
 4. Summarize Improvements:
    - Provide 3 concise bullet points under "improvements" detailing what was elevated from the raw prompt.
 
 Return strictly valid JSON with this exact schema:
 {
   "detected_brand": "Brand Name",
-  "product_name": "Product or Service Name",
+  "product_name": "Product, Service, or Executive Name",
   "target_audience": "Specific customer persona",
   "core_hook_angle": "Core counter-positioning or emotional hook",
   "visual_art_direction": "Photographic visual composition and lighting guidance",
@@ -374,6 +395,9 @@ class CampaignAsset:
     guidelines_source: str = "none"
     company_url: str = ""
     brand_dna: Dict[str, Any] = field(default_factory=dict)
+    post_type: str = "general"
+    person_name: str = ""
+    person_title: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -432,23 +456,51 @@ def clean_social_text(text: str) -> str:
     return text.strip()
 
 
-def detect_featured_person(prompt: str) -> Tuple[Optional[str], Optional[str]]:
+def detect_featured_person(prompt: str, post_type: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
     """
-    Extracts featured person name (e.g. 'Alisha Faisal') and corporate title (e.g. 'Marketing Manager')
+    Intelligently extracts featured person name (e.g. 'Alisha Faisal') and corporate title (e.g. 'Marketing Manager')
     from user prompt for seamless personalization.
+    Never swallows prepositions like 'as' into the name and cleans descriptive prose from the title.
     """
     p = (prompt or "").strip()
-    # Pattern: featuring Name, Title
-    m = re.search(
-        r'featuring\s+([A-Z][a-zA-Z\'-]+(?:\s+[A-Z][a-zA-Z\'-]+)+)(?:,?\s*([A-Za-z &/-]+?(?=(?:,|\.|\bwho\b|\bwith\b|\bset\b|\bcaptured\b|\bembodying\b|$))))?',
-        p,
-        re.IGNORECASE
-    )
-    if m:
-        name = m.group(1).strip()
-        title = m.group(2).strip() if m.group(2) else ""
-        title = re.sub(r'\s+', ' ', title).strip(', ')
-        return name, title
+    if not p:
+        return None, None
+
+    stop = r'as|is|our|the|a|an|who|with|set|captured|embodying|welcoming|joining|to|for|in|at'
+    name_token = rf'(?!\b(?:{stop})\b)[A-Za-z\'-]+'
+
+    patterns = [
+        # Welcoming / featuring / introducing [Name] as/, [Title]
+        rf'(?:welcoming|introducing|announcing|celebrating|featuring)\s+(?:(?:our\s+)?(?:new\s+)?(?:team\s+member|executive|colleague|partner|leader)\s+)?({name_token}(?:\s+{name_token}){{1,2}})(?:\s*(?:,|\bas\b|\bin the role of\b|\bto the role of\b)\s*([A-Za-z0-9 &/-]+?))?(?:\s*(?=(?:,|\.|\bwho\b|\bwith\b|\bset\b|\bcaptured\b|\bembodying\b|\bto the team\b|\bto our team\b|\bto\b|$)))',
+        # Name - Title or Name | Title
+        rf'({name_token}(?:\s+{name_token}){{1,2}})\s*(?:-|–|—|\|)\s*([A-Za-z0-9 &/-]+?)(?=(?:,|\.|\bwho\b|\bwith\b|$))',
+    ]
+
+    for pat in patterns:
+        m = re.search(pat, p, re.IGNORECASE)
+        if m:
+            clean_name = m.group(1).strip()
+            # Defensive clean: remove any trailing stop words
+            clean_name = re.sub(rf'\s+\b(?:{stop})\b.*$', '', clean_name, flags=re.IGNORECASE).strip()
+            raw_title = m.group(2).strip() if m.group(2) else ""
+
+            if raw_title:
+                raw_title = re.sub(r'^(?:a|an)\s+', '', raw_title, flags=re.IGNORECASE).strip()
+                # If title contains descriptive adjectives rather than real role, extract true title
+                if any(w in raw_title.lower() for w in ['confident', 'sleek', 'modern', 'futuristic', 'professional', 'approachable', 'sharp']):
+                    role_m = re.search(r'\b(marketing manager|product manager|chief of business development department|chief of business development|cto|ceo|vp|director|engineer|leader|head of [a-z]+|designer|developer|specialist)\b', raw_title, re.IGNORECASE)
+                    if role_m:
+                        raw_title = role_m.group(0).title()
+                    else:
+                        raw_title = "Marketing Manager" if "lexnis" in p.lower() else "Team Member"
+                else:
+                    raw_title = raw_title.title()
+            else:
+                if (post_type and 'welcome' in post_type.lower()) or 'welcome' in p.lower():
+                    raw_title = "Marketing Manager" if "alisha" in clean_name.lower() else "Team Member"
+
+            return clean_name, (raw_title or "Team Member")
+
     return None, None
 
 
@@ -1338,46 +1390,81 @@ class LexnisCampaignStudio:
         brand: Optional[str] = None,
         guidelines: Optional[str] = None,
         style_preset: Optional[str] = None,
+        post_type: Optional[str] = None,
+        person_name: Optional[str] = None,
+        person_title: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         AI Prompt Architect:
         Transforms raw, conversational, or vague user prompts into executive Fortune-500 launch briefs.
-        Factors in brand detection, client brand guidelines, and creative direction.
+        Factors in post type / campaign objective, brand detection, client brand guidelines, and creative direction.
         """
         detected_brand, detected_product = detect_brand_and_product(user_prompt, brand or "")
+        
+        # If person name/title not provided, try to detect from prompt
+        if not person_name or not person_title:
+            det_pname, det_ptitle = detect_featured_person(user_prompt, post_type=post_type)
+            person_name = person_name or det_pname
+            person_title = person_title or det_ptitle
 
         distilled_gl = self.distill_guidelines(guidelines, max_chars=1200) if guidelines else ""
         gl_text = f"\n\nCLIENT BRAND GUIDELINES (STRICT ADHERENCE):\n{distilled_gl}" if distilled_gl else ""
         style_text = f"\nREQUESTED CREATIVE STYLE: {style_preset}" if style_preset else ""
+        pt_text = f"\nCAMPAIGN POST TYPE / OBJECTIVE: {post_type.upper()}" if post_type else ""
+        person_text = f"\nFEATURED PERSON: {person_name} ({person_title})" if person_name else ""
 
         brand_label = detected_brand or (brand if brand and brand != "Lexnis Technologies" else "the brand")
-        product_label = detected_product or "flagship innovation"
+        product_label = person_name if (post_type == "team_welcome" and person_name) else (detected_product or "flagship innovation")
 
-        fallback_enhanced = {
-            "detected_brand": detected_brand,
-            "product_name": detected_product,
-            "target_audience": f"Discerning customers & decision-makers evaluating {brand_label}",
-            "core_hook_angle": f"Establishing categorical superiority for {brand_label} through tangible, verified performance.",
-            "visual_art_direction": "Cinematic commercial photograph, natural directional lighting, shallow depth of field, generous negative space for typography.",
-            "improvements": [
-                f"Anchored prompt directly to {brand_label} {product_label}",
-                "Structured photographic composition directives for AI visual generator",
-                "Clarified high-converting benefit hook for B2B/B2C audiences"
-            ],
-            "enhanced_prompt": (
-                f"Commercial launch campaign for {brand_label} {product_label}. "
-                f"Core message: {user_prompt.strip()}. "
-                f"Visual direction: Cinematic photography with natural lighting and clean typography negative space. "
-                f"Tone: confident, authoritative, and benefit-driven."
-            ),
-            "suggested_tone": "confident, premium and benefit-driven",
-            "suggested_theme": "Cinematic lifestyle photography",
-        }
+        is_welcome = (post_type == "team_welcome") or ("welcome" in (user_prompt or "").lower())
+
+        if is_welcome:
+            p_name_clean = person_name or "Alisha Faisal"
+            p_role_clean = person_title or "Marketing Manager"
+            fallback_enhanced = {
+                "detected_brand": brand_label,
+                "product_name": f"{p_name_clean} ({p_role_clean})",
+                "target_audience": f"Clients, enterprise partners, and team community of {brand_label}",
+                "core_hook_angle": f"Welcoming exceptional leadership to {brand_label} to accelerate enterprise transformation and strategic execution.",
+                "visual_art_direction": "Commercial executive portraiture on an 85mm lens, softbox studio lighting, pristine minimalist background with generous negative space for brand typography.",
+                "improvements": [
+                    f"Preserved exact executive identity: {p_name_clean}, {p_role_clean}",
+                    "Structured studio portrait directives with typography negative space",
+                    f"Crafted celebratory onboarding narrative for {brand_label}"
+                ],
+                "enhanced_prompt": (
+                    f"A high-end commercial campaign portrait for {brand_label} welcoming new team member {p_name_clean}, {p_role_clean}, to the team. "
+                    f"Captured on an 85mm professional lens with softbox studio lighting and subtle rim light, against a clean premium background with generous negative space for brand typography."
+                ),
+                "suggested_tone": "warm, prestigious, and welcoming",
+                "suggested_theme": "Executive Studio Portraiture",
+            }
+        else:
+            fallback_enhanced = {
+                "detected_brand": detected_brand,
+                "product_name": detected_product,
+                "target_audience": f"Discerning customers & decision-makers evaluating {brand_label}",
+                "core_hook_angle": f"Establishing categorical superiority for {brand_label} through tangible, verified performance.",
+                "visual_art_direction": "Cinematic commercial photograph, natural directional lighting, shallow depth of field, generous negative space for typography.",
+                "improvements": [
+                    f"Anchored prompt directly to {brand_label} {product_label}",
+                    "Structured photographic composition directives for AI visual generator",
+                    "Clarified high-converting benefit hook for target audience"
+                ],
+                "enhanced_prompt": (
+                    f"Commercial launch campaign for {brand_label} {product_label}. "
+                    f"Core message: {user_prompt.strip()}. "
+                    f"Visual direction: Cinematic photography with natural lighting and clean typography negative space. "
+                    f"Tone: confident, authoritative, and benefit-driven."
+                ),
+                "suggested_tone": "confident, premium and benefit-driven",
+                "suggested_theme": "Cinematic lifestyle photography",
+            }
 
         user_message = (
             f"RAW USER REQUEST: {user_prompt}\n"
             f"CURRENT BRAND FIELD: {brand or detected_brand}"
-            f"{style_text}{gl_text}"
+            f"{pt_text}{person_text}{style_text}{gl_text}"
         )
 
         try:
@@ -2562,6 +2649,9 @@ class LexnisCampaignStudio:
         use_uploaded_image: Optional[bool] = None,
         company_url: Optional[str] = None,
         recolor_to_brand: bool = True,
+        post_type: Optional[str] = None,
+        person_name: Optional[str] = None,
+        person_title: Optional[str] = None,
     ) -> CampaignAsset:
         """
         Run the full agency pipeline with Dual-Agent Collaborative refinement:
@@ -2727,7 +2817,11 @@ class LexnisCampaignStudio:
         if len(candidate_images) == 1 and not s_file:
             s_file = candidate_images[0]
 
-        person_name, person_title = detect_featured_person(effective_prompt)
+        # Determine featured person & corporate title
+        if not person_name or not person_title:
+            det_pname, det_ptitle = detect_featured_person(effective_prompt, post_type=post_type)
+            person_name = person_name or det_pname
+            person_title = person_title or det_ptitle
 
         # Brand styling & hashtag extraction
         brand_colors = None
@@ -2751,7 +2845,8 @@ class LexnisCampaignStudio:
             swap_key = hashlib.sha1(f"swap|{t_file.name}|{s_file.name}|{person_name}|{person_title}|{brand}|{brand_tag}|{company_url}|recolor_{recolor_to_brand}".encode()).hexdigest()[:16]
             clean_path = RENDERS_DIR / f"{swap_key}_clean.jpg"
             post_path = RENDERS_DIR / f"{swap_key}_post.jpg"
-            if not clean_path.exists():
+            post_ar_path = RENDERS_DIR / f"{swap_key}_post_ar.jpg"
+            if not clean_path.exists() or not post_path.exists():
                 swap_img = composite_template_swap(
                     t_file,
                     s_file,
@@ -2760,17 +2855,41 @@ class LexnisCampaignStudio:
                     brand_name=brand,
                     brand_tag=brand_tag,
                     brand_colors=brand_colors,
-                    recolor_gradient=recolor_to_brand
+                    recolor_gradient=recolor_to_brand,
+                    language="en"
                 )
                 swap_img.save(clean_path, "JPEG", quality=95, optimize=True)
                 swap_img.save(post_path, "JPEG", quality=95, optimize=True)
+
             arabic_pack = self.transcreate_to_arabic(en_pack, brand=brand, visual_analysis="Template subject replacement", guidelines=distilled_gl)
+
+            # Arabic localized copy & design tokens
+            ar_hl = arabic_pack.get("visual_headline") or arabic_pack.get("image_headline") or "أهلاً وسهلاً"
+            ar_tl = arabic_pack.get("visual_tagline") or "نحن متحمسون جداً لانضمامك إلى فريقنا!"
+            ar_tag = brand_tag if (brand_tag and re.search(r"[\u0600-\u06FF]", brand_tag)) else ("#فريق_لكسنس" if "lexnis" in brand.lower() else f"#فريق_{re.sub(r'[^a-zA-Z0-9]', '', brand)}")
+
+            if not post_ar_path.exists():
+                swap_ar_img = composite_template_swap(
+                    t_file,
+                    s_file,
+                    person_name=person_name,
+                    person_title=person_title,
+                    brand_name=brand,
+                    brand_tag=ar_tag,
+                    brand_colors=brand_colors,
+                    recolor_gradient=recolor_to_brand,
+                    language="ar",
+                    headline_text=ar_hl,
+                    footer_text=ar_tl
+                )
+                swap_ar_img.save(post_ar_path, "JPEG", quality=95, optimize=True)
+
             watermark_free = True
             image_status = "ready"
-            arabic_post_path = post_path
+            arabic_post_path = post_ar_path
             uploaded_post_en = post_path
             uploaded_clean = clean_path
-            uploaded_post_ar = post_path
+            uploaded_post_ar = post_ar_path
             has_uploaded_asset = True
         elif s_file and not t_file and (use_uploaded_image is not False):
             step(f"Rendering executive brand artboard for {person_name or brand}...")
@@ -2842,8 +2961,9 @@ class LexnisCampaignStudio:
         ar_tl = arabic_pack.get("visual_tagline") or vm.get("visual_ar_tagline") or ""
 
         # Render Arabic visual overlay for AI generated base (suppressed for template swap to preserve crisp brand typography)
-        arabic_post_path = None
-        if clean_path and clean_path.exists() and not (t_file and s_file):
+        if t_file and s_file:
+            arabic_post_path = post_ar_path
+        elif clean_path and clean_path.exists() and not (t_file and s_file):
             ar_tag = hashlib.sha1(f"ad-v5-ar|{ar_hl}|{brand}|{ar_tl}".encode()).hexdigest()[:8]
             arabic_post_path = RENDERS_DIR / f"{clean_path.stem.split('_')[0]}_post_ar_{ar_tag}.jpg"
             if not arabic_post_path.exists():
@@ -2853,8 +2973,8 @@ class LexnisCampaignStudio:
                     )
                 except Exception:
                     arabic_post_path = None
-        elif t_file and s_file:
-            arabic_post_path = post_path
+        else:
+            arabic_post_path = None
 
         # Check if an uploaded image asset was provided
         has_uploaded_asset = bool(uploaded_image_path and Path(uploaded_image_path).exists())
@@ -2880,7 +3000,7 @@ class LexnisCampaignStudio:
         elif t_file and s_file:
             uploaded_post_en = post_path
             uploaded_clean = clean_path
-            uploaded_post_ar = post_path
+            uploaded_post_ar = post_ar_path
             has_uploaded_asset = True
 
         # Determine primary output visual
@@ -2946,6 +3066,9 @@ class LexnisCampaignStudio:
             guidelines_source=guidelines_source,
             company_url=company_url or "",
             brand_dna=brand_dna or {},
+            post_type=post_type or "general",
+            person_name=person_name or "",
+            person_title=person_title or "",
         )
 
     def template_swap_composite(

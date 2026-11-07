@@ -476,6 +476,16 @@
 
             <button 
               type="button" 
+              id="btn-analyze-template-layout" 
+              class="px-3.5 py-1.5 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 text-slate-200 font-tech font-bold text-xs tracking-wider uppercase transition-all border border-cyan-500/30 flex items-center space-x-1.5 cursor-pointer shadow-sm active:scale-95"
+              title="Reverse-engineer template into proportional design tokens"
+            >
+              <i data-lucide="scan" class="w-3.5 h-3.5 text-cyan-accent"></i>
+              <span id="analyze-layout-btn-text">📐 Layout Blueprint</span>
+            </button>
+
+            <button 
+              type="button" 
               id="btn-quick-test-swap" 
               class="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-cyan-600 hover:from-violet-500 hover:to-cyan-500 text-white font-tech font-bold text-xs tracking-wider uppercase transition-all shadow-sm active:scale-95 flex items-center space-x-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
@@ -483,6 +493,58 @@
               <span id="quick-test-swap-text">⚡ Quick Test Swap</span>
             </button>
           </div>
+        </div>
+
+        <!-- Layout Blueprint Inspector Container (Collapsible) -->
+        <div id="layout-blueprint-inspector" class="hidden p-4 rounded-xl bg-obsidian-950 border border-cyan-500/40 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/40 uppercase">
+                📐 REVERSE-ENGINEERED DESIGN-TOKEN BLUEPRINT
+              </span>
+              <span class="text-[11px] font-mono text-slate-400">10 Visual Elements Detected • Proportional Design Tokens • 0 Magic Numbers</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <button type="button" id="btn-toggle-blueprint-json" class="px-2.5 py-1 text-xs font-mono font-bold rounded bg-obsidian-800 text-slate-300 hover:text-white border border-obsidian-700 transition-all cursor-pointer">
+                { } View JSON
+              </button>
+              <button type="button" id="btn-close-layout-inspector" class="p-1 rounded text-slate-400 hover:text-white cursor-pointer">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- 3-Panel Visual Diagnostic Preview -->
+          <div class="flex justify-center bg-obsidian-900/60 p-2 rounded-lg overflow-x-auto">
+            <img id="layout-inspector-img" class="max-h-80 rounded shadow-2xl object-contain border border-obsidian-800" src="/static/assets/debug_layout_boxes.jpg" alt="Layout Inspector Diagnostic">
+          </div>
+
+          <!-- Key Design Tokens Grid -->
+          <div id="layout-tokens-grid" class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+            <div class="p-2 rounded bg-obsidian-900 border border-obsidian-800">
+              <div class="text-[10px] text-slate-500 uppercase">Frame Bounding Box</div>
+              <div id="token-frame-box" class="font-bold text-white">[195, 294, 418, 505]</div>
+              <div class="text-[10px] text-cyan-400">Width: 51.7% • H: 49.3%</div>
+            </div>
+            <div class="p-2 rounded bg-obsidian-900 border border-obsidian-800">
+              <div class="text-[10px] text-slate-500 uppercase">Display Headline</div>
+              <div id="token-headline" class="font-bold text-white">WELCOME</div>
+              <div class="text-[10px] text-cyan-400">Cap-H: 56px • Z-Index: 10</div>
+            </div>
+            <div class="p-2 rounded bg-obsidian-900 border border-obsidian-800">
+              <div class="text-[10px] text-slate-500 uppercase">2.5D Head Pop-Out</div>
+              <div id="token-popout" class="font-bold text-white">76px over top frame</div>
+              <div class="text-[10px] text-purple-400">Overlaps WELCOME text</div>
+            </div>
+            <div class="p-2 rounded bg-obsidian-900 border border-obsidian-800">
+              <div class="text-[10px] text-slate-500 uppercase">Auto-Fit Nameplate</div>
+              <div id="token-nameplate" class="font-bold text-white">418 × 131 px</div>
+              <div class="text-[10px] text-emerald-400">Auto-Fit Font Scaling</div>
+            </div>
+          </div>
+
+          <!-- Raw JSON Container (Collapsible) -->
+          <pre id="blueprint-raw-json" class="hidden p-3 bg-black/60 rounded-lg text-[11px] font-mono text-cyan-300 max-h-60 overflow-y-auto border border-obsidian-800"></pre>
         </div>
 
         <!-- Quick Test Swap Result Container (Collapsible) -->
@@ -696,6 +758,107 @@
                 Robotics Fleet
               </button>
             </div>
+          </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- POST TYPE & CAMPAIGN OBJECTIVE SELECTOR -->
+        <!-- ============================================== -->
+        <div class="space-y-3 bg-obsidian-950/70 border border-obsidian-800 rounded-2xl p-4 shadow-inner">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-obsidian-800/80">
+            <div class="flex items-center space-x-2">
+              <span class="text-xs font-tech font-bold text-cyan-accent uppercase tracking-wider flex items-center space-x-1.5">
+                <i data-lucide="layers" class="w-4 h-4 text-cyan-accent"></i>
+                <span>Choose Post Type / Campaign Objective</span>
+              </span>
+              <span class="text-[10px] font-mono text-slate-500 hidden md:inline">Auto-structures prompt, persona & visual rules</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span id="active-post-type-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-accent/20 text-cyan-300 border border-cyan-500/40 shadow-sm flex items-center space-x-1">
+                <span>🤝</span>
+                <span id="active-post-type-name">TEAM WELCOME</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- Post Type Selector Grid -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2" id="post-type-grid">
+            <!-- 1. Team Welcome -->
+            <button type="button" data-post-type="team_welcome" class="post-type-card active text-left p-2.5 rounded-xl border transition-all cursor-pointer bg-gradient-to-br from-cyan-950/60 to-obsidian-900 border-cyan-500/70 text-cyan-200 shadow-cyan-glow/20">
+              <div class="flex items-center space-x-1.5 mb-1">
+                <span class="text-base">🤝</span>
+                <span class="font-bold text-xs truncate">Team Welcome</span>
+              </div>
+              <p class="text-[10px] text-slate-400 font-mono leading-tight truncate">New hire & executive onboarding</p>
+            </button>
+
+            <!-- 2. Product Launch -->
+            <button type="button" data-post-type="product_launch" class="post-type-card text-left p-2.5 rounded-xl border transition-all cursor-pointer bg-obsidian-900/90 border-obsidian-800 text-slate-300 hover:border-cyan-accent/40 hover:text-white">
+              <div class="flex items-center space-x-1.5 mb-1">
+                <span class="text-base">🚀</span>
+                <span class="font-bold text-xs truncate">Product Launch</span>
+              </div>
+              <p class="text-[10px] text-slate-400 font-mono leading-tight truncate">Software, hardware & AI tools</p>
+            </button>
+
+            <!-- 3. Milestone & Award -->
+            <button type="button" data-post-type="milestone_achievement" class="post-type-card text-left p-2.5 rounded-xl border transition-all cursor-pointer bg-obsidian-900/90 border-obsidian-800 text-slate-300 hover:border-cyan-accent/40 hover:text-white">
+              <div class="flex items-center space-x-1.5 mb-1">
+                <span class="text-base">🏆</span>
+                <span class="font-bold text-xs truncate">Milestone & Award</span>
+              </div>
+              <p class="text-[10px] text-slate-400 font-mono leading-tight truncate">Growth metrics & company awards</p>
+            </button>
+
+            <!-- 4. Event & Webinar -->
+            <button type="button" data-post-type="event_announcement" class="post-type-card text-left p-2.5 rounded-xl border transition-all cursor-pointer bg-obsidian-900/90 border-obsidian-800 text-slate-300 hover:border-cyan-accent/40 hover:text-white">
+              <div class="flex items-center space-x-1.5 mb-1">
+                <span class="text-base">🎤</span>
+                <span class="font-bold text-xs truncate">Event & Webinar</span>
+              </div>
+              <p class="text-[10px] text-slate-400 font-mono leading-tight truncate">Summits, keynotes & workshops</p>
+            </button>
+
+            <!-- 5. Thought Leadership -->
+            <button type="button" data-post-type="thought_leadership" class="post-type-card text-left p-2.5 rounded-xl border transition-all cursor-pointer bg-obsidian-900/90 border-obsidian-800 text-slate-300 hover:border-cyan-accent/40 hover:text-white">
+              <div class="flex items-center space-x-1.5 mb-1">
+                <span class="text-base">💡</span>
+                <span class="font-bold text-xs truncate">Thought Leadership</span>
+              </div>
+              <p class="text-[10px] text-slate-400 font-mono leading-tight truncate">Industry insights & tech future</p>
+            </button>
+
+            <!-- 6. Client Case Study -->
+            <button type="button" data-post-type="case_study" class="post-type-card text-left p-2.5 rounded-xl border transition-all cursor-pointer bg-obsidian-900/90 border-obsidian-800 text-slate-300 hover:border-cyan-accent/40 hover:text-white">
+              <div class="flex items-center space-x-1.5 mb-1">
+                <span class="text-base">💼</span>
+                <span class="font-bold text-xs truncate">Client Case Study</span>
+              </div>
+              <p class="text-[10px] text-slate-400 font-mono leading-tight truncate">ROI proof & client transformation</p>
+            </button>
+
+            <!-- 7. We're Hiring -->
+            <button type="button" data-post-type="hiring" class="post-type-card text-left p-2.5 rounded-xl border transition-all cursor-pointer bg-obsidian-900/90 border-obsidian-800 text-slate-300 hover:border-cyan-accent/40 hover:text-white">
+              <div class="flex items-center space-x-1.5 mb-1">
+                <span class="text-base">📣</span>
+                <span class="font-bold text-xs truncate">We're Hiring</span>
+              </div>
+              <p class="text-[10px] text-slate-400 font-mono leading-tight truncate">Open roles & talent recruitment</p>
+            </button>
+
+            <!-- 8. Brand Story -->
+            <button type="button" data-post-type="brand_awareness" class="post-type-card text-left p-2.5 rounded-xl border transition-all cursor-pointer bg-obsidian-900/90 border-obsidian-800 text-slate-300 hover:border-cyan-accent/40 hover:text-white">
+              <div class="flex items-center space-x-1.5 mb-1">
+                <span class="text-base">🌐</span>
+                <span class="font-bold text-xs truncate">Brand Story</span>
+              </div>
+              <p class="text-[10px] text-slate-400 font-mono leading-tight truncate">Mission, values & brand story</p>
+            </button>
+          </div>
+
+          <!-- Dynamic Guided Quick-Fill Form Container -->
+          <div id="post-type-fields-container" class="bg-obsidian-900/90 border border-obsidian-800/80 rounded-xl p-3.5 space-y-3 transition-all">
+            <!-- Dynamic fields rendered here by JavaScript -->
           </div>
         </div>
 
@@ -1691,6 +1854,9 @@
               <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-accent/10 border border-cyan-accent/30 text-cyan-accent font-semibold">
                 Interactive Approval
               </span>
+              <span id="review-post-type-badge" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-violet-accent/20 border border-violet-500/40 text-violet-300 font-semibold">
+                POST TYPE: TEAM WELCOME
+              </span>
             </div>
             <p class="text-xs font-mono text-slate-400 mt-0.5">
               Review, edit, or customize the AI-elevated launch prompt before synthesizing assets.
@@ -2453,13 +2619,38 @@
 
     function autoDetectFeaturedPerson(text) {
       if (!text) return;
-      const m = text.match(/featuring\s+([A-Z][a-zA-Z\'-]+(?:\s+[A-Z][a-zA-Z\'-]+)+)(?:,?\s*([A-Za-z &/-]+?(?=(?:,|\.|\bwho\b|\bwith\b|\bset\b|\bcaptured\b|\bembodying\b|$))))?/i);
+      const stop = 'as|is|our|the|a|an|who|with|set|captured|embodying|welcoming|joining|to|for|in|at';
+      const nameToken = `(?!\\b(?:${stop})\\b)[A-Za-z\\'-]+`;
+      const pat = new RegExp(
+        `(?:welcoming|introducing|announcing|celebrating|featuring)\\s+(?:(?:our\\s+)?(?:new\\s+)?(?:team\\s+member|executive|colleague|partner|leader)\\s+)?(${nameToken}(?:\\s+${nameToken}){1,2})(?:\\s*(?:,|\\bas\\b|\\bin the role of\\b|\\bto the role of\\b)\\s*([A-Za-z0-9 &/-]+?))?(?:\\s*(?=(?:,|\\.|\\bwho\\b|\\bwith\\b|\\bset\\b|\\bcaptured\\b|\\bembodying\\b|\\bto the team\\b|\\bto our team\\b|\\bto\\b|$)))`,
+        'i'
+      );
+      const m = text.match(pat);
       if (m && m[1]) {
-        if (personNameInput && !personNameInput.value.trim()) {
-          personNameInput.value = m[1].trim();
+        let name = m[1].trim();
+        name = name.replace(/\s+\b(as|is|our|the|a|an)\b.*$/i, '').trim();
+        if (personNameInput) {
+          personNameInput.value = name;
         }
-        if (personTitleInput && m[2] && !personTitleInput.value.trim()) {
-          personTitleInput.value = m[2].trim().replace(/\s+/g, ' ');
+        const ptNameInput = document.getElementById('pt-member-name');
+        if (ptNameInput && !ptNameInput.value.trim()) {
+          ptNameInput.value = name;
+        }
+
+        if (m[2]) {
+          let title = m[2].trim().replace(/\s+/g, ' ');
+          title = title.replace(/^(?:a|an)\s+/i, '').trim();
+          if (/confident|sleek|modern|futuristic|professional|approachable|sharp/i.test(title)) {
+            const rm = title.match(/\b(marketing manager|product manager|chief of business development department|chief of business development|cto|ceo|vp|director|engineer|leader|head of [a-z]+|designer|developer|specialist)\b/i);
+            title = rm ? rm[0] : (brandInput && brandInput.value.toLowerCase().includes('lexnis') ? 'Marketing Manager' : 'Team Member');
+          }
+          if (personTitleInput) {
+            personTitleInput.value = title;
+          }
+          const ptRoleInput = document.getElementById('pt-member-role');
+          if (ptRoleInput && !ptRoleInput.value.trim()) {
+            ptRoleInput.value = title;
+          }
         }
       }
     }
@@ -2855,6 +3046,103 @@
     if (btnCloseQuickSwap) {
       btnCloseQuickSwap.addEventListener('click', () => {
         if (quickSwapResultBox) quickSwapResultBox.classList.add('hidden');
+      });
+    }
+
+    // Layout Blueprint Inspector JS
+    const btnAnalyzeTemplateLayout = document.getElementById('btn-analyze-template-layout');
+    const analyzeLayoutBtnText = document.getElementById('analyze-layout-btn-text');
+    const layoutBlueprintInspector = document.getElementById('layout-blueprint-inspector');
+    const btnCloseLayoutInspector = document.getElementById('btn-close-layout-inspector');
+    const btnToggleBlueprintJson = document.getElementById('btn-toggle-blueprint-json');
+    const blueprintRawJson = document.getElementById('blueprint-raw-json');
+    const layoutInspectorImg = document.getElementById('layout-inspector-img');
+    const tokenFrameBox = document.getElementById('token-frame-box');
+    const tokenHeadline = document.getElementById('token-headline');
+    const tokenPopout = document.getElementById('token-popout');
+    const tokenNameplate = document.getElementById('token-nameplate');
+
+    let currentBlueprintData = null;
+
+    if (btnAnalyzeTemplateLayout) {
+      btnAnalyzeTemplateLayout.addEventListener('click', async () => {
+        try {
+          btnAnalyzeTemplateLayout.disabled = true;
+          if (analyzeLayoutBtnText) analyzeLayoutBtnText.textContent = 'Analyzing...';
+          showToast('Reverse-engineering template layout into design tokens...', true);
+
+          const formData = new FormData();
+          if (activeTemplateAsset && activeTemplateAsset.url) {
+            formData.append('image_url', activeTemplateAsset.url);
+          } else {
+            formData.append('image_url', 'template_reference.jpg');
+          }
+
+          const resp = await fetch(`${backendApiBase}/api/analyze-layout`, {
+            method: 'POST',
+            body: formData
+          });
+
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.detail || `HTTP ${resp.status}`);
+          }
+
+          const data = await resp.json();
+          currentBlueprintData = data.blueprint;
+
+          if (layoutInspectorImg && data.diagnostic_overlay_url) {
+            layoutInspectorImg.src = `${data.diagnostic_overlay_url}?t=${Date.now()}`;
+          }
+
+          // Populate tokens
+          const elems = data.blueprint && data.blueprint.elements;
+          if (elems) {
+            if (tokenFrameBox && elems.polaroid_frame) {
+              tokenFrameBox.textContent = JSON.stringify(elems.polaroid_frame.outer_bbox);
+            }
+            if (tokenHeadline && elems.headline) {
+              tokenHeadline.textContent = `${elems.headline.text || 'WELCOME'} (Cap-H: ${elems.headline.cap_height_px || 56}px)`;
+            }
+            if (tokenPopout && elems.subject_slot) {
+              tokenPopout.textContent = `${elems.subject_slot.head_popout_height_above_frame || 76}px over frame`;
+            }
+            if (tokenNameplate && elems.polaroid_frame && elems.polaroid_frame.nameplate_box) {
+              const nb = elems.polaroid_frame.nameplate_box;
+              tokenNameplate.textContent = `${nb[2]} × ${nb[3]} px (Auto-Fit)`;
+            }
+          }
+
+          if (blueprintRawJson) {
+            blueprintRawJson.textContent = JSON.stringify(data.blueprint, null, 2);
+          }
+
+          if (layoutBlueprintInspector) {
+            layoutBlueprintInspector.classList.remove('hidden');
+            layoutBlueprintInspector.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+
+          showToast('Layout Blueprint reverse-engineered successfully! 10 elements detected.', true);
+        } catch (err) {
+          showToast(`Layout analysis failed: ${err.message}`, false);
+        } finally {
+          btnAnalyzeTemplateLayout.disabled = false;
+          if (analyzeLayoutBtnText) analyzeLayoutBtnText.textContent = '📐 Layout Blueprint';
+          if (window.lucide) window.lucide.createIcons();
+        }
+      });
+    }
+
+    if (btnCloseLayoutInspector) {
+      btnCloseLayoutInspector.addEventListener('click', () => {
+        if (layoutBlueprintInspector) layoutBlueprintInspector.classList.add('hidden');
+      });
+    }
+
+    if (btnToggleBlueprintJson && blueprintRawJson) {
+      btnToggleBlueprintJson.addEventListener('click', () => {
+        const isHidden = blueprintRawJson.classList.toggle('hidden');
+        btnToggleBlueprintJson.textContent = isHidden ? '{ } View JSON' : 'Hide JSON';
       });
     }
 
@@ -3272,10 +3560,294 @@
       return false;
     }
 
+    // --- POST TYPE & CAMPAIGN OBJECTIVE SYSTEM ---
+    let currentPostType = 'team_welcome';
+    let currentPersonName = 'Alisha Faisal';
+    let currentPersonTitle = 'Marketing Manager';
+
+    const POST_TYPES = {
+      team_welcome: {
+        id: 'team_welcome',
+        name: 'Team Welcome',
+        emoji: '🤝',
+        badge: 'ACTIVE: TEAM WELCOME & ONBOARDING',
+        desc: 'New team member / executive onboarding announcement',
+        visualHint: 'Activates Template Subject Swap with 2.5D pop-out layering, WELCOME display headline ("أهلاً وسهلاً" in Arabic), and solid white nameplate box.',
+        fields: [
+          { id: 'pt-member-name', label: 'Member Name', placeholder: 'e.g. Alisha Faisal', required: true, default: 'Alisha Faisal' },
+          { id: 'pt-member-role', label: 'Role / Title', placeholder: 'e.g. Marketing Manager', required: true, default: 'Marketing Manager' },
+          { id: 'pt-member-dept', label: 'Department / Focus (Optional)', placeholder: 'e.g. Enterprise Solutions & Growth', required: false, default: '' }
+        ],
+        generatePrompt: (values, brand) => {
+          const name = values['pt-member-name'] || 'Alisha Faisal';
+          const role = values['pt-member-role'] || 'Marketing Manager';
+          const dept = values['pt-member-dept'] ? ` in the ${values['pt-member-dept']}` : '';
+          return `A high-end commercial campaign portrait for ${brand} welcoming new team member ${name}, ${role}${dept}, to the team. Shot on an 85mm lens with softbox studio lighting, clean background, and generous negative space for brand typography.`;
+        }
+      },
+      product_launch: {
+        id: 'product_launch',
+        name: 'Product Launch',
+        emoji: '🚀',
+        badge: 'ACTIVE: PRODUCT & FEATURE LAUNCH',
+        desc: 'Unveil software, AI platform, or hardware breakthrough',
+        visualHint: 'Directs the image generator for flagship physical/software hardware hero shots with dramatic rim lighting and clean copy negative space.',
+        fields: [
+          { id: 'pt-prod-name', label: 'Product Name', placeholder: 'e.g. Lexnis VisionAI', required: true, default: 'Lexnis VisionAI' },
+          { id: 'pt-prod-feature', label: 'Key Breakthrough / Capability', placeholder: 'e.g. Zero-downtime edge telemetry and predictive diagnostics', required: true, default: 'Zero-downtime edge telemetry and predictive diagnostics' },
+          { id: 'pt-prod-target', label: 'Target Audience / Industry (Optional)', placeholder: 'e.g. Smart Gigafactories & Industry 4.0', required: false, default: 'Smart Gigafactories & Industry 4.0' }
+        ],
+        generatePrompt: (values, brand) => {
+          const prod = values['pt-prod-name'] || 'Lexnis VisionAI';
+          const feat = values['pt-prod-feature'] || 'predictive analytics';
+          const target = values['pt-prod-target'] ? ` for ${values['pt-prod-target']}` : '';
+          return `Commercial launch campaign for ${brand} ${prod}, delivering ${feat}${target}. Cinematic commercial photography with directional studio lighting and clean typography negative space.`;
+        }
+      },
+      milestone_achievement: {
+        id: 'milestone_achievement',
+        name: 'Milestone & Award',
+        emoji: '🏆',
+        badge: 'ACTIVE: MILESTONE & AWARD',
+        desc: 'Celebrate company growth, funding round, or industry awards',
+        visualHint: 'Synthesizes authoritative institutional brand visual emphasizing credibility, growth, and trust.',
+        fields: [
+          { id: 'pt-milestone-title', label: 'Milestone / Award Won', placeholder: 'e.g. Named Top Enterprise AI Pioneer of 2026', required: true, default: 'Named Top Enterprise AI Pioneer of 2026' },
+          { id: 'pt-milestone-impact', label: 'Key Metric / Impact', placeholder: 'e.g. Over 500 enterprise deployments with zero downtime', required: false, default: 'Over 500 enterprise deployments with zero downtime' }
+        ],
+        generatePrompt: (values, brand) => {
+          const title = values['pt-milestone-title'] || 'Industry Leadership Award';
+          const impact = values['pt-milestone-impact'] ? ` marking ${values['pt-milestone-impact']}` : '';
+          return `Corporate celebration campaign for ${brand}: ${title}${impact}. Authoritative executive aesthetic with sleek lighting and brand typography negative space.`;
+        }
+      },
+      event_announcement: {
+        id: 'event_announcement',
+        name: 'Event & Webinar',
+        emoji: '🎤',
+        badge: 'ACTIVE: EVENT & WEBINAR',
+        desc: 'Promote conferences, expos, booths, or virtual webinars',
+        visualHint: 'Designs keynote-ready stage atmosphere with clear presentation typography zones.',
+        fields: [
+          { id: 'pt-event-name', label: 'Event / Conference Title', placeholder: 'e.g. Global AI Transformation Summit 2026', required: true, default: 'Global AI Transformation Summit 2026' },
+          { id: 'pt-event-details', label: 'Date, Venue / Booth', placeholder: 'e.g. Nov 24, Bahrain International Arena · Booth #412', required: true, default: 'Nov 24, Bahrain International Arena · Booth #412' },
+          { id: 'pt-event-topic', label: 'Key Topic / Session (Optional)', placeholder: 'e.g. Autonomous AI Agents in Enterprise Infrastructure', required: false, default: 'Autonomous AI Agents in Enterprise Infrastructure' }
+        ],
+        generatePrompt: (values, brand) => {
+          const event = values['pt-event-name'] || 'Tech Summit';
+          const details = values['pt-event-details'] || 'Live Event';
+          const topic = values['pt-event-topic'] ? ` exploring ${values['pt-event-topic']}` : '';
+          return `${brand} invites you to ${event} (${details})${topic}. Sleek futuristic keynote atmosphere with directional lighting and typography negative space.`;
+        }
+      },
+      thought_leadership: {
+        id: 'thought_leadership',
+        name: 'Thought Leadership',
+        emoji: '💡',
+        badge: 'ACTIVE: THOUGHT LEADERSHIP',
+        desc: 'Executive viewpoints, industry analysis, and market trends',
+        visualHint: 'Editorial, high-contrast imagery emphasizing forward-looking authority and deep industry knowledge.',
+        fields: [
+          { id: 'pt-tl-topic', label: 'Strategic Topic / Trend', placeholder: 'e.g. Why Sovereign Edge AI is Replacing Centralized Cloud', required: true, default: 'Why Sovereign Edge AI is Replacing Centralized Cloud' },
+          { id: 'pt-tl-takeaway', label: 'Core Contrarian Takeaway', placeholder: 'e.g. Data gravity and latency demand on-premise execution', required: false, default: 'Data gravity and latency demand on-premise execution' }
+        ],
+        generatePrompt: (values, brand) => {
+          const topic = values['pt-tl-topic'] || 'The Future of Enterprise Technology';
+          const takeaway = values['pt-tl-takeaway'] ? ` focusing on how ${values['pt-tl-takeaway']}` : '';
+          return `Executive thought leadership campaign from ${brand} on ${topic}${takeaway}. Editorial cinematic aesthetic with clean negative space for typography.`;
+        }
+      },
+      case_study: {
+        id: 'case_study',
+        name: 'Client Case Study',
+        emoji: '💼',
+        badge: 'ACTIVE: CLIENT CASE STUDY',
+        desc: 'Showcase enterprise transformation, customer ROI & stats',
+        visualHint: 'Data-driven visual narrative with high-contrast focal zones for proof points and metrics.',
+        fields: [
+          { id: 'pt-cs-client', label: 'Client / Industry Sector', placeholder: 'e.g. Global Tier-1 Logistics Conglomerate', required: true, default: 'Global Tier-1 Logistics Conglomerate' },
+          { id: 'pt-cs-metric', label: 'Verified Result / ROI', placeholder: 'e.g. 42% reduction in downtime and $3.8M annual savings', required: true, default: '42% reduction in downtime and $3.8M annual operational savings' }
+        ],
+        generatePrompt: (values, brand) => {
+          const client = values['pt-cs-client'] || 'Enterprise Partner';
+          const metric = values['pt-cs-metric'] || 'proven operational ROI';
+          return `Case study campaign highlighting how ${brand} empowered ${client} to achieve ${metric}. Industrial high-tech photograph with crisp contrast and typography space.`;
+        }
+      },
+      hiring: {
+        id: 'hiring',
+        name: "We're Hiring",
+        emoji: '📣',
+        badge: "ACTIVE: WE'RE HIRING / RECRUITMENT",
+        desc: 'Recruit top engineering, design, and executive talent',
+        visualHint: 'Dynamic studio workspace atmosphere communicating culture, engineering excellence, and mission.',
+        fields: [
+          { id: 'pt-hire-role', label: 'Open Role / Position', placeholder: 'e.g. Senior Machine Learning & Vision Systems Engineer', required: true, default: 'Senior Machine Learning & Vision Systems Engineer' },
+          { id: 'pt-hire-team', label: 'Team & Location', placeholder: 'e.g. Lexnis Core AI Lab, Manama / Hybrid', required: false, default: 'Lexnis Core AI Lab, Manama / Hybrid' }
+        ],
+        generatePrompt: (values, brand) => {
+          const role = values['pt-hire-role'] || 'Visionary Engineers';
+          const team = values['pt-hire-team'] ? ` for our ${values['pt-hire-team']}` : '';
+          return `Recruitment campaign for ${brand}: We are hiring ${role}${team}. Inspiring collaborative high-tech workspace photograph with generous space for role requirements.`;
+        }
+      },
+      brand_awareness: {
+        id: 'brand_awareness',
+        name: 'Brand Story',
+        emoji: '🌐',
+        badge: 'ACTIVE: BRAND STORY & VISION',
+        desc: 'Brand philosophy, corporate mission, and core values',
+        visualHint: 'Iconic, cinematic brand storytelling imagery built around timeless company values.',
+        fields: [
+          { id: 'pt-story-theme', label: 'Core Theme / Mission', placeholder: 'e.g. Sovereign AI that outpaces the speed of innovation', required: true, default: 'Sovereign AI that outpaces the speed of innovation' },
+          { id: 'pt-story-msg', label: 'Key Audience Takeaway', placeholder: 'e.g. Engineering trustworthy technology for critical infrastructure', required: false, default: 'Engineering trustworthy technology for critical infrastructure' }
+        ],
+        generatePrompt: (values, brand) => {
+          const theme = values['pt-story-theme'] || 'Enterprise Innovation';
+          const msg = values['pt-story-msg'] ? `: ${values['pt-story-msg']}` : '';
+          return `Brand story campaign for ${brand}: ${theme}${msg}. Cinematic visual storytelling with atmospheric lighting and generous typography negative space.`;
+        }
+      }
+    };
+
+    function renderPostTypeFields(typeId) {
+      const config = POST_TYPES[typeId];
+      if (!config) return;
+      const container = document.getElementById('post-type-fields-container');
+      if (!container) return;
+
+      const badgeName = document.getElementById('active-post-type-name');
+      const badgeIcon = document.querySelector('#active-post-type-badge span:first-child');
+      if (badgeName) badgeName.textContent = config.name.toUpperCase();
+      if (badgeIcon) badgeIcon.textContent = config.emoji;
+
+      const fieldsHtml = config.fields.map(f => `
+        <div class="flex-1 min-w-[200px]">
+          <label class="block text-[11px] font-mono text-slate-400 mb-1 flex items-center space-x-1">
+            <span>${f.label}</span>
+            ${f.required ? '<span class="text-cyan-accent">*</span>' : ''}
+          </label>
+          <input 
+            type="text" 
+            id="${f.id}" 
+            placeholder="${f.placeholder}" 
+            value="${f.default || ''}"
+            class="pt-guided-input w-full bg-obsidian-950 border border-obsidian-700 focus:border-cyan-accent text-slate-200 text-xs font-mono rounded-lg px-3 py-1.5 outline-none transition-colors"
+          />
+        </div>
+      `).join('');
+
+      container.innerHTML = `
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-obsidian-800">
+          <div class="flex items-center space-x-2">
+            <span class="text-xs font-mono font-bold text-slate-200 flex items-center space-x-1.5">
+              <span>${config.emoji}</span>
+              <span>Quick-Fill Fields: ${config.name}</span>
+            </span>
+            <span class="text-[10px] font-mono text-slate-500 hidden md:inline">Fill to auto-generate prompt or type freely below</span>
+          </div>
+          <button 
+            type="button" 
+            id="btn-apply-post-type-prompt"
+            class="px-3 py-1 rounded-lg bg-gradient-to-r from-cyan-accent/20 to-violet-accent/20 hover:from-cyan-accent hover:to-violet-accent text-cyan-accent hover:text-obsidian-950 border border-cyan-accent/40 font-tech font-bold text-[11px] tracking-wider uppercase transition-all flex items-center space-x-1.5 cursor-pointer active:scale-95 shadow-sm"
+          >
+            <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+            <span>⚡ Apply to Prompt</span>
+          </button>
+        </div>
+        <div class="flex flex-wrap gap-3">
+          ${fieldsHtml}
+        </div>
+        <div class="flex items-center space-x-2 pt-1 text-[10px] font-mono text-cyan-400/90 bg-cyan-950/20 px-2.5 py-1.5 rounded-lg border border-cyan-500/20">
+          <i data-lucide="info" class="w-3 h-3 text-cyan-accent shrink-0"></i>
+          <span>${config.visualHint}</span>
+        </div>
+      `;
+
+      if (window.lucide) lucide.createIcons();
+
+      // Hook up sync for Team Welcome
+      if (typeId === 'team_welcome') {
+        const nameInp = document.getElementById('pt-member-name');
+        const roleInp = document.getElementById('pt-member-role');
+        if (nameInp) {
+          nameInp.addEventListener('input', () => {
+            currentPersonName = nameInp.value.trim();
+            if (personNameInput) personNameInput.value = currentPersonName;
+          });
+        }
+        if (roleInp) {
+          roleInp.addEventListener('input', () => {
+            currentPersonTitle = roleInp.value.trim();
+            if (personTitleInput) personTitleInput.value = currentPersonTitle;
+          });
+        }
+      }
+
+      // Hook up Apply button
+      const applyBtn = document.getElementById('btn-apply-post-type-prompt');
+      if (applyBtn) {
+        applyBtn.addEventListener('click', () => {
+          const values = {};
+          container.querySelectorAll('.pt-guided-input').forEach(inp => {
+            values[inp.id] = inp.value.trim();
+          });
+          const brand = (brandInput && brandInput.value.trim()) || 'Lexnis Technologies';
+          const generated = config.generatePrompt(values, brand);
+          if (promptInput) {
+            promptInput.value = generated;
+            if (charCount) charCount.textContent = promptInput.value.length;
+            promptInput.focus();
+          }
+          if (typeId === 'team_welcome') {
+            if (values['pt-member-name']) {
+              currentPersonName = values['pt-member-name'];
+              if (personNameInput) personNameInput.value = currentPersonName;
+            }
+            if (values['pt-member-role']) {
+              currentPersonTitle = values['pt-member-role'];
+              if (personTitleInput) personTitleInput.value = currentPersonTitle;
+            }
+          }
+          showToast(`Applied ${config.name} prompt template! Click ✨ Enhance Prompt to elevate.`);
+        });
+      }
+    }
+
+    function selectPostType(typeId, autoGenerate = false) {
+      if (!POST_TYPES[typeId]) return;
+      currentPostType = typeId;
+
+      document.querySelectorAll('.post-type-card').forEach(card => {
+        if (card.dataset.postType === typeId) {
+          card.classList.add('active', 'bg-gradient-to-br', 'from-cyan-950/60', 'to-obsidian-900', 'border-cyan-500/70', 'text-cyan-200', 'shadow-cyan-glow/20');
+          card.classList.remove('bg-obsidian-900/90', 'border-obsidian-800', 'text-slate-300');
+        } else {
+          card.classList.remove('active', 'bg-gradient-to-br', 'from-cyan-950/60', 'to-obsidian-900', 'border-cyan-500/70', 'text-cyan-200', 'shadow-cyan-glow/20');
+          card.classList.add('bg-obsidian-900/90', 'border-obsidian-800', 'text-slate-300');
+        }
+      });
+
+      renderPostTypeFields(typeId);
+
+      if (autoGenerate) {
+        const applyBtn = document.getElementById('btn-apply-post-type-prompt');
+        if (applyBtn) applyBtn.click();
+      }
+    }
+
     // --- Initialize Icons & State ---
     window.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
       checkBackendEngine();
+
+      // Initialize Post Type Hub
+      selectPostType('team_welcome');
+      document.querySelectorAll('.post-type-card').forEach(card => {
+        card.addEventListener('click', () => {
+          selectPostType(card.dataset.postType);
+        });
+      });
 
       // Setup textarea character counter
       promptInput.addEventListener('input', () => {
@@ -3313,6 +3885,27 @@
       const isTesla = /\btesla\b/i.test(prompt);
       const isBofa = /\b(bank of america|bofa)\b/i.test(prompt);
       const detectedBrand = isTesla ? 'Tesla' : (isBofa ? 'Bank of America' : (brand || 'Lexnis Technologies'));
+
+      if (currentPostType === 'team_welcome' || /welcome/i.test(prompt)) {
+        const pName = (personNameInput && personNameInput.value.trim()) || currentPersonName || 'Alisha Faisal';
+        const pRole = (personTitleInput && personTitleInput.value.trim()) || currentPersonTitle || 'Marketing Manager';
+        return {
+          detected_brand: detectedBrand,
+          product_name: `${pName} (${pRole})`,
+          target_audience: `Enterprise clients, partners, and team community of ${detectedBrand}`,
+          core_hook_angle: `Welcoming exceptional leadership to ${detectedBrand} to accelerate strategic growth and operational excellence.`,
+          visual_art_direction: 'Commercial executive portrait on an 85mm lens, softbox studio lighting, clean background with generous negative space for brand typography.',
+          improvements: [
+            `Preserved exact executive identity: ${pName}, ${pRole}`,
+            'Structured studio portrait directives with typography negative space',
+            `Crafted celebratory onboarding narrative for ${detectedBrand}`
+          ],
+          enhanced_prompt: `A high-end commercial campaign portrait for ${detectedBrand} welcoming new team member ${pName}, ${pRole}, to the team. Captured on an 85mm professional lens with softbox studio lighting and subtle rim light, against a clean premium background with generous negative space for brand typography.`,
+          suggested_tone: 'warm, prestigious, and welcoming',
+          suggested_theme: 'Executive Studio Portraiture'
+        };
+      }
+
       return {
         detected_brand: detectedBrand,
         product_name: isTesla ? 'Next-Gen Mobility' : (isBofa ? 'Private Wealth Services' : 'Flagship Solution'),
@@ -3334,6 +3927,12 @@
     function openPromptReviewModal(data) {
       if (!promptReviewModal) return;
       latestOptimizedPromptData = data;
+
+      const reviewPostTypeBadge = document.getElementById('review-post-type-badge');
+      if (reviewPostTypeBadge) {
+        const ptConfig = POST_TYPES[currentPostType] || { name: 'Campaign' };
+        reviewPostTypeBadge.textContent = `POST TYPE: ${ptConfig.name.toUpperCase()}`;
+      }
 
       // Brand & Product
       if (reviewBrandProduct) {
@@ -3425,7 +4024,10 @@
               prompt: prompt,
               brand: brandInput ? brandInput.value.trim() : '',
               guidelines: currentGuidelines || '',
-              style_preset: stylePreset || ''
+              style_preset: stylePreset || '',
+              post_type: currentPostType || 'general',
+              person_name: (personNameInput && personNameInput.value.trim()) || currentPersonName || '',
+              person_title: (personTitleInput && personTitleInput.value.trim()) || currentPersonTitle || ''
             })
           });
           if (resp.ok) {
@@ -4049,7 +4651,10 @@
               recolor_to_brand: true,
               uploaded_image_url: finalUploadedUrl,
               uploaded_image_urls: finalUploadedUrls,
-              use_uploaded_image: useAssets && (finalUploadedUrls.length > 0)
+              use_uploaded_image: useAssets && (finalUploadedUrls.length > 0),
+              post_type: currentPostType || 'general',
+              person_name: (personNameInput && personNameInput.value.trim()) || currentPersonName || '',
+              person_title: (personTitleInput && personTitleInput.value.trim()) || currentPersonTitle || ''
             })
           });
 

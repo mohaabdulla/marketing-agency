@@ -13,6 +13,8 @@ import hashlib
 import base64
 import concurrent.futures
 from urllib.parse import urlsplit
+import cv2
+import numpy as np
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -98,6 +100,9 @@ class GenerateRequest(BaseModel):
     use_uploaded_image: Optional[bool] = Field(None, description="Whether to feature the uploaded image as the ad visual")
     company_url: Optional[str] = Field(None, description="Company website URL for real-time Brand DNA extraction")
     recolor_to_brand: Optional[bool] = Field(True, description="Whether template visual should adapt colors to brand flow")
+    post_type: Optional[str] = Field("general", description="Campaign post type, e.g. team_welcome, product_launch, event_announcement, milestone_achievement, thought_leadership, case_study, hiring, brand_awareness")
+    person_name: Optional[str] = Field(None, description="Featured person name (for team_welcome or spotlight)")
+    person_title: Optional[str] = Field(None, description="Featured person job title / department")
 
 
 class AnalyzeWebsiteRequest(BaseModel):
@@ -116,6 +121,9 @@ class EnhancePromptRequest(BaseModel):
     brand: Optional[str] = Field("Lexnis Technologies", description="Current brand field (if any)")
     guidelines: Optional[str] = Field("", description="Client brand guidelines or strategic constraints")
     style_preset: Optional[str] = Field("", description="Optional creative style or prompt flavor")
+    post_type: Optional[str] = Field("general", description="Campaign post type")
+    person_name: Optional[str] = Field(None, description="Featured person name")
+    person_title: Optional[str] = Field(None, description="Featured person title")
 
 
 class RenderRequest(BaseModel):
@@ -216,10 +224,14 @@ def enhance_prompt_endpoint(req: EnhancePromptRequest):
             req.brand,
             guidelines=req.guidelines or "",
             style_preset=req.style_preset or "",
+            post_type=req.post_type,
+            person_name=req.person_name,
+            person_title=req.person_title,
         )
         return {
             "status": "success",
             "original_prompt": req.prompt,
+            "post_type": req.post_type or "general",
             "enhanced_prompt": result.get("enhanced_prompt", req.prompt),
             "detected_brand": result.get("detected_brand", req.brand or "Lexnis Technologies"),
             "product_name": result.get("product_name", ""),
@@ -256,7 +268,7 @@ def generate_campaign_endpoint(req: GenerateRequest):
 
         # Only supplement from UPLOADS_DIR if user requested using uploaded assets or prompt specifies swap
         prompt_lower = (req.prompt or "").lower()
-        needs_swap = any(k in prompt_lower for k in ["girl", "blue image", "white background", "template", "portrait", "sekawan", "swap", "replace", "face", "uploaded"])
+        needs_swap = (req.post_type == "team_welcome") or any(k in prompt_lower for k in ["girl", "blue image", "white background", "template", "portrait", "sekawan", "swap", "replace", "face", "uploaded", "welcome"])
         if (req.use_uploaded_image or needs_swap) and len(all_up_paths) < 2 and UPLOADS_DIR.exists():
             recent_uploads = sorted(UPLOADS_DIR.glob("*.*"), key=lambda f: f.stat().st_mtime, reverse=True)
             for f in recent_uploads:
@@ -283,6 +295,9 @@ def generate_campaign_endpoint(req: GenerateRequest):
             use_uploaded_image=req.use_uploaded_image if req.use_uploaded_image is not None else (len(all_up_paths) > 0),
             company_url=req.company_url,
             recolor_to_brand=req.recolor_to_brand if req.recolor_to_brand is not None else True,
+            post_type=req.post_type,
+            person_name=req.person_name,
+            person_title=req.person_title,
         )
         data = asset.to_dict()
         data["image_url"] = render_url(asset.image_path)
@@ -297,6 +312,9 @@ def generate_campaign_endpoint(req: GenerateRequest):
         data["guidelines_source"] = getattr(asset, "guidelines_source", "none")
         data["company_url"] = getattr(asset, "company_url", req.company_url or "")
         data["brand_dna"] = getattr(asset, "brand_dna", {})
+        data["post_type"] = getattr(asset, "post_type", req.post_type or "general")
+        data["person_name"] = getattr(asset, "person_name", req.person_name or "")
+        data["person_title"] = getattr(asset, "person_title", req.person_title or "")
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -574,6 +592,70 @@ async def upload_guidelines_endpoint(
     }
 
 
+@app.post("/api/analyze-layout")
+async def analyze_layout_endpoint(
+    image_file: Optional[UploadFile] = File(None),
+    image_url: Optional[str] = Form(None)
+):
+    """
+    Automated Layout Decomposition & Proportional Design-Token Endpoint.
+    Ingests any reference marketing graphic, reverse-engineers its structural
+    hierarchy and design tokens without hardcoded magic numbers, and returns
+    the TemplateBlueprint JSON and diagnostic visual overlay URL.
+    """
+    import time
+    from layout_analyzer import TemplateLayoutAnalyzer, draw_layout_diagnostic_overlay
+    try:
+        img_bytes = None
+        if image_file:
+            img_bytes = await image_file.read()
+        elif image_url:
+            p = render_path(image_url)
+            if p and Path(p).exists():
+                img_bytes = Path(p).read_bytes()
+            elif (BASE_DIR / "test_assets" / "template_reference.jpg").exists() and "template" in image_url.lower():
+                img_bytes = (BASE_DIR / "test_assets" / "template_reference.jpg").read_bytes()
+
+        if not img_bytes:
+            default_tpl = BASE_DIR / "test_assets" / "template_reference.jpg"
+            if default_tpl.exists():
+                img_bytes = default_tpl.read_bytes()
+            else:
+                raise HTTPException(status_code=400, detail="An image file or valid image_url is required.")
+
+        nparr = np.frombuffer(img_bytes, np.uint8)
+        img_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if img_bgr is None:
+            raise HTTPException(status_code=400, detail="Could not decode the provided image.")
+
+        analyzer = TemplateLayoutAnalyzer(target_resolution=(808, 1024))
+        blueprint = analyzer.analyze(img_bgr, use_vlm=False)
+
+        diag_pil = draw_layout_diagnostic_overlay(img_bgr, blueprint)
+        token = hashlib.sha1(f"layout_{time.time()}".encode()).hexdigest()[:10]
+        diag_filename = f"layout_overlay_{token}.jpg"
+        diag_path = RENDERS_DIR / diag_filename
+        diag_pil.save(diag_path, format="JPEG", quality=95)
+
+        latest_bp_path = RENDERS_DIR / "latest_blueprint.json"
+        blueprint.save(latest_bp_path)
+        static_bp = BASE_DIR / "static" / "assets" / "learned_blueprint.json"
+        blueprint.save(static_bp)
+
+        return {
+            "status": "success",
+            "message": "Layout successfully reverse-engineered into proportional design tokens",
+            "blueprint": blueprint.to_dict(),
+            "diagnostic_overlay_url": render_url(str(diag_path)),
+            "elements_count": len(blueprint.elements),
+            "canvas": blueprint.canvas
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/template-swap")
 async def template_swap_endpoint(
     template_file: Optional[UploadFile] = File(None),
@@ -586,6 +668,9 @@ async def template_swap_endpoint(
     brand_tag: Optional[str] = Form(None),
     company_url: Optional[str] = Form(None),
     recolor_gradient: Optional[bool] = Form(False),
+    language: Optional[str] = Form("en"),
+    headline_text: Optional[str] = Form(None),
+    footer_text: Optional[str] = Form(None),
 ):
     """
     Autonomous Template Subject-Replacement & 2.5D Pop-Out Compositing Endpoint.
@@ -594,6 +679,7 @@ async def template_swap_endpoint(
     calibrated monochrome grading, and 2.5D pop-out layering.
     Dynamically personalizes the nameplate (person_name, person_title) and brand header.
     Adapts colors, fonts and hashtags to follow company brand guidelines and website style.
+    Supports English ('en'), Arabic ('ar'), or Dual-Bilingual generation ('both').
     """
     import hashlib
     import time
@@ -641,6 +727,10 @@ async def template_swap_endpoint(
             except Exception:
                 pass
 
+        bp_path = BASE_DIR / "static" / "assets" / "learned_blueprint.json"
+        bp_param = str(bp_path) if bp_path.exists() else None
+
+        # Render primary image
         result_pil = composite_template_swap(
             t_bytes,
             s_bytes,
@@ -650,20 +740,49 @@ async def template_swap_endpoint(
             brand_name=brand_name,
             brand_tag=final_tag,
             brand_colors=brand_colors,
-            recolor_gradient=recolor_gradient
+            recolor_gradient=recolor_gradient,
+            blueprint=bp_param,
+            language=language if language != "both" else "en",
+            headline_text=headline_text,
+            footer_text=footer_text
         )
         token = hashlib.sha1(f"swap_{time.time()}".encode()).hexdigest()[:12]
         out_filename = f"template_swap_{token}.jpg"
         out_path = RENDERS_DIR / out_filename
         result_pil.save(out_path, format="JPEG", quality=95)
 
+        arabic_url = None
+        if language in ("ar", "both"):
+            ar_tag = brand_tag if (brand_tag and re.search(r"[\u0600-\u06FF]", brand_tag)) else ("#فريق_لكسنس" if "lexnis" in (brand_name or "").lower() else f"#فريق_{re.sub(r'[^a-zA-Z0-9]', '', brand_name or 'Lexnis')}")
+            ar_pil = composite_template_swap(
+                t_bytes,
+                s_bytes,
+                target_size=(808, 1024),
+                person_name=person_name,
+                person_title=person_title,
+                brand_name=brand_name,
+                brand_tag=ar_tag,
+                brand_colors=brand_colors,
+                recolor_gradient=recolor_gradient,
+                blueprint=bp_param,
+                language="ar",
+                headline_text=headline_text if (language == "ar" and headline_text) else "أهلاً وسهلاً",
+                footer_text=footer_text if (language == "ar" and footer_text) else "نحن متحمسون جداً لانضمامك إلى فريقنا!"
+            )
+            ar_filename = f"template_swap_{token}_ar.jpg"
+            ar_path = RENDERS_DIR / ar_filename
+            ar_pil.save(ar_path, format="JPEG", quality=95)
+            arabic_url = render_url(str(ar_path))
+
         return {
             "status": "ready",
-            "image_url": render_url(str(out_path)),
+            "image_url": render_url(str(out_path)) if language != "ar" else arabic_url,
+            "arabic_image_url": arabic_url,
             "message": "Template swap with 2.5D pop-out layering successfully generated",
             "dimensions": {"width": 808, "height": 1024},
             "person_name": person_name,
-            "person_title": person_title
+            "person_title": person_title,
+            "language": language
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

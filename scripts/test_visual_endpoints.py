@@ -52,5 +52,16 @@ def test_endpoints():
         up_res = json.loads(r.read().decode())
         print("Upload visual status:", up_res.get("status"), "file_url:", up_res.get("file_url"))
 
+    # 6. Test Layout Blueprint Analysis
+    analyze_data = urllib.parse.urlencode({
+        "image_url": "/test_assets/template_reference.jpg"
+    }).encode("utf-8")
+    an_req = urllib.request.Request(f"{base}/api/analyze-layout", data=analyze_data, method="POST")
+    an_req.add_header("Content-Type", "application/x-www-form-urlencoded")
+    with urllib.request.urlopen(an_req) as r:
+        an_res = json.loads(r.read().decode())
+        print("Analyze layout status:", an_res.get("status"), "elements count:", an_res.get("elements_count"))
+        print("Diagnostic overlay URL:", an_res.get("diagnostic_overlay_url"))
+
 if __name__ == "__main__":
     test_endpoints()
