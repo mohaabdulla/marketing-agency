@@ -539,6 +539,27 @@ def detect_featured_person(prompt: str, post_type: Optional[str] = None) -> Tupl
     return None, None
 
 
+def generate_hiring_mission_hook(role: str, prompt: str, is_ar: bool = False) -> str:
+    """
+    Generates an inspiring, punchy 2-5 word recruitment mission hook (NEVER the job title).
+    Enforces true Senior Agency Art Director copy hierarchy with zero redundancy.
+    """
+    r_lower = (role or "").lower()
+    p_lower = (prompt or "").lower()
+    if any(w in r_lower or w in p_lower for w in ["vision", "camera", "image", "perception"]):
+        return "اصنع مستقبل الرؤية\nالحاسوبية والذكاء." if is_ar else "BUILD AUTONOMOUS\nVISION SYSTEMS."
+    elif any(w in r_lower or w in p_lower for w in ["machine learning", "ml", "ai", "deep learning", "neural"]):
+        return "اصنع مستقبل الذكاء\nالاصطناعي والرؤية." if is_ar else "ARCHITECT THE\nNEXT ERA OF AI."
+    elif any(w in r_lower or w in p_lower for w in ["cyber", "security", "defense", "infosec"]):
+        return "قُد الدفاع السيبراني\nالمؤسسي المتقدم." if is_ar else "DEFEND THE NEXT\nDIGITAL FRONTIER."
+    elif any(w in r_lower or w in p_lower for w in ["software", "backend", "full stack", "fullstack", "platform", "cloud", "devops"]):
+        return "ابنِ بنية رقمية\nمؤسسية للمستقبل." if is_ar else "SCALE NEXT-GEN\nENTERPRISE PLATFORMS."
+    elif any(w in r_lower or w in p_lower for w in ["product", "design", "ux", "ui"]):
+        return "صمم تجارب رقمية\nتصنع الريادة." if is_ar else "DESIGN THE FUTURE\nOF INTELLIGENT APPS."
+    else:
+        return "اصنع مستقبل الذكاء\nالاصطناعي والرؤية." if is_ar else "ARCHITECT THE\nNEXT ERA OF AI."
+
+
 def detect_brand_and_product(prompt: str, current_brand: str = "") -> Tuple[str, str]:
     """
     Intelligently infer true target brand and concrete flagship product from user prompt.
@@ -3251,11 +3272,15 @@ class LexnisCampaignStudio:
                 raw_team = "Manama, Bahrain  •  Full-Time  •  On-Site"
             team_en = raw_team
 
-            raw_hook = headline or "BUILD THE FUTURE OF AI"
-            hook_en = re.sub(rf"^\s*{re.escape(brand)}\s*", "", raw_hook, flags=re.IGNORECASE).strip()
-            hook_en = re.sub(r"^\s*lexnis(?:\s+technologies)?\s*", "", hook_en, flags=re.IGNORECASE).strip()
-            if not hook_en or hook_en.upper() in {"LEXNIS", "LEXNIS TECHNOLOGIES"}:
-                hook_en = "BUILD THE FUTURE OF AI"
+            # 2b. Derive inspiring mission hook that NEVER duplicates the role title
+            raw_hook = headline or ""
+            if not raw_hook or (role_en and (role_en.lower() in raw_hook.lower() or raw_hook.lower() in role_en.lower())) or raw_hook.upper() in {"LEXNIS", "LEXNIS TECHNOLOGIES", "CAREERS & OPEN POSITIONS"}:
+                hook_en = generate_hiring_mission_hook(role_en, effective_prompt, is_ar=False)
+            else:
+                hook_en = re.sub(rf"^\s*{re.escape(brand)}\s*", "", raw_hook, flags=re.IGNORECASE).strip()
+                hook_en = re.sub(r"^\s*lexnis(?:\s+technologies)?\s*", "", hook_en, flags=re.IGNORECASE).strip()
+                if not hook_en or hook_en.upper() in {"LEXNIS", "LEXNIS TECHNOLOGIES", "CAREERS & OPEN POSITIONS"}:
+                    hook_en = generate_hiring_mission_hook(role_en, effective_prompt, is_ar=False)
 
             subcopy_en = hook or caption or "Stop maintaining someone else's API. Build foundational vision systems from scratch in Manama."
             subcopy_en = subcopy_en.split("\n")[0][:140]
@@ -3266,7 +3291,7 @@ class LexnisCampaignStudio:
             # 3. Transcreate Arabic copy concurrently
             arabic_pack = self.transcreate_to_arabic(en_pack, brand=brand, visual_analysis="Recruitment campaign", guidelines=distilled_gl)
 
-            # 4. Map Arabic role title
+            # 4. Map Arabic role title & mission hook
             role_lower = role_en.lower().strip()
             role_ar = ARABIC_TITLES_MAP.get(role_lower)
             if not role_ar:
@@ -3279,9 +3304,16 @@ class LexnisCampaignStudio:
             role_ar = re.sub(r"^\s*لكسنس\s*", "", role_ar).strip()
 
             team_ar = arabic_pack.get("team_location") or "المنامة، البحرين  •  دوام كامل  •  حضوري"
-            hook_ar = arabic_pack.get("visual_headline") or "ريادة الرؤية الحاسوبية"
-            hook_ar = re.sub(r"^\s*لكسنس\s*", "", hook_ar).strip()
-            subcopy_ar = arabic_pack.get("visual_tagline") or "ابنِ أنظمة ذكية وتأسيسية بلا حدود من قلب المنامة."
+
+            raw_ar_hook = arabic_pack.get("visual_headline") or ""
+            if not raw_ar_hook or (role_ar and (role_ar in raw_ar_hook or raw_ar_hook in role_ar)) or "لكسنس" in raw_ar_hook or "وظائف" in raw_ar_hook:
+                hook_ar = generate_hiring_mission_hook(role_en, effective_prompt, is_ar=True)
+            else:
+                hook_ar = re.sub(r"^\s*لكسنس\s*", "", raw_ar_hook).strip()
+                if not hook_ar:
+                    hook_ar = generate_hiring_mission_hook(role_en, effective_prompt, is_ar=True)
+
+            subcopy_ar = arabic_pack.get("visual_tagline") or "انتقل بنماذجك من التجربة إلى حافة الإنجاز الفوري. ابنِ أنظمة ذكية وتأسيسية من قلب المنامة."
 
             base_bg = None
             if uploaded_image_path and Path(uploaded_image_path).exists():
