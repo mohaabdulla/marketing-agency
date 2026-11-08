@@ -286,14 +286,19 @@ def compose_ad(image, headline="", brand="", tagline=""):
             x = (width - pad - draw.textlength(line, font=font)) if is_arabic_brand else pad
             draw.text((x, y), line, font=font, fill="white")
             y += round(size * 1.3)
+    is_arabic_headline = bool(re.search(r"[\u0600-\u06FF]", headline))
+    is_arabic_tagline = bool(re.search(r"[\u0600-\u06FF]", tagline))
+
     title_lines, font, size = lines(headline, round(height * .052), 2)
     tag_lines, tag_font, tag_size = lines(tagline, round(height * .022), 2)
     y = height - pad - len(title_lines) * round(size * 1.25) - len(tag_lines) * round(tag_size * 1.4)
     for line in title_lines:
-        draw.text((width-pad-draw.textlength(line, font=font), y), line, font=font, fill="white")
+        x = (width - pad - draw.textlength(line, font=font)) if is_arabic_headline else pad
+        draw.text((x, y), line, font=font, fill="white")
         y += round(size * 1.25)
     for line in tag_lines:
-        draw.text((width-pad-draw.textlength(line, font=tag_font), y), line, font=tag_font, fill="white")
+        x = (width - pad - draw.textlength(line, font=tag_font)) if is_arabic_tagline else pad
+        draw.text((x, y), line, font=tag_font, fill="white")
         y += round(tag_size * 1.4)
     return Image.alpha_composite(image, layer).convert("RGB")
 
@@ -809,6 +814,23 @@ ARABIC_TITLES_MAP = {
     "vp of marketing": "نائب رئيس التسويق",
     "product manager": "مدير المنتج",
     "team member": "عضو في الفريق",
+    "senior machine learning & vision systems engineer": "مهندس أول تعلم الآلة وأنظمة الرؤية الحاسوبية",
+    "senior machine learning and vision systems engineer": "مهندس أول تعلم الآلة وأنظمة الرؤية الحاسوبية",
+    "senior machine learning engineer": "مهندس أول تعلم الآلة",
+    "machine learning engineer": "مهندس تعلم الآلة",
+    "computer vision engineer": "مهندس رؤية حاسوبية",
+    "ai engineer": "مهندس ذكاء اصطناعي",
+    "senior ai engineer": "مهندس ذكاء اصطناعي أول",
+    "senior software engineer": "مهندس برمجيات أول",
+    "software engineer": "مهندس برمجيات",
+    "full stack engineer": "مهندس برمجيات شامل",
+    "frontend engineer": "مهندس واجهات أمامية",
+    "backend engineer": "مهندس أنظمة خلفية",
+    "devops engineer": "مهندس عمليات وتطوير",
+    "data engineer": "مهندس بيانات",
+    "data scientist": "عالم بيانات",
+    "cybersecurity engineer": "مهندس أمن سيبراني",
+    "cloud solutions architect": "مهندس حلول سحابية",
 }
 
 ARABIC_NAMES_MAP = {
@@ -1897,6 +1919,321 @@ def render_lexnis_executive_artboard(
     draw.text((64, 460), prepare_bidi_text(headline_ar), font=font_sub, fill=lime_green)
 
     return pil_art
+
+
+def render_lexnis_hiring_card(
+    role_title: str = "Senior Machine Learning &\nVision Systems Engineer",
+    team_location: str = "Manama, Bahrain  •  Full-Time  •  On-Site",
+    hook_headline: str = "BUILD THE FUTURE OF AI",
+    subcopy: str = "Stop maintaining someone else's API. Build foundational vision systems from scratch in Manama.",
+    language: str = "en",
+    brand_name: str = "Lexnis Technologies",
+    brand_tag: str = "#LexnisCareers",
+    logo_image = None,
+    base_image = None,
+    target_size = (1080, 1350)
+) -> Image.Image:
+    """
+    Renders official Lexnis Brand System 1080x1350 (4:5) high-impact recruitment poster
+    conforming strictly to Brand guidelines document (1).pdf:
+    1. Base: Depth Gradient (#131724 -> #023024 at 135°) + optional 75% tinted base image + Core Chevron Field (12% opacity).
+    2. Header Bar (y = 72px): Top-left official LEXNIS solid dual-chevron vector lockup or custom logo;
+       top-right Lime Green #BCD755 hashtag (#LexnisCareers / #وظائف_لكسنس).
+    3. Hero Zone (y = 200..360px): Tech Green 20% pill badge ("WE ARE HIRING" / "نحن نوظف | انضم إلى فريقنا")
+       + Hero hook headline ("BUILD THE FUTURE OF AI" / "ريادة الرؤية الحاسوبية").
+    4. Architectural Status Tile (y = 750..1030px, w = 936px): White #FFFFFF card with 6px solid Tech Green #53B849
+       accent bar (left in EN, right in AR), "OPEN POSITION" / "الوظيفة الشاغرة", cleanly wrapped role title
+       without company prefix, and location/type row.
+    5. Bottom Zone (y = 1070..1250px): Value proposition subcopy + solid Tech Green CTA button ("Apply Now » lexnis.com/careers").
+    """
+    import cv2
+    import numpy as np
+    import re
+    from PIL import Image, ImageDraw, ImageFont, ImageOps
+
+    ensure_brand_fonts()
+    W, H = target_size
+    is_ar = (str(language).lower() in ["ar", "arabic"])
+
+    dark_navy = (19, 23, 36)      # #131724
+    deep_forest = (2, 48, 36)     # #023024
+    tech_green = (83, 184, 73)    # #53B849
+    lime_green = (188, 215, 85)   # #BCD755
+    white = (255, 255, 255)
+
+    # 1. Canvas & Background (135° Depth Gradient + optional 75% base image + Core Chevron Field)
+    bg_bgr = render_depth_gradient(W, H, "#131724", "#023024")
+    bg_gradient = Image.fromarray(cv2.cvtColor(bg_bgr, cv2.COLOR_BGR2RGB))
+    bg_rgba = bg_gradient.convert("RGBA")
+
+    if base_image:
+        try:
+            if isinstance(base_image, (str, Path)) and Path(base_image).exists():
+                b_im = Image.open(base_image).convert("RGBA")
+            elif isinstance(base_image, Image.Image):
+                b_im = base_image.convert("RGBA")
+            else:
+                b_im = None
+            if b_im:
+                b_fitted = ImageOps.fit(b_im, (W, H), method=Image.Resampling.LANCZOS)
+                canvas = Image.blend(b_fitted, bg_rgba, alpha=0.75)
+            else:
+                canvas = bg_rgba
+        except Exception:
+            canvas = bg_rgba
+    else:
+        canvas = bg_rgba
+
+    # Overlay Core Chevron Field at 12% opacity
+    chev_field = generate_chevron_field(W, H, opacity=0.12, stroke_color=tech_green)
+    canvas.alpha_composite(chev_field)
+
+    draw = ImageDraw.Draw(canvas)
+
+    # 2. Header Bar (y = 72px)
+    # 2a. Top-Left Logo
+    logo_pasted = False
+    if logo_image:
+        custom_logo = load_logo_pil(logo_image, is_dark_bg=True)
+        if custom_logo:
+            max_lh = 36
+            max_lw = 240
+            aspect = custom_logo.width / float(custom_logo.height)
+            target_lh = min(max_lh, int(round(max_lw / aspect)))
+            target_lw = int(round(target_lh * aspect))
+            logo_resized = custom_logo.resize((target_lw, target_lh), Image.Resampling.LANCZOS)
+            canvas.paste(logo_resized, (72, 72), logo_resized)
+            logo_pasted = True
+
+    if not logo_pasted:
+        official_logo = render_lexnis_logo(height=32, is_dark_bg=True)
+        canvas.paste(official_logo, (72, 72), official_logo)
+
+    # 2b. Top-Right Hashtag
+    tag_str = brand_tag or ("#وظائف_لكسنس" if is_ar else "#LexnisCareers")
+    if is_ar and not ("لكسنس" in tag_str or "#وظائف" in tag_str or "فريق" in tag_str):
+        tag_str = "#وظائف_لكسنس"
+    
+    f_tag_path = (FONTS_DIR / "Cairo-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-Medium.ttf")
+    f_tag = ImageFont.truetype(str(f_tag_path), 22) if f_tag_path.exists() else ImageFont.load_default()
+    
+    display_tag = prepare_bidi_text(tag_str) if is_ar else tag_str
+    tag_bbox = draw.textbbox((0, 0), display_tag, font=f_tag)
+    tag_w = tag_bbox[2] - tag_bbox[0]
+    draw.text((1008 - tag_w, 78), display_tag, font=f_tag, fill=lime_green)
+
+    # 3. Hero Recruitment Badge & Headline
+    # 3a. Pill Badge
+    pill_text = "نحن نوظف | انضم إلى فريقنا" if is_ar else "WE ARE HIRING"
+    f_pill_path = (FONTS_DIR / "Cairo-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-Bold.ttf")
+    pill_font_size = 24 if is_ar else 22
+    f_pill = ImageFont.truetype(str(f_pill_path), pill_font_size) if f_pill_path.exists() else ImageFont.load_default()
+
+    display_pill = prepare_bidi_text(pill_text) if is_ar else pill_text
+    p_bbox = draw.textbbox((0, 0), display_pill, font=f_pill)
+    pw = p_bbox[2] - p_bbox[0]
+    ph = p_bbox[3] - p_bbox[1]
+
+    pill_pad_x = 24
+    pill_pad_y = 10
+    pill_w = pw + pill_pad_x * 2
+    pill_h = ph + pill_pad_y * 2
+    pill_y = 200
+    pill_x = (1008 - pill_w) if is_ar else 72
+
+    pill_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    pill_draw = ImageDraw.Draw(pill_layer)
+    pill_draw.rounded_rectangle(
+        [pill_x, pill_y, pill_x + pill_w, pill_y + pill_h],
+        radius=pill_h // 2,
+        fill=(83, 184, 73, 51),
+        outline=tech_green + (255,),
+        width=2
+    )
+    canvas.alpha_composite(pill_layer)
+    draw = ImageDraw.Draw(canvas)
+
+    text_px = pill_x + pill_pad_x
+    text_py = pill_y + pill_pad_y - 2
+    draw.text((text_px, text_py), display_pill, font=f_pill, fill=lime_green)
+
+    # 3b. Hero Hook Headline (Never prepend company name)
+    def clean_text_hook(h, b):
+        if not h:
+            return ""
+        if b:
+            h = re.sub(rf"^\s*{re.escape(b)}\s*", "", h, flags=re.IGNORECASE).strip()
+        h = re.sub(r"^\s*lexnis(?:\s+technologies)?\s*", "", h, flags=re.IGNORECASE).strip()
+        return h
+
+    raw_hook = hook_headline or ("ريادة الرؤية الحاسوبية" if is_ar else "BUILD THE FUTURE OF AI")
+    hook_str = clean_text_hook(raw_hook, brand_name) or ("ريادة الرؤية الحاسوبية" if is_ar else "BUILD THE FUTURE OF AI")
+
+    f_hook_path = (FONTS_DIR / "Cairo-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-Bold.ttf")
+    hook_size = 68 if is_ar else 72
+    f_hook = ImageFont.truetype(str(f_hook_path), hook_size) if f_hook_path.exists() else ImageFont.load_default()
+
+    def wrap_hiring_text(d, txt, fnt, max_w, ar):
+        if "\n" in txt:
+            res = []
+            for seg in txt.split("\n"):
+                res.extend(wrap_hiring_text(d, seg, fnt, max_w, ar))
+            return res
+        words = txt.split()
+        if not words:
+            return [""]
+        lines = []
+        curr = words[0]
+        for w in words[1:]:
+            cand = curr + " " + w
+            disp = prepare_bidi_text(cand) if ar else cand
+            bbox = d.textbbox((0, 0), disp, font=fnt)
+            if (bbox[2] - bbox[0]) <= max_w:
+                curr = cand
+            else:
+                lines.append(curr)
+                curr = w
+        lines.append(curr)
+        return lines
+
+    hook_lines = wrap_hiring_text(draw, hook_str, f_hook, max_w=936, ar=is_ar)
+    hook_y = pill_y + pill_h + 28
+    for line in hook_lines:
+        line_disp = prepare_bidi_text(line) if is_ar else line
+        l_bbox = draw.textbbox((0, 0), line_disp, font=f_hook)
+        lw = l_bbox[2] - l_bbox[0]
+        lx = (1008 - lw) if is_ar else 72
+        draw.text((lx, hook_y), line_disp, font=f_hook, fill=white)
+        hook_y += int(round(hook_size * 1.18))
+
+    # 4. White Structured Role Card / Status Tile (x = 72..1008, y = 750..1030)
+    card_x1 = 72
+    card_y1 = 750
+    card_w = 936
+    card_h = 280
+    card_x2 = card_x1 + card_w
+    card_y2 = card_y1 + card_h
+
+    draw.rounded_rectangle([card_x1, card_y1, card_x2, card_y2], radius=16, fill=white)
+
+    bar_w = 6
+    content_margin_x = 42
+    if is_ar:
+        draw.rectangle([card_x2 - bar_w, card_y1, card_x2, card_y2], fill=tech_green)
+    else:
+        draw.rectangle([card_x1, card_y1, card_x1 + bar_w, card_y2], fill=tech_green)
+
+    # 4a. Section Label ("OPEN POSITION" / "الوظيفة الشاغرة")
+    sec_label = "الوظيفة الشاغرة" if is_ar else "OPEN POSITION"
+    f_lbl_path = (FONTS_DIR / "Cairo-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-SemiBold.ttf")
+    lbl_size = 20 if is_ar else 18
+    f_lbl = ImageFont.truetype(str(f_lbl_path), lbl_size) if f_lbl_path.exists() else ImageFont.load_default()
+    disp_lbl = prepare_bidi_text(sec_label) if is_ar else sec_label
+    lbl_bbox = draw.textbbox((0, 0), disp_lbl, font=f_lbl)
+    lbl_w = lbl_bbox[2] - lbl_bbox[0]
+    lbl_y = card_y1 + 32
+    if is_ar:
+        draw.text((card_x2 - content_margin_x - lbl_w, lbl_y), disp_lbl, font=f_lbl, fill=tech_green)
+    else:
+        draw.text((card_x1 + content_margin_x, lbl_y), disp_lbl, font=f_lbl, fill=tech_green)
+
+    # 4b. Role Title (Cleanly wrapped to max 2 lines, Dark Navy #131724, NO company prefix)
+    def clean_text_role(r, b):
+        if not r:
+            return ""
+        if b:
+            r = re.sub(rf"^\s*{re.escape(b)}\s*", "", r, flags=re.IGNORECASE).strip()
+        r = re.sub(r"^\s*lexnis(?:\s+technologies)?\s*", "", r, flags=re.IGNORECASE).strip()
+        r = re.sub(r"^(?:a|an)\s+", "", r, flags=re.IGNORECASE).strip()
+        return r
+
+    raw_role = role_title or ("مهندس أول تعلم الآلة وأنظمة الرؤية الحاسوبية" if is_ar else "Senior Machine Learning &\nVision Systems Engineer")
+    clean_role = clean_text_role(raw_role, brand_name) or ("مهندس أول تعلم الآلة وأنظمة الرؤية الحاسوبية" if is_ar else "Senior Machine Learning &\nVision Systems Engineer")
+
+    if is_ar:
+        clean_role_lower = clean_role.lower().strip()
+        if clean_role_lower in ARABIC_TITLES_MAP:
+            clean_role = ARABIC_TITLES_MAP[clean_role_lower]
+
+    f_role_path = (FONTS_DIR / "Cairo-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-Bold.ttf")
+    role_font_size = 42 if is_ar else 40
+    role_max_w = card_w - content_margin_x * 2 - bar_w
+    f_role = ImageFont.truetype(str(f_role_path), role_font_size) if f_role_path.exists() else ImageFont.load_default()
+    role_lines = wrap_hiring_text(draw, clean_role, f_role, max_w=role_max_w, ar=is_ar)[:2]
+
+    role_y = lbl_y + (lbl_bbox[3] - lbl_bbox[1]) + 16
+    for rline in role_lines:
+        disp_rline = prepare_bidi_text(rline) if is_ar else rline
+        rb_bbox = draw.textbbox((0, 0), disp_rline, font=f_role)
+        rw = rb_bbox[2] - rb_bbox[0]
+        rx = (card_x2 - content_margin_x - rw) if is_ar else (card_x1 + content_margin_x)
+        draw.text((rx, role_y), disp_rline, font=f_role, fill=dark_navy)
+        role_y += int(round(role_font_size * 1.25))
+
+    # 4c. Location & Type Row
+    loc_str = team_location or ("المنامة، البحرين  •  دوام كامل  •  حضوري" if is_ar else "Manama, Bahrain  •  Full-Time  •  On-Site")
+    if is_ar:
+        f_loc_path = FONTS_DIR / "Cairo-Medium.ttf"
+        if not f_loc_path.exists():
+            f_loc_path = FONTS_DIR / "Tajawal-Medium.ttf"
+    else:
+        f_loc_path = FONTS_DIR / "Poppins-Medium.ttf"
+    f_loc = ImageFont.truetype(str(f_loc_path), 22) if f_loc_path.exists() else ImageFont.load_default()
+    disp_loc = prepare_bidi_text(loc_str) if is_ar else loc_str
+    loc_bbox = draw.textbbox((0, 0), disp_loc, font=f_loc)
+    loc_w = loc_bbox[2] - loc_bbox[0]
+    loc_y = card_y2 - 38 - (loc_bbox[3] - loc_bbox[1])
+    if is_ar:
+        draw.text((card_x2 - content_margin_x - loc_w, loc_y), disp_loc, font=f_loc, fill=deep_forest)
+    else:
+        draw.text((card_x1 + content_margin_x, loc_y), disp_loc, font=f_loc, fill=deep_forest)
+
+    # 5. Bottom Sub-Copy & CTA Bar (y = 1070..1250)
+    # 5a. Sub-headline / Value Prop
+    sub_str = subcopy or ("ابنِ أنظمة ذكية وتأسيسية بلا حدود من قلب المنامة." if is_ar else "Stop maintaining someone else's API. Build foundational vision systems from scratch in Manama.")
+    if is_ar:
+        f_sub_path = FONTS_DIR / "Tajawal-Medium.ttf"
+        if not f_sub_path.exists():
+            f_sub_path = FONTS_DIR / "Cairo-Regular.ttf"
+        sub_size = 24
+    else:
+        f_sub_path = FONTS_DIR / "Poppins-Regular.ttf"
+        sub_size = 22
+    f_sub = ImageFont.truetype(str(f_sub_path), sub_size) if f_sub_path.exists() else ImageFont.load_default()
+
+    sub_lines = wrap_hiring_text(draw, sub_str, f_sub, max_w=936, ar=is_ar)[:2]
+    sub_y = 1075
+    for sline in sub_lines:
+        disp_sline = prepare_bidi_text(sline) if is_ar else sline
+        sb_bbox = draw.textbbox((0, 0), disp_sline, font=f_sub)
+        sw = sb_bbox[2] - sb_bbox[0]
+        sx = (1008 - sw) if is_ar else 72
+        draw.text((sx, sub_y), disp_sline, font=f_sub, fill=white)
+        sub_y += int(round(sub_size * 1.35))
+
+    # 5b. CTA Button Pill
+    cta_text = "قدّم الآن  »  lexnis.com/careers" if is_ar else "Apply Now  »  lexnis.com/careers"
+    f_cta_path = (FONTS_DIR / "Cairo-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-Bold.ttf")
+    f_cta = ImageFont.truetype(str(f_cta_path), 20) if f_cta_path.exists() else ImageFont.load_default()
+    disp_cta = prepare_bidi_text(cta_text) if is_ar else cta_text
+
+    cta_bbox = draw.textbbox((0, 0), disp_cta, font=f_cta)
+    cta_tw = cta_bbox[2] - cta_bbox[0]
+    cta_th = cta_bbox[3] - cta_bbox[1]
+
+    cta_pad_x = 28
+    cta_pad_y = 14
+    btn_w = cta_tw + cta_pad_x * 2
+    btn_h = cta_th + cta_pad_y * 2
+    btn_y = 1180
+    btn_x = (1008 - btn_w) if is_ar else 72
+
+    draw.rounded_rectangle([btn_x, btn_y, btn_x + btn_w, btn_y + btn_h], radius=btn_h // 2, fill=tech_green)
+    btn_tx = btn_x + cta_pad_x
+    btn_ty = btn_y + cta_pad_y - 2
+    draw.text((btn_tx, btn_ty), disp_cta, font=f_cta, fill=white)
+
+    return canvas.convert("RGB")
 
 
 def classify_template_and_subject(image_paths):

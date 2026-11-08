@@ -129,6 +129,7 @@ POST_WIDTH, POST_HEIGHT = 1080, 1350           # Instagram 4:5 portrait
 RENDER_WIDTH, RENDER_HEIGHT = 1088, 1344       # multiples of 32, <=1.6 MP (FLUX 1.1 Pro limits)
 IG_CAPTION_LIMIT = 2200
 RENDERS_DIR = BASE_DIR / "output" / "renders"
+UPLOADS_DIR = BASE_DIR / "output" / "uploads"
 
 BROWSER_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
@@ -668,15 +669,24 @@ def detect_brand_and_product(prompt: str, current_brand: str = "") -> Tuple[str,
 
     # 4. Dynamic product extraction if product is still empty
     if not detected_product:
-        prod_match = re.search(
-            rf"\b{re.escape(detected_brand)}\s+([A-Za-z0-9]+(?:\s+[A-Za-z0-9]+)?)",
-            p,
-            re.IGNORECASE
-        )
-        if prod_match:
-            candidate_p = prod_match.group(1).strip()
-            if candidate_p.lower() not in {"and", "to", "for", "with", "is", "device", "post", "campaign"}:
-                detected_product = f"{detected_brand} {candidate_p.title()}"
+        if "hiring" in p_lower or "we are hiring" in p_lower or "open role" in p_lower:
+            m_hire = re.search(r'(?:we are hiring|hiring|open role:?|seeking|looking for)\s+([A-Za-z0-9 &/-]+?)(?:\s+(?:for our|for the|for|in|at)\s+([^.\n]+?))?(?:\.|\n|$)', p, re.IGNORECASE)
+            if m_hire:
+                clean_hire_role = m_hire.group(1).strip()
+                clean_hire_role = re.sub(r'^(?:a|an)\s+', '', clean_hire_role, flags=re.IGNORECASE).strip()
+                detected_product = clean_hire_role
+            else:
+                detected_product = "Careers & Open Positions"
+        else:
+            prod_match = re.search(
+                rf"\b{re.escape(detected_brand)}\s+([A-Za-z0-9]+(?:\s+[A-Za-z0-9]+)?)",
+                p,
+                re.IGNORECASE
+            )
+            if prod_match:
+                candidate_p = prod_match.group(1).strip()
+                if candidate_p.lower() not in {"and", "to", "for", "with", "is", "device", "post", "campaign"}:
+                    detected_product = f"{detected_brand} {candidate_p.title()}"
 
     return detected_brand, detected_product
 
@@ -964,6 +974,14 @@ def fit_cover(img, width: int = POST_WIDTH, height: int = POST_HEIGHT):
 
 
 def clean_product_headline(text: str, prompt: str = "", brand: str = "LEXNIS") -> str:
+    p_check = (prompt or text or "").lower()
+    if "hiring" in p_check or "we are hiring" in p_check:
+        m_hire = re.search(r'(?:we are hiring|hiring|open role:?|seeking|looking for)\s+([A-Za-z0-9 &/-]+?)(?:\s+(?:for our|for the|for|in|at)\s+([^.\n]+?))?(?:\.|\n|$)', prompt or text, re.IGNORECASE)
+        if m_hire:
+            clean_hire = m_hire.group(1).strip()
+            clean_hire = re.sub(r'^(?:a|an)\s+', '', clean_hire, flags=re.IGNORECASE).strip()
+            return clean_hire.upper()
+        return "BUILD THE FUTURE OF AI"
     _, product = detect_brand_and_product(prompt or text, brand)
     if product:
         return product.upper()
@@ -2972,7 +2990,13 @@ class LexnisCampaignStudio:
                     if p.exists() and p not in candidate_images:
                         candidate_images.append(p)
 
-        from visual_engine import classify_template_and_subject, composite_template_swap, render_lexnis_executive_artboard
+        from visual_engine import (
+            classify_template_and_subject,
+            composite_template_swap,
+            render_lexnis_executive_artboard,
+            render_lexnis_hiring_card,
+            ARABIC_TITLES_MAP
+        )
         t_file, s_file = classify_template_and_subject(candidate_images) if len(candidate_images) >= 2 else (None, None)
         if len(candidate_images) == 1 and not s_file:
             s_file = candidate_images[0]
@@ -3181,6 +3205,133 @@ class LexnisCampaignStudio:
             uploaded_clean = clean_path
             uploaded_post_ar = post_path
             has_uploaded_asset = True
+        elif (post_type == "hiring") or ("hiring" in (post_type or "").lower()) or ("we are hiring" in effective_prompt.lower()):
+            step("Rendering official Lexnis Brand System 1080x1350 recruitment poster...")
+            # 1. Resolve custom corporate logo if provided
+            logo_to_use = None
+            if logo_path and Path(logo_path).exists():
+                logo_to_use = str(logo_path)
+            elif logo_url:
+                p_strip = Path(logo_url.lstrip("/\\"))
+                if p_strip.exists():
+                    logo_to_use = str(p_strip)
+                else:
+                    logo_to_use = logo_url
+            elif uploaded_image_paths:
+                for up in uploaded_image_paths:
+                    if "logo" in Path(up).name.lower() and Path(up).exists():
+                        logo_to_use = str(up)
+                        break
+            elif UPLOADS_DIR.exists():
+                logo_uploads = sorted(UPLOADS_DIR.glob("logo_*.*"), key=lambda f: f.stat().st_mtime, reverse=True)
+                if logo_uploads:
+                    logo_to_use = str(logo_uploads[0])
+
+            # 2. Clean English recruitment copy tokens (NEVER prepending company name)
+            raw_role = person_name or ""
+            if not raw_role:
+                m_hire = re.search(r'(?:we are hiring|hiring|open role:?|seeking|looking for)\s+([A-Za-z0-9 &/-]+?)(?:\s+(?:for our|for the|for|in|at)\s+([^.\n]+?))?(?:\.|\n|$)', effective_prompt, re.IGNORECASE)
+                if m_hire:
+                    raw_role = m_hire.group(1).strip()
+            if not raw_role:
+                raw_role = "Senior Machine Learning &\nVision Systems Engineer"
+
+            role_en = raw_role
+            if brand:
+                role_en = re.sub(rf"^\s*{re.escape(brand)}\s*", "", role_en, flags=re.IGNORECASE).strip()
+            role_en = re.sub(r"^\s*lexnis(?:\s+technologies)?\s*", "", role_en, flags=re.IGNORECASE).strip()
+            role_en = re.sub(r"^(?:a|an)\s+", "", role_en, flags=re.IGNORECASE).strip()
+
+            raw_team = person_title or ""
+            if not raw_team:
+                m_hire = re.search(r'(?:we are hiring|hiring|open role:?|seeking|looking for)\s+([A-Za-z0-9 &/-]+?)(?:\s+(?:for our|for the|for|in|at)\s+([^.\n]+?))?(?:\.|\n|$)', effective_prompt, re.IGNORECASE)
+                if m_hire and m_hire.group(2):
+                    raw_team = m_hire.group(2).strip()
+            if not raw_team:
+                raw_team = "Manama, Bahrain  •  Full-Time  •  On-Site"
+            team_en = raw_team
+
+            raw_hook = headline or "BUILD THE FUTURE OF AI"
+            hook_en = re.sub(rf"^\s*{re.escape(brand)}\s*", "", raw_hook, flags=re.IGNORECASE).strip()
+            hook_en = re.sub(r"^\s*lexnis(?:\s+technologies)?\s*", "", hook_en, flags=re.IGNORECASE).strip()
+            if not hook_en or hook_en.upper() in {"LEXNIS", "LEXNIS TECHNOLOGIES"}:
+                hook_en = "BUILD THE FUTURE OF AI"
+
+            subcopy_en = hook or caption or "Stop maintaining someone else's API. Build foundational vision systems from scratch in Manama."
+            subcopy_en = subcopy_en.split("\n")[0][:140]
+
+            tag_to_use = brand_tag or "#LexnisCareers"
+            tag_ar_to_use = "#وظائف_لكسنس"
+
+            # 3. Transcreate Arabic copy concurrently
+            arabic_pack = self.transcreate_to_arabic(en_pack, brand=brand, visual_analysis="Recruitment campaign", guidelines=distilled_gl)
+
+            # 4. Map Arabic role title
+            role_lower = role_en.lower().strip()
+            role_ar = ARABIC_TITLES_MAP.get(role_lower)
+            if not role_ar:
+                for k, v in ARABIC_TITLES_MAP.items():
+                    if k in role_lower or role_lower in k:
+                        role_ar = v
+                        break
+            if not role_ar:
+                role_ar = arabic_pack.get("role_title") or arabic_pack.get("visual_headline") or "مهندس أول تعلم الآلة وأنظمة الرؤية الحاسوبية"
+            role_ar = re.sub(r"^\s*لكسنس\s*", "", role_ar).strip()
+
+            team_ar = arabic_pack.get("team_location") or "المنامة، البحرين  •  دوام كامل  •  حضوري"
+            hook_ar = arabic_pack.get("visual_headline") or "ريادة الرؤية الحاسوبية"
+            hook_ar = re.sub(r"^\s*لكسنس\s*", "", hook_ar).strip()
+            subcopy_ar = arabic_pack.get("visual_tagline") or "ابنِ أنظمة ذكية وتأسيسية بلا حدود من قلب المنامة."
+
+            base_bg = None
+            if uploaded_image_path and Path(uploaded_image_path).exists():
+                base_bg = uploaded_image_path
+
+            logo_key = Path(str(logo_to_use)).name if logo_to_use else "default_logo"
+            base_key = Path(str(base_bg)).name if base_bg else "no_bg"
+            h_key = hashlib.sha1(f"hiring_v2_1080x1350|{role_en}|{team_en}|{hook_en}|{brand}|{logo_key}|{base_key}".encode()).hexdigest()[:16]
+            clean_path = RENDERS_DIR / f"{h_key}_clean.jpg"
+            post_path = RENDERS_DIR / f"{h_key}_post.jpg"
+            post_ar_path = RENDERS_DIR / f"{h_key}_post_ar.jpg"
+
+            if not clean_path.exists() or not post_path.exists():
+                hiring_en_img = render_lexnis_hiring_card(
+                    role_title=role_en,
+                    team_location=team_en,
+                    hook_headline=hook_en,
+                    subcopy=subcopy_en,
+                    language="en",
+                    brand_name=brand,
+                    brand_tag=tag_to_use,
+                    logo_image=logo_to_use,
+                    base_image=base_bg,
+                    target_size=(1080, 1350)
+                )
+                hiring_en_img.save(clean_path, "JPEG", quality=95, optimize=True)
+                hiring_en_img.save(post_path, "JPEG", quality=95, optimize=True)
+
+            if not post_ar_path.exists():
+                hiring_ar_img = render_lexnis_hiring_card(
+                    role_title=role_ar,
+                    team_location=team_ar,
+                    hook_headline=hook_ar,
+                    subcopy=subcopy_ar,
+                    language="ar",
+                    brand_name=brand,
+                    brand_tag=tag_ar_to_use,
+                    logo_image=logo_to_use,
+                    base_image=base_bg,
+                    target_size=(1080, 1350)
+                )
+                hiring_ar_img.save(post_ar_path, "JPEG", quality=95, optimize=True)
+
+            watermark_free = True
+            image_status = "ready"
+            arabic_post_path = post_ar_path
+            uploaded_post_en = post_path
+            uploaded_clean = clean_path
+            uploaded_post_ar = post_ar_path
+            has_uploaded_asset = True
         else:
             with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
                 render_future = executor.submit(
@@ -3217,8 +3368,9 @@ class LexnisCampaignStudio:
         ar_hl = arabic_pack.get("visual_headline") or arabic_pack.get("image_headline") or vm.get("visual_ar_headline") or "ريادة تتخطى الآفاق"
         ar_tl = arabic_pack.get("visual_tagline") or vm.get("visual_ar_tagline") or ""
 
-        # Render Arabic visual overlay for AI generated base (suppressed for template swap to preserve crisp brand typography)
-        if t_file and s_file:
+        # Render Arabic visual overlay for AI generated base (suppressed for template swap & hiring cards to preserve crisp brand typography)
+        is_hiring_mode = (post_type == "hiring") or ("hiring" in (post_type or "").lower()) or ("we are hiring" in effective_prompt.lower())
+        if (t_file and s_file) or is_hiring_mode:
             arabic_post_path = post_ar_path
         elif clean_path and clean_path.exists() and not (t_file and s_file):
             ar_tag = hashlib.sha1(f"ad-v5-ar|{ar_hl}|{brand}|{ar_tl}".encode()).hexdigest()[:8]
@@ -3239,7 +3391,7 @@ class LexnisCampaignStudio:
         uploaded_post_ar = None
         uploaded_clean = None
 
-        if has_uploaded_asset and not (t_file and s_file):
+        if has_uploaded_asset and not (t_file and s_file) and not is_hiring_mode:
             step("Compositing campaign typography directly onto uploaded brand asset...")
             try:
                 up_res = self.render_image(
@@ -3254,7 +3406,7 @@ class LexnisCampaignStudio:
                 uploaded_post_ar = up_res[3] if len(up_res) > 3 else getattr(self, "last_arabic_post_path", None)
             except Exception:
                 pass
-        elif t_file and s_file:
+        elif (t_file and s_file) or is_hiring_mode:
             uploaded_post_en = post_path
             uploaded_clean = clean_path
             uploaded_post_ar = post_ar_path
