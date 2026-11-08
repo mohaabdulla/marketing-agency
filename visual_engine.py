@@ -555,6 +555,122 @@ def render_lexnis_logo(height: int = 28, is_dark_bg: bool = True) -> Image.Image
     return logo_hi.resize((final_w, final_h), Image.Resampling.LANCZOS)
 
 
+def isolate_logo_mark(logo_pil: Image.Image, is_dark_bg: bool = True) -> Image.Image:
+    """
+    Isolates corporate logo marks from solid white/black/neutral backgrounds.
+    - If already transparent (PNG with transparent alpha), preserves transparency.
+    - If solid or near-solid white/light background (e.g. uploaded JPG or flattened PNG):
+      1. Measures background color along perimeter.
+      2. Removes background with smooth anti-aliased alpha feathering.
+      3. For dark backgrounds: converts dark neutral typography (black/dark gray text) to pure crisp white #FFFFFF
+         while strictly preserving colored brand marks (Tech Green, Lime, Cyan, Orange, etc.).
+    - Crops empty transparent padding so logo glyphs expand to their full allocated header bounding box.
+    """
+    if logo_pil is None:
+        return None
+    import numpy as np
+
+    im_rgba = logo_pil.convert('RGBA')
+    arr = np.array(im_rgba, dtype=np.float32)
+    rgb = arr[:, :, :3]
+    alpha = arr[:, :, 3]
+
+    # Sample corners to test if already transparent
+    corner_alphas = [alpha[0, 0], alpha[0, -1], alpha[-1, 0], alpha[-1, -1]]
+    is_already_transparent = float(np.mean(corner_alphas)) < 30.0
+
+    if is_already_transparent:
+        if is_dark_bg:
+            max_c = np.max(rgb, axis=2)
+            min_c = np.min(rgb, axis=2)
+            sat = max_c - min_c
+            lum = np.mean(rgb, axis=2)
+            is_dark_neutral = (sat < 35.0) & (lum < 110.0) & (alpha > 50.0)
+            for c in range(3):
+                rgb[:, :, c] = np.where(is_dark_neutral, 255.0, rgb[:, :, c])
+            out = np.dstack([rgb.astype(np.uint8), alpha.astype(np.uint8)])
+            res = Image.fromarray(out, mode='RGBA')
+            bbox = res.getbbox()
+            return res.crop(bbox) if bbox else res
+        else:
+            bbox = im_rgba.getbbox()
+            return im_rgba.crop(bbox) if bbox else im_rgba
+
+    # Logo has solid background -> remove background!
+    borders = np.concatenate([rgb[0, :], rgb[-1, :], rgb[:, 0], rgb[:, -1]], axis=0)
+    bg_color = np.median(borders, axis=0)
+    bg_lum = float(np.mean(bg_color))
+
+    dist = np.linalg.norm(rgb - bg_color, axis=2)
+    feather_start = 12.0
+    feather_end = 42.0
+    computed_alpha = np.clip((dist - feather_start) / (feather_end - feather_start), 0.0, 1.0) * 255.0
+
+    out_rgb = rgb.copy()
+    if is_dark_bg and bg_lum > 150.0:
+        max_c = np.max(rgb, axis=2)
+        min_c = np.min(rgb, axis=2)
+        sat = max_c - min_c
+        lum = np.mean(rgb, axis=2)
+        is_dark_neutral = (sat < 35.0) & (lum < 140.0)
+        for c in range(3):
+            out_rgb[:, :, c] = np.where(is_dark_neutral, 255.0, out_rgb[:, :, c])
+
+    result_rgba = np.dstack([out_rgb.astype(np.uint8), computed_alpha.astype(np.uint8)])
+    res = Image.fromarray(result_rgba, mode='RGBA')
+    bbox = res.getbbox()
+    return res.crop(bbox) if bbox else res
+
+
+def load_logo_pil(logo_input, is_dark_bg: bool = True):
+    """
+    Robust loader for custom uploaded corporate logos.
+    Accepts:
+    - PIL.Image.Image
+    - file path (str or Path)
+    - raw image bytes / bytearray
+    - relative or absolute URL/path like '/uploads/logo_xxx.png'
+    Isolates mark from solid background and trims padding.
+    Returns PIL Image (RGBA) or None if not found/invalid.
+    """
+    if logo_input is None:
+        return None
+    from PIL import Image
+    import io
+    from pathlib import Path
+
+    try:
+        img = None
+        if isinstance(logo_input, Image.Image):
+            img = logo_input.copy()
+        elif isinstance(logo_input, (bytes, bytearray)):
+            img = Image.open(io.BytesIO(logo_input))
+        elif isinstance(logo_input, (str, Path)):
+            s = str(logo_input).strip()
+            if not s:
+                return None
+            p = Path(s)
+            if p.exists() and p.is_file():
+                img = Image.open(p)
+            else:
+                p_strip = Path(s.lstrip("/\\"))
+                if p_strip.exists() and p_strip.is_file():
+                    img = Image.open(p_strip)
+                else:
+                    base_dir = Path(__file__).resolve().parent
+                    for prefix in [base_dir, base_dir / "uploads", base_dir / "output" / "uploads", base_dir / "static" / "assets"]:
+                        cand = prefix / Path(s).name
+                        if cand.exists() and cand.is_file():
+                            img = Image.open(cand)
+                            break
+
+        if img is not None:
+            return isolate_logo_mark(img, is_dark_bg=is_dark_bg)
+    except Exception:
+        pass
+    return None
+
+
 def generate_chevron_field(width: int, height: int, opacity: float = 0.12, stroke_color=(83, 184, 73)) -> Image.Image:
     """
     Renders Section 04 Core Chevron Field:
@@ -715,7 +831,9 @@ def composite_template_swap(
     blueprint=None,
     language: str = "en",
     headline_text: str = None,
-    footer_text: str = None
+    footer_text: str = None,
+    logo_image=None,
+    post_type: str = "team_welcome"
 ):
     """
     Autonomous Template Subject-Replacement & 2.5D Pop-Out Compositing Engine.
@@ -723,25 +841,138 @@ def composite_template_swap(
     - Clean removal of the original subject: Reconstructs clean gradient inside frame and top white frame line.
     - Sub-pixel alpha matting with zero studio fringe.
     - Calibrated monochrome grayscale grading.
-    - Resolution-Adaptive Scaling: Automatically scales and centers ANY subject resolution (1024x683, 1600x1068, 4K)
-      and any output resolution (808x1024 benchmark, 1080x1350 Instagram/LinkedIn master).
+    - Dynamic Multi-Post-Type Adaptation: Intelligently formats typography hierarchy, headlines,
+      open roles, departments, footers, and tags for team welcomes, hiring, product launches, milestones, etc.
     - Authentic Lexnis Brand Guidelines Compliance:
       1. Depth Gradient substrate (#131724 -> #023024 at 135°) + Core Chevron Field (4 to 5 large bold chevrons across width).
       2. Studio Inner Window: 100% clean, pattern-free portrait backdrop with soft radial backlight glow (#1E3A34).
-      3. Vector Anti-Aliased WELCOME: Poppins Bold 700 with +5.5% tracking spanning 88%-90% of frame width;
-         crown of hair overlaps bottom 25%-30% of C and O.
+      3. Vector Anti-Aliased Display Headline with Proportional Auto-Fit spanning up to 90% of frame width.
       4. 2-Line Stacked Nameplate: Split onto two lines in Poppins Bold Dark Navy #131724 with 4px vertical
          Tech Green #53B849 Status Tile accent bar (ZERO full-width horizontal divider line).
       5. Official Dual-Chevron Logo: Solid 22% ribbon thickness chevrons (#53B849 + #BCD755, width >= 150px, NO ASCII '»').
       6. Bilingual / Arabic Layout: Cairo Bold / Tajawal with 0 tofu boxes; chevrons strictly right-facing.
-      7. Hashtag Sanitization: Rejects #Ud3, hex junk, or truncated tokens, defaulting to #LexnisTeam.
+      7. Hashtag Sanitization: Rejects #Ud3, hex junk, or truncated tokens.
     """
     import cv2
     import numpy as np
     import re
     from PIL import Image, ImageDraw, ImageFont
 
+    POST_TYPE_PRESETS = {
+        "team_welcome": {
+            "headline_en": "WELCOME",
+            "headline_ar": "مرحباً بك في فريقنا",
+            "name_en": "Alisha Faisal",
+            "role_en": "Marketing Manager",
+            "name_ar": "أليشا فيصل",
+            "role_ar": "مديرة التسويق",
+            "footer_en": "We are so excited to have you on our team!",
+            "footer_ar": "نحن سعداء جداً بانضمامك إلى فريقنا!",
+            "tag_en": "#LexnisTeam",
+            "tag_ar": "#فريق_لكسنس",
+        },
+        "hiring": {
+            "headline_en": "WE'RE HIRING",
+            "headline_ar": "انضم إلى فريقنا",
+            "name_en": "Senior AI & ML Engineer",
+            "role_en": "Core Engineering Lab",
+            "name_ar": "فرصة وظيفية واعدة",
+            "role_ar": "مختبر الذكاء الاصطناعي",
+            "footer_en": "Build the future with us · careers.lexnis.com",
+            "footer_ar": "ابنِ المستقبل معنا · قدم الآن عبر careers.lexnis.com",
+            "tag_en": "#LexnisCareers",
+            "tag_ar": "#وظائف_لكسنس",
+        },
+        "product_launch": {
+            "headline_en": "NEW LAUNCH",
+            "headline_ar": "إطلاق جديد",
+            "name_en": "Enterprise AI Platform",
+            "role_en": "Next-Gen Autonomous Systems",
+            "name_ar": "منصة الذكاء الاصطناعي",
+            "role_ar": "حلول مؤسسية متقدمة",
+            "footer_en": "Accelerate enterprise innovation · discover at lexnis.com",
+            "footer_ar": "سرّع وتيرة الابتكار المؤسسي · اكتشف المزيد عبر lexnis.com",
+            "tag_en": "#LexnisInnovation",
+            "tag_ar": "#ابتكار_لكسنس",
+        },
+        "milestone_achievement": {
+            "headline_en": "MILESTONE",
+            "headline_ar": "إنجاز استثنائي",
+            "name_en": "Enterprise Leadership",
+            "role_en": "Growth & Excellence Award",
+            "name_ar": "أثر مستدام وريادة",
+            "role_ar": "جائزة التميز المؤسسي",
+            "footer_en": "Celebrating collective achievements and continued leadership",
+            "footer_ar": "نحتفي بالإنجازات الجماعية والريادة المستمرة",
+            "tag_en": "#LexnisMilestone",
+            "tag_ar": "#إنجازات_لكسنس",
+        },
+        "event_announcement": {
+            "headline_en": "JOIN US",
+            "headline_ar": "فعالية قادمة",
+            "name_en": "Tech Innovation Summit",
+            "role_en": "Keynotes & Live Workshops",
+            "name_ar": "قمة الابتكار التقني",
+            "role_ar": "جلسات حوارية تفاعلية",
+            "footer_en": "Reserve your seat today · register at lexnis.com/events",
+            "footer_ar": "احجز مقعدك اليوم · سجّل الآن عبر lexnis.com/events",
+            "tag_en": "#LexnisEvents",
+            "tag_ar": "#فعاليات_لكسنس",
+        },
+        "thought_leadership": {
+            "headline_en": "INSIGHTS",
+            "headline_ar": "رؤى رقمية",
+            "name_en": "The Future of AI",
+            "role_en": "Industry Perspectives & Research",
+            "name_ar": "مستقبل الذكاء الاصطناعي",
+            "role_ar": "استشراف مستقبلي وتحليلات",
+            "footer_en": "Read the complete insights report at lexnis.com",
+            "footer_ar": "اقرأ التقرير البحثي الكامل عبر lexnis.com",
+            "tag_en": "#LexnisInsights",
+            "tag_ar": "#رؤى_لكسنس",
+        },
+        "case_study": {
+            "headline_en": "CASE STUDY",
+            "headline_ar": "قصة نجاح",
+            "name_en": "Client Transformation",
+            "role_en": "Validated Operational ROI",
+            "name_ar": "تحول رقمي رائد",
+            "role_ar": "عائد استثماري مثبت",
+            "footer_en": "Explore the full client transformation story at lexnis.com",
+            "footer_ar": "استكشف قصة التحول الرقمي الكاملة عبر lexnis.com",
+            "tag_en": "#LexnisCaseStudy",
+            "tag_ar": "#قصص_نجاح_لكسنس",
+        },
+        "brand_awareness": {
+            "headline_en": "OUR VISION",
+            "headline_ar": "رؤيتنا",
+            "name_en": "Engineering Excellence",
+            "role_en": "Pioneering Trusted Intelligence",
+            "name_ar": "هندسة المستقبل",
+            "role_ar": "قيمنا ورسالتنا المؤسسية",
+            "footer_en": "Empowering organizations with sovereign enterprise AI",
+            "footer_ar": "نقود المرحلة القادمة من الذكاء الصناعي والمؤسسي",
+            "tag_en": "#LexnisVision",
+            "tag_ar": "#رؤية_لكسنس",
+        }
+    }
+    pt_key = post_type if post_type in POST_TYPE_PRESETS else "team_welcome"
+    preset = POST_TYPE_PRESETS[pt_key]
+
     is_ar = (language == "ar") or bool(headline_text and re.search(r"[\u0600-\u06FF]", headline_text))
+
+    if not headline_text:
+        headline_text = preset["headline_ar" if is_ar else "headline_en"]
+    if not footer_text:
+        footer_text = preset["footer_ar" if is_ar else "footer_en"]
+    if not brand_tag or brand_tag in ("#SekawanTeam", "#LexnisTeam", "#Ud3"):
+        brand_tag = preset["tag_ar" if is_ar else "tag_en"]
+
+    if post_type != "team_welcome":
+        if not person_name or person_name.strip() in ("Alisha Faisal", "Anyta Putri"):
+            person_name = preset["name_ar" if is_ar else "name_en"]
+        if not person_title or person_title.strip() in ("Marketing Manager", "مديرة التسويق"):
+            person_title = preset["role_ar" if is_ar else "role_en"]
 
     # Load blueprint if provided
     bp_dict = None
@@ -885,11 +1116,16 @@ def composite_template_swap(
         if is_ar:
             f_hl_path = FONTS_DIR / "Cairo-Bold.ttf"
             font_hl_size = int(round(76 * (H / 1350.0)))
-            font_hl = ImageFont.truetype(str(f_hl_path), font_hl_size) if f_hl_path.exists() else ImageFont.load_default()
-            hl_raw = headline_text or "ريادة رقمية بلا حدود"
+            hl_raw = headline_text or preset["headline_ar"]
             hl_str = prepare_bidi_text(hl_raw)
-            bbox_hl = draw_hl.textbbox((0, 0), hl_str, font=font_hl)
-            hl_w = bbox_hl[2] - bbox_hl[0]
+            max_ar_w = int(round(fw * 0.94))
+            while font_hl_size > 36:
+                font_hl = ImageFont.truetype(str(f_hl_path), font_hl_size) if f_hl_path.exists() else ImageFont.load_default()
+                bbox_hl = draw_hl.textbbox((0, 0), hl_str, font=font_hl)
+                hl_w = bbox_hl[2] - bbox_hl[0]
+                if hl_w <= max_ar_w:
+                    break
+                font_hl_size -= 2
             # 24px breathing room above head (head crown at y ~ 299)
             hl_bottom_y = int(round((299 - 24) * sy))
             hl_y = hl_bottom_y - (bbox_hl[3] - bbox_hl[1])
@@ -897,11 +1133,18 @@ def composite_template_swap(
         else:
             f_hl_path = FONTS_DIR / "Poppins-Bold.ttf"
             font_hl_size = int(round(120 * (H / 1350.0)))
-            font_hl = ImageFont.truetype(str(f_hl_path), font_hl_size) if f_hl_path.exists() else ImageFont.load_default()
-            tracking = int(round(6 * (W / 1080.0)))
-            hl_text = (headline_text or "WELCOME").upper()
-            char_widths = [draw_hl.textbbox((0, 0), c, font=font_hl)[2] - draw_hl.textbbox((0, 0), c, font=font_hl)[0] for c in hl_text]
-            total_hl_w = sum(char_widths) + tracking * (len(hl_text) - 1)
+            hl_text = (headline_text or preset["headline_en"]).upper()
+            max_hl_w = int(round(fw * 0.92))
+
+            while font_hl_size > 44:
+                font_hl = ImageFont.truetype(str(f_hl_path), font_hl_size) if f_hl_path.exists() else ImageFont.load_default()
+                tracking = max(2, int(round(font_hl_size * 0.05)))
+                char_widths = [draw_hl.textbbox((0, 0), c, font=font_hl)[2] - draw_hl.textbbox((0, 0), c, font=font_hl)[0] for c in hl_text]
+                total_hl_w = sum(char_widths) + tracking * (len(hl_text) - 1)
+                if total_hl_w <= max_hl_w:
+                    break
+                font_hl_size -= 2
+
             hl_x_start = (W - total_hl_w) // 2
             hl_cap_h = draw_hl.textbbox((0, 0), "E", font=font_hl)[3] - draw_hl.textbbox((0, 0), "E", font=font_hl)[1]
             hl_bottom_y = fy - int(round(52 * sy))
@@ -965,25 +1208,28 @@ def composite_template_swap(
 
         if is_ar:
             # Arabic Nameplate Localization & RTL Alignment
-            raw_pname = (person_name or "Anyta Putri").strip()
+            raw_pname = (person_name or preset["name_ar"]).strip()
             raw_pname = re.sub(r'\s+\b(as|is|our|the|a|an)\b.*$', '', raw_pname, flags=re.IGNORECASE).strip()
             display_name = ARABIC_NAMES_MAP.get(raw_pname.lower(), raw_pname)
-            raw_title = (person_title or "Marketing Manager").strip()
+            raw_title = (person_title or preset["role_ar"]).strip()
             raw_title = re.sub(r'^(?:a|an)\s+', '', raw_title, flags=re.IGNORECASE).strip()
             display_role = ARABIC_TITLES_MAP.get(raw_title.lower(), raw_title)
 
             r_name = prepare_bidi_text(display_name)
             r_role = prepare_bidi_text(display_role)
 
-            font_name_size = int(round(46 * (H / 1350.0)))
-            font_role_size = int(round(22 * (H / 1350.0)))
-            f_name = ImageFont.truetype(str(FONTS_DIR / "Cairo-Bold.ttf"), font_name_size)
-            tajawal_p = FONTS_DIR / "Tajawal-Medium.ttf"
-            f_role = ImageFont.truetype(str(tajawal_p if tajawal_p.exists() else FONTS_DIR / "Cairo-SemiBold.ttf"), font_role_size)
-
             margin_r = int(round(64 * (W / 1080.0)))
+            max_np_w = nw - 2 * margin_r
             y_name = int(round(36 * (H / 1350.0)))
-            bbox_n = draw_np.textbbox((0, 0), r_name, font=f_name)
+
+            font_name_size = int(round(46 * (H / 1350.0)))
+            while font_name_size > 20:
+                f_name = ImageFont.truetype(str(FONTS_DIR / "Cairo-Bold.ttf"), font_name_size)
+                bbox_n = draw_np.textbbox((0, 0), r_name, font=f_name)
+                if (bbox_n[2] - bbox_n[0]) <= max_np_w:
+                    break
+                font_name_size -= 2
+
             nw_px = bbox_n[2] - bbox_n[0]
             x_right = nw - margin_r
             draw_np.text((x_right - nw_px, y_name), r_name, font=f_name, fill=dark_navy)
@@ -991,23 +1237,37 @@ def composite_template_swap(
             y_role = y_name + (bbox_n[3] - bbox_n[1]) + int(round(14 * (H / 1350.0)))
             y_bar = y_role - int(round(2 * (H / 1350.0)))
             bar_h = int(round(28 * (H / 1350.0)))
-            bbox_r = draw_np.textbbox((0, 0), r_role, font=f_role)
+
+            font_role_size = int(round(22 * (H / 1350.0)))
+            tajawal_p = FONTS_DIR / "Tajawal-Medium.ttf"
+            f_role_path = str(tajawal_p if tajawal_p.exists() else FONTS_DIR / "Cairo-SemiBold.ttf")
+            while font_role_size > 14:
+                f_role = ImageFont.truetype(f_role_path, font_role_size)
+                bbox_r = draw_np.textbbox((0, 0), r_role, font=f_role)
+                if (bbox_r[2] - bbox_r[0]) <= (max_np_w - 24):
+                    break
+                font_role_size -= 1
+
             rw_px = bbox_r[2] - bbox_r[0]
             draw_np.rectangle([x_right - 4, y_bar, x_right, y_bar + bar_h], fill=tech_green)
             draw_np.text((x_right - 4 - 10 - rw_px, y_role), r_role, font=f_role, fill=tech_green)
 
         else:
             # English Nameplate
-            clean_name = (person_name or "Alisha Faisal").strip()
+            clean_name = (person_name or preset["name_en"]).strip()
             clean_name = re.sub(r'\s+\b(as|is|our|the|a|an)\b.*$', '', clean_name, flags=re.IGNORECASE).strip()
 
-            font_name_size = int(round(46 * (H / 1350.0)))
-            font_role_size = int(round(22 * (H / 1350.0)))
-            font_bold = ImageFont.truetype(str(FONTS_DIR / "Poppins-Bold.ttf"), font_name_size)
-            font_role = ImageFont.truetype(str(FONTS_DIR / "Poppins-Medium.ttf"), font_role_size)
-
             margin_l = int(round(64 * (W / 1080.0)))
+            max_np_w = nw - 2 * margin_l
             y_name = int(round(36 * (H / 1350.0)))
+
+            font_name_size = int(round(46 * (H / 1350.0)))
+            while font_name_size > 20:
+                font_bold = ImageFont.truetype(str(FONTS_DIR / "Poppins-Bold.ttf"), font_name_size)
+                bbox_n = draw_np.textbbox((0, 0), clean_name, font=font_bold)
+                if (bbox_n[2] - bbox_n[0]) <= max_np_w:
+                    break
+                font_name_size -= 2
 
             draw_np.text((margin_l, y_name), clean_name, font=font_bold, fill=dark_navy)
             bbox_n = draw_np.textbbox((margin_l, y_name), clean_name, font=font_bold)
@@ -1016,8 +1276,15 @@ def composite_template_swap(
             y_bar = y_role - int(round(2 * (H / 1350.0)))
             bar_h = int(round(28 * (H / 1350.0)))
 
-            role_text = (person_title or "Marketing Manager").strip()
+            role_text = (person_title or preset["role_en"]).strip()
             role_text = re.sub(r'^(?:a|an)\s+', '', role_text, flags=re.IGNORECASE).strip()
+            font_role_size = int(round(22 * (H / 1350.0)))
+            while font_role_size > 14:
+                font_role = ImageFont.truetype(str(FONTS_DIR / "Poppins-Medium.ttf"), font_role_size)
+                bbox_r = draw_np.textbbox((0, 0), role_text, font=font_role)
+                if (bbox_r[2] - bbox_r[0]) <= (max_np_w - 24):
+                    break
+                font_role_size -= 1
 
             # Vertical 4px Status Tile Accent Bar in Tech Green #53B849
             draw_np.rectangle([margin_l, y_bar, margin_l + 4, y_bar + bar_h], fill=tech_green)
@@ -1026,28 +1293,43 @@ def composite_template_swap(
         np_cv = cv2.cvtColor(np.array(np_pil), cv2.COLOR_RGB2BGR)
         composite[ny:ny + nh, nx:nx + nw] = np_cv
 
-        # 7. Layer 5: Top Header with Official Solid Logo & Sanitized Hashtag (72px Safety Margin)
+        # 7. Layer 5: Top Header with Authentic Custom Logo or Official Solid Logo & Sanitized Hashtag (72px Safety Margin)
         comp_pil = Image.fromarray(cv2.cvtColor(composite, cv2.COLOR_BGR2RGB))
         draw_top = ImageDraw.Draw(comp_pil)
 
-        logo_h = int(round(28 * (H / 1350.0)))
-        logo_img = render_lexnis_logo(height=logo_h, is_dark_bg=True)
-        comp_pil.paste(logo_img, (lx, ly), logo_img)
+        user_logo_pil = load_logo_pil(logo_image)
+        if user_logo_pil is not None:
+            if user_logo_pil.mode != "RGBA":
+                user_logo_pil = user_logo_pil.convert("RGBA")
+            target_lh = int(round(32 * (H / 1350.0)))
+            max_lw = int(round(260 * (W / 1080.0)))
+            orig_lw, orig_lh = user_logo_pil.size
+            if orig_lh > 0 and orig_lw > 0:
+                scale = min(target_lh / float(orig_lh), max_lw / float(orig_lw))
+                new_lw = max(1, int(round(orig_lw * scale)))
+                new_lh = max(1, int(round(orig_lh * scale)))
+                user_logo_resized = user_logo_pil.resize((new_lw, new_lh), Image.Resampling.LANCZOS)
+                comp_pil.paste(user_logo_resized, (lx, ly), user_logo_resized)
+        else:
+            logo_h = int(round(28 * (H / 1350.0)))
+            logo_img = render_lexnis_logo(height=logo_h, is_dark_bg=True)
+            comp_pil.paste(logo_img, (lx, ly), logo_img)
 
         f_tag = ImageFont.truetype(str(FONTS_DIR / ("Cairo-Bold.ttf" if is_ar else "Poppins-Medium.ttf")), int(round(20 * (H / 1350.0))))
         final_tag = sanitize_brand_tag(brand_tag, brand_name or "Lexnis Technologies")
         if is_ar:
-            final_tag = brand_tag if (brand_tag and re.search(r"[\u0600-\u06FF]", brand_tag)) else "#فريق_لكسنس"
+            final_tag = brand_tag if (brand_tag and re.search(r"[\u0600-\u06FF]", brand_tag)) else preset["tag_ar"]
             r_tag = prepare_bidi_text(final_tag)
             tag_w = draw_top.textbbox((0, 0), r_tag, font=f_tag)[2] - draw_top.textbbox((0, 0), r_tag, font=f_tag)[0]
             draw_top.text((W - lx - tag_w, ly + int(round(4 * (H / 1350.0)))), r_tag, font=f_tag, fill=(255, 255, 255))
         else:
+            final_tag = sanitize_brand_tag(brand_tag or preset["tag_en"], brand_name or "Lexnis Technologies")
             tag_w = draw_top.textbbox((0, 0), final_tag, font=f_tag)[2] - draw_top.textbbox((0, 0), final_tag, font=f_tag)[0]
             draw_top.text((W - lx - tag_w, ly + int(round(4 * (H / 1350.0)))), final_tag, font=f_tag, fill=(255, 255, 255))
 
         # 8. Layer 6: Clean Single Footer Caption (ZERO duplication / ghost lines)
         f_foot = ImageFont.truetype(str(FONTS_DIR / ("Cairo-SemiBold.ttf" if is_ar else "Poppins-Regular.ttf")), int(round((22 if is_ar else 20) * (H / 1350.0))))
-        foot_str = footer_text or ("نحن سعداء جداً بانضمامك إلى فريقنا!" if is_ar else "We are so excited to have you on our team!")
+        foot_str = footer_text or (preset["footer_ar"] if is_ar else preset["footer_en"])
         display_foot = prepare_bidi_text(foot_str) if is_ar else foot_str
         bbox_foot = draw_top.textbbox((0, 0), display_foot, font=f_foot)
         foot_w = bbox_foot[2] - bbox_foot[0]
@@ -1191,7 +1473,20 @@ def composite_template_swap(
         comp_pil = Image.fromarray(cv2.cvtColor(composite, cv2.COLOR_BGR2RGB))
         draw_top = ImageDraw.Draw(comp_pil)
 
-    if (brand_name and ("sekawan" not in brand_name.lower())) or is_ar:
+    user_logo_pil = load_logo_pil(logo_image)
+    if user_logo_pil is not None:
+        if user_logo_pil.mode != "RGBA":
+            user_logo_pil = user_logo_pil.convert("RGBA")
+        target_lh = int(34 * sy)
+        max_lw = int(240 * sx)
+        orig_lw, orig_lh = user_logo_pil.size
+        if orig_lh > 0 and orig_lw > 0:
+            scale = min(target_lh / float(orig_lh), max_lw / float(orig_lw))
+            new_lw = max(1, int(round(orig_lw * scale)))
+            new_lh = max(1, int(round(orig_lh * scale)))
+            user_logo_resized = user_logo_pil.resize((new_lw, new_lh), Image.Resampling.LANCZOS)
+            comp_pil.paste(user_logo_resized, (lx, ly), user_logo_resized)
+    elif (brand_name and ("sekawan" not in brand_name.lower())) or is_ar:
         f_brand = ImageFont.truetype(str(FONTS_DIR / "Poppins-Bold.ttf"), int(20 * sy))
         f_tag = ImageFont.truetype(str(FONTS_DIR / "Poppins-Regular.ttf"), int(16 * sy))
         b_name = brand_name or "Lexnis Technologies"
@@ -1224,7 +1519,8 @@ def render_reflowed_campaign_visual(
     brand_tag: str = "#SekawanTeam",
     brand_colors: dict = None,
     headline_text: str = "WELCOME",
-    footer_text: str = "We are so excited to have you on our team!"
+    footer_text: str = "We are so excited to have you on our team!",
+    logo_image=None
 ) -> Image.Image:
     """
     Adaptive Multi-Platform Campaign Visual Engine.
@@ -1386,8 +1682,20 @@ def render_reflowed_campaign_visual(
     f_logo = ImageFont.truetype(font_bold_path, int(H * 0.022)) if font_bold_path else ImageFont.load_default()
     f_tag = ImageFont.truetype(font_reg_path or font_bold_path, int(H * 0.016)) if (font_reg_path or font_bold_path) else ImageFont.load_default()
 
-    is_lexnis_mode = "lexnis" in (brand_name or "").lower()
-    if is_lexnis_mode:
+    user_logo_pil = load_logo_pil(logo_image)
+    if user_logo_pil is not None:
+        if user_logo_pil.mode != "RGBA":
+            user_logo_pil = user_logo_pil.convert("RGBA")
+        target_lh = max(28, int(H * 0.026))
+        max_lw = int(W * 0.25)
+        orig_lw, orig_lh = user_logo_pil.size
+        if orig_lh > 0 and orig_lw > 0:
+            scale = min(target_lh / float(orig_lh), max_lw / float(orig_lw))
+            new_lw = max(1, int(round(orig_lw * scale)))
+            new_lh = max(1, int(round(orig_lh * scale)))
+            user_logo_resized = user_logo_pil.resize((new_lw, new_lh), Image.Resampling.LANCZOS)
+            pil_final.paste(user_logo_resized, (int(W * 0.065), int(H * 0.05)), user_logo_resized)
+    elif is_lexnis_mode:
         logo_h = max(28, int(H * 0.026))
         logo_img = render_lexnis_logo(height=logo_h, is_dark_bg=True)
         pil_final.paste(logo_img, (int(W * 0.065), int(H * 0.05)), logo_img)
@@ -1595,6 +1903,8 @@ def classify_template_and_subject(image_paths):
     """
     Given a list of candidate image paths, automatically determines which image
     is the framed template graphic and which image is the subject portrait.
+    Ignores logo files and gracefully defaults to template_reference.jpg if only
+    a subject portrait is provided.
     """
     import cv2
     import numpy as np
@@ -1602,10 +1912,13 @@ def classify_template_and_subject(image_paths):
     img_data = []
     for p in image_paths:
         if isinstance(p, (str, Path)):
-            im = cv2.imread(str(p))
             path_obj = Path(p)
         else:
             continue
+        # Strictly ignore logo files
+        if path_obj.name.lower().startswith("logo_") or "logo" in path_obj.stem.lower():
+            continue
+        im = cv2.imread(str(path_obj))
         if im is None:
             continue
         # Check blue background ratio: B > 180, R < 140
@@ -1621,14 +1934,35 @@ def classify_template_and_subject(image_paths):
         )) + s_bias
         img_data.append({'path': path_obj, 'blue': blue_ratio, 'white': white_ratio})
 
-    if len(img_data) < 2:
+    if len(img_data) == 0:
         return None, None
+
+    # Reference template fallback
+    ref_template = Path("test_assets/template_reference.jpg")
+    if not ref_template.exists():
+        ref_template = Path("static/assets/template_reference.jpg")
+
+    ref_subject = Path("test_assets/raw_subject.jpg")
+    if not ref_subject.exists():
+        ref_subject = Path("static/assets/raw_subject.jpg")
+
+    if len(img_data) == 1:
+        item = img_data[0]
+        if item['blue'] > item['white']:
+            return item['path'], (ref_subject if ref_subject.exists() else None)
+        else:
+            return (ref_template if ref_template.exists() else None), item['path']
 
     sorted_by_blue = sorted(img_data, key=lambda x: x['blue'], reverse=True)
     sorted_by_white = sorted(img_data, key=lambda x: x['white'], reverse=True)
 
     template = sorted_by_blue[0]['path']
     subject = sorted_by_white[0]['path']
+
+    # If neither image looks like a blue template, default to ref_template and use best subject
+    if sorted_by_blue[0]['blue'] < 0.1 and ref_template.exists():
+        template = ref_template
+
     if template == subject and len(sorted_by_white) > 1:
         subject = sorted_by_white[1]['path']
 

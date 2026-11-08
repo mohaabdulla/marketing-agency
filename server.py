@@ -103,6 +103,8 @@ class GenerateRequest(BaseModel):
     post_type: Optional[str] = Field("general", description="Campaign post type, e.g. team_welcome, product_launch, event_announcement, milestone_achievement, thought_leadership, case_study, hiring, brand_awareness")
     person_name: Optional[str] = Field(None, description="Featured person name (for team_welcome or spotlight)")
     person_title: Optional[str] = Field(None, description="Featured person job title / department")
+    logo_url: Optional[str] = Field(None, description="URL of uploaded custom corporate logo")
+    logo_path: Optional[str] = Field(None, description="Local file path of uploaded custom corporate logo")
 
 
 class AnalyzeWebsiteRequest(BaseModel):
@@ -256,28 +258,69 @@ def generate_campaign_endpoint(req: GenerateRequest):
     try:
         studio = LexnisCampaignStudio()
         all_up_paths = []
+        uploaded_logo_path = None
         if req.uploaded_image_urls:
             for u in req.uploaded_image_urls:
                 p = render_path(u)
-                if p and Path(p).exists() and str(p) not in all_up_paths:
-                    all_up_paths.append(str(p))
+                if p and Path(p).exists():
+                    p_name = Path(p).name.lower()
+                    if p_name.startswith("logo_") or "logo" in Path(p).stem.lower():
+                        if not uploaded_logo_path:
+                            uploaded_logo_path = str(p)
+                    elif str(p) not in all_up_paths:
+                        all_up_paths.append(str(p))
         if req.uploaded_image_url:
             p = render_path(req.uploaded_image_url)
-            if p and Path(p).exists() and str(p) not in all_up_paths:
-                all_up_paths.append(str(p))
+            if p and Path(p).exists():
+                p_name = Path(p).name.lower()
+                if p_name.startswith("logo_") or "logo" in Path(p).stem.lower():
+                    if not uploaded_logo_path:
+                        uploaded_logo_path = str(p)
+                elif str(p) not in all_up_paths:
+                    all_up_paths.append(str(p))
 
-        # Only supplement from UPLOADS_DIR if user requested using uploaded assets or prompt specifies swap
+        # Only supplement from UPLOADS_DIR if in welcome mode or user explicitly requested swap
         prompt_lower = (req.prompt or "").lower()
-        needs_swap = (req.post_type == "team_welcome") or any(k in prompt_lower for k in ["girl", "blue image", "white background", "template", "portrait", "sekawan", "swap", "replace", "face", "uploaded", "welcome"])
-        if (req.use_uploaded_image or needs_swap) and len(all_up_paths) < 2 and UPLOADS_DIR.exists():
+        is_welcome_mode = (req.post_type == "team_welcome")
+        needs_swap = is_welcome_mode or any(k in prompt_lower for k in ["template swap", "2.5d swap", "replace face", "swap portrait", "swap subject", "sekawan"])
+        if is_welcome_mode and len(all_up_paths) < 2 and UPLOADS_DIR.exists():
             recent_uploads = sorted(UPLOADS_DIR.glob("*.*"), key=lambda f: f.stat().st_mtime, reverse=True)
             for f in recent_uploads:
+                if f.name.lower().startswith("logo_") or "logo" in f.stem.lower():
+                    continue
                 if f.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"} and str(f) not in all_up_paths:
                     all_up_paths.append(str(f))
                 if len(all_up_paths) >= 2:
                     break
 
+        # Auto-pair single subject portrait with template_reference.jpg
+        if (is_welcome_mode or needs_swap) and len(all_up_paths) == 1:
+            ref_t = BASE_DIR / "test_assets" / "template_reference.jpg"
+            if not ref_t.exists():
+                ref_t = BASE_DIR / "static" / "assets" / "template_reference.jpg"
+            if ref_t.exists() and str(ref_t) not in all_up_paths:
+                all_up_paths.insert(0, str(ref_t))
+
         up_img_path = all_up_paths[0] if all_up_paths else None
+
+        # Resolve custom logo if provided
+        logo_to_use = None
+        if getattr(req, "logo_path", None) and Path(req.logo_path).exists():
+            logo_to_use = req.logo_path
+        elif getattr(req, "logo_url", None):
+            p = render_path(req.logo_url)
+            if p and Path(p).exists():
+                logo_to_use = str(p)
+            elif Path(req.logo_url.lstrip("/\\")).exists():
+                logo_to_use = str(Path(req.logo_url.lstrip("/\\")))
+            else:
+                logo_to_use = req.logo_url
+        elif uploaded_logo_path:
+            logo_to_use = uploaded_logo_path
+        elif UPLOADS_DIR.exists():
+            logo_uploads = sorted(UPLOADS_DIR.glob("logo_*.*"), key=lambda f: f.stat().st_mtime, reverse=True)
+            if logo_uploads:
+                logo_to_use = str(logo_uploads[0])
 
         asset: CampaignAsset = studio.generate_campaign(
             prompt=req.prompt,
@@ -298,6 +341,8 @@ def generate_campaign_endpoint(req: GenerateRequest):
             post_type=req.post_type,
             person_name=req.person_name,
             person_title=req.person_title,
+            logo_path=logo_to_use,
+            logo_url=req.logo_url,
         )
         data = asset.to_dict()
         data["image_url"] = render_url(asset.image_path)
@@ -365,6 +410,7 @@ async def upload_visual_endpoint(
     Dedicated endpoint for visual assets:
     - Target Subject / Product portrait to feature
     - Template graphic / Reference layout to populate
+    - Corporate logo (PNG, WebP, SVG, JPG)
     Saves the file to disk, calculates dimensions, and generates an optimized thumbnail.
     """
     try:
@@ -374,8 +420,8 @@ async def upload_visual_endpoint(
 
         fname = file.filename or "visual_asset.jpg"
         ext = Path(fname).suffix.lower()
-        if ext not in {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}:
-            ext = ".jpg"
+        if ext not in {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".svg"}:
+            ext = ".png" if slot == "logo" else ".jpg"
 
         f_hash = hashlib.sha1(content_bytes).hexdigest()[:12]
         clean_stem = re.sub(r'[^a-zA-Z0-9_-]', '_', Path(fname).stem)[:24]
@@ -386,13 +432,30 @@ async def upload_visual_endpoint(
         width, height = 0, 0
         thumb_b64 = ""
         try:
-            from PIL import Image
-            im = Image.open(io.BytesIO(content_bytes)).convert("RGB")
-            width, height = im.size
-            im.thumbnail((400, 400))
-            buf = io.BytesIO()
-            im.save(buf, format="JPEG", quality=85)
-            thumb_b64 = "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("utf-8")
+            if ext == ".svg":
+                # For SVG, parse dimensions or set defaults and provide SVG data URI
+                svg_str = content_bytes.decode("utf-8", errors="ignore")
+                wm = re.search(r'width=["\']?(\d+)', svg_str)
+                hm = re.search(r'height=["\']?(\d+)', svg_str)
+                width = int(wm.group(1)) if wm else 300
+                height = int(hm.group(1)) if hm else 100
+                thumb_b64 = "data:image/svg+xml;base64," + base64.b64encode(content_bytes).decode("utf-8")
+            else:
+                from PIL import Image
+                im = Image.open(io.BytesIO(content_bytes))
+                width, height = im.size
+                if im.mode in ("RGBA", "LA") or (im.mode == "P" and "transparency" in im.info) or slot == "logo":
+                    im_thumb = im.convert("RGBA")
+                    im_thumb.thumbnail((400, 400))
+                    buf = io.BytesIO()
+                    im_thumb.save(buf, format="PNG")
+                    thumb_b64 = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("utf-8")
+                else:
+                    im_rgb = im.convert("RGB")
+                    im_rgb.thumbnail((400, 400))
+                    buf = io.BytesIO()
+                    im_rgb.save(buf, format="JPEG", quality=85)
+                    thumb_b64 = "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("utf-8")
         except Exception:
             pass
 
@@ -408,6 +471,12 @@ async def upload_visual_endpoint(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/upload-logo")
+async def upload_logo_endpoint(file: UploadFile = File(...)):
+    """Dedicated endpoint for uploading official corporate logo."""
+    return await upload_visual_endpoint(file=file, slot="logo")
 
 
 @app.get("/api/sample-visuals")
@@ -664,8 +733,10 @@ async def analyze_layout_endpoint(
 async def template_swap_endpoint(
     template_file: Optional[UploadFile] = File(None),
     subject_file: Optional[UploadFile] = File(None),
+    logo_file: Optional[UploadFile] = File(None),
     template_url: Optional[str] = Form(None),
     subject_url: Optional[str] = Form(None),
+    logo_url: Optional[str] = Form(None),
     person_name: Optional[str] = Form(None),
     person_title: Optional[str] = Form(None),
     brand_name: Optional[str] = Form(None),
@@ -718,6 +789,22 @@ async def template_swap_endpoint(
         if not t_bytes or not s_bytes:
             raise HTTPException(status_code=400, detail="Both template and subject images are required.")
 
+        logo_image_param = None
+        if logo_file:
+            logo_image_param = await logo_file.read()
+        elif logo_url:
+            p = render_path(logo_url)
+            if p and Path(p).exists():
+                logo_image_param = str(p)
+            elif Path(logo_url.lstrip("/\\")).exists():
+                logo_image_param = str(Path(logo_url.lstrip("/\\")))
+            else:
+                logo_image_param = logo_url
+        elif UPLOADS_DIR.exists():
+            logo_uploads = sorted(UPLOADS_DIR.glob("logo_*.*"), key=lambda f: f.stat().st_mtime, reverse=True)
+            if logo_uploads:
+                logo_image_param = str(logo_uploads[0])
+
         brand_name = brand_name or "Lexnis Technologies"
         person_name = person_name or "Alisha Faisal"
         person_title = person_title or "Marketing Manager"
@@ -754,7 +841,8 @@ async def template_swap_endpoint(
             blueprint=bp_param,
             language=language if language != "both" else "en",
             headline_text=headline_text,
-            footer_text=footer_text
+            footer_text=footer_text,
+            logo_image=logo_image_param
         )
         token = hashlib.sha1(f"swap_{time.time()}".encode()).hexdigest()[:12]
         out_filename = f"template_swap_{token}.jpg"
@@ -777,7 +865,8 @@ async def template_swap_endpoint(
                 blueprint=bp_param,
                 language="ar",
                 headline_text=headline_text if (language == "ar" and headline_text) else "مرحباً بك في فريقنا",
-                footer_text=footer_text if (language == "ar" and footer_text) else "نحن سعداء جداً بانضمامك إلى فريقنا!"
+                footer_text=footer_text if (language == "ar" and footer_text) else "نحن سعداء جداً بانضمامك إلى فريقنا!",
+                logo_image=logo_image_param
             )
             ar_filename = f"template_swap_{token}_ar.jpg"
             ar_path = RENDERS_DIR / ar_filename

@@ -466,6 +466,40 @@ def detect_featured_person(prompt: str, post_type: Optional[str] = None) -> Tupl
     if not p:
         return None, None
 
+    if (post_type and 'hiring' in post_type.lower()) or 'hiring' in p.lower() or 'we are hiring' in p.lower():
+        m_hire = re.search(r'(?:we are hiring|hiring|open role:?|seeking|looking for)\s+([A-Za-z0-9 &/-]+?)(?:\s+(?:for our|for the|for|in|at)\s+([^.\n]+?))?(?:\.|\n|$)', p, re.IGNORECASE)
+        if m_hire:
+            clean_role = m_hire.group(1).strip()
+            clean_role = re.sub(r'^(?:a|an)\s+', '', clean_role, flags=re.IGNORECASE).strip()
+            team_str = (m_hire.group(2) or "").strip()
+            if not team_str:
+                team_str = "Core Engineering & Innovation Lab"
+            return clean_role.title(), team_str
+        return "Senior AI & ML Engineer", "Lexnis Core AI Lab · Hybrid"
+
+    if (post_type and 'product' in post_type.lower()) or 'launching' in p.lower() or 'introducing' in p.lower():
+        m_launch = re.search(r'(?:launching|introducing|announcing|unveiling)\s+(?:the\s+)?([^.,;\n]+?)(?:\s*(?:–|-|:|,|\bas\b)\s*([^.,;\n]+?))?(?:\.|\n|$)', p, re.IGNORECASE)
+        if m_launch:
+            prod_name = m_launch.group(1).strip()
+            cat_str = (m_launch.group(2) or "Next-Gen Enterprise Solution").strip()
+            return prod_name.title(), cat_str
+        return "Enterprise AI Platform", "Autonomous Enterprise Solutions"
+
+    if post_type and 'milestone' in post_type.lower():
+        return "Global Enterprise Milestone", "Excellence & Growth Award"
+
+    if post_type and 'event' in post_type.lower():
+        return "Tech Innovation Summit 2026", "Keynotes & Live Interactive Workshops"
+
+    if post_type and 'thought' in post_type.lower():
+        return "The Future of AI Architecture", "Strategic Research & Industry Perspectives"
+
+    if post_type and 'case' in post_type.lower():
+        return "Client Impact & ROI Study", "Validated Enterprise Transformation"
+
+    if post_type and 'brand' in post_type.lower():
+        return "Pioneering Trusted Intelligence", "Engineering Excellence & Core Values"
+
     stop = r'as|is|our|the|a|an|who|with|set|captured|embodying|welcoming|joining|to|for|in|at'
     name_token = rf'(?!\b(?:{stop})\b)[A-Za-z\'-]+'
 
@@ -1416,9 +1450,31 @@ class LexnisCampaignStudio:
         brand_label = detected_brand or (brand if brand and brand != "Lexnis Technologies" else "the brand")
         product_label = person_name if (post_type == "team_welcome" and person_name) else (detected_product or "flagship innovation")
 
-        is_welcome = (post_type == "team_welcome") or ("welcome" in (user_prompt or "").lower())
+        is_welcome = (post_type == "team_welcome") or ("welcome" in (user_prompt or "").lower() and post_type not in ["hiring", "product_launch", "milestone_achievement", "event_announcement", "thought_leadership", "case_study", "brand_awareness"])
+        is_hiring = (post_type == "hiring") or ("hiring" in (user_prompt or "").lower())
 
-        if is_welcome:
+        if is_hiring:
+            hire_role = person_name or "Senior Machine Learning & Vision Systems Engineer"
+            hire_team = person_title or "Lexnis Core AI Lab · Hybrid"
+            fallback_enhanced = {
+                "detected_brand": brand_label,
+                "product_name": f"Careers: {hire_role}",
+                "target_audience": f"Top-tier engineers, researchers, and specialists evaluating opportunities at {brand_label}",
+                "core_hook_angle": f"Join {brand_label} as {hire_role} and build mission-critical AI solutions for enterprise intelligence.",
+                "visual_art_direction": "Dynamic high-tech AI lab environment, collaborative engineering workspace with dual-monitors, ambient architectural glass lighting, clean negative space for typography.",
+                "improvements": [
+                    f"Centered campaign on open position: {hire_role}",
+                    f"Preserved department and location: {hire_team}",
+                    "Specified high-tech engineering workspace photography"
+                ],
+                "enhanced_prompt": (
+                    f"Recruitment advertising campaign for {brand_label} hiring {hire_role} for {hire_team}. "
+                    f"A dynamic, inspiring high-tech collaborative workspace photograph, modern engineering workstations, architectural ambient lighting, generous negative space for recruitment text."
+                ),
+                "suggested_tone": "inspiring, innovative, and prestigious",
+                "suggested_theme": "Modern High-Tech AI Workspace",
+            }
+        elif is_welcome:
             p_name_clean = person_name or "Alisha Faisal"
             p_role_clean = person_title or "Marketing Manager"
             fallback_enhanced = {
@@ -2743,6 +2799,8 @@ class LexnisCampaignStudio:
         post_type: Optional[str] = None,
         person_name: Optional[str] = None,
         person_title: Optional[str] = None,
+        logo_path: Optional[str] = None,
+        logo_url: Optional[str] = None,
     ) -> CampaignAsset:
         """
         Run the full agency pipeline with Dual-Agent Collaborative refinement:
@@ -2878,27 +2936,35 @@ class LexnisCampaignStudio:
         # Check for template + subject replacement (e.g. girl with white background into blue template)
         candidate_images = []
         if uploaded_image_paths:
-            candidate_images.extend([Path(p) for p in uploaded_image_paths if Path(p).exists()])
-        if uploaded_image_path and Path(uploaded_image_path).exists() and Path(uploaded_image_path) not in candidate_images:
-            candidate_images.append(Path(uploaded_image_path))
+            for p in uploaded_image_paths:
+                p_obj = Path(p)
+                if p_obj.exists() and not p_obj.name.lower().startswith("logo_") and "logo" not in p_obj.stem.lower():
+                    candidate_images.append(p_obj)
+        if uploaded_image_path:
+            p_obj = Path(uploaded_image_path)
+            if p_obj.exists() and not p_obj.name.lower().startswith("logo_") and "logo" not in p_obj.stem.lower() and p_obj not in candidate_images:
+                candidate_images.append(p_obj)
 
         prompt_lower = (effective_prompt + " " + (guidelines or "")).lower()
-        needs_swap = (post_type == "team_welcome") or any(k in prompt_lower for k in ["girl", "blue image", "white background", "template", "portrait", "sekawan", "swap", "replace", "face", "uploaded", "welcome"])
+        is_welcome_mode = (post_type == "team_welcome")
+        needs_swap = is_welcome_mode or any(k in prompt_lower for k in ["template swap", "2.5d swap", "replace face", "swap portrait", "swap subject", "sekawan"])
 
-        # Only search uploads cache if user provided an image or explicitly requested a template swap
-        if (candidate_images or needs_swap) and len(candidate_images) < 2:
+        # Only search uploads cache if in welcome mode or user explicitly provided assets
+        if (candidate_images or is_welcome_mode) and len(candidate_images) < 2:
             uploads_dir = RENDERS_DIR.parent / "output" / "uploads"
             if not uploads_dir.exists():
                 uploads_dir = RENDERS_DIR.parent / "uploads"
-            if uploads_dir.exists():
+            if uploads_dir.exists() and is_welcome_mode:
                 for f in sorted(uploads_dir.glob("*.*"), key=lambda x: x.stat().st_mtime, reverse=True):
+                    if f.name.lower().startswith("logo_") or "logo" in f.stem.lower():
+                        continue
                     if f.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"} and f not in candidate_images:
                         candidate_images.append(f)
                     if len(candidate_images) >= 2:
                         break
 
-        # Also check test_assets if prompt explicitly mentions template swap or subject keywords
-        if len(candidate_images) < 2 and needs_swap:
+        # Also check test_assets if welcome mode or prompt explicitly requests a swap
+        if len(candidate_images) < 2 and is_welcome_mode:
             test_assets_dir = RENDERS_DIR.parent / "test_assets"
             if test_assets_dir.exists():
                 for fname in ["template_reference.jpg", "raw_subject.jpg"]:
@@ -2910,6 +2976,18 @@ class LexnisCampaignStudio:
         t_file, s_file = classify_template_and_subject(candidate_images) if len(candidate_images) >= 2 else (None, None)
         if len(candidate_images) == 1 and not s_file:
             s_file = candidate_images[0]
+
+        ref_template = RENDERS_DIR.parent / "test_assets" / "template_reference.jpg"
+        if not ref_template.exists():
+            ref_template = RENDERS_DIR.parent / "static" / "assets" / "template_reference.jpg"
+        ref_subject = RENDERS_DIR.parent / "test_assets" / "raw_subject.jpg"
+        if not ref_subject.exists():
+            ref_subject = RENDERS_DIR.parent / "static" / "assets" / "raw_subject.jpg"
+
+        if s_file and not t_file and ref_template.exists() and (is_welcome_mode or needs_swap or candidate_images):
+            t_file = ref_template
+        elif t_file and not s_file and ref_subject.exists() and is_welcome_mode:
+            s_file = ref_subject
 
         # Determine featured person & corporate title
         if not person_name or not person_title:
@@ -2935,8 +3013,86 @@ class LexnisCampaignStudio:
         brand_tag = sanitize_brand_tag(brand_tag, brand)
 
         if t_file and s_file and (use_uploaded_image is not False):
-            step("Executing autonomous 2.5D pop-out template subject replacement...")
-            swap_key = hashlib.sha1(f"swap_v3_1080x1350|{t_file.name}|{s_file.name}|{person_name}|{person_title}|{brand}|{brand_tag}|{company_url}|recolor_{recolor_to_brand}".encode()).hexdigest()[:16]
+            step(f"Executing autonomous 2.5D pop-out {post_type or 'campaign'} compositing...")
+            logo_to_use = None
+            if logo_path and Path(logo_path).exists():
+                logo_to_use = str(logo_path)
+            elif logo_url:
+                p_strip = Path(logo_url.lstrip("/\\"))
+                if p_strip.exists():
+                    logo_to_use = str(p_strip)
+                else:
+                    logo_to_use = logo_url
+            elif uploaded_image_paths:
+                for up in uploaded_image_paths:
+                    if "logo" in Path(up).name.lower() and Path(up).exists():
+                        logo_to_use = str(up)
+                        break
+            elif UPLOADS_DIR.exists():
+                logo_uploads = sorted(UPLOADS_DIR.glob("logo_*.*"), key=lambda f: f.stat().st_mtime, reverse=True)
+                if logo_uploads:
+                    logo_to_use = str(logo_uploads[0])
+
+            # Dynamic post type typography presets
+            if post_type == "hiring":
+                hl_en = headline or "WE'RE HIRING"
+                hl_ar = "انضم إلى فريقنا"
+                foot_en = "Build the future with us · careers.lexnis.com"
+                foot_ar = "ابنِ المستقبل معنا · قدم الآن عبر careers.lexnis.com"
+                tag_to_use = "#LexnisCareers"
+                tag_ar_to_use = "#وظائف_لكسنس"
+            elif post_type == "product_launch":
+                hl_en = headline or "NEW LAUNCH"
+                hl_ar = "إطلاق جديد"
+                foot_en = "Accelerate enterprise innovation · discover at lexnis.com"
+                foot_ar = "سرّع وتيرة الابتكار المؤسسي · lexnis.com"
+                tag_to_use = "#LexnisInnovation"
+                tag_ar_to_use = "#ابتكار_لكسنس"
+            elif post_type == "milestone_achievement":
+                hl_en = headline or "MILESTONE"
+                hl_ar = "إنجاز استثنائي"
+                foot_en = "Celebrating collective achievements and continued leadership"
+                foot_ar = "نحتفي بالإنجازات الجماعية والريادة المستمرة"
+                tag_to_use = "#LexnisMilestone"
+                tag_ar_to_use = "#إنجازات_لكسنس"
+            elif post_type == "event_announcement":
+                hl_en = headline or "JOIN US"
+                hl_ar = "فعالية قادمة"
+                foot_en = "Reserve your seat today · register at lexnis.com/events"
+                foot_ar = "احجز مقعدك اليوم · سجّل الآن عبر lexnis.com/events"
+                tag_to_use = "#LexnisEvents"
+                tag_ar_to_use = "#فعاليات_لكسنس"
+            elif post_type == "thought_leadership":
+                hl_en = headline or "INSIGHTS"
+                hl_ar = "رؤى رقمية"
+                foot_en = "Read the complete insights report at lexnis.com"
+                foot_ar = "اقرأ التقرير البحثي الكامل عبر lexnis.com"
+                tag_to_use = "#LexnisInsights"
+                tag_ar_to_use = "#رؤى_لكسنس"
+            elif post_type == "case_study":
+                hl_en = headline or "CASE STUDY"
+                hl_ar = "قصة نجاح"
+                foot_en = "Explore the full client transformation story at lexnis.com"
+                foot_ar = "استكشف قصة التحول الرقمي الكاملة عبر lexnis.com"
+                tag_to_use = "#LexnisCaseStudy"
+                tag_ar_to_use = "#قصص_نجاح_لكسنس"
+            elif post_type == "brand_awareness":
+                hl_en = headline or "OUR VISION"
+                hl_ar = "رؤيتنا"
+                foot_en = "Empowering organizations with sovereign enterprise AI"
+                foot_ar = "نقود المرحلة القادمة من الذكاء الصناعي والمؤسسي"
+                tag_to_use = "#LexnisVision"
+                tag_ar_to_use = "#رؤية_لكسنس"
+            else:
+                hl_en = headline or "WELCOME"
+                hl_ar = "مرحباً بك في فريقنا"
+                foot_en = "We are so excited to have you on our team!"
+                foot_ar = "نحن سعداء جداً بانضمامك إلى فريقنا!"
+                tag_to_use = brand_tag or "#LexnisTeam"
+                tag_ar_to_use = "#فريق_لكسنس"
+
+            logo_key = Path(str(logo_to_use)).name if logo_to_use else "default_logo"
+            swap_key = hashlib.sha1(f"swap_v4_1080x1350|{post_type}|{t_file.name}|{s_file.name}|{logo_key}|{hl_en}|{person_name}|{person_title}|{brand}|{tag_to_use}|{company_url}|recolor_{recolor_to_brand}".encode()).hexdigest()[:16]
             clean_path = RENDERS_DIR / f"{swap_key}_clean.jpg"
             post_path = RENDERS_DIR / f"{swap_key}_post.jpg"
             post_ar_path = RENDERS_DIR / f"{swap_key}_post_ar.jpg"
@@ -2948,20 +3104,23 @@ class LexnisCampaignStudio:
                     person_name=person_name,
                     person_title=person_title,
                     brand_name=brand,
-                    brand_tag=brand_tag,
+                    brand_tag=tag_to_use,
                     brand_colors=brand_colors,
                     recolor_gradient=recolor_to_brand,
-                    language="en"
+                    language="en",
+                    headline_text=hl_en,
+                    footer_text=foot_en,
+                    logo_image=logo_to_use,
+                    post_type=post_type or "team_welcome"
                 )
                 swap_img.save(clean_path, "JPEG", quality=95, optimize=True)
                 swap_img.save(post_path, "JPEG", quality=95, optimize=True)
 
-            arabic_pack = self.transcreate_to_arabic(en_pack, brand=brand, visual_analysis="Template subject replacement", guidelines=distilled_gl)
+            arabic_pack = self.transcreate_to_arabic(en_pack, brand=brand, visual_analysis=f"Template {post_type} replacement", guidelines=distilled_gl)
 
             # Arabic localized copy & design tokens
-            ar_hl = arabic_pack.get("visual_headline") or arabic_pack.get("image_headline") or "مرحباً بك في فريقنا"
-            ar_tl = arabic_pack.get("visual_tagline") or "نحن سعداء جداً بانضمامك إلى فريقنا!"
-            ar_tag = brand_tag if (brand_tag and re.search(r"[\u0600-\u06FF]", brand_tag)) else ("#فريق_لكسنس" if "lexnis" in brand.lower() else f"#فريق_{re.sub(r'[^a-zA-Z0-9]', '', brand)}")
+            ar_hl = arabic_pack.get("visual_headline") or hl_ar
+            ar_tl = arabic_pack.get("visual_tagline") or foot_ar
 
             if not post_ar_path.exists():
                 swap_ar_img = composite_template_swap(
@@ -2971,12 +3130,14 @@ class LexnisCampaignStudio:
                     person_name=person_name,
                     person_title=person_title,
                     brand_name=brand,
-                    brand_tag=ar_tag,
+                    brand_tag=tag_ar_to_use,
                     brand_colors=brand_colors,
                     recolor_gradient=recolor_to_brand,
                     language="ar",
                     headline_text=ar_hl,
-                    footer_text=ar_tl
+                    footer_text=ar_tl,
+                    logo_image=logo_to_use,
+                    post_type=post_type or "team_welcome"
                 )
                 swap_ar_img.save(post_ar_path, "JPEG", quality=95, optimize=True)
 
@@ -3173,12 +3334,13 @@ class LexnisCampaignStudio:
         subject_image: Any,
         target_size: tuple = (1080, 1350),
         out_dir: Path = RENDERS_DIR,
+        logo_image: Any = None
     ) -> Path:
         """Autonomous template subject-replacement and 2.5D pop-out compositing."""
         from visual_engine import composite_template_swap
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
-        img = composite_template_swap(template_image, subject_image, target_size=target_size)
+        img = composite_template_swap(template_image, subject_image, target_size=target_size, logo_image=logo_image)
         token = hashlib.sha1(f"template_swap_{time.time()}".encode()).hexdigest()[:12]
         out_path = out_dir / f"template_swap_{token}.jpg"
         img.save(out_path, format="JPEG", quality=95)

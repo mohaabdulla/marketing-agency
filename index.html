@@ -301,16 +301,16 @@
           </div>
         </div>
 
-        <!-- Two Primary Image Slots: Slot 1 (Subject to Use) & Slot 2 (Template Graphic) -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Three Primary Visual Slots: Slot 1 (Subject), Slot 2 (Template Graphic), Slot 3 (Corporate Logo) -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <!-- CARD A: TARGET SUBJECT / PRODUCT IMAGE (The image we want it to use) -->
           <div class="bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-4 space-y-3 flex flex-col justify-between">
             <div class="flex items-center justify-between">
               <div class="flex items-center space-x-2">
                 <span class="w-6 h-6 rounded-lg bg-emerald-950/80 border border-emerald-500/40 flex items-center justify-center text-xs">👤</span>
                 <div>
-                  <h3 class="text-xs font-mono font-bold text-slate-200 uppercase">1. Subject / Product Photo to Use</h3>
-                  <p class="text-[11px] font-mono text-slate-400">The person portrait, face, or product hardware to feature or insert</p>
+                  <h3 class="text-xs font-mono font-bold text-slate-200 uppercase">1. Subject / Product Photo</h3>
+                  <p class="text-[11px] font-mono text-slate-400">Portrait, face, or product hardware</p>
                 </div>
               </div>
               <span id="subject-status-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-obsidian-900 text-slate-500 border border-obsidian-800 uppercase">
@@ -326,10 +326,10 @@
               </div>
               <div>
                 <p class="text-xs font-mono font-bold text-slate-300 group-hover:text-emerald-300 transition-colors">
-                  Upload Target Subject / Product
+                  Upload Target Subject
                 </p>
                 <p class="text-[10px] font-mono text-slate-500 mt-0.5">
-                  Drop portrait, model photo, or product image (JPG, PNG, WebP)
+                  Portrait photo (JPG, PNG, WebP)
                 </p>
               </div>
             </div>
@@ -353,7 +353,7 @@
                     raw_subject.jpg
                   </h4>
                   <p class="text-[10px] font-mono text-emerald-400/90 flex items-center gap-1">
-                    <i data-lucide="check" class="w-3 h-3"></i> Ready for 2.5D matting &amp; compositing
+                    <i data-lucide="check" class="w-3 h-3"></i> Ready for matting
                   </p>
                 </div>
               </div>
@@ -374,8 +374,8 @@
               <div class="flex items-center space-x-2">
                 <span class="w-6 h-6 rounded-lg bg-cyan-950/80 border border-cyan-500/40 flex items-center justify-center text-xs">🖼️</span>
                 <div>
-                  <h3 class="text-xs font-mono font-bold text-slate-200 uppercase">2. Template Graphic / Reference Ad</h3>
-                  <p class="text-[11px] font-mono text-slate-400">Polaroid frame, corporate poster, or graphic style template</p>
+                  <h3 class="text-xs font-mono font-bold text-slate-200 uppercase">2. Template / Reference Ad</h3>
+                  <p class="text-[11px] font-mono text-slate-400">Polaroid frame or style layout</p>
                 </div>
               </div>
               <span id="template-status-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-obsidian-900 text-slate-500 border border-obsidian-800 uppercase">
@@ -391,10 +391,10 @@
               </div>
               <div>
                 <p class="text-xs font-mono font-bold text-slate-300 group-hover:text-cyan-accent transition-colors">
-                  Upload Template / Style Graphic
+                  Upload Template Graphic
                 </p>
                 <p class="text-[10px] font-mono text-slate-500 mt-0.5">
-                  Drop brand poster, framed graphic, or layout reference
+                  Brand poster / framing reference
                 </p>
               </div>
             </div>
@@ -418,7 +418,7 @@
                     template_reference.jpg
                   </h4>
                   <p class="text-[10px] font-mono text-cyan-400/90 flex items-center gap-1">
-                    <i data-lucide="check" class="w-3 h-3"></i> Clean plate &amp; typography preservation armed
+                    <i data-lucide="check" class="w-3 h-3"></i> Clean plate armed
                   </p>
                 </div>
               </div>
@@ -427,6 +427,71 @@
                   Replace
                 </button>
                 <button type="button" id="btn-remove-template" class="px-2.5 py-1 text-[11px] font-mono rounded bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-white border border-rose-500/30 cursor-pointer transition-colors">
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD C: OFFICIAL COMPANY LOGO (Authentic Branding Lock) -->
+          <div class="bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-4 space-y-3 flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-2">
+                <span class="w-6 h-6 rounded-lg bg-amber-950/80 border border-amber-500/40 flex items-center justify-center text-xs">🛡️</span>
+                <div>
+                  <h3 class="text-xs font-mono font-bold text-slate-200 uppercase">3. Official Company Logo</h3>
+                  <p class="text-[11px] font-mono text-slate-400">Authentic corporate mark (PNG, SVG, WebP)</p>
+                </div>
+              </div>
+              <span id="logo-status-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-obsidian-900 text-slate-500 border border-obsidian-800 uppercase">
+                Vector / Default
+              </span>
+            </div>
+
+            <!-- Logo Empty Dropzone -->
+            <div id="logo-dropzone" class="border border-dashed border-obsidian-700 hover:border-amber-500/60 rounded-xl p-4 text-center cursor-pointer transition-all bg-obsidian-900/40 hover:bg-obsidian-900/80 group flex flex-col items-center justify-center min-h-[140px] space-y-2">
+              <input type="file" id="logo-file-input" class="hidden" accept="image/*,.svg">
+              <div class="w-9 h-9 rounded-xl bg-obsidian-800 border border-obsidian-700 flex items-center justify-center text-slate-400 group-hover:text-amber-400 group-hover:border-amber-500/40 transition-all">
+                <i data-lucide="shield" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <p class="text-xs font-mono font-bold text-slate-300 group-hover:text-amber-300 transition-colors">
+                  Upload Company Logo
+                </p>
+                <p class="text-[10px] font-mono text-slate-500 mt-0.5">
+                  Transparent PNG or SVG recommended
+                </p>
+              </div>
+            </div>
+
+            <!-- Logo Active Preview (Hidden initially) -->
+            <div id="logo-preview-card" class="hidden p-3 rounded-xl bg-amber-950/20 border border-amber-500/30 space-y-2.5">
+              <div class="flex items-start space-x-3">
+                <div class="relative shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-obsidian-900 border border-amber-500/40 shadow-inner flex items-center justify-center p-1.5" style="background-image: linear-gradient(45deg, #1b2130 25%, transparent 25%), linear-gradient(-45deg, #1b2130 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #1b2130 75%), linear-gradient(-45deg, transparent 75%, #1b2130 75%); background-size: 10px 10px; background-position: 0 0, 0 5px, 5px -5px, -5px 0px;">
+                  <img id="logo-preview-img" src="" alt="Company Logo" class="max-w-full max-h-full object-contain">
+                </div>
+                <div class="flex-1 min-w-0 space-y-1">
+                  <div class="flex items-center space-x-1.5">
+                    <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-900/70 text-amber-300 border border-amber-500/40 uppercase">
+                      ACTIVE LOGO
+                    </span>
+                    <span id="logo-dimensions-tag" class="text-[10px] font-mono text-slate-400 px-1 rounded bg-obsidian-900 border border-obsidian-800">
+                      Custom PNG
+                    </span>
+                  </div>
+                  <h4 id="logo-filename-text" class="text-xs font-mono font-bold text-slate-200 truncate">
+                    company_logo.png
+                  </h4>
+                  <p class="text-[10px] font-mono text-amber-400/90 flex items-center gap-1">
+                    <i data-lucide="check" class="w-3 h-3"></i> Top-header brand lock armed
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-center justify-end space-x-2 pt-1 border-t border-amber-500/20">
+                <button type="button" id="btn-replace-logo" class="px-2.5 py-1 text-[11px] font-mono rounded bg-obsidian-900 hover:bg-obsidian-800 text-slate-300 hover:text-white border border-obsidian-700 cursor-pointer transition-colors">
+                  Replace
+                </button>
+                <button type="button" id="btn-remove-logo" class="px-2.5 py-1 text-[11px] font-mono rounded bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-white border border-rose-500/30 cursor-pointer transition-colors">
                   Remove
                 </button>
               </div>
@@ -646,6 +711,9 @@
                   <i data-lucide="hash" class="w-3 h-3"></i> <span id="dna-tag-text">#LexnisTeam</span>
                 </span>
                 <span class="text-[10px] font-mono text-slate-400" id="dna-domain-text">lexnis.com</span>
+                <span id="dna-logo-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-obsidian-800 text-slate-400 border border-obsidian-700 flex items-center gap-1">
+                  <i data-lucide="shield" class="w-3 h-3 text-slate-400"></i> <span id="dna-logo-text">Vector Logo</span>
+                </span>
               </div>
               <div class="flex items-center space-x-1.5 text-[11px] font-mono text-emerald-400">
                 <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
@@ -2609,6 +2677,7 @@
     // ========================================================
     let activeSubjectAsset = null;  // { url, path, filename, width, height, thumb }
     let activeTemplateAsset = null; // { url, path, filename, width, height, thumb }
+    let activeLogoAsset = null;     // { url, path, filename, width, height, thumb }
 
     const btnSamplePopout = document.getElementById('btn-sample-popout');
     const btnSamplePortrait = document.getElementById('btn-sample-portrait');
@@ -2624,6 +2693,28 @@
     const subjectFilenameText = document.getElementById('subject-filename-text');
     const btnReplaceSubject = document.getElementById('btn-replace-subject');
     const btnRemoveSubject = document.getElementById('btn-remove-subject');
+
+    const templateStatusBadge = document.getElementById('template-status-badge');
+    const templateDropzone = document.getElementById('template-dropzone');
+    const templateFileInput = document.getElementById('template-file-input');
+    const templatePreviewCard = document.getElementById('template-preview-card');
+    const templatePreviewImg = document.getElementById('template-preview-img');
+    const templateDimensionsTag = document.getElementById('template-dimensions-tag');
+    const templateFilenameText = document.getElementById('template-filename-text');
+    const btnReplaceTemplate = document.getElementById('btn-replace-template');
+    const btnRemoveTemplate = document.getElementById('btn-remove-template');
+
+    const logoStatusBadge = document.getElementById('logo-status-badge');
+    const logoDropzone = document.getElementById('logo-dropzone');
+    const logoFileInput = document.getElementById('logo-file-input');
+    const logoPreviewCard = document.getElementById('logo-preview-card');
+    const logoPreviewImg = document.getElementById('logo-preview-img');
+    const logoDimensionsTag = document.getElementById('logo-dimensions-tag');
+    const logoFilenameText = document.getElementById('logo-filename-text');
+    const btnReplaceLogo = document.getElementById('btn-replace-logo');
+    const btnRemoveLogo = document.getElementById('btn-remove-logo');
+    const dnaLogoBadge = document.getElementById('dna-logo-badge');
+    const dnaLogoText = document.getElementById('dna-logo-text');
 
     const personNameInput = document.getElementById('person-name-input');
     const personTitleInput = document.getElementById('person-title-input');
@@ -2665,16 +2756,6 @@
         }
       }
     }
-
-    const templateStatusBadge = document.getElementById('template-status-badge');
-    const templateDropzone = document.getElementById('template-dropzone');
-    const templateFileInput = document.getElementById('template-file-input');
-    const templatePreviewCard = document.getElementById('template-preview-card');
-    const templatePreviewImg = document.getElementById('template-preview-img');
-    const templateDimensionsTag = document.getElementById('template-dimensions-tag');
-    const templateFilenameText = document.getElementById('template-filename-text');
-    const btnReplaceTemplate = document.getElementById('btn-replace-template');
-    const btnRemoveTemplate = document.getElementById('btn-remove-template');
 
     const visualModeIndicator = document.getElementById('visual-mode-indicator');
     const visualModeTitle = document.getElementById('visual-mode-title');
@@ -2737,7 +2818,43 @@
         }
       }
 
-      // 3. Update Engine Status Bar & Mode
+      // 3. Update Logo Slot
+      if (activeLogoAsset) {
+        if (logoDropzone) logoDropzone.classList.add('hidden');
+        if (logoPreviewCard) logoPreviewCard.classList.remove('hidden');
+        if (logoPreviewImg) logoPreviewImg.src = activeLogoAsset.thumb || activeLogoAsset.url;
+        if (logoFilenameText) logoFilenameText.textContent = activeLogoAsset.filename || 'Custom Logo';
+        if (logoDimensionsTag) {
+          logoDimensionsTag.textContent = (activeLogoAsset.width && activeLogoAsset.height)
+            ? `${activeLogoAsset.width} × ${activeLogoAsset.height}`
+            : 'Custom Logo';
+        }
+        if (logoStatusBadge) {
+          logoStatusBadge.textContent = 'CUSTOM LOGO LOADED';
+          logoStatusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-950 text-amber-300 border border-amber-500/40 uppercase';
+        }
+        if (dnaLogoBadge) {
+          dnaLogoBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-950 text-amber-300 border border-amber-500/40 flex items-center gap-1';
+        }
+        if (dnaLogoText) {
+          dnaLogoText.textContent = 'Custom Logo Armed';
+        }
+      } else {
+        if (logoDropzone) logoDropzone.classList.remove('hidden');
+        if (logoPreviewCard) logoPreviewCard.classList.add('hidden');
+        if (logoStatusBadge) {
+          logoStatusBadge.textContent = 'VECTOR / DEFAULT';
+          logoStatusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-obsidian-900 text-slate-500 border border-obsidian-800 uppercase';
+        }
+        if (dnaLogoBadge) {
+          dnaLogoBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-obsidian-800 text-slate-400 border border-obsidian-700 flex items-center gap-1';
+        }
+        if (dnaLogoText) {
+          dnaLogoText.textContent = 'Vector Logo';
+        }
+      }
+
+      // 4. Update Engine Status Bar & Mode
       if (activeSubjectAsset && activeTemplateAsset) {
         if (visualModeTitle) {
           visualModeTitle.textContent = '✨ 2.5D POP-OUT TEMPLATE ENGINE READY';
@@ -2755,33 +2872,33 @@
         }
       } else if (activeSubjectAsset) {
         if (visualModeTitle) {
-          visualModeTitle.textContent = '📸 HERO SUBJECT / PRODUCT PHOTO ACTIVE';
+          visualModeTitle.textContent = '📸 SUBJECT PHOTO READY (Auto-paired with Master Template)';
           visualModeTitle.className = 'font-bold text-emerald-300';
         }
         if (visualModeDesc) {
-          visualModeDesc.textContent = 'Will feature your uploaded subject/product image as the primary hero visual for the campaign.';
+          visualModeDesc.textContent = 'Your uploaded portrait will be composited into the Lexnis Executive template with sub-pixel hair matting and 2.5D pop-out.';
         }
         if (visualModeIndicator) {
           visualModeIndicator.innerHTML = '<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>';
         }
         if (btnQuickTestSwap) {
-          btnQuickTestSwap.disabled = true;
-          btnQuickTestSwap.classList.add('opacity-40', 'cursor-not-allowed');
+          btnQuickTestSwap.disabled = false;
+          btnQuickTestSwap.classList.remove('opacity-40', 'cursor-not-allowed');
         }
       } else if (activeTemplateAsset) {
         if (visualModeTitle) {
-          visualModeTitle.textContent = '🎨 TEMPLATE GRAPHIC & STYLE REFERENCE ACTIVE';
+          visualModeTitle.textContent = '🎨 TEMPLATE GRAPHIC READY (Auto-paired with Master Subject)';
           visualModeTitle.className = 'font-bold text-cyan-300';
         }
         if (visualModeDesc) {
-          visualModeDesc.textContent = 'Will use the template composition, brand geometry, and colors to guide campaign generation.';
+          visualModeDesc.textContent = 'Will use your reference template layout and composite the sample executive portrait.';
         }
         if (visualModeIndicator) {
           visualModeIndicator.innerHTML = '<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-400"></span>';
         }
         if (btnQuickTestSwap) {
-          btnQuickTestSwap.disabled = true;
-          btnQuickTestSwap.classList.add('opacity-40', 'cursor-not-allowed');
+          btnQuickTestSwap.disabled = false;
+          btnQuickTestSwap.classList.remove('opacity-40', 'cursor-not-allowed');
         }
       } else {
         if (visualModeTitle) {
@@ -2801,20 +2918,58 @@
       }
 
       if (btnClearVisuals) {
-        btnClearVisuals.classList.toggle('hidden', !activeSubjectAsset && !activeTemplateAsset);
+        btnClearVisuals.classList.toggle('hidden', !activeSubjectAsset && !activeTemplateAsset && !activeLogoAsset);
       }
 
       if (window.lucide) window.lucide.createIcons();
     }
 
+    async function prepareLogoFileForUpload(file) {
+      if (!file) return file;
+      if (file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg')) {
+        try {
+          const svgText = await file.text();
+          const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const img = new Image();
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = url;
+          });
+          const canvas = document.createElement('canvas');
+          const scale = 3;
+          const nw = (img.naturalWidth || 300) * scale;
+          const nh = (img.naturalHeight || 100) * scale;
+          canvas.width = Math.min(2400, Math.max(300, nw));
+          canvas.height = Math.min(2400, Math.max(100, nh));
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          URL.revokeObjectURL(url);
+          const pngBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+          if (pngBlob) {
+            const pngName = file.name.replace(/\.svg$/i, '.png');
+            return new File([pngBlob], pngName, { type: 'image/png' });
+          }
+        } catch (e) {
+          console.warn('Client SVG rasterizer notice:', e);
+        }
+      }
+      return file;
+    }
+
     async function uploadVisualAssetFile(file, slot = 'subject') {
       if (!file) return;
+      if (slot === 'logo') {
+        file = await prepareLogoFileForUpload(file);
+      }
       const formData = new FormData();
       formData.append('file', file);
       formData.append('slot', slot);
 
       try {
-        showToast(`Uploading ${slot === 'subject' ? 'subject portrait' : 'template graphic'}...`, true);
+        const slotLabel = slot === 'subject' ? 'subject portrait' : (slot === 'template' ? 'template graphic' : 'corporate logo');
+        showToast(`Uploading ${slotLabel}...`, true);
         const resp = await fetch(`${backendApiBase}/api/upload-visual`, {
           method: 'POST',
           body: formData
@@ -2837,9 +2992,12 @@
           activeSubjectAsset = assetObj;
           currentUploadedImageUrl = data.file_url;
           showToast(`Subject image ready: ${data.filename} (${data.width}×${data.height})`, true);
-        } else {
+        } else if (slot === 'template') {
           activeTemplateAsset = assetObj;
           showToast(`Template graphic ready: ${data.filename} (${data.width}×${data.height})`, true);
+        } else if (slot === 'logo') {
+          activeLogoAsset = assetObj;
+          showToast(`Official logo ready: ${data.filename} (${data.width}×${data.height})`, true);
         }
         updateVisualStageUI();
       } catch (err) {
@@ -2920,6 +3078,41 @@
       });
     }
 
+    // Connect Logo Slot Listeners
+    if (logoDropzone && logoFileInput) {
+      logoDropzone.addEventListener('click', () => logoFileInput.click());
+      logoFileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          uploadVisualAssetFile(e.target.files[0], 'logo');
+        }
+      });
+      logoDropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        logoDropzone.classList.add('border-amber-400', 'bg-obsidian-900/90');
+      });
+      logoDropzone.addEventListener('dragleave', () => {
+        logoDropzone.classList.remove('border-amber-400', 'bg-obsidian-900/90');
+      });
+      logoDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        logoDropzone.classList.remove('border-amber-400', 'bg-obsidian-900/90');
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+          uploadVisualAssetFile(e.dataTransfer.files[0], 'logo');
+        }
+      });
+    }
+
+    if (btnReplaceLogo && logoFileInput) {
+      btnReplaceLogo.addEventListener('click', () => logoFileInput.click());
+    }
+    if (btnRemoveLogo) {
+      btnRemoveLogo.addEventListener('click', () => {
+        activeLogoAsset = null;
+        updateVisualStageUI();
+        showToast('Removed custom logo (reverted to default vector)', true);
+      });
+    }
+
     // Connect Sample Buttons
     if (btnSamplePopout) {
       btnSamplePopout.addEventListener('click', () => {
@@ -2987,6 +3180,7 @@
       btnClearVisuals.addEventListener('click', () => {
         activeSubjectAsset = null;
         activeTemplateAsset = null;
+        activeLogoAsset = null;
         currentUploadedImageUrl = '';
         if (quickSwapResultBox) quickSwapResultBox.classList.add('hidden');
         updateVisualStageUI();
@@ -2997,8 +3191,8 @@
     // Connect Quick Test Swap Button
     if (btnQuickTestSwap) {
       btnQuickTestSwap.addEventListener('click', async () => {
-        if (!activeSubjectAsset || !activeTemplateAsset) {
-          showToast('Please load both a Template Graphic and a Subject Photo first', false);
+        if (!activeSubjectAsset && !activeTemplateAsset) {
+          showToast('Please load a Subject Photo or Template Graphic first', false);
           return;
         }
 
@@ -3008,8 +3202,13 @@
 
         try {
           const formData = new FormData();
-          formData.append('template_url', activeTemplateAsset.url);
-          formData.append('subject_url', activeSubjectAsset.url);
+          const tUrl = (activeTemplateAsset && activeTemplateAsset.url) ? activeTemplateAsset.url : '/test_assets/template_reference.jpg';
+          const sUrl = (activeSubjectAsset && activeSubjectAsset.url) ? activeSubjectAsset.url : '/test_assets/raw_subject.jpg';
+          formData.append('template_url', tUrl);
+          formData.append('subject_url', sUrl);
+          if (activeLogoAsset && activeLogoAsset.url) {
+            formData.append('logo_url', activeLogoAsset.url);
+          }
 
           const pName = (personNameInput && personNameInput.value.trim()) || 'Alisha Faisal';
           const pTitle = (personTitleInput && personTitleInput.value.trim()) || 'Marketing Manager';
@@ -3824,28 +4023,51 @@
 
       if (window.lucide) lucide.createIcons();
 
-      // Hook up sync for Team Welcome
-      if (typeId === 'team_welcome') {
-        const nameInp = document.getElementById('pt-member-name');
-        const roleInp = document.getElementById('pt-member-role');
-        if (nameInp) {
-          nameInp.addEventListener('input', () => {
-            currentPersonName = nameInp.value.trim();
-            if (personNameInput) personNameInput.value = currentPersonName;
-          });
+      // Hook up dynamic sync for all post types
+      function syncCurrentFields() {
+        const values = {};
+        container.querySelectorAll('.pt-guided-input').forEach(inp => {
+          values[inp.id] = inp.value.trim();
+        });
+        if (typeId === 'team_welcome') {
+          currentPersonName = values['pt-member-name'] || 'Alisha Faisal';
+          currentPersonTitle = values['pt-member-role'] || 'Marketing Manager';
+        } else if (typeId === 'hiring') {
+          currentPersonName = values['pt-hire-role'] || 'Senior Machine Learning & Vision Systems Engineer';
+          currentPersonTitle = values['pt-hire-team'] || 'Lexnis Core AI Lab, Manama / Hybrid';
+        } else if (typeId === 'product_launch') {
+          currentPersonName = values['pt-prod-name'] || 'Enterprise AI Platform';
+          currentPersonTitle = values['pt-prod-cat'] || 'Next-Gen Autonomous Systems';
+        } else if (typeId === 'milestone_achievement') {
+          currentPersonName = values['pt-ms-metric'] || 'Enterprise Leadership';
+          currentPersonTitle = values['pt-ms-impact'] || 'Growth & Excellence Award';
+        } else if (typeId === 'event_announcement') {
+          currentPersonName = values['pt-event-name'] || 'Tech Innovation Summit';
+          currentPersonTitle = values['pt-event-details'] || 'Keynotes & Live Workshops';
+        } else if (typeId === 'thought_leadership') {
+          currentPersonName = values['pt-tl-topic'] || 'The Future of AI';
+          currentPersonTitle = values['pt-tl-takeaway'] || 'Industry Perspectives & Research';
+        } else if (typeId === 'case_study') {
+          currentPersonName = values['pt-cs-client'] || 'Client Transformation';
+          currentPersonTitle = values['pt-cs-metric'] || 'Validated Operational ROI';
+        } else if (typeId === 'brand_awareness') {
+          currentPersonName = values['pt-story-theme'] || 'Engineering Excellence';
+          currentPersonTitle = values['pt-story-msg'] || 'Pioneering Trusted Intelligence';
         }
-        if (roleInp) {
-          roleInp.addEventListener('input', () => {
-            currentPersonTitle = roleInp.value.trim();
-            if (personTitleInput) personTitleInput.value = currentPersonTitle;
-          });
-        }
+        if (personNameInput) personNameInput.value = currentPersonName;
+        if (personTitleInput) personTitleInput.value = currentPersonTitle;
       }
+
+      container.querySelectorAll('.pt-guided-input').forEach(inp => {
+        inp.addEventListener('input', syncCurrentFields);
+      });
+      syncCurrentFields();
 
       // Hook up Apply button
       const applyBtn = document.getElementById('btn-apply-post-type-prompt');
       if (applyBtn) {
         applyBtn.addEventListener('click', () => {
+          syncCurrentFields();
           const values = {};
           container.querySelectorAll('.pt-guided-input').forEach(inp => {
             values[inp.id] = inp.value.trim();
@@ -3856,16 +4078,6 @@
             promptInput.value = generated;
             if (charCount) charCount.textContent = promptInput.value.length;
             promptInput.focus();
-          }
-          if (typeId === 'team_welcome') {
-            if (values['pt-member-name']) {
-              currentPersonName = values['pt-member-name'];
-              if (personNameInput) personNameInput.value = currentPersonName;
-            }
-            if (values['pt-member-role']) {
-              currentPersonTitle = values['pt-member-role'];
-              if (personTitleInput) personTitleInput.value = currentPersonTitle;
-            }
           }
           showToast(`Applied ${config.name} prompt template! Click ✨ Enhance Prompt to elevate.`);
         });
@@ -4090,7 +4302,8 @@
               style_preset: stylePreset || '',
               post_type: currentPostType || 'general',
               person_name: (personNameInput && personNameInput.value.trim()) || currentPersonName || '',
-              person_title: (personTitleInput && personTitleInput.value.trim()) || currentPersonTitle || ''
+              person_title: (personTitleInput && personTitleInput.value.trim()) || currentPersonTitle || '',
+              logo_url: (activeLogoAsset && activeLogoAsset.url) || null
             })
           });
           if (resp.ok) {
@@ -4683,10 +4896,10 @@
               finalUploadedUrl = activeSubjectAsset.url;
             } else if (activeSubjectAsset && activeSubjectAsset.url) {
               finalUploadedUrl = activeSubjectAsset.url;
-              finalUploadedUrls = [activeSubjectAsset.url];
+              finalUploadedUrls = ['/test_assets/template_reference.jpg', activeSubjectAsset.url];
             } else if (activeTemplateAsset && activeTemplateAsset.url) {
               finalUploadedUrl = activeTemplateAsset.url;
-              finalUploadedUrls = [activeTemplateAsset.url];
+              finalUploadedUrls = [activeTemplateAsset.url, '/test_assets/raw_subject.jpg'];
             } else if (currentUploadedImageUrl) {
               finalUploadedUrl = currentUploadedImageUrl;
               finalUploadedUrls = [currentUploadedImageUrl];
@@ -4717,7 +4930,8 @@
               use_uploaded_image: useAssets && (finalUploadedUrls.length > 0),
               post_type: currentPostType || 'general',
               person_name: (personNameInput && personNameInput.value.trim()) || currentPersonName || '',
-              person_title: (personTitleInput && personTitleInput.value.trim()) || currentPersonTitle || ''
+              person_title: (personTitleInput && personTitleInput.value.trim()) || currentPersonTitle || '',
+              logo_url: (activeLogoAsset && activeLogoAsset.url) || null
             })
           });
 
@@ -5405,6 +5619,9 @@ Deployable directly into legacy PLC racks and air-gapped SCADA environments, Lex
             formData.append('recolor_gradient', 'true');
             const lang = campaignLanguageSelect ? campaignLanguageSelect.value : 'both';
             formData.append('language', lang);
+            if (activeLogoAsset && activeLogoAsset.url) {
+              formData.append('logo_url', activeLogoAsset.url);
+            }
 
             const response = await fetch('/api/template-swap', {
               method: 'POST',
