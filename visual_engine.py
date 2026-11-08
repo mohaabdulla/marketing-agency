@@ -1094,6 +1094,12 @@ def composite_template_swap(
             "tag_ar": "#رؤية_لكسنس",
         }
     }
+    POST_TYPE_PRESETS["launch"] = POST_TYPE_PRESETS["product_launch"]
+    POST_TYPE_PRESETS["product"] = POST_TYPE_PRESETS["product_launch"]
+    POST_TYPE_PRESETS["announcement"] = POST_TYPE_PRESETS["product_launch"]
+    POST_TYPE_PRESETS["careers"] = POST_TYPE_PRESETS["hiring"]
+    POST_TYPE_PRESETS["recruitment"] = POST_TYPE_PRESETS["hiring"]
+
     pt_key = post_type if post_type in POST_TYPE_PRESETS else "team_welcome"
     preset = POST_TYPE_PRESETS[pt_key]
 
@@ -2278,19 +2284,13 @@ def render_lexnis_hiring_card(
     # 5a. Drop Shadow & Ambient Depth Layer
     shadow_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     s_draw = ImageDraw.Draw(shadow_layer)
-    # Subtle back-card offset accent (x+10, y+10) in 22% Tech Green
+    # Deep soft Gaussian drop shadow (offset_y = +20px, blur = 18px, 45% black)
     s_draw.rounded_rectangle(
-        [card_x1 + 10, card_y1 + 10, card_x2 + 10, card_y2 + 10],
-        radius=16,
-        fill=(83, 184, 73, 56)
-    )
-    # Deep soft drop shadow (offset_y = +18px, blur = 16px, 45% black)
-    s_draw.rounded_rectangle(
-        [card_x1, card_y1 + 18, card_x2, card_y2 + 18],
+        [card_x1, card_y1 + 20, card_x2, card_y2 + 20],
         radius=16,
         fill=(0, 0, 0, 115)
     )
-    shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(16))
+    shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(18))
     canvas.alpha_composite(shadow_layer)
     draw = ImageDraw.Draw(canvas)
 
@@ -2568,6 +2568,500 @@ def render_lexnis_hiring_card(
         draw.text((t2_x, t2_y), disp_rurl, font=f_btn_med, fill=dark_navy)
 
     return canvas.convert("RGB")
+
+
+def render_lexnis_launch_card(
+    product_name: str = "Lexnis VisionAI™",
+    category_overline: Optional[str] = None,
+    product_subtitle: Optional[str] = None,
+    spec_chips: Optional[List[str]] = None,
+    eyebrow_text: Optional[str] = None,
+    hook_headline: Optional[str] = None,
+    subcopy: Optional[str] = None,
+    cta_text: Optional[str] = None,
+    cta_url: Optional[str] = None,
+    language: str = "en",
+    brand_name: str = "Lexnis Technologies",
+    brand_tag: Optional[str] = None,
+    logo_image: Any = None,
+    base_image: Any = None,
+    target_size: Tuple[int, int] = (1080, 1350)
+) -> Image.Image:
+    """
+    Renders official Lexnis Brand System 1080x1350 (4:5) product launch poster at Senior Agency Art Director quality:
+    1. Base: Depth Gradient (#131724 -> #023024 at 135°) + Studio Emerald Spotlight + Core Chevron Field (34px thick ribbon chevrons).
+    2. Header Bar (y = 72px): Top-left official LEXNIS solid dual-chevron vector lockup or custom logo;
+       top-right Lime Green #BCD755 hashtag (#LexnisLaunch / #LexnisAI / #لكسنس_تبتكر).
+    3. Eyebrow Badge (y = 185px): Optically centered pill ("PRODUCT LAUNCH • NEW RELEASE" / "إطلاق منتج جديد • حلول الذكاء الاصطناعي").
+    4. Hero Hook (y = 260px): 2-line two-tone launch statement (Line 1 in #FFFFFF, Line 2 in #BCD755 Lime Green), NEVER repeating product name.
+    5. White 2.5D Product Spec Card (y = 580..910px, h = 330px): Soft Gaussian drop shadow, smoothly clipped 10px Tech Green + 4px Lime Green
+       accent bar (radius = 16px), 5% opacity chevron watermark, 3-tier internal grid:
+       - Row 1 (card_y + 34px): Category overline ("FLAGSHIP RELEASE // INDUSTRIAL EDGE AI" in #53B849).
+       - Row 2 (card_y + 74px): Product Name in #131724 (46px) + Subtitle in #475569 (22px/24px).
+       - Row 3 (card_y + 215px & 240px): Hairline divider + 3 Spec Chips with diamond/circular bullets.
+    6. Value Prop Subcopy (y = 975px): 2-line proposition in #E2E8F0 ("Stop recording past assembly failures...").
+    7. High-Contrast CTA Button (y = 1105px, h = 68px): Dynamic width (content_w + 76px), Lime Green #BCD755 fill, Dark Navy #131724 text,
+       36px circular badge with vector chevron ("REQUEST LIVE DEMO (>) lexnis.com/visionai").
+    """
+    import cv2
+    import numpy as np
+    import re
+    import math
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
+
+    ensure_brand_fonts()
+    W, H = target_size
+    is_ar = (str(language).lower() in ["ar", "arabic"])
+
+    # Official Lexnis Brand Color System
+    dark_navy = (19, 23, 36)        # #131724
+    tech_green = (83, 184, 73)      # #53B849
+    lime_green = (188, 215, 85)     # #BCD755
+    white = (255, 255, 255)
+    slate_border = (203, 213, 225)  # #CBD5E1
+    chip_bg = (241, 245, 249)       # #F1F5F9
+    soft_white = (226, 232, 240)    # #E2E8F0
+    slate_subtitle = (71, 85, 105)  # #475569
+
+    # 1. Background: 135° Depth Gradient + Optional 75% Tinted Base Image
+    bg_bgr = render_depth_gradient(W, H, "#131724", "#023024")
+    bg_gradient = Image.fromarray(cv2.cvtColor(bg_bgr, cv2.COLOR_BGR2RGB))
+    bg_rgba = bg_gradient.convert("RGBA")
+
+    if base_image:
+        try:
+            if isinstance(base_image, (str, Path)) and Path(base_image).exists():
+                b_im = Image.open(base_image).convert("RGBA")
+            elif isinstance(base_image, Image.Image):
+                b_im = base_image.convert("RGBA")
+            else:
+                b_im = None
+            if b_im:
+                b_fitted = ImageOps.fit(b_im, (W, H), method=Image.Resampling.LANCZOS)
+                canvas = Image.blend(b_fitted, bg_rgba, alpha=0.75)
+            else:
+                canvas = bg_rgba
+        except Exception:
+            canvas = bg_rgba
+    else:
+        canvas = bg_rgba
+
+    # Studio Emerald Spotlight (behind hero & card, cy = 580, radius = 620, max_alpha = 36)
+    spotlight = generate_studio_emerald_spotlight(W, H, cx=W // 2, cy=580, radius=620, max_alpha=36)
+    canvas.alpha_composite(spotlight)
+
+    # Authentic Thick Ribbon Chevron Field (11% opacity)
+    chev_field = generate_chevron_field(W, H, opacity=0.11)
+    canvas.alpha_composite(chev_field)
+
+    draw = ImageDraw.Draw(canvas)
+
+    # 2. Header Bar (y = 72px)
+    logo_pasted = False
+    if logo_image:
+        custom_logo = load_logo_pil(logo_image, is_dark_bg=True)
+        if custom_logo:
+            max_lh = 36
+            max_lw = 240
+            aspect = custom_logo.width / float(custom_logo.height)
+            target_lh = min(max_lh, int(round(max_lw / aspect)))
+            target_lw = int(round(target_lh * aspect))
+            logo_resized = custom_logo.resize((target_lw, target_lh), Image.Resampling.LANCZOS)
+            canvas.paste(logo_resized, (72, 72), logo_resized)
+            logo_pasted = True
+
+    if not logo_pasted:
+        official_logo = render_lexnis_logo(height=32, is_dark_bg=True)
+        canvas.paste(official_logo, (72, 72), official_logo)
+
+    tag_str = brand_tag or ("#لكسنس_تبتكر" if is_ar else "#LexnisLaunch")
+    if is_ar and not ("لكسنس" in tag_str or "#إطلاق" in tag_str or "ابتكار" in tag_str):
+        tag_str = "#لكسنس_تبتكر"
+
+    f_tag_path = (FONTS_DIR / "Cairo-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-Medium.ttf")
+    f_tag = ImageFont.truetype(str(f_tag_path), 22) if f_tag_path.exists() else ImageFont.load_default()
+    disp_tag = prepare_bidi_text(tag_str) if is_ar else tag_str
+    tag_bbox = draw.textbbox((0, 0), disp_tag, font=f_tag)
+    tag_w = tag_bbox[2] - tag_bbox[0]
+    draw.text((1008 - tag_w, 78), disp_tag, font=f_tag, fill=lime_green)
+
+    # 3. Eyebrow Badge (y = 185px)
+    default_eye = "إطلاق منتج جديد  •  حلول الذكاء الاصطناعي" if is_ar else "PRODUCT LAUNCH  •  NEW RELEASE"
+    cur_eyebrow = eyebrow_text or default_eye
+
+    f_eye_path = (FONTS_DIR / "Cairo-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-Bold.ttf")
+    eye_size = 20 if is_ar else 19
+    f_eye = ImageFont.truetype(str(f_eye_path), eye_size) if f_eye_path.exists() else ImageFont.load_default()
+
+    disp_eye = prepare_bidi_text(cur_eyebrow) if is_ar else cur_eyebrow
+    eye_bbox = draw.textbbox((0, 0), disp_eye, font=f_eye)
+    ew = eye_bbox[2] - eye_bbox[0]
+    eh = eye_bbox[3] - eye_bbox[1]
+
+    eye_pad_x = 22
+    eye_pad_y = 10
+    eye_w = ew + eye_pad_x * 2
+    eye_h = eh + eye_pad_y * 2
+    eye_y = 185
+    eye_x = (1008 - eye_w) if is_ar else 72
+
+    pill_overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    p_draw = ImageDraw.Draw(pill_overlay)
+    draw_optically_centered_pill(
+        p_draw,
+        (eye_x, eye_y, eye_x + eye_w, eye_y + eye_h),
+        cur_eyebrow,
+        f_eye,
+        fill_color=(83, 184, 73, 46),
+        outline_color=tech_green + (255,),
+        outline_width=2,
+        radius=eye_h // 2,
+        text_color=lime_green,
+        is_ar=is_ar
+    )
+    canvas.alpha_composite(pill_overlay)
+    draw = ImageDraw.Draw(canvas)
+
+    # 4. Hero Hook (y = 260px) - Never repeat product name here!
+    def sanitize_launch_hook(h: Optional[str], p_name: str) -> str:
+        if not h:
+            return ""
+        if p_name and (p_name.lower() in h.lower() or h.lower() in p_name.lower()):
+            return ""
+        h = h.replace("LEXNIS TECHNOLOGIES", "").replace("Lexnis Technologies", "").replace("Lexnis", "").strip()
+        return h
+
+    clean_hook = sanitize_launch_hook(hook_headline, product_name)
+    if not clean_hook:
+        if is_ar:
+            clean_hook = "سيادة صناعية استباقية\nترصد الأعطال قبل وقوعها."
+        else:
+            clean_hook = "PREDICT ASSEMBLY\nFAILURES AT THE EDGE."
+
+    if is_ar:
+        if "\n" in clean_hook:
+            hook_lines = [l.strip() for l in clean_hook.split("\n") if l.strip()][:2]
+        else:
+            words = clean_hook.split()
+            if len(words) <= 3:
+                hook_lines = ["سيادة صناعية استباقية", "ترصد الأعطال قبل وقوعها."]
+            else:
+                mid = len(words) // 2
+                hook_lines = [" ".join(words[:mid]), " ".join(words[mid:])]
+        if len(hook_lines) < 2:
+            hook_lines = ["سيادة صناعية استباقية", "ترصد الأعطال قبل وقوعها."]
+    else:
+        hook_lines = balance_lines(clean_hook, max_chars_per_line=22)
+        if len(hook_lines) == 1:
+            hook_lines = balance_lines(clean_hook, max_chars_per_line=16)
+        if len(hook_lines) < 2:
+            hook_lines = ["PREDICT ASSEMBLY", "FAILURES AT THE EDGE."]
+
+    f_hook_path = (FONTS_DIR / "Cairo-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-Bold.ttf")
+    hook_font_size = 70 if is_ar else 72
+    f_hook = ImageFont.truetype(str(f_hook_path), hook_font_size) if f_hook_path.exists() else ImageFont.load_default()
+
+    line_y_coords = [260, 350]
+    for idx, line in enumerate(hook_lines[:2]):
+        disp_line = prepare_bidi_text(line) if is_ar else line
+        l_bbox = draw.textbbox((0, 0), disp_line, font=f_hook)
+        lw = l_bbox[2] - l_bbox[0]
+        lx = (1008 - lw) if is_ar else 72
+        ly = line_y_coords[idx] if idx < len(line_y_coords) else 260 + idx * 90
+        text_color = lime_green if idx == 1 else white
+        draw.text((lx, ly), disp_line, font=f_hook, fill=text_color)
+
+    # 5. White 2.5D Product Spec Card (x = 72..1008, y = 580..910, width = 936px, height = 330px, radius = 16px)
+    card_x1 = 72
+    card_y1 = 580
+    card_w = 936
+    card_h = 330
+    card_x2 = card_x1 + card_w
+    card_y2 = card_y1 + card_h
+
+    # 5a. Drop Shadow (offset_y = +20px, blur = 18px, 45% black)
+    shadow_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    s_draw = ImageDraw.Draw(shadow_layer)
+    s_draw.rounded_rectangle(
+        [card_x1, card_y1 + 20, card_x2, card_y2 + 20],
+        radius=16,
+        fill=(0, 0, 0, 115)
+    )
+    shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(18))
+    canvas.alpha_composite(shadow_layer)
+    draw = ImageDraw.Draw(canvas)
+
+    # 5b. Local Card RGBA Layer with Supersampled Rounded-Corner Alpha Mask (radius = 16)
+    card_layer = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
+    c_draw = ImageDraw.Draw(card_layer)
+    c_draw.rectangle([0, 0, card_w, card_h], fill=(255, 255, 255, 255))
+
+    # Signature Lexnis Status Accent Bar (10px Tech Green + 4px Lime Green piping)
+    bar_w = 10
+    pipe_w = 4
+    if is_ar:
+        c_draw.rectangle([card_w - bar_w, 0, card_w, card_h], fill=tech_green + (255,))
+        c_draw.rectangle([card_w - bar_w - pipe_w, 0, card_w - bar_w, card_h], fill=lime_green + (255,))
+        content_margin_x = 44
+    else:
+        c_draw.rectangle([0, 0, bar_w, card_h], fill=tech_green + (255,))
+        c_draw.rectangle([bar_w, 0, bar_w + pipe_w, card_h], fill=lime_green + (255,))
+        content_margin_x = 44
+
+    # 5c. Subtle Oversized Lexnis Dual-Chevron Watermark (opacity = 5.5% blend)
+    wm_h = 180
+    wm_w = int(round(wm_h * (336.0 / 284.0)))
+    wm_dx = int(round((wm_h / 2.0) / math.tan(math.radians(52.0))))
+    wm_t = wm_w - wm_dx
+    wm_pitch = int(round(wm_h * (261.0 / 284.0)))
+    wm_total_w = wm_pitch + wm_w
+    wm_color = (241, 241, 243, 255)
+
+    if is_ar:
+        wm_x0 = 36
+        wm_y0 = card_h - wm_h + 20
+    else:
+        wm_x0 = card_w - wm_total_w - 24
+        wm_y0 = card_h - wm_h + 20
+
+    for p_offset in [0, wm_pitch]:
+        cx = wm_x0 + p_offset
+        pts = [
+            (cx, wm_y0),
+            (cx + wm_t, wm_y0),
+            (cx + wm_w, wm_y0 + wm_h / 2.0),
+            (cx + wm_t, wm_y0 + wm_h),
+            (cx, wm_y0 + wm_h),
+            (cx + wm_dx, wm_y0 + wm_h / 2.0)
+        ]
+        c_draw.polygon(pts, fill=wm_color)
+
+    # 2x supersampled mask to clip accent bar and watermark smoothly
+    mask_scale = 2
+    card_mask_hi = Image.new("L", (card_w * mask_scale, card_h * mask_scale), 0)
+    m_draw = ImageDraw.Draw(card_mask_hi)
+    m_draw.rounded_rectangle(
+        [0, 0, card_w * mask_scale - 1, card_h * mask_scale - 1],
+        radius=16 * mask_scale,
+        fill=255
+    )
+    card_mask = card_mask_hi.resize((card_w, card_h), Image.Resampling.LANCZOS)
+    card_layer.putalpha(card_mask)
+    canvas.paste(card_layer, (card_x1, card_y1), card_layer)
+    draw = ImageDraw.Draw(canvas)
+
+    # 5d. Row 1: Category Overline (card_y1 + 34px)
+    default_ovr = "الإصدار الرئيسي  //  الذكاء الاصطناعي الصناعي" if is_ar else "FLAGSHIP RELEASE  //  INDUSTRIAL EDGE AI"
+    sec_overline = category_overline or default_ovr
+    f_ovr_path = (FONTS_DIR / "Cairo-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-SemiBold.ttf")
+    ovr_size = 20 if is_ar else 18
+    f_ovr = ImageFont.truetype(str(f_ovr_path), ovr_size) if f_ovr_path.exists() else ImageFont.load_default()
+    disp_ovr = prepare_bidi_text(sec_overline) if is_ar else sec_overline
+    ovr_bbox = draw.textbbox((0, 0), disp_ovr, font=f_ovr)
+    ovr_w = ovr_bbox[2] - ovr_bbox[0]
+    ovr_y = card_y1 + 34
+    if is_ar:
+        draw.text((card_x2 - content_margin_x - ovr_w, ovr_y), disp_ovr, font=f_ovr, fill=tech_green)
+    else:
+        draw.text((card_x1 + content_margin_x, ovr_y), disp_ovr, font=f_ovr, fill=tech_green)
+
+    # 5e. Row 2: Product Name (card_y1 + 74px) & Subtitle (card_y1 + 138px)
+    clean_pname = product_name or "Lexnis VisionAI™"
+    if brand_name:
+        clean_pname = re.sub(rf"^\s*{re.escape(brand_name)}\s*", "", clean_pname, flags=re.IGNORECASE).strip()
+    clean_pname = re.sub(r"^\s*lexnis(?:\s+technologies)?\s*", "", clean_pname, flags=re.IGNORECASE).strip()
+    if not clean_pname:
+        clean_pname = "VisionAI™"
+    if not clean_pname.startswith("Lexnis") and not is_ar:
+        clean_pname = f"Lexnis {clean_pname}"
+    elif is_ar and not ("لكسنس" in clean_pname or "Lexnis" in clean_pname):
+        clean_pname = f"نظام Lexnis {clean_pname}"
+
+    f_pname_path = (FONTS_DIR / "Cairo-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-Bold.ttf")
+    f_pname = ImageFont.truetype(str(f_pname_path), 46) if f_pname_path.exists() else ImageFont.load_default()
+
+    pname_disp = prepare_bidi_text(clean_pname) if is_ar else clean_pname
+    pn_bbox = draw.textbbox((0, 0), pname_disp, font=f_pname)
+    pn_w = pn_bbox[2] - pn_bbox[0]
+    pn_y = card_y1 + 74
+    pn_x = (card_x2 - content_margin_x - pn_w) if is_ar else (card_x1 + content_margin_x)
+    draw.text((pn_x, pn_y), pname_disp, font=f_pname, fill=dark_navy)
+
+    default_subt = "محرك الفحص البصري الذاتي والتنبؤ الفوري بالأعطال الصناعية" if is_ar else "Autonomous Real-Time Visual Inspection & Defect Prediction Engine"
+    clean_subt = product_subtitle or default_subt
+    f_subt_path = (FONTS_DIR / "Tajawal-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-Medium.ttf")
+    subt_size = 24 if is_ar else 22
+    f_subt = ImageFont.truetype(str(f_subt_path), subt_size) if f_subt_path.exists() else ImageFont.load_default()
+
+    subt_disp = prepare_bidi_text(clean_subt) if is_ar else clean_subt
+    st_bbox = draw.textbbox((0, 0), subt_disp, font=f_subt)
+    st_w = st_bbox[2] - st_bbox[0]
+    st_y = card_y1 + 138
+    st_x = (card_x2 - content_margin_x - st_w) if is_ar else (card_x1 + content_margin_x)
+    draw.text((st_x, st_y), subt_disp, font=f_subt, fill=slate_subtitle)
+
+    # 5f. Row 3: Hairline Divider (card_y1 + 215px)
+    divider_y = card_y1 + 215
+    div_x1 = card_x1 + 36
+    div_x2 = card_x2 - 36
+    draw.line([(div_x1, divider_y), (div_x2, divider_y)], fill=slate_border, width=1)
+
+    # 5g. Row 3: 3 Spec/Capability Chips (card_y1 + 240px)
+    chip_h = 44
+    chip_y = card_y1 + 240
+    total_avail_w = card_w - 72
+    chip_w = (total_avail_w - 2 * 16) // 3
+
+    if spec_chips and len(spec_chips) >= 3:
+        chips_data = spec_chips[:3]
+    else:
+        if is_ar:
+            chips_data = [
+                "تشغيل محلي آمن 100%",
+                "دقة كشف 99.4%",
+                "استجابة فورية < 8ms"
+            ]
+        else:
+            chips_data = [
+                "< 8ms Edge Latency",
+                "99.4% Defect Accuracy",
+                "100% On-Premise"
+            ]
+
+    f_chip_path = (FONTS_DIR / "Cairo-SemiBold.ttf") if is_ar else (FONTS_DIR / "Poppins-Medium.ttf")
+    chip_size = 17 if is_ar else 18
+    f_chip = ImageFont.truetype(str(f_chip_path), chip_size) if f_chip_path.exists() else ImageFont.load_default()
+
+    for c_idx, c_text in enumerate(chips_data):
+        cx1 = card_x1 + 36 + c_idx * (chip_w + 16)
+        cx2 = cx1 + chip_w
+        cy1 = chip_y
+        cy2 = cy1 + chip_h
+
+        draw.rounded_rectangle([cx1, cy1, cx2, cy2], radius=8, fill=chip_bg, outline=slate_border, width=1)
+
+        disp_ctext = prepare_bidi_text(c_text) if is_ar else c_text
+        c_bbox = draw.textbbox((0, 0), disp_ctext, font=f_chip)
+        cw = c_bbox[2] - c_bbox[0]
+        ch = c_bbox[3] - c_bbox[1]
+
+        bullet_r = 4
+        bullet_gap = 10
+        content_w = bullet_r * 2 + bullet_gap + cw
+
+        if is_ar:
+            start_x = cx1 + (chip_w - content_w) / 2.0
+            tx = start_x - c_bbox[0]
+            ty = cy1 + (chip_h - ch) / 2.0 - c_bbox[1] - 3  # -3px optical baseline lift
+            draw.text((tx, ty), disp_ctext, font=f_chip, fill=dark_navy)
+
+            bx = start_x + cw + bullet_gap + bullet_r
+            by = cy1 + chip_h / 2.0
+            draw.ellipse([bx - bullet_r, by - bullet_r, bx + bullet_r, by + bullet_r], fill=tech_green)
+        else:
+            start_x = cx1 + (chip_w - content_w) / 2.0
+            bx = start_x + bullet_r
+            by = cy1 + chip_h / 2.0
+            draw.ellipse([bx - bullet_r, by - bullet_r, bx + bullet_r, by + bullet_r], fill=tech_green)
+
+            tx = start_x + bullet_r * 2 + bullet_gap - c_bbox[0]
+            ty = cy1 + (chip_h - ch) / 2.0 - c_bbox[1]
+            draw.text((tx, ty), disp_ctext, font=f_chip, fill=dark_navy)
+
+    # 6. Bottom Value Prop Subcopy (y = 975)
+    default_subcopy = (
+        "توقف عن تسجيل الأعطال بعد حدوثها. تنبأ بها وامنعها فورياً على خط الإنتاج بكفاءة مطلقة."
+        if is_ar else
+        "Stop recording past assembly failures. Predict and prevent them instantly on your factory floor."
+    )
+    sub_str = subcopy or default_subcopy
+    sub_lines = balance_lines(sub_str, max_chars_per_line=50)[:2]
+    f_sub_path = (FONTS_DIR / "Tajawal-Medium.ttf") if is_ar else (FONTS_DIR / "Poppins-Medium.ttf")
+    f_sub = ImageFont.truetype(str(f_sub_path), 23) if f_sub_path.exists() else ImageFont.load_default()
+
+    sub_y = 975
+    for sline in sub_lines:
+        disp_sline = prepare_bidi_text(sline) if is_ar else sline
+        sb_bbox = draw.textbbox((0, 0), disp_sline, font=f_sub)
+        sw = sb_bbox[2] - sb_bbox[0]
+        sx = (1008 - sw) if is_ar else 72
+        draw.text((sx, sub_y), disp_sline, font=f_sub, fill=soft_white)
+        sub_y += 34
+
+    # 7. High-Contrast CTA Button (y = 1105, height = 68px, Lime Green #BCD755)
+    btn_h = 68
+    btn_y = 1105
+
+    f_btn_bold_path = (FONTS_DIR / "Cairo-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-Bold.ttf")
+    f_btn_bold = ImageFont.truetype(str(f_btn_bold_path), 22) if f_btn_bold_path.exists() else ImageFont.load_default()
+
+    f_btn_med_path = (FONTS_DIR / "Cairo-SemiBold.ttf") if is_ar else (FONTS_DIR / "Poppins-Medium.ttf")
+    f_btn_med = ImageFont.truetype(str(f_btn_med_path), 21) if f_btn_med_path.exists() else ImageFont.load_default()
+
+    left_lbl = cta_text or ("اطلب عرضاً تجريبياً" if is_ar else "REQUEST LIVE DEMO")
+    right_url = cta_url or "lexnis.com/visionai"
+
+    disp_llbl = prepare_bidi_text(left_lbl) if is_ar else left_lbl
+    disp_rurl = right_url
+
+    l_bbox = draw.textbbox((0, 0), disp_llbl, font=f_btn_bold)
+    lw = l_bbox[2] - l_bbox[0]
+    lh = l_bbox[3] - l_bbox[1]
+
+    r_bbox = draw.textbbox((0, 0), disp_rurl, font=f_btn_med)
+    rw = r_bbox[2] - r_bbox[0]
+    rh = r_bbox[3] - r_bbox[1]
+
+    badge_d = 36
+    spacing = 20
+    content_w = lw + spacing + badge_d + spacing + rw
+    pad_x = 38
+    btn_w = int(round(content_w + pad_x * 2))
+    btn_x = (1008 - btn_w) if is_ar else 72
+
+    draw.rounded_rectangle([btn_x, btn_y, btn_x + btn_w, btn_y + btn_h], radius=btn_h // 2, fill=lime_green)
+
+    badge_scale = 4
+    badge_hi = Image.new("RGBA", (badge_d * badge_scale, badge_d * badge_scale), (0, 0, 0, 0))
+    b_draw = ImageDraw.Draw(badge_hi)
+    b_draw.ellipse([0, 0, badge_d * badge_scale, badge_d * badge_scale], fill=dark_navy + (255,))
+
+    if is_ar:
+        pts = [(82, 46), (58, 72), (82, 98)]
+    else:
+        pts = [(62, 46), (86, 72), (62, 98)]
+    b_draw.line(pts, fill=lime_green + (255,), width=10, joint="miter")
+    badge_crisp = badge_hi.resize((badge_d, badge_d), Image.Resampling.LANCZOS)
+
+    inner_start_x = btn_x + pad_x
+
+    if is_ar:
+        t2_x = inner_start_x - r_bbox[0]
+        t2_y = btn_y + (btn_h - rh) / 2.0 - r_bbox[1]
+        draw.text((t2_x, t2_y), disp_rurl, font=f_btn_med, fill=dark_navy)
+
+        bx = inner_start_x + rw + spacing
+        by = btn_y + (btn_h - badge_d) / 2.0
+        canvas.paste(badge_crisp, (int(round(bx)), int(round(by))), badge_crisp)
+
+        t1_x = bx + badge_d + spacing - l_bbox[0]
+        t1_y = btn_y + (btn_h - lh) / 2.0 - l_bbox[1] - 3  # -3px optical baseline lift
+        draw.text((t1_x, t1_y), disp_llbl, font=f_btn_bold, fill=dark_navy)
+    else:
+        t1_x = inner_start_x - l_bbox[0]
+        t1_y = btn_y + (btn_h - lh) / 2.0 - l_bbox[1]
+        draw.text((t1_x, t1_y), disp_llbl, font=f_btn_bold, fill=dark_navy)
+
+        bx = inner_start_x + lw + spacing
+        by = btn_y + (btn_h - badge_d) / 2.0
+        canvas.paste(badge_crisp, (int(round(bx)), int(round(by))), badge_crisp)
+
+        t2_x = bx + badge_d + spacing - r_bbox[0]
+        t2_y = btn_y + (btn_h - rh) / 2.0 - r_bbox[1]
+        draw.text((t2_x, t2_y), disp_rurl, font=f_btn_med, fill=dark_navy)
+
+    return canvas.convert("RGB")
+
 
 
 def classify_template_and_subject(image_paths):

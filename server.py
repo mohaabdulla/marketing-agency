@@ -305,9 +305,9 @@ def generate_campaign_endpoint(req: GenerateRequest):
 
         # Resolve custom logo if provided
         logo_to_use = None
-        if getattr(req, "logo_path", None) and Path(req.logo_path).exists():
+        if req.logo_path and Path(req.logo_path).exists():
             logo_to_use = req.logo_path
-        elif getattr(req, "logo_url", None):
+        elif req.logo_url:
             p = render_path(req.logo_url)
             if p and Path(p).exists():
                 logo_to_use = str(p)
@@ -746,6 +746,7 @@ async def template_swap_endpoint(
     language: Optional[str] = Form("en"),
     headline_text: Optional[str] = Form(None),
     footer_text: Optional[str] = Form(None),
+    post_type: Optional[str] = Form("team_welcome"),
 ):
     """
     Autonomous Template Subject-Replacement & 2.5D Pop-Out Compositing Endpoint.
@@ -812,7 +813,7 @@ async def template_swap_endpoint(
             recolor_gradient = True
 
         brand_colors = None
-        final_tag = sanitize_brand_tag(brand_tag, brand_name)
+        final_tag = sanitize_brand_tag(brand_tag or "", brand_name)
         if company_url or "lexnis" in brand_name.lower():
             try:
                 studio = LexnisCampaignStudio()
@@ -820,7 +821,7 @@ async def template_swap_endpoint(
                 if dna:
                     brand_colors = dna.get("brand_colors")
                     if not brand_tag:
-                        final_tag = sanitize_brand_tag(dna.get("brand_tag"), brand_name)
+                        final_tag = sanitize_brand_tag(dna.get("brand_tag") or "", brand_name)
             except Exception:
                 pass
 
@@ -837,12 +838,13 @@ async def template_swap_endpoint(
             brand_name=brand_name,
             brand_tag=final_tag,
             brand_colors=brand_colors,
-            recolor_gradient=recolor_gradient,
+            recolor_gradient=bool(recolor_gradient),
             blueprint=bp_param,
-            language=language if language != "both" else "en",
+            language=language if language and language != "both" else "en",
             headline_text=headline_text,
             footer_text=footer_text,
-            logo_image=logo_image_param
+            logo_image=logo_image_param,
+            post_type=post_type or "team_welcome"
         )
         token = hashlib.sha1(f"swap_{time.time()}".encode()).hexdigest()[:12]
         out_filename = f"template_swap_{token}.jpg"
@@ -861,12 +863,13 @@ async def template_swap_endpoint(
                 brand_name=brand_name,
                 brand_tag=ar_tag,
                 brand_colors=brand_colors,
-                recolor_gradient=recolor_gradient,
+                recolor_gradient=bool(recolor_gradient),
                 blueprint=bp_param,
                 language="ar",
                 headline_text=headline_text if (language == "ar" and headline_text) else "مرحباً بك في فريقنا",
                 footer_text=footer_text if (language == "ar" and footer_text) else "نحن سعداء جداً بانضمامك إلى فريقنا!",
-                logo_image=logo_image_param
+                logo_image=logo_image_param,
+                post_type=post_type or "team_welcome"
             )
             ar_filename = f"template_swap_{token}_ar.jpg"
             ar_path = RENDERS_DIR / ar_filename

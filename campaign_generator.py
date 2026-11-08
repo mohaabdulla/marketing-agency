@@ -484,13 +484,13 @@ def detect_featured_person(prompt: str, post_type: Optional[str] = None) -> Tupl
             return clean_role.title(), team_str
         return "Senior AI & ML Engineer", "Lexnis Core AI Lab · Hybrid"
 
-    if (post_type and 'product' in post_type.lower()) or 'launching' in p.lower() or 'introducing' in p.lower():
-        m_launch = re.search(r'(?:launching|introducing|announcing|unveiling)\s+(?:the\s+)?([^.,;\n]+?)(?:\s*(?:–|-|:|,|\bas\b)\s*([^.,;\n]+?))?(?:\.|\n|$)', p, re.IGNORECASE)
+    if (post_type and any(k in post_type.lower() for k in ['product', 'launch', 'announcement'])) or any(k in p.lower() for k in ['launching', 'introducing', 'predictive maintenance', 'visionai', 'sensor']):
+        m_launch = re.search(r'(?:launching|introducing|announcing|unveiling|launch for)\s+(?:the\s+)?([^.,;\n]+?)(?:\s*(?:–|-|:|,|\bas\b|\bwith\b)\s*([^.,;\n]+?))?(?:\.|\n|$)', p, re.IGNORECASE)
         if m_launch:
             prod_name = m_launch.group(1).strip()
-            cat_str = (m_launch.group(2) or "Next-Gen Enterprise Solution").strip()
+            cat_str = (m_launch.group(2) or "FLAGSHIP RELEASE  //  INDUSTRIAL EDGE AI").strip()
             return prod_name.title(), cat_str
-        return "Enterprise AI Platform", "Autonomous Enterprise Solutions"
+        return "Lexnis VisionAI™", "FLAGSHIP RELEASE  //  INDUSTRIAL EDGE AI"
 
     if post_type and 'milestone' in post_type.lower():
         return "Global Enterprise Milestone", "Excellence & Growth Award"
@@ -565,6 +565,25 @@ def generate_hiring_mission_hook(role: str, prompt: str, is_ar: bool = False) ->
         return "صمم تجارب رقمية\nتصنع الريادة العالمية." if is_ar else "DESIGN THE FUTURE\nOF INTELLIGENT APPS."
     else:
         return "هندسة وتطوير أنظمة\nالمستقبل الذكي." if is_ar else "ARCHITECT THE\nNEXT ERA OF AI."
+
+
+def generate_launch_mission_hook(product: str, prompt: str, is_ar: bool = False) -> str:
+    """
+    Generates an inspiring, punchy 2-line product launch hook (NEVER repeating the product name).
+    Always provides a balanced 2-line structure with 2-4 words per line for visual parity.
+    """
+    p_lower = (prompt or "").lower()
+    prod_lower = (product or "").lower()
+    if any(w in p_lower or w in prod_lower for w in ["failure", "predict", "defect", "assembly", "maintenance", "sensor", "vibration", "factory"]):
+        return "سيادة صناعية استباقية\nترصد الأعطال قبل وقوعها." if is_ar else "PREDICT ASSEMBLY\nFAILURES AT THE EDGE."
+    elif any(w in p_lower or w in prod_lower for w in ["vision", "inspection", "camera", "visual", "optical"]):
+        return "رؤية حاسوبية فائقة\nتسبق احتمالات الخطأ." if is_ar else "ZERO-LATENCY INDUSTRIAL\nVISION INTELLIGENCE."
+    elif any(w in p_lower or w in prod_lower for w in ["security", "cyber", "defense", "zero trust"]):
+        return "حماية سيادية مطلقة\nللبيئات المؤسسية الحساسة." if is_ar else "SOVEREIGN DEFENSE\nFOR CRITICAL INFRASTRUCTURE."
+    elif any(w in p_lower or w in prod_lower for w in ["data", "cloud", "platform", "edge"]):
+        return "معالجة بيانات فورية\nبأقل من 8 ميلي ثانية." if is_ar else "SUB-8MS REAL-TIME\nEDGE COMPUTING."
+    else:
+        return "سيادة صناعية استباقية\nترصد الأعطال قبل وقوعها." if is_ar else "PREDICT ASSEMBLY\nFAILURES AT THE EDGE."
 
 
 def detect_brand_and_product(prompt: str, current_brand: str = "") -> Tuple[str, str]:
@@ -3035,6 +3054,7 @@ class LexnisCampaignStudio:
             composite_template_swap,
             render_lexnis_executive_artboard,
             render_lexnis_hiring_card,
+            render_lexnis_launch_card,
             ARABIC_TITLES_MAP
         )
         t_file, s_file = classify_template_and_subject(candidate_images) if len(candidate_images) >= 2 else (None, None)
@@ -3387,6 +3407,151 @@ class LexnisCampaignStudio:
             uploaded_clean = clean_path
             uploaded_post_ar = post_ar_path
             has_uploaded_asset = True
+        elif (post_type in ("launch", "product_launch", "announcement", "product")) or \
+             ("launch" in (post_type or "").lower()) or \
+             ("product_launch" in (post_type or "").lower()) or \
+             ("product launch" in effective_prompt.lower()) or \
+             ("flagship release" in effective_prompt.lower()):
+            step("Rendering official Lexnis Brand System 1080x1350 product launch poster...")
+            # 1. Resolve custom corporate logo if provided
+            logo_to_use = None
+            if logo_path and Path(logo_path).exists():
+                logo_to_use = str(logo_path)
+            elif logo_url:
+                p_strip = Path(logo_url.lstrip("/\\"))
+                if p_strip.exists():
+                    logo_to_use = str(p_strip)
+                else:
+                    logo_to_use = logo_url
+            elif uploaded_image_paths:
+                for up in uploaded_image_paths:
+                    if "logo" in Path(up).name.lower() and Path(up).exists():
+                        logo_to_use = str(up)
+                        break
+            elif UPLOADS_DIR.exists():
+                logo_uploads = sorted(UPLOADS_DIR.glob("logo_*.*"), key=lambda f: f.stat().st_mtime, reverse=True)
+                if logo_uploads:
+                    logo_to_use = str(logo_uploads[0])
+
+            # 2. Extract and sanitize product name (Never concatenate brand name twice!)
+            raw_prod = person_name or ""
+            if not raw_prod:
+                m_prod = re.search(r'(?:product launch|launching|announcing|introducing|flagship release|new product:?|platform launch for)\s+([A-Za-z0-9 &™/-]+?)(?:\s+(?:for|delivering|with|in)\s+([^.\n]+?))?(?:\.|\n|$)', effective_prompt, re.IGNORECASE)
+                if m_prod:
+                    raw_prod = m_prod.group(1).strip()
+            if not raw_prod:
+                raw_prod = "Lexnis VisionAI™"
+
+            clean_prod = raw_prod
+            if brand:
+                clean_prod = re.sub(rf"^\s*{re.escape(brand)}\s*", "", clean_prod, flags=re.IGNORECASE).strip()
+            clean_prod = re.sub(r"^\s*lexnis(?:\s+technologies)?\s*", "", clean_prod, flags=re.IGNORECASE).strip()
+            clean_prod = re.sub(r"^(?:a|an)\s+", "", clean_prod, flags=re.IGNORECASE).strip()
+            if not clean_prod:
+                clean_prod = "VisionAI™"
+
+            prod_en = f"Lexnis {clean_prod}" if not clean_prod.startswith("Lexnis") else clean_prod
+            prod_ar = f"نظام {prod_en}"
+
+            # 3. Category Overline & Subtitle
+            raw_overline = person_title or ""
+            if not raw_overline or raw_overline in ("Next-Gen Autonomous Systems", "Marketing Manager", "Alisha Faisal", "Autonomous Enterprise Solutions"):
+                raw_overline = "FLAGSHIP RELEASE  //  INDUSTRIAL EDGE AI"
+            overline_en = raw_overline
+            overline_ar = "الإصدار الرئيسي  //  الذكاء الاصطناعي الصناعي"
+
+            subtitle_en = "Autonomous Real-Time Visual Inspection & Defect Prediction Engine"
+            subtitle_ar = "محرك الفحص البصري الذاتي والتنبؤ الفوري بالأعطال الصناعية"
+
+            # 4. Derive punchy 2-line launch hook (NEVER repeating product name)
+            raw_hook = headline or ""
+            if not raw_hook or (clean_prod.lower() in raw_hook.lower()) or raw_hook.upper() in {"LEXNIS", "LEXNIS TECHNOLOGIES", "PRODUCT LAUNCH", "NEW LAUNCH"}:
+                hook_en = generate_launch_mission_hook(prod_en, effective_prompt, is_ar=False)
+            else:
+                hook_en = re.sub(rf"^\s*{re.escape(brand)}\s*", "", raw_hook, flags=re.IGNORECASE).strip()
+                hook_en = re.sub(r"^\s*lexnis(?:\s+technologies)?\s*", "", hook_en, flags=re.IGNORECASE).strip()
+                if not hook_en or (clean_prod.lower() in hook_en.lower()) or hook_en.upper() in {"LEXNIS", "LEXNIS TECHNOLOGIES", "PRODUCT LAUNCH", "NEW LAUNCH"}:
+                    hook_en = generate_launch_mission_hook(prod_en, effective_prompt, is_ar=False)
+
+            subcopy_en = hook or caption or "Stop recording past assembly failures. Predict and prevent them instantly on your factory floor."
+            subcopy_en = subcopy_en.split("\n")[0][:140]
+
+            tag_to_use = brand_tag or "#LexnisLaunch"
+            tag_ar_to_use = "#لكسنس_تبتكر"
+
+            # 5. Transcreate Arabic copy concurrently
+            arabic_pack = self.transcreate_to_arabic(en_pack, brand=brand, visual_analysis="Product Launch campaign", guidelines=distilled_gl)
+
+            raw_ar_hook = arabic_pack.get("visual_headline") or ""
+            if not raw_ar_hook or "لكسنس" in raw_ar_hook or (clean_prod.lower() in raw_ar_hook.lower()) or "\n" not in raw_ar_hook:
+                hook_ar = generate_launch_mission_hook(prod_en, effective_prompt, is_ar=True)
+            else:
+                hook_ar = re.sub(r"^\s*لكسنس\s*", "", raw_ar_hook).strip()
+                if not hook_ar or "\n" not in hook_ar:
+                    hook_ar = generate_launch_mission_hook(prod_en, effective_prompt, is_ar=True)
+
+            subcopy_ar = arabic_pack.get("visual_tagline") or "توقف عن تسجيل الأعطال بعد حدوثها. تنبأ بها وامنعها فورياً على خط الإنتاج بكفاءة مطلقة."
+
+            chips_en = ["< 8ms Edge Latency", "99.4% Defect Accuracy", "100% On-Premise"]
+            chips_ar = ["استجابة فورية < 8ms", "دقة كشف 99.4%", "تشغيل محلي آمن 100%"]
+
+            base_bg = None
+            if uploaded_image_path and Path(uploaded_image_path).exists():
+                base_bg = uploaded_image_path
+
+            logo_key = Path(str(logo_to_use)).name if logo_to_use else "default_logo"
+            base_key = Path(str(base_bg)).name if base_bg else "no_bg"
+            l_key = hashlib.sha1(f"launch_v1_1080x1350|{prod_en}|{hook_en}|{brand}|{logo_key}|{base_key}".encode()).hexdigest()[:16]
+            clean_path = RENDERS_DIR / f"{l_key}_clean.jpg"
+            post_path = RENDERS_DIR / f"{l_key}_post.jpg"
+            post_ar_path = RENDERS_DIR / f"{l_key}_post_ar.jpg"
+
+            if not clean_path.exists() or not post_path.exists():
+                launch_en_img = render_lexnis_launch_card(
+                    product_name=prod_en,
+                    category_overline=overline_en,
+                    product_subtitle=subtitle_en,
+                    spec_chips=chips_en,
+                    hook_headline=hook_en,
+                    subcopy=subcopy_en,
+                    cta_text="REQUEST LIVE DEMO",
+                    cta_url="lexnis.com/visionai",
+                    language="en",
+                    brand_name=brand,
+                    brand_tag=tag_to_use,
+                    logo_image=logo_to_use,
+                    base_image=base_bg,
+                    target_size=(1080, 1350)
+                )
+                launch_en_img.save(clean_path, "JPEG", quality=95, optimize=True)
+                launch_en_img.save(post_path, "JPEG", quality=95, optimize=True)
+
+            if not post_ar_path.exists():
+                launch_ar_img = render_lexnis_launch_card(
+                    product_name=prod_ar,
+                    category_overline=overline_ar,
+                    product_subtitle=subtitle_ar,
+                    spec_chips=chips_ar,
+                    hook_headline=hook_ar,
+                    subcopy=subcopy_ar,
+                    cta_text="اطلب عرضاً تجريبياً",
+                    cta_url="lexnis.com/visionai",
+                    language="ar",
+                    brand_name=brand,
+                    brand_tag=tag_ar_to_use,
+                    logo_image=logo_to_use,
+                    base_image=base_bg,
+                    target_size=(1080, 1350)
+                )
+                launch_ar_img.save(post_ar_path, "JPEG", quality=95, optimize=True)
+
+            watermark_free = True
+            image_status = "ready"
+            arabic_post_path = post_ar_path
+            uploaded_post_en = post_path
+            uploaded_clean = clean_path
+            uploaded_post_ar = post_ar_path
+            has_uploaded_asset = True
         else:
             with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
                 render_future = executor.submit(
@@ -3423,9 +3588,15 @@ class LexnisCampaignStudio:
         ar_hl = arabic_pack.get("visual_headline") or arabic_pack.get("image_headline") or vm.get("visual_ar_headline") or "ريادة تتخطى الآفاق"
         ar_tl = arabic_pack.get("visual_tagline") or vm.get("visual_ar_tagline") or ""
 
-        # Render Arabic visual overlay for AI generated base (suppressed for template swap & hiring cards to preserve crisp brand typography)
+        # Render Arabic visual overlay for AI generated base (suppressed for template swap, hiring & launch cards to preserve crisp brand typography)
         is_hiring_mode = (post_type == "hiring") or ("hiring" in (post_type or "").lower()) or ("we are hiring" in effective_prompt.lower())
-        if (t_file and s_file) or is_hiring_mode:
+        is_launch_mode = (post_type in ("launch", "product_launch", "announcement", "product")) or \
+                         ("launch" in (post_type or "").lower()) or \
+                         ("product_launch" in (post_type or "").lower()) or \
+                         ("product launch" in effective_prompt.lower()) or \
+                         ("flagship release" in effective_prompt.lower())
+
+        if (t_file and s_file) or is_hiring_mode or is_launch_mode:
             arabic_post_path = post_ar_path
         elif clean_path and clean_path.exists() and not (t_file and s_file):
             ar_tag = hashlib.sha1(f"ad-v5-ar|{ar_hl}|{brand}|{ar_tl}".encode()).hexdigest()[:8]
@@ -3446,7 +3617,7 @@ class LexnisCampaignStudio:
         uploaded_post_ar = None
         uploaded_clean = None
 
-        if has_uploaded_asset and not (t_file and s_file) and not is_hiring_mode:
+        if has_uploaded_asset and not (t_file and s_file) and not is_hiring_mode and not is_launch_mode:
             step("Compositing campaign typography directly onto uploaded brand asset...")
             try:
                 up_res = self.render_image(
@@ -3461,11 +3632,18 @@ class LexnisCampaignStudio:
                 uploaded_post_ar = up_res[3] if len(up_res) > 3 else getattr(self, "last_arabic_post_path", None)
             except Exception:
                 pass
-        elif (t_file and s_file) or is_hiring_mode:
+        elif (t_file and s_file) or is_hiring_mode or is_launch_mode:
             uploaded_post_en = post_path
             uploaded_clean = clean_path
             uploaded_post_ar = post_ar_path
             has_uploaded_asset = True
+
+        if is_launch_mode and 'prod_en' in locals():
+            brief["product_name"] = locals()['prod_en']
+            if not brief.get("target_audience") or "customer" in str(brief.get("target_audience", "")).lower():
+                brief["target_audience"] = "Industrial plant directors, manufacturing CTOs & robotics engineers"
+            if not brief.get("core_hook_angle"):
+                brief["core_hook_angle"] = "Zero-downtime predictive edge defect interception"
 
         # Determine primary output visual
         ai_post_path = post_path
