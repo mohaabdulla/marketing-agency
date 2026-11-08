@@ -7,6 +7,7 @@ import json
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import Optional, Dict, Any, Tuple, List, Union
 from PIL import Image
 import numpy as np
 import cv2
@@ -202,8 +203,8 @@ def open_model_image(prompt, seed, model, width, height):
         raise RuntimeError("Select a supported open-weight image model.")
     if os.getenv("IMAGE_PROVIDER", "huggingface") == "local":
         try:
-            import torch
-            from diffusers import DiffusionPipeline
+            import torch  # type: ignore
+            from diffusers import DiffusionPipeline  # type: ignore
         except ImportError as exc:
             raise RuntimeError("Install requirements-local.txt to use local image models.") from exc
         if not torch.cuda.is_available():
@@ -230,7 +231,7 @@ def open_model_image(prompt, seed, model, width, height):
             raise RuntimeError("Set HF_TOKEN for hosted inference, or IMAGE_PROVIDER=local for free local weights. Hosted inference may require credits.")
         try:
             from huggingface_hub import InferenceClient
-            result = InferenceClient(provider=os.getenv("HF_PROVIDER", "auto"), api_key=token,
+            result = InferenceClient(provider=os.getenv("HF_PROVIDER", "auto"), api_key=token,  # type: ignore
                 timeout=120).text_to_image(prompt, model=model_id, width=width, height=height, seed=seed)
         except Exception as exc:
             # Provider exceptions may contain authorization headers. Do not expose them.
@@ -451,7 +452,7 @@ def prepare_bidi_text(text: str) -> str:
                 0xFE78: 0x064F, 0xFE7A: 0x0650, 0xFE7C: 0x0651, 0xFE7E: 0x0652
             }
             clean_chars = [chr(ISOLATED_ONLY_FALLBACK.get(ord(c), ord(c))) for c in reshaped]
-            return get_display(''.join(clean_chars))
+            return str(get_display(''.join(clean_chars)))
         except Exception:
             return text
     return text
@@ -526,8 +527,8 @@ def render_lexnis_logo(height: int = 28, is_dark_bg: bool = True) -> Image.Image
     pitch_hi = int(round(chev_h_hi * (261.0 / 284.0)))
 
     gap_hi = int(round(l_h * 0.70))
-    total_w_hi = text_w_hi + gap_hi + pitch_hi + chev_w_hi
-    total_h_hi = l_h
+    total_w_hi = int(round(text_w_hi + gap_hi + pitch_hi + chev_w_hi))
+    total_h_hi = int(round(l_h))
 
     logo_hi = Image.new('RGBA', (total_w_hi, total_h_hi), (0, 0, 0, 0))
     draw = ImageDraw.Draw(logo_hi)
@@ -959,16 +960,16 @@ def composite_template_swap(
     subject_image,
     target_size=(1080, 1350),
     affine_matrix=None,
-    person_name: str = None,
-    person_title: str = None,
-    brand_name: str = None,
-    brand_tag: str = None,
-    brand_colors: dict = None,
+    person_name: Optional[str] = None,
+    person_title: Optional[str] = None,
+    brand_name: Optional[str] = None,
+    brand_tag: Optional[str] = None,
+    brand_colors: Optional[dict] = None,
     recolor_gradient: bool = False,
     blueprint=None,
     language: str = "en",
-    headline_text: str = None,
-    footer_text: str = None,
+    headline_text: Optional[str] = None,
+    footer_text: Optional[str] = None,
     logo_image=None,
     post_type: str = "team_welcome"
 ):
@@ -1166,7 +1167,14 @@ def composite_template_swap(
         iw = fw - 2 * border_px
         lx = int(round(72 * (W / 1080.0)))
         ly = int(round(72 * (H / 1350.0)))
+        lw = int(round(128 * (W / 1080.0)))
+        lh = int(round(34 * (H / 1350.0)))
         margin_left_px = int(round(64 * (W / 1080.0)))
+        cb = [241.6818, -0.009064, -0.006122]
+        cg = [178.2014, -0.048905, -0.012118]
+        cr = [115.7357, -0.083097, -0.014215]
+        tag_box = [int(W - 200), int(72 * (H / 1350.0)), 150, 24]
+        tx_start, ty_start, tw, th = tag_box
     elif bp_dict and "elements" in bp_dict:
         elems = bp_dict.get("elements", {})
         pf = elems.get("polaroid_frame", {})
@@ -1256,6 +1264,9 @@ def composite_template_swap(
             hl_raw = headline_text or preset["headline_ar"]
             hl_str = prepare_bidi_text(hl_raw)
             max_ar_w = int(round(fw * 0.94))
+            font_hl = ImageFont.truetype(str(f_hl_path), font_hl_size) if f_hl_path.exists() else ImageFont.load_default()
+            bbox_hl = draw_hl.textbbox((0, 0), hl_str, font=font_hl)
+            hl_w = bbox_hl[2] - bbox_hl[0]
             while font_hl_size > 36:
                 font_hl = ImageFont.truetype(str(f_hl_path), font_hl_size) if f_hl_path.exists() else ImageFont.load_default()
                 bbox_hl = draw_hl.textbbox((0, 0), hl_str, font=font_hl)
@@ -1272,6 +1283,10 @@ def composite_template_swap(
             font_hl_size = int(round(120 * (H / 1350.0)))
             hl_text = (headline_text or preset["headline_en"]).upper()
             max_hl_w = int(round(fw * 0.92))
+            font_hl = ImageFont.truetype(str(f_hl_path), font_hl_size) if f_hl_path.exists() else ImageFont.load_default()
+            tracking = max(2, int(round(font_hl_size * 0.05)))
+            char_widths = [draw_hl.textbbox((0, 0), c, font=font_hl)[2] - draw_hl.textbbox((0, 0), c, font=font_hl)[0] for c in hl_text]
+            total_hl_w = sum(char_widths) + tracking * (len(hl_text) - 1)
 
             while font_hl_size > 44:
                 font_hl = ImageFont.truetype(str(f_hl_path), font_hl_size) if f_hl_path.exists() else ImageFont.load_default()
@@ -1360,6 +1375,8 @@ def composite_template_swap(
             y_name = int(round(36 * (H / 1350.0)))
 
             font_name_size = int(round(46 * (H / 1350.0)))
+            f_name = ImageFont.truetype(str(FONTS_DIR / "Cairo-Bold.ttf"), font_name_size)
+            bbox_n = draw_np.textbbox((0, 0), r_name, font=f_name)
             while font_name_size > 20:
                 f_name = ImageFont.truetype(str(FONTS_DIR / "Cairo-Bold.ttf"), font_name_size)
                 bbox_n = draw_np.textbbox((0, 0), r_name, font=f_name)
@@ -1378,6 +1395,8 @@ def composite_template_swap(
             font_role_size = int(round(22 * (H / 1350.0)))
             tajawal_p = FONTS_DIR / "Tajawal-Medium.ttf"
             f_role_path = str(tajawal_p if tajawal_p.exists() else FONTS_DIR / "Cairo-SemiBold.ttf")
+            f_role = ImageFont.truetype(f_role_path, font_role_size)
+            bbox_r = draw_np.textbbox((0, 0), r_role, font=f_role)
             while font_role_size > 14:
                 f_role = ImageFont.truetype(f_role_path, font_role_size)
                 bbox_r = draw_np.textbbox((0, 0), r_role, font=f_role)
@@ -1399,6 +1418,8 @@ def composite_template_swap(
             y_name = int(round(36 * (H / 1350.0)))
 
             font_name_size = int(round(46 * (H / 1350.0)))
+            font_bold = ImageFont.truetype(str(FONTS_DIR / "Poppins-Bold.ttf"), font_name_size)
+            bbox_n = draw_np.textbbox((0, 0), clean_name, font=font_bold)
             while font_name_size > 20:
                 font_bold = ImageFont.truetype(str(FONTS_DIR / "Poppins-Bold.ttf"), font_name_size)
                 bbox_n = draw_np.textbbox((0, 0), clean_name, font=font_bold)
@@ -1416,6 +1437,8 @@ def composite_template_swap(
             role_text = (person_title or preset["role_en"]).strip()
             role_text = re.sub(r'^(?:a|an)\s+', '', role_text, flags=re.IGNORECASE).strip()
             font_role_size = int(round(22 * (H / 1350.0)))
+            font_role = ImageFont.truetype(str(FONTS_DIR / "Poppins-Medium.ttf"), font_role_size)
+            bbox_r = draw_np.textbbox((0, 0), role_text, font=font_role)
             while font_role_size > 14:
                 font_role = ImageFont.truetype(str(FONTS_DIR / "Poppins-Medium.ttf"), font_role_size)
                 bbox_r = draw_np.textbbox((0, 0), role_text, font=font_role)
@@ -1472,8 +1495,6 @@ def composite_template_swap(
         foot_w = bbox_foot[2] - bbox_foot[0]
         foot_y = fy + fh + int(round(44 * (H / 1350.0)))
         draw_top.text(((W - foot_w) // 2, foot_y), display_foot, font=f_foot, fill=(255, 255, 255))
-
-        return comp_pil
 
         return comp_pil
 
@@ -1654,10 +1675,10 @@ def render_reflowed_campaign_visual(
     person_title: str = "Marketing Manager",
     brand_name: str = "Lexnis Technologies",
     brand_tag: str = "#SekawanTeam",
-    brand_colors: dict = None,
-    headline_text: str = "WELCOME",
-    footer_text: str = "We are so excited to have you on our team!",
-    logo_image=None
+    brand_colors: Optional[Dict[str, Any]] = None,
+    headline_text: Optional[str] = "WELCOME",
+    footer_text: Optional[str] = "We are so excited to have you on our team!",
+    logo_image: Any = None
 ) -> Image.Image:
     """
     Adaptive Multi-Platform Campaign Visual Engine.
@@ -1680,6 +1701,8 @@ def render_reflowed_campaign_visual(
         W, H = int(target_format[0]), int(target_format[1])
     else:
         W, H = dim_map.get(target_format, (1080, 1350))
+
+    is_lexnis_mode = bool(brand_name and "lexnis" in brand_name.lower())
 
     # Parse blueprint
     bp_dict = {}
@@ -1750,8 +1773,10 @@ def render_reflowed_campaign_visual(
     draw = ImageDraw.Draw(pil_img)
 
     f_hl_size = int(H * 0.052)
-    font_bold_path = "C:/Windows/Fonts/segoeuib.ttf" if Path("C:/Windows/Fonts/segoeuib.ttf").exists() else None
-    font_reg_path = "C:/Windows/Fonts/segoeui.ttf" if Path("C:/Windows/Fonts/segoeui.ttf").exists() else None
+    f_bold_cand = FONTS_DIR / "Poppins-Bold.ttf"
+    f_reg_cand = FONTS_DIR / "Poppins-Regular.ttf"
+    font_bold_path = str(f_bold_cand) if f_bold_cand.exists() else ("C:/Windows/Fonts/segoeuib.ttf" if Path("C:/Windows/Fonts/segoeuib.ttf").exists() else None)
+    font_reg_path = str(f_reg_cand) if f_reg_cand.exists() else ("C:/Windows/Fonts/segoeui.ttf" if Path("C:/Windows/Fonts/segoeui.ttf").exists() else None)
 
     f_hl = ImageFont.truetype(font_bold_path, f_hl_size) if font_bold_path else ImageFont.load_default()
     hl_str = (headline_text or "WELCOME").upper()
@@ -1817,7 +1842,8 @@ def render_reflowed_campaign_visual(
 
     # Top-Left Logo / Mark
     f_logo = ImageFont.truetype(font_bold_path, int(H * 0.022)) if font_bold_path else ImageFont.load_default()
-    f_tag = ImageFont.truetype(font_reg_path or font_bold_path, int(H * 0.016)) if (font_reg_path or font_bold_path) else ImageFont.load_default()
+    tag_font_path = font_reg_path or font_bold_path
+    f_tag = ImageFont.truetype(tag_font_path, int(H * 0.016)) if tag_font_path else ImageFont.load_default()
 
     user_logo_pil = load_logo_pil(logo_image)
     if user_logo_pil is not None:
@@ -1896,16 +1922,13 @@ def render_reflowed_campaign_visual(
         draw_f.text((margin_l, ny + int(np_h * 0.70)), role_str, font=f_role, fill=blue_brand)
 
     # Footer Caption
-    f_footer = ImageFont.truetype(font_reg_path or font_bold_path, int(H * 0.016)) if (font_reg_path or font_bold_path) else ImageFont.load_default()
+    foot_font_path = font_reg_path or font_bold_path
+    f_footer = ImageFont.truetype(str(foot_font_path), int(H * 0.016)) if foot_font_path else ImageFont.load_default()
     foot_caption = footer_text or "We are so excited to have you on our team!"
     foot_w = draw_f.textbbox((0, 0), foot_caption, font=f_footer)[2]
     draw_f.text(((W - foot_w) // 2, fy + fh + int(H * 0.045)), foot_caption, font=f_footer, fill=(255, 255, 255))
 
     return pil_final
-
-    # Convert back to RGB PIL Image
-    result_rgb = cv2.cvtColor(composite, cv2.COLOR_BGR2RGB)
-    return Image.fromarray(result_rgb)
 
 
 def render_lexnis_executive_artboard(
@@ -2011,7 +2034,7 @@ def render_lexnis_executive_artboard(
 
     # Top Brand Header - Official Poppins Bold + Dual Right-Facing Geometric Chevrons
     logo_img = render_lexnis_logo(height=36, is_dark_bg=True)
-    img.paste(logo_img, (64, 52), logo_img)
+    pil_art.paste(logo_img, (64, 52), logo_img)
     draw.text((64, 100), "TECHNOLOGIES BAHRAIN · BRAND SYSTEM", font=font_tag, fill=lime_green)
     draw.text((W - 270, 60), "EXECUTIVE LEADERSHIP", font=font_tag, fill=lime_green)
 
@@ -2039,14 +2062,14 @@ def render_lexnis_executive_artboard(
 def render_lexnis_hiring_card(
     role_title: str = "Senior Machine Learning &\nVision Systems Engineer",
     team_location: str = "Manama, Bahrain  •  Full-Time  •  On-Site",
-    hook_headline: str = None,
-    subcopy: str = None,
+    hook_headline: Optional[str] = None,
+    subcopy: Optional[str] = None,
     language: str = "en",
     brand_name: str = "Lexnis Technologies",
-    brand_tag: str = None,
-    logo_image = None,
-    base_image = None,
-    target_size = (1080, 1350)
+    brand_tag: Optional[str] = None,
+    logo_image: Any = None,
+    base_image: Any = None,
+    target_size: Tuple[int, int] = (1080, 1350)
 ) -> Image.Image:
     """
     Renders official Lexnis Brand System 1080x1350 (4:5) recruitment poster at Senior Agency Art Director quality:

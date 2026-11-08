@@ -26,6 +26,8 @@ import sys
 import ast
 import json
 import math
+import time
+import shutil
 import random
 import base64
 import hashlib
@@ -34,6 +36,7 @@ import concurrent.futures
 from typing import Dict, Any, Optional, List, Tuple
 from pathlib import Path
 from dataclasses import dataclass, asdict, field
+from PIL import Image, ImageFont, ImageDraw, ImageOps, ImageFilter
 
 from visual_engine import OPEN_MODELS, FORMATS, photo_direction, open_model_image, compose_ad, cloudflare_image, LOCAL_MODEL, LOCAL_MODELS, preferred_local_model, local_image, RENDER_VERSION, sanitize_brand_tag
 
@@ -60,6 +63,7 @@ try:
     from openai import OpenAI
     HAS_OPENAI_LIB = True
 except ImportError:
+    OpenAI = None
     HAS_OPENAI_LIB = False
 
 # HTTP & Scraping libraries for free search
@@ -96,6 +100,8 @@ try:
     console = Console()
 except ImportError:
     console = None
+    Panel = None
+    Table = None
 
 
 # ==========================================
@@ -950,7 +956,7 @@ def prepare_bidi_text(text: str) -> str:
         try:
             import arabic_reshaper
             from bidi.algorithm import get_display
-            return get_display(arabic_reshaper.reshape(text))
+            return str(get_display(arabic_reshaper.reshape(text)))
         except Exception:
             return text
     return text
@@ -983,14 +989,16 @@ def _wrap(draw, text: str, font, max_width: int) -> List[str]:
 
 def _hex_to_rgb(color: str) -> Tuple[int, int, int]:
     color = color.lstrip("#")
-    return tuple(int(color[i:i + 2], 16) for i in (0, 2, 4))
+    r, g, b = (int(color[i:i + 2], 16) for i in (0, 2, 4))
+    return (r, g, b)
 
 
 def fit_cover(img, width: int = POST_WIDTH, height: int = POST_HEIGHT):
     """Resize + center-crop to exactly width x height."""
     img = img.convert("RGB")
     scale = max(width / img.width, height / img.height)
-    img = img.resize((round(img.width * scale), round(img.height * scale)), Image.LANCZOS)
+    resample = getattr(getattr(Image, "Resampling", Image), "LANCZOS", 3)
+    img = img.resize((round(img.width * scale), round(img.height * scale)), resample)  # type: ignore
     left, top = (img.width - width) // 2, (img.height - height) // 2
     return img.crop((left, top, left + width, top + height))
 
@@ -1125,11 +1133,11 @@ class LexnisCampaignStudio:
         """
         results: List[Dict[str, str]] = []
 
-        if HAS_GOOGLESEARCH:
+        if HAS_GOOGLESEARCH and googlesearch is not None:
             try:
                 def _do_search():
                     res = []
-                    for r in googlesearch.search(query, num_results=max_results, advanced=True):
+                    for r in googlesearch.search(query, num_results=max_results, advanced=True):  # type: ignore
                         res.append({
                             "title": getattr(r, "title", None) or query,
                             "url": getattr(r, "url", None) or "",
@@ -1186,6 +1194,8 @@ class LexnisCampaignStudio:
     def _search_bing(query: str, max_results: int) -> List[Dict[str, str]]:
         """Scrape Bing results (Google/DuckDuckGo often block scripted requests)."""
         import base64
+        if requests is None or BeautifulSoup is None:
+            return []
 
         resp = requests.get("https://www.bing.com/search", params={"q": query}, headers=BROWSER_HEADERS, timeout=8)
         resp.raise_for_status()
@@ -1195,7 +1205,7 @@ class LexnisCampaignStudio:
             link = item.select_one("h2 a")
             if not link or not link.get("href"):
                 continue
-            url = link["href"]
+            url = str(link["href"])
             # Bing sometimes wraps links as /ck/a?...&u=a1<base64 url>
             if "bing.com/ck/a" in url:
                 u = urllib.parse.parse_qs(urllib.parse.urlparse(url).query).get("u", [""])[0]
@@ -1231,7 +1241,7 @@ class LexnisCampaignStudio:
             for name in ("description", "og:description"):
                 meta = soup.find("meta", attrs={"name": name}) or soup.find("meta", attrs={"property": name})
                 if meta and meta.get("content"):
-                    chunks.append(meta["content"].strip())
+                    chunks.append(str(meta["content"]).strip())
                     break
             for el in soup.find_all(["h1", "h2", "h3", "p", "li"]):
                 txt = el.get_text(" ", strip=True)
@@ -1331,10 +1341,11 @@ class LexnisCampaignStudio:
                 if attempt == 1 or not wait or int(wait.group(1)) > 15:
                     raise
                 time.sleep(min(int(wait.group(1)) + 1, 15))
+        raise RuntimeError("Chat call failed after retries")
 
     def _chat_once(self, system_prompt: str, user_prompt: str, temperature: float, json_mode: bool) -> str:
-        messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
-        extra = {"response_format": {"type": "json_object"}} if json_mode else {}
+        messages: Any = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
+        extra: Any = {"response_format": {"type": "json_object"}} if json_mode else {}
 
         # Fallback models if using Gemini or Pollinations endpoint
         models_to_try = [self.model]
@@ -1350,15 +1361,15 @@ class LexnisCampaignStudio:
         last_exc = None
         for current_model in models_to_try:
             try:
-                if HAS_OPENAI_LIB:
+                if HAS_OPENAI_LIB and OpenAI is not None:
                     client = OpenAI(base_url=self.base_url, api_key=self.api_key, timeout=20.0)
                     try:
-                        resp = client.chat.completions.create(model=current_model, messages=messages, temperature=temperature, **extra)
+                        resp = client.chat.completions.create(model=current_model, messages=messages, temperature=temperature, **extra)  # type: ignore
                     except Exception as e:
                         if not extra or getattr(e, "status_code", None) not in (400, 422):
                             raise
                         # Some endpoints reject response_format; retry without extra
-                        resp = client.chat.completions.create(model=current_model, messages=messages, temperature=temperature)
+                        resp = client.chat.completions.create(model=current_model, messages=messages, temperature=temperature)  # type: ignore
                     content = resp.choices[0].message.content or ""
                     if content.strip():
                         return content
@@ -1811,7 +1822,7 @@ class LexnisCampaignStudio:
         )
 
         try:
-            guidelines_text = self._chat_text(sys_prompt, user_prompt, temperature=0.7)
+            guidelines_text = self._chat(sys_prompt, user_prompt, temperature=0.7, json_mode=False)
             if guidelines_text and len(guidelines_text.strip()) > 200:
                 return guidelines_text.strip()
         except Exception:
@@ -1921,17 +1932,17 @@ class LexnisCampaignStudio:
                         scraped_title = soup.title.string.strip() if soup.title and soup.title.string else ""
                         meta_desc = soup.find("meta", attrs={"name": "description"}) or soup.find("meta", attrs={"property": "og:description"})
                         if meta_desc and meta_desc.get("content"):
-                            scraped_desc = meta_desc["content"].strip()
+                            scraped_desc = str(meta_desc["content"]).strip()
                         og_site = soup.find("meta", attrs={"property": "og:site_name"})
                         if og_site and og_site.get("content"):
-                            target_brand = og_site["content"].strip()
+                            target_brand = str(og_site["content"]).strip()
                         h1 = soup.find("h1")
                         if h1:
                             scraped_h1 = h1.get_text().strip()
 
                         # Extract font links
                         for link in soup.find_all("link", href=True):
-                            href = link["href"]
+                            href = str(link["href"])
                             if "fonts.googleapis.com" in href:
                                 m = re.search(r"family=([^&:]+)", href)
                                 if m:
@@ -2059,7 +2070,7 @@ class LexnisCampaignStudio:
 
         tag_match = re.search(r'#([A-Za-z0-9_]{3,30})', guidelines_text)
         raw_tag = f"#{tag_match.group(1)}" if tag_match else None
-        tag = sanitize_brand_tag(raw_tag, default_brand)
+        tag = sanitize_brand_tag(raw_tag or "", default_brand)
 
         return {
             "company_name": default_brand,
@@ -2759,7 +2770,14 @@ class LexnisCampaignStudio:
             small = im.resize((50, 50))
             colors = small.getcolors(2500) or []
             sorted_colors = sorted(colors, key=lambda c: c[0], reverse=True)
-            hex_colors = [f"#{c[1][0]:02x}{c[1][1]:02x}{c[1][2]:02x}" for c in sorted_colors[:6]]
+            hex_colors = []
+            for c in sorted_colors[:6]:
+                pix = c[1]
+                if isinstance(pix, (tuple, list)) and len(pix) >= 3:
+                    hex_colors.append(f"#{int(pix[0]):02x}{int(pix[1]):02x}{int(pix[2]):02x}")
+                elif isinstance(pix, (int, float)):
+                    v = int(pix)
+                    hex_colors.append(f"#{v:02x}{v:02x}{v:02x}")
 
             return (
                 f"BRAND VISUAL STYLE GUIDE & DIRECTIVES (Extracted from {clean_fname}):\n\n"
@@ -3035,6 +3053,10 @@ class LexnisCampaignStudio:
         elif t_file and not s_file and ref_subject.exists() and is_welcome_mode:
             s_file = ref_subject
 
+        # Outputs & localization tracking
+        post_ar_path: Optional[Path] = None
+        arabic_pack: Dict[str, Any] = {}
+
         # Determine featured person & corporate title
         if not person_name or not person_title:
             det_pname, det_ptitle = detect_featured_person(effective_prompt, post_type=post_type)
@@ -3056,7 +3078,7 @@ class LexnisCampaignStudio:
                 "gradient_start": "#131724",
                 "gradient_end": "#023024"
             }
-        brand_tag = sanitize_brand_tag(brand_tag, brand)
+        brand_tag = sanitize_brand_tag(brand_tag or "", brand)
 
         if t_file and s_file and (use_uploaded_image is not False):
             step(f"Executing autonomous 2.5D pop-out {post_type or 'campaign'} compositing...")
@@ -3432,7 +3454,7 @@ class LexnisCampaignStudio:
                     overlay=enhance_image, output_format=output_format, tagline=final_tagline,
                     arabic_headline=ar_hl,
                     arabic_tagline=ar_tl,
-                    base_image_path=Path(uploaded_image_path)
+                    base_image_path=Path(uploaded_image_path) if uploaded_image_path else None
                 )
                 uploaded_post_en = up_res[0]
                 uploaded_clean = up_res[1]
@@ -3688,8 +3710,8 @@ def run_cli():
     parser.add_argument("--outdir", default="output", help="Directory for exported assets")
     args = parser.parse_args()
 
-    if console:
-        console.print(Panel.fit(
+    if console and Panel and hasattr(Panel, "fit"):
+        console.print(Panel.fit(  # type: ignore
             "[bold cyan]LEXNIS CAMPAIGN STUDIO[/bold cyan] [dim]• AI Marketing Agency[/dim]\n"
             "[dim]Research → Brief → Copy → Watermark-free visual[/dim]",
             border_style="cyan"
@@ -3702,17 +3724,21 @@ def run_cli():
         prompt = ask(f"Product / campaign [{default_prompt}]: ").strip() or default_prompt
 
     studio = LexnisCampaignStudio()
-    kwargs = dict(
-        prompt=prompt, brand=args.brand, tone=args.tone, theme=args.theme,
-        output_format=args.format, use_search=not args.no_search, image_model=args.image_model, enhance_image=not args.no_overlay,
-    )
-    if console:
+    if console and Table and Panel:
         with console.status("[bold cyan]Working...", spinner="dots") as status:
-            asset = studio.generate_campaign(**kwargs, progress=lambda m: status.update(f"[bold cyan]{m}"))
+            asset = studio.generate_campaign(
+                prompt=prompt, brand=args.brand, tone=args.tone, theme=args.theme,
+                output_format=args.format, use_search=not args.no_search, image_model=args.image_model,
+                enhance_image=not args.no_overlay, progress=lambda m: status.update(f"[bold cyan]{m}")
+            )
     else:
-        asset = studio.generate_campaign(**kwargs, progress=print)
+        asset = studio.generate_campaign(
+            prompt=prompt, brand=args.brand, tone=args.tone, theme=args.theme,
+            output_format=args.format, use_search=not args.no_search, image_model=args.image_model,
+            enhance_image=not args.no_overlay, progress=print
+        )
 
-    if console:
+    if console and Table and Panel:
         console.print("\n[bold green]✓ Campaign ready[/bold green]\n")
         if asset.search_results:
             t = Table(title="Research sources", border_style="cyan")
@@ -3746,5 +3772,5 @@ def run_cli():
 
 if __name__ == "__main__":
     if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8")
+        getattr(sys.stdout, "reconfigure")(encoding="utf-8")
     run_cli()
