@@ -543,21 +543,22 @@ def generate_hiring_mission_hook(role: str, prompt: str, is_ar: bool = False) ->
     """
     Generates an inspiring, punchy 2-5 word recruitment mission hook (NEVER the job title).
     Enforces true Senior Agency Art Director copy hierarchy with zero redundancy.
+    Always provides a balanced 2-line structure with 2-3 words per line for visual parity.
     """
     r_lower = (role or "").lower()
     p_lower = (prompt or "").lower()
     if any(w in r_lower or w in p_lower for w in ["vision", "camera", "image", "perception"]):
-        return "اصنع مستقبل الرؤية\nالحاسوبية والذكاء." if is_ar else "BUILD AUTONOMOUS\nVISION SYSTEMS."
+        return "نبني الجيل القادم من\nأنظمة الرؤية الذكية." if is_ar else "BUILD AUTONOMOUS\nVISION SYSTEMS."
     elif any(w in r_lower or w in p_lower for w in ["machine learning", "ml", "ai", "deep learning", "neural"]):
-        return "اصنع مستقبل الذكاء\nالاصطناعي والرؤية." if is_ar else "ARCHITECT THE\nNEXT ERA OF AI."
+        return "نبني الجيل القادم من\nحلول الذكاء الاصطناعي." if is_ar else "ARCHITECT THE\nNEXT ERA OF AI."
     elif any(w in r_lower or w in p_lower for w in ["cyber", "security", "defense", "infosec"]):
-        return "قُد الدفاع السيبراني\nالمؤسسي المتقدم." if is_ar else "DEFEND THE NEXT\nDIGITAL FRONTIER."
+        return "قُد الدفاع السيبراني\nللمنظومات المتقدمة." if is_ar else "DEFEND THE NEXT\nDIGITAL FRONTIER."
     elif any(w in r_lower or w in p_lower for w in ["software", "backend", "full stack", "fullstack", "platform", "cloud", "devops"]):
-        return "ابنِ بنية رقمية\nمؤسسية للمستقبل." if is_ar else "SCALE NEXT-GEN\nENTERPRISE PLATFORMS."
+        return "ابنِ البنية الرقمية\nلمنظومات المستقبل." if is_ar else "SCALE NEXT-GEN\nENTERPRISE PLATFORMS."
     elif any(w in r_lower or w in p_lower for w in ["product", "design", "ux", "ui"]):
-        return "صمم تجارب رقمية\nتصنع الريادة." if is_ar else "DESIGN THE FUTURE\nOF INTELLIGENT APPS."
+        return "صمم تجارب رقمية\nتصنع الريادة العالمية." if is_ar else "DESIGN THE FUTURE\nOF INTELLIGENT APPS."
     else:
-        return "اصنع مستقبل الذكاء\nالاصطناعي والرؤية." if is_ar else "ARCHITECT THE\nNEXT ERA OF AI."
+        return "هندسة وتطوير أنظمة\nالمستقبل الذكي." if is_ar else "ARCHITECT THE\nNEXT ERA OF AI."
 
 
 def detect_brand_and_product(prompt: str, current_brand: str = "") -> Tuple[str, str]:
@@ -3306,11 +3307,11 @@ class LexnisCampaignStudio:
             team_ar = arabic_pack.get("team_location") or "المنامة، البحرين  •  دوام كامل  •  حضوري"
 
             raw_ar_hook = arabic_pack.get("visual_headline") or ""
-            if not raw_ar_hook or (role_ar and (role_ar in raw_ar_hook or raw_ar_hook in role_ar)) or "لكسنس" in raw_ar_hook or "وظائف" in raw_ar_hook:
+            if not raw_ar_hook or (role_ar and (role_ar in raw_ar_hook or raw_ar_hook in role_ar)) or "لكسنس" in raw_ar_hook or "وظائف" in raw_ar_hook or "\n" not in raw_ar_hook:
                 hook_ar = generate_hiring_mission_hook(role_en, effective_prompt, is_ar=True)
             else:
                 hook_ar = re.sub(r"^\s*لكسنس\s*", "", raw_ar_hook).strip()
-                if not hook_ar:
+                if not hook_ar or "\n" not in hook_ar:
                     hook_ar = generate_hiring_mission_hook(role_en, effective_prompt, is_ar=True)
 
             subcopy_ar = arabic_pack.get("visual_tagline") or "انتقل بنماذجك من التجربة إلى حافة الإنجاز الفوري. ابنِ أنظمة ذكية وتأسيسية من قلب المنامة."

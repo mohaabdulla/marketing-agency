@@ -911,6 +911,8 @@ def draw_optically_centered_pill(
 
     tx = x1 + (pw - tw) / 2.0 - bbox[0]
     ty = y1 + (ph - th) / 2.0 - bbox[1]
+    if is_ar or re.search(r"[\u0600-\u06FF]", text):
+        ty -= 3  # Optical baseline lift (-3px) for Arabic font metrics
 
     draw.text((tx, ty), disp, font=font, fill=text_color)
 
@@ -2064,6 +2066,7 @@ def render_lexnis_hiring_card(
     import cv2
     import numpy as np
     import re
+    import math
     from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
 
     ensure_brand_fonts()
@@ -2196,31 +2199,50 @@ def render_lexnis_hiring_card(
     clean_hook = sanitize_hook(hook_headline, role_title)
     if not clean_hook:
         if is_ar:
-            clean_hook = "اصنع مستقبل الذكاء\nالاصطناعي والرؤية"
+            clean_hook = "هندسة وتطوير أنظمة\nالمستقبل الذكي."
         else:
             clean_hook = "ARCHITECT THE\nNEXT ERA OF AI."
 
-    # Balance lines to guarantee ZERO single-word orphans!
-    hook_lines = balance_lines(clean_hook, max_chars_per_line=20)
-    if len(hook_lines) == 1:
-        hook_lines = balance_lines(clean_hook, max_chars_per_line=14)
+    if is_ar:
+        if "\n" in clean_hook:
+            hook_lines = [l.strip() for l in clean_hook.split("\n") if l.strip()][:2]
+        else:
+            words = clean_hook.split()
+            if len(words) <= 3:
+                if any(w in clean_hook for w in ["رؤية", "رؤيه"]):
+                    hook_lines = ["نبني الجيل القادم من", "أنظمة الرؤية الذكية."]
+                elif any(w in clean_hook for w in ["ذكاء", "آلة", "تعلم"]):
+                    hook_lines = ["نبني الجيل القادم من", "حلول الذكاء الاصطناعي."]
+                else:
+                    hook_lines = ["هندسة وتطوير أنظمة", "المستقبل الذكي."]
+            else:
+                mid = len(words) // 2
+                hook_lines = [" ".join(words[:mid]), " ".join(words[mid:])]
+        if len(hook_lines) == 1:
+            hook_lines.append("المستقبل الذكي.")
+    else:
+        # Balance lines to guarantee ZERO single-word orphans!
+        hook_lines = balance_lines(clean_hook, max_chars_per_line=20)
+        if len(hook_lines) == 1:
+            hook_lines = balance_lines(clean_hook, max_chars_per_line=14)
 
     f_hook_path = (FONTS_DIR / "Cairo-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-Bold.ttf")
     hook_font_size = 72 if is_ar else 74
     f_hook = ImageFont.truetype(str(f_hook_path), hook_font_size) if f_hook_path.exists() else ImageFont.load_default()
 
-    hook_y = eye_y + eye_h + 26
-    line_spacing = int(round(hook_font_size * 1.10))
+    # Exact art-director vertical positions: Line 1 at y = 265 (#FFFFFF), Line 2 at y = 355 (#BCD755)
+    line_y_coords = [265, 355]
 
     for idx, line in enumerate(hook_lines[:2]):
         disp_line = prepare_bidi_text(line) if is_ar else line
         l_bbox = draw.textbbox((0, 0), disp_line, font=f_hook)
         lw = l_bbox[2] - l_bbox[0]
         lx = (1008 - lw) if is_ar else 72
+        ly = line_y_coords[idx] if idx < len(line_y_coords) else 265 + idx * 90
 
         # Agency-grade color punch: Line 1 is Pure White (#FFFFFF), Line 2 is Lime Green (#BCD755)
         text_color = lime_green if idx == 1 else white
-        draw.text((lx, hook_y + idx * line_spacing), disp_line, font=f_hook, fill=text_color)
+        draw.text((lx, ly), disp_line, font=f_hook, fill=text_color)
 
     # 5. Layer 3: 2.5D Architectural Role Card (x = 72..1008, y = 660..980, height = 320px)
     card_x1 = 72
@@ -2249,20 +2271,72 @@ def render_lexnis_hiring_card(
     canvas.alpha_composite(shadow_layer)
     draw = ImageDraw.Draw(canvas)
 
-    # 5b. White Architectural Spec Card
-    draw.rounded_rectangle([card_x1, card_y1, card_x2, card_y2], radius=16, fill=white)
+    # 5b. Local Card RGBA Layer with Rounded-Corner Alpha Mask (radius = 16)
+    card_layer = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
+    c_draw = ImageDraw.Draw(card_layer)
 
-    # 5c. Signature Lexnis Status Accent Bar (10px Tech Green + 3px Lime Green piping)
+    # Base white fill
+    c_draw.rectangle([0, 0, card_w, card_h], fill=(255, 255, 255, 255))
+
+    # Signature Lexnis Status Accent Bar (10px Tech Green + 4px Lime Green piping)
     bar_w = 10
-    pipe_w = 3
+    pipe_w = 4
     if is_ar:
-        draw.rectangle([card_x2 - bar_w, card_y1, card_x2, card_y2], fill=tech_green)
-        draw.rectangle([card_x2 - bar_w - pipe_w, card_y1, card_x2 - bar_w, card_y2], fill=lime_green)
+        c_draw.rectangle([card_w - bar_w, 0, card_w, card_h], fill=tech_green + (255,))
+        c_draw.rectangle([card_w - bar_w - pipe_w, 0, card_w - bar_w, card_h], fill=lime_green + (255,))
         content_margin_x = 44
     else:
-        draw.rectangle([card_x1, card_y1, card_x1 + bar_w, card_y2], fill=tech_green)
-        draw.rectangle([card_x1 + bar_w, card_y1, card_x1 + bar_w + pipe_w, card_y2], fill=lime_green)
+        c_draw.rectangle([0, 0, bar_w, card_h], fill=tech_green + (255,))
+        c_draw.rectangle([bar_w, 0, bar_w + pipe_w, card_h], fill=lime_green + (255,))
         content_margin_x = 44
+
+    # 5c. Subtle Oversized Lexnis Dual-Chevron Watermark (opacity = 5%, color #131724 over #FFFFFF)
+    # Tucked into opposite corner (bottom-right for EN, bottom-left for AR), clipped cleanly by card_mask
+    wm_h = 180
+    wm_w = int(round(wm_h * (336.0 / 284.0)))  # ~213px
+    wm_dx = int(round((wm_h / 2.0) / math.tan(math.radians(52.0))))  # ~70px
+    wm_t = wm_w - wm_dx  # ~143px
+    wm_pitch = int(round(wm_h * (261.0 / 284.0)))  # ~165px
+    wm_total_w = wm_pitch + wm_w  # ~378px
+    # Exact 5.5% subtle watermark blend of #131724 over #FFFFFF: (241, 241, 243)
+    wm_color = (241, 241, 243, 255)
+
+    if is_ar:
+        # Bottom-left corner for Arabic card
+        wm_x0 = 36
+        wm_y0 = card_h - wm_h + 20
+    else:
+        # Bottom-right corner for English card
+        wm_x0 = card_w - wm_total_w - 24
+        wm_y0 = card_h - wm_h + 20
+
+    for p_offset in [0, wm_pitch]:
+        cx = wm_x0 + p_offset
+        pts = [
+            (cx, wm_y0),
+            (cx + wm_t, wm_y0),
+            (cx + wm_w, wm_y0 + wm_h / 2.0),
+            (cx + wm_t, wm_y0 + wm_h),
+            (cx, wm_y0 + wm_h),
+            (cx + wm_dx, wm_y0 + wm_h / 2.0)
+        ]
+        c_draw.polygon(pts, fill=wm_color)
+
+    # Create 2x supersampled anti-aliased rounded-rectangle mask (card_mask) to clip accent bar & watermark smoothly
+    mask_scale = 2
+    card_mask_hi = Image.new("L", (card_w * mask_scale, card_h * mask_scale), 0)
+    m_draw = ImageDraw.Draw(card_mask_hi)
+    m_draw.rounded_rectangle(
+        [0, 0, card_w * mask_scale - 1, card_h * mask_scale - 1],
+        radius=16 * mask_scale,
+        fill=255
+    )
+    card_mask = card_mask_hi.resize((card_w, card_h), Image.Resampling.LANCZOS)
+    card_layer.putalpha(card_mask)
+
+    # Composite the clipped card layer onto the canvas
+    canvas.paste(card_layer, (card_x1, card_y1), card_layer)
+    draw = ImageDraw.Draw(canvas)
 
     # 5d. Tier 1: Category Status Label ("OPEN POSITION // AI & VISION ENGINEERING")
     sec_label = "الوظيفة الشاغرة  //  هندسة الذكاء الاصطناعي" if is_ar else "OPEN POSITION  //  AI & VISION ENGINEERING"
@@ -2356,7 +2430,7 @@ def render_lexnis_hiring_card(
         if is_ar:
             start_x = cx1 + (chip_w - content_w) / 2.0
             tx = start_x - c_bbox[0]
-            ty = cy1 + (chip_h - ch) / 2.0 - c_bbox[1]
+            ty = cy1 + (chip_h - ch) / 2.0 - c_bbox[1] - 3  # Optical baseline lift (-3px) for Arabic
             draw.text((tx, ty), disp_ctext, font=f_chip, fill=dark_navy)
 
             bx = start_x + cw + bullet_gap + bullet_r
@@ -2395,11 +2469,7 @@ def render_lexnis_hiring_card(
 
     # 7. Layer 5: High-Contrast Executive CTA Button (y = 1145, height = 68px, Lime Green #BCD755)
     btn_h = 68
-    btn_w = 540
     btn_y = 1145
-    btn_x = (1008 - btn_w) if is_ar else 72
-
-    draw.rounded_rectangle([btn_x, btn_y, btn_x + btn_w, btn_y + btn_h], radius=btn_h // 2, fill=lime_green)
 
     f_btn_bold_path = (FONTS_DIR / "Cairo-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-Bold.ttf")
     f_btn_bold = ImageFont.truetype(str(f_btn_bold_path), 22) if f_btn_bold_path.exists() else ImageFont.load_default()
@@ -2421,39 +2491,54 @@ def render_lexnis_hiring_card(
     rw = r_bbox[2] - r_bbox[0]
     rh = r_bbox[3] - r_bbox[1]
 
-    badge_d = 34
-    spacing = 18
-    total_inner_w = lw + spacing + badge_d + spacing + rw
-    inner_start_x = btn_x + (btn_w - total_inner_w) / 2.0
+    # Measure exact width: [cta_label] + 20px + [36px circle icon] + 20px + [url_label]
+    badge_d = 36
+    spacing = 20
+    content_w = lw + spacing + badge_d + spacing + rw
+    pad_x = 38
+    btn_w = int(round(content_w + pad_x * 2))  # Exactly 38px left and 38px right padding
+    btn_x = (1008 - btn_w) if is_ar else 72
+
+    draw.rounded_rectangle([btn_x, btn_y, btn_x + btn_w, btn_y + btn_h], radius=btn_h // 2, fill=lime_green)
+
+    # 4x Supersampled Crisp Vector Chevron Inside Circular Badge (diameter = 36px)
+    badge_scale = 4
+    badge_hi = Image.new("RGBA", (badge_d * badge_scale, badge_d * badge_scale), (0, 0, 0, 0))
+    b_draw = ImageDraw.Draw(badge_hi)
+    b_draw.ellipse([0, 0, badge_d * badge_scale, badge_d * badge_scale], fill=dark_navy + (255,))
+
+    # Vector chevron with 10px stroke (2.5px downscaled), pointing right for EN and left for AR
+    if is_ar:
+        pts = [(82, 46), (58, 72), (82, 98)]
+    else:
+        pts = [(62, 46), (86, 72), (62, 98)]
+    b_draw.line(pts, fill=lime_green + (255,), width=10, joint="miter")
+    badge_crisp = badge_hi.resize((badge_d, badge_d), Image.Resampling.LANCZOS)
+
+    inner_start_x = btn_x + pad_x
 
     if is_ar:
-        t1_x = inner_start_x + rw + spacing + badge_d + spacing - l_bbox[0]
-        t1_y = btn_y + (btn_h - lh) / 2.0 - l_bbox[1]
-        draw.text((t1_x, t1_y), disp_llbl, font=f_btn_bold, fill=dark_navy)
-
-        bx = inner_start_x + rw + spacing
-        by = btn_y + (btn_h - badge_d) / 2.0
-        draw.ellipse([bx, by, bx + badge_d, by + badge_d], fill=dark_navy)
-        f_chev = ImageFont.truetype(str(FONTS_DIR / "Cairo-Bold.ttf"), 18)
-        c_char = prepare_bidi_text("«")
-        cb = draw.textbbox((0, 0), c_char, font=f_chev)
-        draw.text((bx + (badge_d - (cb[2]-cb[0]))/2.0 - cb[0], by + (badge_d - (cb[3]-cb[1]))/2.0 - cb[1]), c_char, font=f_chev, fill=lime_green)
-
+        # In RTL layout: URL on left, then circle badge with left chevron, then "قدّم الآن" on right
         t2_x = inner_start_x - r_bbox[0]
         t2_y = btn_y + (btn_h - rh) / 2.0 - r_bbox[1]
         draw.text((t2_x, t2_y), disp_rurl, font=f_btn_med, fill=dark_navy)
+
+        bx = inner_start_x + rw + spacing
+        by = btn_y + (btn_h - badge_d) / 2.0
+        canvas.paste(badge_crisp, (int(round(bx)), int(round(by))), badge_crisp)
+
+        t1_x = bx + badge_d + spacing - l_bbox[0]
+        t1_y = btn_y + (btn_h - lh) / 2.0 - l_bbox[1] - 3  # Optical baseline lift (-3px) for Arabic
+        draw.text((t1_x, t1_y), disp_llbl, font=f_btn_bold, fill=dark_navy)
     else:
+        # In LTR layout: "APPLY NOW" on left, then circle badge with right chevron, then URL on right
         t1_x = inner_start_x - l_bbox[0]
         t1_y = btn_y + (btn_h - lh) / 2.0 - l_bbox[1]
         draw.text((t1_x, t1_y), disp_llbl, font=f_btn_bold, fill=dark_navy)
 
         bx = inner_start_x + lw + spacing
         by = btn_y + (btn_h - badge_d) / 2.0
-        draw.ellipse([bx, by, bx + badge_d, by + badge_d], fill=dark_navy)
-        f_chev = ImageFont.truetype(str(FONTS_DIR / "Poppins-Bold.ttf"), 16)
-        c_char = ">"
-        cb = draw.textbbox((0, 0), c_char, font=f_chev)
-        draw.text((bx + (badge_d - (cb[2]-cb[0]))/2.0 - cb[0] + 1, by + (badge_d - (cb[3]-cb[1]))/2.0 - cb[1]), c_char, font=f_chev, fill=lime_green)
+        canvas.paste(badge_crisp, (int(round(bx)), int(round(by))), badge_crisp)
 
         t2_x = bx + badge_d + spacing - r_bbox[0]
         t2_y = btn_y + (btn_h - rh) / 2.0 - r_bbox[1]
