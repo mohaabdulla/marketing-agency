@@ -32,13 +32,13 @@ def test_launch_and_hiring():
         spec_chips=["< 8ms Edge Latency", "99.4% Defect Accuracy", "100% On-Premise"],
         eyebrow_text="PRODUCT LAUNCH  •  NEW RELEASE",
         hook_headline="PREDICT ASSEMBLY\nFAILURES AT THE EDGE.",
-        subcopy="Stop recording past assembly failures. Predict and prevent them instantly on your factory floor.",
+        subcopy="Detect micro-defects on the assembly line in under 8ms—before they become costly recalls.",
         cta_text="REQUEST LIVE DEMO",
         cta_url="lexnis.com/visionai",
         language="en"
     )
     en_launch_path = out_dir / "unit_launch_en.jpg"
-    launch_en.save(en_launch_path, quality=95)
+    launch_en.save(en_launch_path, "JPEG", quality=98, subsampling=0)
     print(f"✓ Saved direct Launch EN card: {en_launch_path}")
     assert launch_en.size == (1080, 1350), f"Invalid size: {launch_en.size}"
 
@@ -46,16 +46,16 @@ def test_launch_and_hiring():
         product_name="نظام Lexnis VisionAI™",
         category_overline="الإصدار الرئيسي  //  الذكاء الاصطناعي الصناعي",
         product_subtitle="محرك الفحص البصري الذاتي والتنبؤ الفوري بالأعطال الصناعية",
-        spec_chips=["استجابة فورية < 8ms", "دقة كشف 99.4%", "تشغيل محلي آمن 100%"],
+        spec_chips=["استجابة فورية أقل من 8ms", "دقة كشف 99.4%", "تشغيل محلي آمن 100%"],
         eyebrow_text="إطلاق منتج جديد  •  حلول الذكاء الاصطناعي",
         hook_headline="سيادة صناعية استباقية\nترصد الأعطال قبل وقوعها.",
-        subcopy="توقف عن تسجيل الأعطال بعد حدوثها. تنبأ بها وامنعها فورياً على خط الإنتاج بكفاءة مطلقة.",
+        subcopy="اكشف أدق عيوب التصنيع على خط الإنتاج في أقل من 8 ملي ثانية قبل تحولها إلى توقفات مكلفة.",
         cta_text="اطلب عرضاً تجريبياً",
         cta_url="lexnis.com/visionai",
         language="ar"
     )
     ar_launch_path = out_dir / "unit_launch_ar.jpg"
-    launch_ar.save(ar_launch_path, quality=95)
+    launch_ar.save(ar_launch_path, "JPEG", quality=98, subsampling=0)
     print(f"✓ Saved direct Launch AR card: {ar_launch_path}")
     assert launch_ar.size == (1080, 1350), f"Invalid size: {launch_ar.size}"
 
@@ -70,7 +70,7 @@ def test_launch_and_hiring():
         language="en"
     )
     en_hiring_path = out_dir / "unit_hiring_en.jpg"
-    hiring_en.save(en_hiring_path, quality=95)
+    hiring_en.save(en_hiring_path, "JPEG", quality=98, subsampling=0)
     print(f"✓ Saved direct Hiring EN card: {en_hiring_path}")
     assert hiring_en.size == (1080, 1350)
 
@@ -82,7 +82,7 @@ def test_launch_and_hiring():
         language="ar"
     )
     ar_hiring_path = out_dir / "unit_hiring_ar.jpg"
-    hiring_ar.save(ar_hiring_path, quality=95)
+    hiring_ar.save(ar_hiring_path, "JPEG", quality=98, subsampling=0)
     print(f"✓ Saved direct Hiring AR card: {ar_hiring_path}")
     assert hiring_ar.size == (1080, 1350)
 
@@ -136,10 +136,10 @@ def test_launch_and_hiring():
     launch_arr = np.array(launch_en)
     hiring_arr = np.array(hiring_en)
     
-    # Check that (72, 580) in launch_arr is part of the background gradient, NOT white or green
-    c_pixel = launch_arr[580, 72] # [R, G, B]
-    print(f"Launch Card Top-Left Corner pixel at (72, 580): RGB={c_pixel.tolist()}")
-    # The background at (72, 580) is dark navy/emerald (R < 50, G < 80, B < 60)
+    # Check that (72, 572) in launch_arr is part of the background gradient, NOT white or green
+    c_pixel = launch_arr[572, 72] # [R, G, B]
+    print(f"Launch Card Top-Left Corner pixel at (72, 572): RGB={c_pixel.tolist()}")
+    # The background at (72, 572) is dark navy/emerald (R < 50, G < 80, B < 60)
     assert c_pixel[0] < 80 and c_pixel[1] < 100, f"Corner was not smoothly clipped: RGB={c_pixel}"
     print("✓ Verified: Card accent bar corner is smoothly clipped by 16px rounded mask!")
 

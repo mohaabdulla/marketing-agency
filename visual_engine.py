@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple, List, Union
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
 import numpy as np
 import cv2
 
@@ -243,7 +243,7 @@ def open_model_image(prompt, seed, model, width, height):
 
 def compose_ad(image, headline="", brand="", tagline=""):
     """Restrained typography in reserved corners; supports English and Arabic text shaping."""
-    from PIL import Image, ImageDraw
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps, ImageDraw
     from campaign_generator import _load_font, _wrap, prepare_bidi_text, remove_watermark
     image = remove_watermark(image).convert("RGBA")
     width, height = image.size
@@ -311,7 +311,7 @@ def extract_subject_matte(subject_image, bg_color=None):
     """
     import cv2
     import numpy as np
-    from PIL import Image
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
     import rembg
 
     # Suppress cupy warning if present
@@ -493,7 +493,7 @@ def render_lexnis_logo(height: int = 28, is_dark_bg: bool = True) -> Image.Image
     - Total lockup width >= 165px
     - Supersampled 4x with Lanczos downscale for 100% anti-aliased crisp edges.
     """
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps, ImageDraw, ImageFont
     import math
     ensure_brand_fonts()
     font_path = FONTS_DIR / "Poppins-Bold.ttf"
@@ -641,7 +641,7 @@ def load_logo_pil(logo_input, is_dark_bg: bool = True):
     """
     if logo_input is None:
         return None
-    from PIL import Image
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
     import io
     from pathlib import Path
 
@@ -685,7 +685,7 @@ def generate_chevron_field(width: int, height: int, opacity: float = 0.12, strok
     Signature Gradient stops: #023024 -> #53B849.
     Alpha-blended at 12% opacity over dark substrate.
     """
-    from PIL import Image, ImageDraw
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps, ImageDraw
     import numpy as np
     import math
 
@@ -811,7 +811,7 @@ def generate_studio_emerald_spotlight(width: int, height: int, cx: int = 540, cy
     Creates rich agency depth behind hero headlines and status cards.
     """
     import numpy as np
-    from PIL import Image
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
 
     y_idx, x_idx = np.ogrid[:height, :width]
     dist_sq = (x_idx - cx) ** 2 + (y_idx - cy) ** 2
@@ -918,6 +918,149 @@ def draw_optically_centered_pill(
     draw.text((tx, ty), disp, font=font, fill=text_color)
 
 
+def render_lexnis_mesh_background(
+    width: int = 1080,
+    height: int = 1350,
+    with_chevrons: bool = True,
+    add_dither: bool = True
+) -> Image.Image:
+    """
+    Renders Section 02 & 04 Studio-Grade Mesh Background in Float32:
+    1. Multi-Stop Mesh Gradient: #0E131F (top-left) -> #07231C (center) -> #032D21 (bottom-right)
+       computed with smooth cosine S-curve interpolation.
+    2. Dual Ambient Light Sources:
+       - Soft radial emerald-lime key glow (#53B849 blended with #BCD755, peak alpha 0.16, radius 620px) at (540, 680)
+       - Subtle top-left brand glow (#53B849, peak alpha 0.08, radius 450px) at (260, 320)
+    3. Spatial Opacity Mask on Background Chevrons:
+       Peaks at 11% in upper-right / mid-canvas, smoothly fades to 3% behind hero headline (x < 450, y < 450)
+       and bottom edges (y > 1100).
+    4. Anti-Banding Film Grain:
+       Zero-mean Gaussian luminance noise (sigma = 1.6 RGB levels in float32) eliminating all 8-bit color banding.
+    Returns RGBA PIL Image (1080x1350).
+    """
+    import numpy as np
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
+
+    # 1. Float32 Multi-Stop Mesh Gradient
+    c_tl = np.array([14.0, 19.0, 31.0], dtype=np.float32)    # #0E131F
+    c_mid = np.array([7.0, 35.0, 28.0], dtype=np.float32)   # #07231C
+    c_br = np.array([3.0, 45.0, 33.0], dtype=np.float32)    # #032D21
+
+    y_grid, x_grid = np.mgrid[0:height, 0:width].astype(np.float32)
+    u = x_grid / float(width - 1)
+    v = y_grid / float(height - 1)
+    diag = np.clip((u + v) * 0.5, 0.0, 1.0)
+
+    # Smooth cosine S-curve transition
+    s1 = np.clip(diag / 0.5, 0.0, 1.0)
+    smooth1 = 0.5 * (1.0 - np.cos(s1 * np.pi))
+    seg1 = c_tl[None, None, :] * (1.0 - smooth1[:, :, None]) + c_mid[None, None, :] * smooth1[:, :, None]
+
+    s2 = np.clip((diag - 0.5) / 0.5, 0.0, 1.0)
+    smooth2 = 0.5 * (1.0 - np.cos(s2 * np.pi))
+    seg2 = c_mid[None, None, :] * (1.0 - smooth2[:, :, None]) + c_br[None, None, :] * smooth2[:, :, None]
+
+    bg_float = np.where(diag[:, :, None] <= 0.5, seg1, seg2)
+
+    # 2. Dual Ambient Light Sources
+    # Key glow at (540, 680), radius 620, peak alpha 0.16, color #53B849 blended with #BCD755 (125, 196, 78)
+    glow1_col = np.array([125.0, 196.0, 78.0], dtype=np.float32)
+    dist1 = np.sqrt((x_grid - 540.0) ** 2 + (y_grid - 680.0) ** 2)
+    norm1 = np.clip(dist1 / 620.0, 0.0, 1.0)
+    glow1 = 0.16 * np.clip(1.0 - norm1 ** 1.4, 0.0, 1.0)
+    bg_float = bg_float * (1.0 - glow1[:, :, None]) + glow1_col[None, None, :] * glow1[:, :, None]
+
+    # Top-left brand glow at (260, 320), radius 450, peak alpha 0.08, color #53B849 (83, 184, 73)
+    glow2_col = np.array([83.0, 184.0, 73.0], dtype=np.float32)
+    dist2 = np.sqrt((x_grid - 260.0) ** 2 + (y_grid - 320.0) ** 2)
+    norm2 = np.clip(dist2 / 450.0, 0.0, 1.0)
+    glow2 = 0.08 * np.clip(1.0 - norm2 ** 1.4, 0.0, 1.0)
+    bg_float = bg_float * (1.0 - glow2[:, :, None]) + glow2_col[None, None, :] * glow2[:, :, None]
+
+    # 3. Anti-banding film grain (sigma = 1.6 in float32)
+    if add_dither:
+        np.random.seed(42)
+        noise = np.random.normal(0.0, 1.6, (height, width, 1)).astype(np.float32)
+        bg_float = np.clip(bg_float + noise, 0.0, 255.0)
+
+    bg_im = Image.fromarray(bg_float.astype(np.uint8), "RGB").convert("RGBA")
+
+    # 4. Spatial Opacity Mask on Background Chevrons
+    if with_chevrons:
+        chev_raw = generate_chevron_field(width, height, opacity=1.0)
+        chev_arr = np.array(chev_raw)
+
+        hero_atten = np.clip((450.0 - x_grid) / 450.0, 0.0, 1.0) * np.clip((450.0 - y_grid) / 450.0, 0.0, 1.0)
+        bot_atten = np.clip((y_grid - 1100.0) / 250.0, 0.0, 1.0)
+
+        target_opacity = 0.11 - (0.11 - 0.03) * np.clip(hero_atten + bot_atten, 0.0, 1.0)
+        target_opacity = np.clip(target_opacity, 0.03, 0.11)
+
+        orig_alpha = chev_arr[:, :, 3].astype(np.float32) / 255.0
+        new_alpha = (orig_alpha * target_opacity * 255.0).clip(0, 255).astype(np.uint8)
+        chev_arr[:, :, 3] = new_alpha
+        masked_chev = Image.fromarray(chev_arr, "RGBA")
+        bg_im.alpha_composite(masked_chev)
+
+    return bg_im
+
+
+def draw_mixed_ar_en_title(
+    draw: ImageDraw.ImageDraw,
+    right_x: int,
+    y: int,
+    title: str,
+    dark_navy: Tuple[int, int, int] = (19, 23, 36),
+    fonts_dir: Optional[Path] = None
+) -> int:
+    """
+    Renders Arabic + Latin mixed brand title at senior art director quality:
+    - Splits Arabic prefix (e.g. 'نظام') and Latin product name (e.g. 'Lexnis VisionAI™').
+    - 'نظام' is rendered in Cairo-Bold.ttf (46px) on the right.
+    - 'Lexnis VisionAI' is rendered in Poppins-Bold.ttf (42px) immediately to its left (14px gap).
+    - Optically aligns Latin baseline by +6px.
+    Returns total rendered width in pixels.
+    """
+    import re
+    f_dir = fonts_dir or FONTS_DIR
+    f_cairo_path = f_dir / "Cairo-Bold.ttf"
+    f_poppins_path = f_dir / "Poppins-Bold.ttf"
+
+    f_cairo = ImageFont.truetype(str(f_cairo_path), 46) if f_cairo_path.exists() else ImageFont.load_default()
+    f_poppins = ImageFont.truetype(str(f_poppins_path), 42) if f_poppins_path.exists() else ImageFont.load_default()
+
+    clean_t = title.strip()
+    m = re.match(r"^([\u0600-\u06FF\s]+)(.+)$", clean_t)
+    if m:
+        ar_part = m.group(1).strip()
+        en_part = m.group(2).strip()
+
+        disp_ar = prepare_bidi_text(ar_part)
+        ar_bbox = draw.textbbox((0, 0), disp_ar, font=f_cairo)
+        ar_w = ar_bbox[2] - ar_bbox[0]
+
+        en_bbox = draw.textbbox((0, 0), en_part, font=f_poppins)
+        en_w = en_bbox[2] - en_bbox[0]
+
+        gap = 14
+        total_w = ar_w + gap + en_w
+
+        ar_x = right_x - ar_w
+        en_x = ar_x - gap - en_w
+
+        draw.text((ar_x, y), disp_ar, font=f_cairo, fill=dark_navy)
+        draw.text((en_x, y + 6), en_part, font=f_poppins, fill=dark_navy)
+        return int(round(total_w))
+    else:
+        is_ar_chars = bool(re.search(r"[\u0600-\u06FF]", clean_t))
+        font_to_use = f_cairo if is_ar_chars else f_poppins
+        disp = prepare_bidi_text(clean_t) if is_ar_chars else clean_t
+        bbox = draw.textbbox((0, 0), disp, font=font_to_use)
+        w = bbox[2] - bbox[0]
+        draw.text((right_x - w, y), disp, font=font_to_use, fill=dark_navy)
+        return int(round(w))
+
+
 ARABIC_TITLES_MAP = {
     "marketing manager": "مديرة التسويق",
     "chief of business development department": "رئيس قسم تطوير الأعمال",
@@ -994,7 +1137,7 @@ def composite_template_swap(
     import cv2
     import numpy as np
     import re
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps, ImageDraw, ImageFont
 
     POST_TYPE_PRESETS = {
         "team_welcome": {
@@ -1030,8 +1173,8 @@ def composite_template_swap(
             "role_ar": "حلول مؤسسية متقدمة",
             "footer_en": "Accelerate enterprise innovation · discover at lexnis.com",
             "footer_ar": "سرّع وتيرة الابتكار المؤسسي · اكتشف المزيد عبر lexnis.com",
-            "tag_en": "#LexnisInnovation",
-            "tag_ar": "#ابتكار_لكسنس",
+            "tag_en": "#LexnisAI",
+            "tag_ar": "#لكسنس_تبتكر",
         },
         "milestone_achievement": {
             "headline_en": "MILESTONE",
@@ -1109,8 +1252,13 @@ def composite_template_swap(
         headline_text = preset["headline_ar" if is_ar else "headline_en"]
     if not footer_text:
         footer_text = preset["footer_ar" if is_ar else "footer_en"]
-    if not brand_tag or brand_tag in ("#SekawanTeam", "#LexnisTeam", "#Ud3"):
-        brand_tag = preset["tag_ar" if is_ar else "tag_en"]
+    if not brand_tag or brand_tag in ("#SekawanTeam", "#LexnisTeam", "#Ud3", "#LexnisLaunch", "#LexnisCareers", "#LexnisInnovation"):
+        if pt_key in ("product_launch", "launch", "product", "announcement"):
+            brand_tag = "#لكسنس_تبتكر" if is_ar else "#LexnisAI"
+        elif pt_key in ("hiring", "careers", "recruitment"):
+            brand_tag = "#وظائف_لكسنس" if is_ar else "#LexnisCareers"
+        else:
+            brand_tag = preset["tag_ar" if is_ar else "tag_en"]
 
     if post_type != "team_welcome":
         if not person_name or person_name.strip() in ("Alisha Faisal", "Anyta Putri"):
@@ -1696,7 +1844,7 @@ def render_reflowed_campaign_visual(
     """
     import cv2
     import numpy as np
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps, ImageDraw, ImageFont
 
     dim_map = {
         "portrait": (1080, 1350),
@@ -1959,7 +2107,7 @@ def render_lexnis_executive_artboard(
     """
     import cv2
     import numpy as np
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps, ImageDraw, ImageFont
 
     W, H = target_size
     # 1. Depth Gradient background (#131724 -> #023024 at 135 degrees)
@@ -2096,7 +2244,7 @@ def render_lexnis_hiring_card(
     import numpy as np
     import re
     import math
-    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps, ImageDraw, ImageFont, ImageFilter, ImageOps
 
     ensure_brand_fonts()
     W, H = target_size
@@ -2112,10 +2260,8 @@ def render_lexnis_hiring_card(
     chip_bg = (241, 245, 249)       # #F1F5F9
     soft_white = (226, 232, 240)    # #E2E8F0
 
-    # 1. Background: 135° Depth Gradient + Optional 75% Tinted Base Image
-    bg_bgr = render_depth_gradient(W, H, "#131724", "#023024")
-    bg_gradient = Image.fromarray(cv2.cvtColor(bg_bgr, cv2.COLOR_BGR2RGB))
-    bg_rgba = bg_gradient.convert("RGBA")
+    # 1. Background: Studio-Grade Mesh Background + Dual Ambient Spotlights + Spatial Chevrons + Film Grain
+    bg_mesh = render_lexnis_mesh_background(W, H, with_chevrons=True, add_dither=True)
 
     if base_image:
         try:
@@ -2127,21 +2273,13 @@ def render_lexnis_hiring_card(
                 b_im = None
             if b_im:
                 b_fitted = ImageOps.fit(b_im, (W, H), method=Image.Resampling.LANCZOS)
-                canvas = Image.blend(b_fitted, bg_rgba, alpha=0.75)
+                canvas = Image.blend(b_fitted, bg_mesh, alpha=0.75)
             else:
-                canvas = bg_rgba
+                canvas = bg_mesh
         except Exception:
-            canvas = bg_rgba
+            canvas = bg_mesh
     else:
-        canvas = bg_rgba
-
-    # Add Studio Emerald Spotlight (behind hero & card)
-    spotlight = generate_studio_emerald_spotlight(W, H, cx=W // 2, cy=580, radius=620, max_alpha=36)
-    canvas.alpha_composite(spotlight)
-
-    # Add Authentic Thick Ribbon Chevron Field (11% opacity)
-    chev_field = generate_chevron_field(W, H, opacity=0.11)
-    canvas.alpha_composite(chev_field)
+        canvas = bg_mesh
 
     draw = ImageDraw.Draw(canvas)
 
@@ -2164,10 +2302,12 @@ def render_lexnis_hiring_card(
         official_logo = render_lexnis_logo(height=32, is_dark_bg=True)
         canvas.paste(official_logo, (72, 72), official_logo)
 
-    # 2b. Top-Right Hashtag
+    # 2b. Top-Right Hashtag (Strictly locked to #LexnisCareers / #وظائف_لكسنس for hiring)
     tag_str = brand_tag or ("#وظائف_لكسنس" if is_ar else "#LexnisCareers")
     if is_ar and not ("لكسنس" in tag_str or "#وظائف" in tag_str or "فريق" in tag_str):
         tag_str = "#وظائف_لكسنس"
+    elif not is_ar and tag_str in ("#LexnisTeam", "#LexnisAI", "#LexnisLaunch", "#SekawanTeam", "#Ud3"):
+        tag_str = "#LexnisCareers"
 
     f_tag_path = (FONTS_DIR / "Cairo-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-Medium.ttf")
     f_tag = ImageFont.truetype(str(f_tag_path), 22) if f_tag_path.exists() else ImageFont.load_default()
@@ -2176,7 +2316,7 @@ def render_lexnis_hiring_card(
     tag_w = tag_bbox[2] - tag_bbox[0]
     draw.text((1008 - tag_w, 78), disp_tag, font=f_tag, fill=lime_green)
 
-    # 3. Layer 1: Eyebrow Badge (The Category Signal)
+    # 3. Layer 1: Eyebrow Badge (Glass Pill)
     city = "MANAMA" if not is_ar else "المنامة"
     if team_location and ("bahrain" in team_location.lower() or "manama" in team_location.lower() or "المنامة" in team_location or "البحرين" in team_location):
         city = "MANAMA" if not is_ar else "المنامة"
@@ -2205,8 +2345,8 @@ def render_lexnis_hiring_card(
         (eye_x, eye_y, eye_x + eye_w, eye_y + eye_h),
         eyebrow_text,
         f_eye,
-        fill_color=(83, 184, 73, 46), # 18% Tech Green fill
-        outline_color=tech_green + (255,),
+        fill_color=(83, 184, 73, 31),        # rgba(83, 184, 73, 0.12) subtle dark emerald glass tint
+        outline_color=(83, 184, 73, 166),   # rgba(83, 184, 73, 0.65)
         outline_width=2,
         radius=eye_h // 2,
         text_color=lime_green,
@@ -2281,25 +2421,38 @@ def render_lexnis_hiring_card(
     card_x2 = card_x1 + card_w
     card_y2 = card_y1 + card_h
 
-    # 5a. Drop Shadow & Ambient Depth Layer
-    shadow_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    s_draw = ImageDraw.Draw(shadow_layer)
-    # Deep soft Gaussian drop shadow (offset_y = +20px, blur = 18px, 45% black)
-    s_draw.rounded_rectangle(
-        [card_x1, card_y1 + 20, card_x2, card_y2 + 20],
+    # 5a. Dual-Layer Drop Shadow & Ambient Depth
+    # Layer 2: Soft Diffused Elevation Shadow (offset = (0, 26), blur = 48px, rgba(4, 9, 15, 0.50))
+    shadow2 = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    s2_draw = ImageDraw.Draw(shadow2)
+    s2_draw.rounded_rectangle(
+        [card_x1, card_y1 + 26, card_x2, card_y2 + 26],
         radius=16,
-        fill=(0, 0, 0, 115)
+        fill=(4, 9, 15, 128)
     )
-    shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(18))
-    canvas.alpha_composite(shadow_layer)
+    shadow2 = shadow2.filter(ImageFilter.GaussianBlur(48))
+    canvas.alpha_composite(shadow2)
+
+    # Layer 1: Ambient Contact Shadow (offset = (0, 8), blur = 18px, rgba(7, 12, 20, 0.35))
+    shadow1 = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    s1_draw = ImageDraw.Draw(shadow1)
+    s1_draw.rounded_rectangle(
+        [card_x1, card_y1 + 8, card_x2, card_y2 + 8],
+        radius=16,
+        fill=(7, 12, 20, 89)
+    )
+    shadow1 = shadow1.filter(ImageFilter.GaussianBlur(18))
+    canvas.alpha_composite(shadow1)
     draw = ImageDraw.Draw(canvas)
 
-    # 5b. Local Card RGBA Layer with Rounded-Corner Alpha Mask (radius = 16)
-    card_layer = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
+    # 5b. Local Card RGBA Layer with Tactile Gradient (#FFFFFF top -> #F4F7F5 bottom)
+    y_grad = np.linspace(0.0, 1.0, card_h, dtype=np.float32)[:, None]
+    c_top = np.array([255, 255, 255], dtype=np.float32)
+    c_bot = np.array([244, 247, 245], dtype=np.float32)
+    card_arr = (c_top * (1.0 - y_grad) + c_bot * y_grad).astype(np.uint8)
+    card_rgb_2d = np.tile(card_arr[:, None, :], (1, card_w, 1))
+    card_layer = Image.fromarray(card_rgb_2d, "RGB").convert("RGBA")
     c_draw = ImageDraw.Draw(card_layer)
-
-    # Base white fill
-    c_draw.rectangle([0, 0, card_w, card_h], fill=(255, 255, 255, 255))
 
     # Signature Lexnis Status Accent Bar (10px Tech Green + 4px Lime Green piping)
     bar_w = 10
@@ -2313,23 +2466,19 @@ def render_lexnis_hiring_card(
         c_draw.rectangle([bar_w, 0, bar_w + pipe_w, card_h], fill=lime_green + (255,))
         content_margin_x = 44
 
-    # 5c. Subtle Oversized Lexnis Dual-Chevron Watermark (opacity = 5%, color #131724 over #FFFFFF)
-    # Tucked into opposite corner (bottom-right for EN, bottom-left for AR), clipped cleanly by card_mask
+    # 5c. Subtle Oversized Lexnis Dual-Chevron Watermark (softened to 3.5% opacity, alpha = 9)
     wm_h = 180
     wm_w = int(round(wm_h * (336.0 / 284.0)))  # ~213px
     wm_dx = int(round((wm_h / 2.0) / math.tan(math.radians(52.0))))  # ~70px
     wm_t = wm_w - wm_dx  # ~143px
     wm_pitch = int(round(wm_h * (261.0 / 284.0)))  # ~165px
     wm_total_w = wm_pitch + wm_w  # ~378px
-    # Exact 5.5% subtle watermark blend of #131724 over #FFFFFF: (241, 241, 243)
-    wm_color = (241, 241, 243, 255)
+    wm_color = (83, 184, 73, 9)
 
     if is_ar:
-        # Bottom-left corner for Arabic card
         wm_x0 = 36
         wm_y0 = card_h - wm_h + 20
     else:
-        # Bottom-right corner for English card
         wm_x0 = card_w - wm_total_w - 24
         wm_y0 = card_h - wm_h + 20
 
@@ -2345,7 +2494,11 @@ def render_lexnis_hiring_card(
         ]
         c_draw.polygon(pts, fill=wm_color)
 
-    # Create 2x supersampled anti-aliased rounded-rectangle mask (card_mask) to clip accent bar & watermark smoothly
+    # Inner perimeter border: 1.5px highlight & subtle shadow
+    c_draw.rounded_rectangle([0, 0, card_w - 1, card_h - 1], radius=16, outline=(255, 255, 255, 242), width=1)
+    c_draw.rounded_rectangle([1, 1, card_w - 2, card_h - 2], radius=15, outline=(19, 23, 36, 20), width=1)
+
+    # Create 2x supersampled anti-aliased rounded-rectangle mask (card_mask)
     mask_scale = 2
     card_mask_hi = Image.new("L", (card_w * mask_scale, card_h * mask_scale), 0)
     m_draw = ImageDraw.Draw(card_mask_hi)
@@ -2357,7 +2510,6 @@ def render_lexnis_hiring_card(
     card_mask = card_mask_hi.resize((card_w, card_h), Image.Resampling.LANCZOS)
     card_layer.putalpha(card_mask)
 
-    # Composite the clipped card layer onto the canvas
     canvas.paste(card_layer, (card_x1, card_y1), card_layer)
     draw = ImageDraw.Draw(canvas)
 
@@ -2433,22 +2585,39 @@ def render_lexnis_hiring_card(
     f_chip_path = (FONTS_DIR / "Cairo-SemiBold.ttf") if is_ar else (FONTS_DIR / "Poppins-Medium.ttf")
     f_chip = ImageFont.truetype(str(f_chip_path), 18) if f_chip_path.exists() else ImageFont.load_default()
 
+    chip_y_grad = np.linspace(0.0, 1.0, chip_h, dtype=np.float32)[:, None]
+    chip_c_top = np.array([248, 250, 252], dtype=np.float32)
+    chip_c_bot = np.array([239, 244, 241], dtype=np.float32)
+    chip_rgb = (chip_c_top * (1.0 - chip_y_grad) + chip_c_bot * chip_y_grad).astype(np.uint8)
+    chip_2d = np.tile(chip_rgb[:, None, :], (1, chip_w, 1))
+
     for c_idx, (c_text, c_type) in enumerate(chips_data):
         cx1 = card_x1 + 36 + c_idx * (chip_w + 16)
         cx2 = cx1 + chip_w
         cy1 = chip_y
         cy2 = cy1 + chip_h
 
-        draw.rounded_rectangle([cx1, cy1, cx2, cy2], radius=8, fill=chip_bg, outline=slate_border, width=1)
+        chip_surf = Image.fromarray(chip_2d, "RGB").convert("RGBA")
+        chip_mask = Image.new("L", (chip_w, chip_h), 0)
+        cm_draw = ImageDraw.Draw(chip_mask)
+        cm_draw.rounded_rectangle([0, 0, chip_w - 1, chip_h - 1], radius=8, fill=255)
+        chip_surf.putalpha(chip_mask)
+
+        cs_draw = ImageDraw.Draw(chip_surf)
+        cs_draw.rounded_rectangle([0, 0, chip_w - 1, chip_h - 1], radius=8, outline=(220, 229, 223, 255), width=1)
+        canvas.paste(chip_surf, (cx1, cy1), chip_surf)
+
+        draw = ImageDraw.Draw(canvas)
 
         disp_ctext = prepare_bidi_text(c_text) if is_ar else c_text
         c_bbox = draw.textbbox((0, 0), disp_ctext, font=f_chip)
         cw = c_bbox[2] - c_bbox[0]
         ch = c_bbox[3] - c_bbox[1]
 
-        bullet_r = 4
+        dot_halo_r = 7
+        dot_core_r = 4
         bullet_gap = 10
-        content_w = bullet_r * 2 + bullet_gap + cw
+        content_w = dot_halo_r * 2 + bullet_gap + cw
 
         if is_ar:
             start_x = cx1 + (chip_w - content_w) / 2.0
@@ -2456,16 +2625,18 @@ def render_lexnis_hiring_card(
             ty = cy1 + (chip_h - ch) / 2.0 - c_bbox[1] - 3  # Optical baseline lift (-3px) for Arabic
             draw.text((tx, ty), disp_ctext, font=f_chip, fill=dark_navy)
 
-            bx = start_x + cw + bullet_gap + bullet_r
+            bx = start_x + cw + bullet_gap + dot_halo_r
             by = cy1 + chip_h / 2.0
-            draw.ellipse([bx - bullet_r, by - bullet_r, bx + bullet_r, by + bullet_r], fill=tech_green)
+            draw.ellipse([bx - dot_halo_r, by - dot_halo_r, bx + dot_halo_r, by + dot_halo_r], fill=(83, 184, 73, 56))
+            draw.ellipse([bx - dot_core_r, by - dot_core_r, bx + dot_core_r, by + dot_core_r], fill=tech_green)
         else:
             start_x = cx1 + (chip_w - content_w) / 2.0
-            bx = start_x + bullet_r
+            bx = start_x + dot_halo_r
             by = cy1 + chip_h / 2.0
-            draw.ellipse([bx - bullet_r, by - bullet_r, bx + bullet_r, by + bullet_r], fill=tech_green)
+            draw.ellipse([bx - dot_halo_r, by - dot_halo_r, bx + dot_halo_r, by + dot_halo_r], fill=(83, 184, 73, 56))
+            draw.ellipse([bx - dot_core_r, by - dot_core_r, bx + dot_core_r, by + dot_core_r], fill=tech_green)
 
-            tx = start_x + bullet_r * 2 + bullet_gap - c_bbox[0]
+            tx = start_x + dot_halo_r * 2 + bullet_gap - c_bbox[0]
             ty = cy1 + (chip_h - ch) / 2.0 - c_bbox[1]
             draw.text((tx, ty), disp_ctext, font=f_chip, fill=dark_navy)
 
@@ -2607,7 +2778,7 @@ def render_lexnis_launch_card(
     import numpy as np
     import re
     import math
-    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps, ImageDraw, ImageFont, ImageFilter, ImageOps
 
     ensure_brand_fonts()
     W, H = target_size
@@ -2623,10 +2794,8 @@ def render_lexnis_launch_card(
     soft_white = (226, 232, 240)    # #E2E8F0
     slate_subtitle = (71, 85, 105)  # #475569
 
-    # 1. Background: 135° Depth Gradient + Optional 75% Tinted Base Image
-    bg_bgr = render_depth_gradient(W, H, "#131724", "#023024")
-    bg_gradient = Image.fromarray(cv2.cvtColor(bg_bgr, cv2.COLOR_BGR2RGB))
-    bg_rgba = bg_gradient.convert("RGBA")
+    # 1. Background: Studio-Grade Mesh Background + Dual Ambient Spotlights + Spatial Chevrons + Film Grain
+    bg_mesh = render_lexnis_mesh_background(W, H, with_chevrons=True, add_dither=True)
 
     if base_image:
         try:
@@ -2638,21 +2807,13 @@ def render_lexnis_launch_card(
                 b_im = None
             if b_im:
                 b_fitted = ImageOps.fit(b_im, (W, H), method=Image.Resampling.LANCZOS)
-                canvas = Image.blend(b_fitted, bg_rgba, alpha=0.75)
+                canvas = Image.blend(b_fitted, bg_mesh, alpha=0.75)
             else:
-                canvas = bg_rgba
+                canvas = bg_mesh
         except Exception:
-            canvas = bg_rgba
+            canvas = bg_mesh
     else:
-        canvas = bg_rgba
-
-    # Studio Emerald Spotlight (behind hero & card, cy = 580, radius = 620, max_alpha = 36)
-    spotlight = generate_studio_emerald_spotlight(W, H, cx=W // 2, cy=580, radius=620, max_alpha=36)
-    canvas.alpha_composite(spotlight)
-
-    # Authentic Thick Ribbon Chevron Field (11% opacity)
-    chev_field = generate_chevron_field(W, H, opacity=0.11)
-    canvas.alpha_composite(chev_field)
+        canvas = bg_mesh
 
     draw = ImageDraw.Draw(canvas)
 
@@ -2674,9 +2835,12 @@ def render_lexnis_launch_card(
         official_logo = render_lexnis_logo(height=32, is_dark_bg=True)
         canvas.paste(official_logo, (72, 72), official_logo)
 
-    tag_str = brand_tag or ("#لكسنس_تبتكر" if is_ar else "#LexnisLaunch")
-    if is_ar and not ("لكسنس" in tag_str or "#إطلاق" in tag_str or "ابتكار" in tag_str):
+    # Strict top-right hashtag governance: #LexnisAI (EN) and #لكسنس_تبتكر (AR)
+    tag_str = brand_tag or ("#لكسنس_تبتكر" if is_ar else "#LexnisAI")
+    if is_ar and not ("لكسنس" in tag_str or "#إطلاق" in tag_str or "ابتكار" in tag_str or "تبتكر" in tag_str):
         tag_str = "#لكسنس_تبتكر"
+    elif not is_ar and tag_str in ("#LexnisTeam", "#LexnisCareers", "#LexnisLaunch", "#SekawanTeam", "#Ud3"):
+        tag_str = "#LexnisAI"
 
     f_tag_path = (FONTS_DIR / "Cairo-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-Medium.ttf")
     f_tag = ImageFont.truetype(str(f_tag_path), 22) if f_tag_path.exists() else ImageFont.load_default()
@@ -2685,7 +2849,7 @@ def render_lexnis_launch_card(
     tag_w = tag_bbox[2] - tag_bbox[0]
     draw.text((1008 - tag_w, 78), disp_tag, font=f_tag, fill=lime_green)
 
-    # 3. Eyebrow Badge (y = 185px)
+    # 3. Eyebrow Badge (y = 185px) - Glass pill with emerald tint
     default_eye = "إطلاق منتج جديد  •  حلول الذكاء الاصطناعي" if is_ar else "PRODUCT LAUNCH  •  NEW RELEASE"
     cur_eyebrow = eyebrow_text or default_eye
 
@@ -2712,8 +2876,8 @@ def render_lexnis_launch_card(
         (eye_x, eye_y, eye_x + eye_w, eye_y + eye_h),
         cur_eyebrow,
         f_eye,
-        fill_color=(83, 184, 73, 46),
-        outline_color=tech_green + (255,),
+        fill_color=(83, 184, 73, 31),        # rgba(83, 184, 73, 0.12) subtle dark emerald glass tint
+        outline_color=(83, 184, 73, 166),   # rgba(83, 184, 73, 0.65)
         outline_width=2,
         radius=eye_h // 2,
         text_color=lime_green,
@@ -2771,30 +2935,46 @@ def render_lexnis_launch_card(
         text_color = lime_green if idx == 1 else white
         draw.text((lx, ly), disp_line, font=f_hook, fill=text_color)
 
-    # 5. White 2.5D Product Spec Card (x = 72..1008, y = 580..910, width = 936px, height = 330px, radius = 16px)
+    # 5. Tactile 2.5D Product Spec Card (card_y = 572, card_h = 348, width = 936px, radius = 16px)
     card_x1 = 72
-    card_y1 = 580
+    card_y1 = 572
     card_w = 936
-    card_h = 330
+    card_h = 348
     card_x2 = card_x1 + card_w
     card_y2 = card_y1 + card_h
 
-    # 5a. Drop Shadow (offset_y = +20px, blur = 18px, 45% black)
-    shadow_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    s_draw = ImageDraw.Draw(shadow_layer)
-    s_draw.rounded_rectangle(
-        [card_x1, card_y1 + 20, card_x2, card_y2 + 20],
+    # 5a. Dual-Layer Drop Shadow
+    # Layer 2: Soft Diffused Elevation Shadow (offset = (0, 26), blur = 48px, rgba(4, 9, 15, 0.50))
+    shadow2 = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    s2_draw = ImageDraw.Draw(shadow2)
+    s2_draw.rounded_rectangle(
+        [card_x1, card_y1 + 26, card_x2, card_y2 + 26],
         radius=16,
-        fill=(0, 0, 0, 115)
+        fill=(4, 9, 15, 128)
     )
-    shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(18))
-    canvas.alpha_composite(shadow_layer)
+    shadow2 = shadow2.filter(ImageFilter.GaussianBlur(48))
+    canvas.alpha_composite(shadow2)
+
+    # Layer 1: Ambient Contact Shadow (offset = (0, 8), blur = 18px, rgba(7, 12, 20, 0.35))
+    shadow1 = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    s1_draw = ImageDraw.Draw(shadow1)
+    s1_draw.rounded_rectangle(
+        [card_x1, card_y1 + 8, card_x2, card_y2 + 8],
+        radius=16,
+        fill=(7, 12, 20, 89)
+    )
+    shadow1 = shadow1.filter(ImageFilter.GaussianBlur(18))
+    canvas.alpha_composite(shadow1)
     draw = ImageDraw.Draw(canvas)
 
-    # 5b. Local Card RGBA Layer with Supersampled Rounded-Corner Alpha Mask (radius = 16)
-    card_layer = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
+    # 5b. Local Card RGBA Layer with Tactile Gradient (#FFFFFF top -> #F4F7F5 bottom)
+    y_grad = np.linspace(0.0, 1.0, card_h, dtype=np.float32)[:, None]
+    c_top = np.array([255, 255, 255], dtype=np.float32)
+    c_bot = np.array([244, 247, 245], dtype=np.float32)
+    card_arr = (c_top * (1.0 - y_grad) + c_bot * y_grad).astype(np.uint8)
+    card_rgb_2d = np.tile(card_arr[:, None, :], (1, card_w, 1))
+    card_layer = Image.fromarray(card_rgb_2d, "RGB").convert("RGBA")
     c_draw = ImageDraw.Draw(card_layer)
-    c_draw.rectangle([0, 0, card_w, card_h], fill=(255, 255, 255, 255))
 
     # Signature Lexnis Status Accent Bar (10px Tech Green + 4px Lime Green piping)
     bar_w = 10
@@ -2808,14 +2988,14 @@ def render_lexnis_launch_card(
         c_draw.rectangle([bar_w, 0, bar_w + pipe_w, card_h], fill=lime_green + (255,))
         content_margin_x = 44
 
-    # 5c. Subtle Oversized Lexnis Dual-Chevron Watermark (opacity = 5.5% blend)
+    # 5c. Subtle Oversized Lexnis Dual-Chevron Watermark (softened to 3.5% opacity, alpha = 9)
     wm_h = 180
     wm_w = int(round(wm_h * (336.0 / 284.0)))
     wm_dx = int(round((wm_h / 2.0) / math.tan(math.radians(52.0))))
     wm_t = wm_w - wm_dx
     wm_pitch = int(round(wm_h * (261.0 / 284.0)))
     wm_total_w = wm_pitch + wm_w
-    wm_color = (241, 241, 243, 255)
+    wm_color = (83, 184, 73, 9)
 
     if is_ar:
         wm_x0 = 36
@@ -2836,6 +3016,10 @@ def render_lexnis_launch_card(
         ]
         c_draw.polygon(pts, fill=wm_color)
 
+    # Inner perimeter border: 1.5px highlight & subtle shadow
+    c_draw.rounded_rectangle([0, 0, card_w - 1, card_h - 1], radius=16, outline=(255, 255, 255, 242), width=1)
+    c_draw.rounded_rectangle([1, 1, card_w - 2, card_h - 2], radius=15, outline=(19, 23, 36, 20), width=1)
+
     # 2x supersampled mask to clip accent bar and watermark smoothly
     mask_scale = 2
     card_mask_hi = Image.new("L", (card_w * mask_scale, card_h * mask_scale), 0)
@@ -2850,7 +3034,7 @@ def render_lexnis_launch_card(
     canvas.paste(card_layer, (card_x1, card_y1), card_layer)
     draw = ImageDraw.Draw(canvas)
 
-    # 5d. Row 1: Category Overline (card_y1 + 34px)
+    # 5d. Row 1: Category Overline (card_y1 + 30px)
     default_ovr = "الإصدار الرئيسي  //  الذكاء الاصطناعي الصناعي" if is_ar else "FLAGSHIP RELEASE  //  INDUSTRIAL EDGE AI"
     sec_overline = category_overline or default_ovr
     f_ovr_path = (FONTS_DIR / "Cairo-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-SemiBold.ttf")
@@ -2859,13 +3043,13 @@ def render_lexnis_launch_card(
     disp_ovr = prepare_bidi_text(sec_overline) if is_ar else sec_overline
     ovr_bbox = draw.textbbox((0, 0), disp_ovr, font=f_ovr)
     ovr_w = ovr_bbox[2] - ovr_bbox[0]
-    ovr_y = card_y1 + 34
+    ovr_y = card_y1 + 30
     if is_ar:
         draw.text((card_x2 - content_margin_x - ovr_w, ovr_y), disp_ovr, font=f_ovr, fill=tech_green)
     else:
         draw.text((card_x1 + content_margin_x, ovr_y), disp_ovr, font=f_ovr, fill=tech_green)
 
-    # 5e. Row 2: Product Name (card_y1 + 74px) & Subtitle (card_y1 + 138px)
+    # 5e. Row 2: Product Name (card_y1 + 68px) & Subtitle (card_y1 + 148px)
     clean_pname = product_name or "Lexnis VisionAI™"
     if brand_name:
         clean_pname = re.sub(rf"^\s*{re.escape(brand_name)}\s*", "", clean_pname, flags=re.IGNORECASE).strip()
@@ -2877,38 +3061,46 @@ def render_lexnis_launch_card(
     elif is_ar and not ("لكسنس" in clean_pname or "Lexnis" in clean_pname):
         clean_pname = f"نظام Lexnis {clean_pname}"
 
-    f_pname_path = (FONTS_DIR / "Cairo-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-Bold.ttf")
-    f_pname = ImageFont.truetype(str(f_pname_path), 46) if f_pname_path.exists() else ImageFont.load_default()
+    pn_y = card_y1 + 68
+    if is_ar:
+        # Mixed-Script rendering: "نظام" in Cairo-Bold (46px) + "Lexnis VisionAI" in Poppins-Bold (42px, +6px baseline)
+        draw_mixed_ar_en_title(
+            draw=draw,
+            right_x=card_x2 - content_margin_x,
+            y=pn_y,
+            title=clean_pname,
+            dark_navy=dark_navy,
+            fonts_dir=FONTS_DIR
+        )
+    else:
+        f_pname_path = FONTS_DIR / "Poppins-Bold.ttf"
+        f_pname = ImageFont.truetype(str(f_pname_path), 44) if f_pname_path.exists() else ImageFont.load_default()
+        pn_x = card_x1 + content_margin_x
+        draw.text((pn_x, pn_y), clean_pname, font=f_pname, fill=dark_navy)
 
-    pname_disp = prepare_bidi_text(clean_pname) if is_ar else clean_pname
-    pn_bbox = draw.textbbox((0, 0), pname_disp, font=f_pname)
-    pn_w = pn_bbox[2] - pn_bbox[0]
-    pn_y = card_y1 + 74
-    pn_x = (card_x2 - content_margin_x - pn_w) if is_ar else (card_x1 + content_margin_x)
-    draw.text((pn_x, pn_y), pname_disp, font=f_pname, fill=dark_navy)
-
+    # Subtitle positioned at card_y1 + 148px (giving full 80px vertical stride, preventing Arabic collisions!)
     default_subt = "محرك الفحص البصري الذاتي والتنبؤ الفوري بالأعطال الصناعية" if is_ar else "Autonomous Real-Time Visual Inspection & Defect Prediction Engine"
     clean_subt = product_subtitle or default_subt
     f_subt_path = (FONTS_DIR / "Tajawal-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-Medium.ttf")
-    subt_size = 24 if is_ar else 22
+    subt_size = 22
     f_subt = ImageFont.truetype(str(f_subt_path), subt_size) if f_subt_path.exists() else ImageFont.load_default()
 
     subt_disp = prepare_bidi_text(clean_subt) if is_ar else clean_subt
     st_bbox = draw.textbbox((0, 0), subt_disp, font=f_subt)
     st_w = st_bbox[2] - st_bbox[0]
-    st_y = card_y1 + 138
+    st_y = card_y1 + 148
     st_x = (card_x2 - content_margin_x - st_w) if is_ar else (card_x1 + content_margin_x)
     draw.text((st_x, st_y), subt_disp, font=f_subt, fill=slate_subtitle)
 
-    # 5f. Row 3: Hairline Divider (card_y1 + 215px)
-    divider_y = card_y1 + 215
+    # 5f. Row 3: Hairline Divider (card_y1 + 224px)
+    divider_y = card_y1 + 224
     div_x1 = card_x1 + 36
     div_x2 = card_x2 - 36
     draw.line([(div_x1, divider_y), (div_x2, divider_y)], fill=slate_border, width=1)
 
-    # 5g. Row 3: 3 Spec/Capability Chips (card_y1 + 240px)
-    chip_h = 44
-    chip_y = card_y1 + 240
+    # 5g. Row 3: 3 Spec/Capability Chips (card_y1 + 250px, chip_h = 56px)
+    chip_h = 56
+    chip_y = card_y1 + 250
     total_avail_w = card_w - 72
     chip_w = (total_avail_w - 2 * 16) // 3
 
@@ -2917,9 +3109,9 @@ def render_lexnis_launch_card(
     else:
         if is_ar:
             chips_data = [
-                "تشغيل محلي آمن 100%",
+                "استجابة فورية أقل من 8ms",
                 "دقة كشف 99.4%",
-                "استجابة فورية < 8ms"
+                "تشغيل محلي آمن 100%"
             ]
         else:
             chips_data = [
@@ -2932,22 +3124,39 @@ def render_lexnis_launch_card(
     chip_size = 17 if is_ar else 18
     f_chip = ImageFont.truetype(str(f_chip_path), chip_size) if f_chip_path.exists() else ImageFont.load_default()
 
+    chip_y_grad = np.linspace(0.0, 1.0, chip_h, dtype=np.float32)[:, None]
+    chip_c_top = np.array([248, 250, 252], dtype=np.float32)
+    chip_c_bot = np.array([239, 244, 241], dtype=np.float32)
+    chip_rgb = (chip_c_top * (1.0 - chip_y_grad) + chip_c_bot * chip_y_grad).astype(np.uint8)
+    chip_2d = np.tile(chip_rgb[:, None, :], (1, chip_w, 1))
+
     for c_idx, c_text in enumerate(chips_data):
         cx1 = card_x1 + 36 + c_idx * (chip_w + 16)
         cx2 = cx1 + chip_w
         cy1 = chip_y
         cy2 = cy1 + chip_h
 
-        draw.rounded_rectangle([cx1, cy1, cx2, cy2], radius=8, fill=chip_bg, outline=slate_border, width=1)
+        chip_surf = Image.fromarray(chip_2d, "RGB").convert("RGBA")
+        chip_mask = Image.new("L", (chip_w, chip_h), 0)
+        cm_draw = ImageDraw.Draw(chip_mask)
+        cm_draw.rounded_rectangle([0, 0, chip_w - 1, chip_h - 1], radius=8, fill=255)
+        chip_surf.putalpha(chip_mask)
+
+        cs_draw = ImageDraw.Draw(chip_surf)
+        cs_draw.rounded_rectangle([0, 0, chip_w - 1, chip_h - 1], radius=8, outline=(220, 229, 223, 255), width=1)
+        canvas.paste(chip_surf, (cx1, cy1), chip_surf)
+
+        draw = ImageDraw.Draw(canvas)
 
         disp_ctext = prepare_bidi_text(c_text) if is_ar else c_text
         c_bbox = draw.textbbox((0, 0), disp_ctext, font=f_chip)
         cw = c_bbox[2] - c_bbox[0]
         ch = c_bbox[3] - c_bbox[1]
 
-        bullet_r = 4
+        dot_halo_r = 7
+        dot_core_r = 4
         bullet_gap = 10
-        content_w = bullet_r * 2 + bullet_gap + cw
+        content_w = dot_halo_r * 2 + bullet_gap + cw
 
         if is_ar:
             start_x = cx1 + (chip_w - content_w) / 2.0
@@ -2955,26 +3164,33 @@ def render_lexnis_launch_card(
             ty = cy1 + (chip_h - ch) / 2.0 - c_bbox[1] - 3  # -3px optical baseline lift
             draw.text((tx, ty), disp_ctext, font=f_chip, fill=dark_navy)
 
-            bx = start_x + cw + bullet_gap + bullet_r
+            bx = start_x + cw + bullet_gap + dot_halo_r
             by = cy1 + chip_h / 2.0
-            draw.ellipse([bx - bullet_r, by - bullet_r, bx + bullet_r, by + bullet_r], fill=tech_green)
+            draw.ellipse([bx - dot_halo_r, by - dot_halo_r, bx + dot_halo_r, by + dot_halo_r], fill=(83, 184, 73, 56))
+            draw.ellipse([bx - dot_core_r, by - dot_core_r, bx + dot_core_r, by + dot_core_r], fill=tech_green)
         else:
             start_x = cx1 + (chip_w - content_w) / 2.0
-            bx = start_x + bullet_r
+            bx = start_x + dot_halo_r
             by = cy1 + chip_h / 2.0
-            draw.ellipse([bx - bullet_r, by - bullet_r, bx + bullet_r, by + bullet_r], fill=tech_green)
+            draw.ellipse([bx - dot_halo_r, by - dot_halo_r, bx + dot_halo_r, by + dot_halo_r], fill=(83, 184, 73, 56))
+            draw.ellipse([bx - dot_core_r, by - dot_core_r, bx + dot_core_r, by + dot_core_r], fill=tech_green)
 
-            tx = start_x + bullet_r * 2 + bullet_gap - c_bbox[0]
+            tx = start_x + dot_halo_r * 2 + bullet_gap - c_bbox[0]
             ty = cy1 + (chip_h - ch) / 2.0 - c_bbox[1]
             draw.text((tx, ty), disp_ctext, font=f_chip, fill=dark_navy)
 
-    # 6. Bottom Value Prop Subcopy (y = 975)
+    # 6. Bottom Value Prop Subcopy (y = 975) - Concrete Human B2B Engineering Copy
     default_subcopy = (
-        "توقف عن تسجيل الأعطال بعد حدوثها. تنبأ بها وامنعها فورياً على خط الإنتاج بكفاءة مطلقة."
+        "اكشف أدق عيوب التصنيع على خط الإنتاج في أقل من 8 ملي ثانية قبل تحولها إلى توقفات مكلفة."
         if is_ar else
-        "Stop recording past assembly failures. Predict and prevent them instantly on your factory floor."
+        "Detect micro-defects on the assembly line in under 8ms—before they become costly recalls."
     )
     sub_str = subcopy or default_subcopy
+    # Strict ban on abstract AI clichés
+    sub_lower = sub_str.lower()
+    if any(w in sub_lower for w in ["breakthrough", "yesterday", "recording past", "unprecedented", "reviewing", "لا يعرف المستحيل", "إنجازات اليوم"]):
+        sub_str = default_subcopy
+
     sub_lines = balance_lines(sub_str, max_chars_per_line=50)[:2]
     f_sub_path = (FONTS_DIR / "Tajawal-Medium.ttf") if is_ar else (FONTS_DIR / "Poppins-Medium.ttf")
     f_sub = ImageFont.truetype(str(f_sub_path), 23) if f_sub_path.exists() else ImageFont.load_default()

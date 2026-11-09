@@ -3382,8 +3382,8 @@ class LexnisCampaignStudio:
                     base_image=base_bg,
                     target_size=(1080, 1350)
                 )
-                hiring_en_img.save(clean_path, "JPEG", quality=95, optimize=True)
-                hiring_en_img.save(post_path, "JPEG", quality=95, optimize=True)
+                hiring_en_img.save(clean_path, "JPEG", quality=98, subsampling=0)
+                hiring_en_img.save(post_path, "JPEG", quality=98, subsampling=0)
 
             if not post_ar_path.exists():
                 hiring_ar_img = render_lexnis_hiring_card(
@@ -3398,7 +3398,7 @@ class LexnisCampaignStudio:
                     base_image=base_bg,
                     target_size=(1080, 1350)
                 )
-                hiring_ar_img.save(post_ar_path, "JPEG", quality=95, optimize=True)
+                hiring_ar_img.save(post_ar_path, "JPEG", quality=98, subsampling=0)
 
             watermark_free = True
             image_status = "ready"
@@ -3473,11 +3473,20 @@ class LexnisCampaignStudio:
                 if not hook_en or (clean_prod.lower() in hook_en.lower()) or hook_en.upper() in {"LEXNIS", "LEXNIS TECHNOLOGIES", "PRODUCT LAUNCH", "NEW LAUNCH"}:
                     hook_en = generate_launch_mission_hook(prod_en, effective_prompt, is_ar=False)
 
-            subcopy_en = hook or caption or "Stop recording past assembly failures. Predict and prevent them instantly on your factory floor."
+            default_launch_subcopy_en = "Detect micro-defects on the assembly line in under 8ms—before they become costly recalls."
+            default_launch_subcopy_ar = "اكشف أدق عيوب التصنيع على خط الإنتاج في أقل من 8 ملي ثانية قبل تحولها إلى توقفات مكلفة."
+
+            subcopy_en = hook or caption or default_launch_subcopy_en
+            sub_lower = subcopy_en.lower()
+            if any(w in sub_lower for w in ["breakthrough", "yesterday", "recording past", "unprecedented", "reviewing", "failures"]):
+                subcopy_en = default_launch_subcopy_en
             subcopy_en = subcopy_en.split("\n")[0][:140]
 
-            tag_to_use = brand_tag or "#LexnisLaunch"
+            # Enforce strict launch hashtags: #LexnisAI (EN) and #لكسنس_تبتكر (AR)
+            tag_to_use = "#LexnisAI"
             tag_ar_to_use = "#لكسنس_تبتكر"
+            if brand_tag and brand_tag not in ("#LexnisTeam", "#SekawanTeam", "#Ud3", "#LexnisLaunch", "#LexnisCareers", "#وظائف_لكسنس"):
+                tag_to_use = brand_tag
 
             # 5. Transcreate Arabic copy concurrently
             arabic_pack = self.transcreate_to_arabic(en_pack, brand=brand, visual_analysis="Product Launch campaign", guidelines=distilled_gl)
@@ -3490,10 +3499,12 @@ class LexnisCampaignStudio:
                 if not hook_ar or "\n" not in hook_ar:
                     hook_ar = generate_launch_mission_hook(prod_en, effective_prompt, is_ar=True)
 
-            subcopy_ar = arabic_pack.get("visual_tagline") or "توقف عن تسجيل الأعطال بعد حدوثها. تنبأ بها وامنعها فورياً على خط الإنتاج بكفاءة مطلقة."
+            subcopy_ar = arabic_pack.get("visual_tagline") or default_launch_subcopy_ar
+            if any(w in subcopy_ar for w in ["لا يعرف المستحيل", "إنجازات اليوم", "تسجيل الأعطال", "استبق", "الأعطال بعد حدوثها"]):
+                subcopy_ar = default_launch_subcopy_ar
 
             chips_en = ["< 8ms Edge Latency", "99.4% Defect Accuracy", "100% On-Premise"]
-            chips_ar = ["استجابة فورية < 8ms", "دقة كشف 99.4%", "تشغيل محلي آمن 100%"]
+            chips_ar = ["استجابة فورية أقل من 8ms", "دقة كشف 99.4%", "تشغيل محلي آمن 100%"]
 
             base_bg = None
             if uploaded_image_path and Path(uploaded_image_path).exists():
@@ -3501,7 +3512,7 @@ class LexnisCampaignStudio:
 
             logo_key = Path(str(logo_to_use)).name if logo_to_use else "default_logo"
             base_key = Path(str(base_bg)).name if base_bg else "no_bg"
-            l_key = hashlib.sha1(f"launch_v1_1080x1350|{prod_en}|{hook_en}|{brand}|{logo_key}|{base_key}".encode()).hexdigest()[:16]
+            l_key = hashlib.sha1(f"launch_v2_1080x1350|{prod_en}|{hook_en}|{brand}|{logo_key}|{base_key}".encode()).hexdigest()[:16]
             clean_path = RENDERS_DIR / f"{l_key}_clean.jpg"
             post_path = RENDERS_DIR / f"{l_key}_post.jpg"
             post_ar_path = RENDERS_DIR / f"{l_key}_post_ar.jpg"
@@ -3523,8 +3534,8 @@ class LexnisCampaignStudio:
                     base_image=base_bg,
                     target_size=(1080, 1350)
                 )
-                launch_en_img.save(clean_path, "JPEG", quality=95, optimize=True)
-                launch_en_img.save(post_path, "JPEG", quality=95, optimize=True)
+                launch_en_img.save(clean_path, "JPEG", quality=98, subsampling=0)
+                launch_en_img.save(post_path, "JPEG", quality=98, subsampling=0)
 
             if not post_ar_path.exists():
                 launch_ar_img = render_lexnis_launch_card(
@@ -3543,7 +3554,7 @@ class LexnisCampaignStudio:
                     base_image=base_bg,
                     target_size=(1080, 1350)
                 )
-                launch_ar_img.save(post_ar_path, "JPEG", quality=95, optimize=True)
+                launch_ar_img.save(post_ar_path, "JPEG", quality=98, subsampling=0)
 
             watermark_free = True
             image_status = "ready"
