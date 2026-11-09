@@ -3850,13 +3850,13 @@
         desc: 'Unveil software, AI platform, or hardware breakthrough',
         visualHint: 'Directs the image generator for flagship physical/software hardware hero shots with dramatic rim lighting and clean copy negative space.',
         fields: [
-          { id: 'pt-prod-name', label: 'Product Name', placeholder: 'e.g. Lexnis VisionAI', required: true, default: 'Lexnis VisionAI' },
+          { id: 'pt-prod-name', label: 'Product Name', placeholder: 'e.g. VisionAI (or Flagship Platform)', required: true, default: '' },
           { id: 'pt-prod-feature', label: 'Key Breakthrough / Capability', placeholder: 'e.g. Zero-downtime edge telemetry and predictive diagnostics', required: true, default: 'Zero-downtime edge telemetry and predictive diagnostics' },
           { id: 'pt-prod-target', label: 'Target Audience / Industry (Optional)', placeholder: 'e.g. Smart Gigafactories & Industry 4.0', required: false, default: 'Smart Gigafactories & Industry 4.0' }
         ],
         generatePrompt: (values, brand) => {
-          const prod = values['pt-prod-name'] || 'Lexnis VisionAI';
-          const feat = values['pt-prod-feature'] || 'predictive analytics';
+          const prod = values['pt-prod-name'] || `${brand} Core System`;
+          const feat = values['pt-prod-feature'] || 'predictive diagnostics and autonomous intelligence';
           const target = values['pt-prod-target'] ? ` for ${values['pt-prod-target']}` : '';
           return `Commercial launch campaign for ${brand} ${prod}, delivering ${feat}${target}. Cinematic commercial photography with directional studio lighting and clean typography negative space.`;
         }
@@ -3940,11 +3940,11 @@
         visualHint: 'Dynamic studio workspace atmosphere communicating culture, engineering excellence, and mission.',
         fields: [
           { id: 'pt-hire-role', label: 'Open Role / Position', placeholder: 'e.g. Senior Machine Learning & Vision Systems Engineer', required: true, default: 'Senior Machine Learning & Vision Systems Engineer' },
-          { id: 'pt-hire-team', label: 'Team & Location', placeholder: 'e.g. Lexnis Core AI Lab, Manama / Hybrid', required: false, default: 'Lexnis Core AI Lab, Manama / Hybrid' }
+          { id: 'pt-hire-team', label: 'Team & Location', placeholder: 'e.g. Core Engineering Team, Manama / Hybrid', required: false, default: '' }
         ],
         generatePrompt: (values, brand) => {
           const role = values['pt-hire-role'] || 'Visionary Engineers';
-          const team = values['pt-hire-team'] ? ` for our ${values['pt-hire-team']}` : '';
+          const team = values['pt-hire-team'] ? ` for our ${values['pt-hire-team']}` : ` for our ${brand} Core Team, Manama / Hybrid`;
           return `Recruitment campaign for ${brand}: We are hiring ${role}${team}. Inspiring collaborative high-tech workspace photograph with generous space for role requirements.`;
         }
       },

@@ -3055,6 +3055,9 @@ class LexnisCampaignStudio:
             render_lexnis_executive_artboard,
             render_lexnis_hiring_card,
             render_lexnis_launch_card,
+            render_agency_card,
+            resolve_brand_theme,
+            BrandTheme,
             ARABIC_TITLES_MAP
         )
         t_file, s_file = classify_template_and_subject(candidate_images) if len(candidate_images) >= 2 else (None, None)
@@ -3269,8 +3272,8 @@ class LexnisCampaignStudio:
             uploaded_clean = clean_path
             uploaded_post_ar = post_path
             has_uploaded_asset = True
-        elif (post_type == "hiring") or ("hiring" in (post_type or "").lower()) or ("we are hiring" in effective_prompt.lower()):
-            step("Rendering official Lexnis Brand System 1080x1350 recruitment poster...")
+        else:
+            step(f"Rendering agency-grade 1080x1350 card for {post_type}...")
             # 1. Resolve custom corporate logo if provided
             logo_to_use = None
             if logo_path and Path(logo_path).exists():
@@ -3291,220 +3294,295 @@ class LexnisCampaignStudio:
                 if logo_uploads:
                     logo_to_use = str(logo_uploads[0])
 
-            # 2. Clean English recruitment copy tokens (NEVER prepending company name)
-            raw_role = person_name or ""
-            if not raw_role:
-                m_hire = re.search(r'(?:we are hiring|hiring|open role:?|seeking|looking for)\s+([A-Za-z0-9 &/-]+?)(?:\s+(?:for our|for the|for|in|at)\s+([^.\n]+?))?(?:\.|\n|$)', effective_prompt, re.IGNORECASE)
-                if m_hire:
-                    raw_role = m_hire.group(1).strip()
-            if not raw_role:
-                raw_role = "Senior Machine Learning &\nVision Systems Engineer"
+            # 2. Resolve Dynamic Brand Theme
+            brand_theme = resolve_brand_theme(
+                brand_profile=brand_dna,
+                uploaded_logo_path=logo_to_use,
+                brand_name=brand,
+                post_type=post_type or "general"
+            )
 
-            role_en = raw_role
-            if brand:
-                role_en = re.sub(rf"^\s*{re.escape(brand)}\s*", "", role_en, flags=re.IGNORECASE).strip()
-            role_en = re.sub(r"^\s*lexnis(?:\s+technologies)?\s*", "", role_en, flags=re.IGNORECASE).strip()
-            role_en = re.sub(r"^(?:a|an)\s+", "", role_en, flags=re.IGNORECASE).strip()
-
-            raw_team = person_title or ""
-            if not raw_team:
-                m_hire = re.search(r'(?:we are hiring|hiring|open role:?|seeking|looking for)\s+([A-Za-z0-9 &/-]+?)(?:\s+(?:for our|for the|for|in|at)\s+([^.\n]+?))?(?:\.|\n|$)', effective_prompt, re.IGNORECASE)
-                if m_hire and m_hire.group(2):
-                    raw_team = m_hire.group(2).strip()
-            if not raw_team:
-                raw_team = "Manama, Bahrain  •  Full-Time  •  On-Site"
-            team_en = raw_team
-
-            # 2b. Derive inspiring mission hook that NEVER duplicates the role title
-            raw_hook = headline or ""
-            if not raw_hook or (role_en and (role_en.lower() in raw_hook.lower() or raw_hook.lower() in role_en.lower())) or raw_hook.upper() in {"LEXNIS", "LEXNIS TECHNOLOGIES", "CAREERS & OPEN POSITIONS"}:
-                hook_en = generate_hiring_mission_hook(role_en, effective_prompt, is_ar=False)
-            else:
-                hook_en = re.sub(rf"^\s*{re.escape(brand)}\s*", "", raw_hook, flags=re.IGNORECASE).strip()
-                hook_en = re.sub(r"^\s*lexnis(?:\s+technologies)?\s*", "", hook_en, flags=re.IGNORECASE).strip()
-                if not hook_en or hook_en.upper() in {"LEXNIS", "LEXNIS TECHNOLOGIES", "CAREERS & OPEN POSITIONS"}:
-                    hook_en = generate_hiring_mission_hook(role_en, effective_prompt, is_ar=False)
-
-            subcopy_en = hook or caption or "Stop maintaining someone else's API. Build foundational vision systems from scratch in Manama."
-            subcopy_en = subcopy_en.split("\n")[0][:140]
-
-            tag_to_use = brand_tag or "#LexnisCareers"
-            tag_ar_to_use = "#وظائف_لكسنس"
+            p_lower = str(post_type or "").lower()
+            is_hiring = ("hiring" in p_lower) or ("we are hiring" in effective_prompt.lower())
+            is_launch = ("launch" in p_lower) or ("product" in p_lower) or ("announcement" in p_lower) or ("product launch" in effective_prompt.lower()) or ("flagship release" in effective_prompt.lower())
+            is_edu = ("edu" in p_lower) or ("thought" in p_lower) or ("insight" in p_lower)
+            is_promo = ("promo" in p_lower) or ("event" in p_lower)
 
             # 3. Transcreate Arabic copy concurrently
-            arabic_pack = self.transcreate_to_arabic(en_pack, brand=brand, visual_analysis="Recruitment campaign", guidelines=distilled_gl)
+            arabic_pack = self.transcreate_to_arabic(en_pack, brand=brand, visual_analysis=f"{post_type} campaign", guidelines=distilled_gl)
 
-            # 4. Map Arabic role title & mission hook
-            role_lower = role_en.lower().strip()
-            role_ar = ARABIC_TITLES_MAP.get(role_lower)
-            if not role_ar:
-                for k, v in ARABIC_TITLES_MAP.items():
-                    if k in role_lower or role_lower in k:
-                        role_ar = v
-                        break
-            if not role_ar:
-                role_ar = arabic_pack.get("role_title") or arabic_pack.get("visual_headline") or "مهندس أول تعلم الآلة وأنظمة الرؤية الحاسوبية"
-            role_ar = re.sub(r"^\s*لكسنس\s*", "", role_ar).strip()
+            # 4. Construct Card Data for EN and AR
+            if is_hiring:
+                raw_role = person_name or ""
+                if not raw_role:
+                    m_hire = re.search(r'(?:we are hiring|hiring|open role:?|seeking|looking for)\s+([A-Za-z0-9 &/-]+?)(?:\s+(?:for our|for the|for|in|at)\s+([^.\n]+?))?(?:\.|\n|$)', effective_prompt, re.IGNORECASE)
+                    if m_hire:
+                        raw_role = m_hire.group(1).strip()
+                if not raw_role:
+                    raw_role = "Senior Machine Learning &\nVision Systems Engineer"
 
-            team_ar = arabic_pack.get("team_location") or "المنامة، البحرين  •  دوام كامل  •  حضوري"
+                role_en = raw_role
+                if brand:
+                    role_en = re.sub(rf"^\s*{re.escape(brand)}\s*", "", role_en, flags=re.IGNORECASE).strip()
+                role_en = re.sub(r"^\s*lexnis(?:\s+technologies)?\s*", "", role_en, flags=re.IGNORECASE).strip()
+                role_en = re.sub(r"^(?:a|an)\s+", "", role_en, flags=re.IGNORECASE).strip()
 
-            raw_ar_hook = arabic_pack.get("visual_headline") or ""
-            if not raw_ar_hook or (role_ar and (role_ar in raw_ar_hook or raw_ar_hook in role_ar)) or "لكسنس" in raw_ar_hook or "وظائف" in raw_ar_hook or "\n" not in raw_ar_hook:
-                hook_ar = generate_hiring_mission_hook(role_en, effective_prompt, is_ar=True)
-            else:
-                hook_ar = re.sub(r"^\s*لكسنس\s*", "", raw_ar_hook).strip()
-                if not hook_ar or "\n" not in hook_ar:
-                    hook_ar = generate_hiring_mission_hook(role_en, effective_prompt, is_ar=True)
+                raw_team = person_title or ""
+                if not raw_team:
+                    m_hire = re.search(r'(?:we are hiring|hiring|open role:?|seeking|looking for)\s+([A-Za-z0-9 &/-]+?)(?:\s+(?:for our|for the|for|in|at)\s+([^.\n]+?))?(?:\.|\n|$)', effective_prompt, re.IGNORECASE)
+                    if m_hire and m_hire.group(2):
+                        raw_team = m_hire.group(2).strip()
+                if not raw_team:
+                    raw_team = "Manama, Bahrain  •  Full-Time  •  On-Site"
+                team_en = raw_team
 
-            subcopy_ar = arabic_pack.get("visual_tagline") or "انتقل بنماذجك من التجربة إلى حافة الإنجاز الفوري. ابنِ أنظمة ذكية وتأسيسية من قلب المنامة."
-
-            base_bg = None
-            if uploaded_image_path and Path(uploaded_image_path).exists():
-                base_bg = uploaded_image_path
-
-            logo_key = Path(str(logo_to_use)).name if logo_to_use else "default_logo"
-            base_key = Path(str(base_bg)).name if base_bg else "no_bg"
-            h_key = hashlib.sha1(f"hiring_v2_1080x1350|{role_en}|{team_en}|{hook_en}|{brand}|{logo_key}|{base_key}".encode()).hexdigest()[:16]
-            clean_path = RENDERS_DIR / f"{h_key}_clean.jpg"
-            post_path = RENDERS_DIR / f"{h_key}_post.jpg"
-            post_ar_path = RENDERS_DIR / f"{h_key}_post_ar.jpg"
-
-            if not clean_path.exists() or not post_path.exists():
-                hiring_en_img = render_lexnis_hiring_card(
-                    role_title=role_en,
-                    team_location=team_en,
-                    hook_headline=hook_en,
-                    subcopy=subcopy_en,
-                    language="en",
-                    brand_name=brand,
-                    brand_tag=tag_to_use,
-                    logo_image=logo_to_use,
-                    base_image=base_bg,
-                    target_size=(1080, 1350)
-                )
-                hiring_en_img.save(clean_path, "JPEG", quality=98, subsampling=0)
-                hiring_en_img.save(post_path, "JPEG", quality=98, subsampling=0)
-
-            if not post_ar_path.exists():
-                hiring_ar_img = render_lexnis_hiring_card(
-                    role_title=role_ar,
-                    team_location=team_ar,
-                    hook_headline=hook_ar,
-                    subcopy=subcopy_ar,
-                    language="ar",
-                    brand_name=brand,
-                    brand_tag=tag_ar_to_use,
-                    logo_image=logo_to_use,
-                    base_image=base_bg,
-                    target_size=(1080, 1350)
-                )
-                hiring_ar_img.save(post_ar_path, "JPEG", quality=98, subsampling=0)
-
-            watermark_free = True
-            image_status = "ready"
-            arabic_post_path = post_ar_path
-            uploaded_post_en = post_path
-            uploaded_clean = clean_path
-            uploaded_post_ar = post_ar_path
-            has_uploaded_asset = True
-        elif (post_type in ("launch", "product_launch", "announcement", "product")) or \
-             ("launch" in (post_type or "").lower()) or \
-             ("product_launch" in (post_type or "").lower()) or \
-             ("product launch" in effective_prompt.lower()) or \
-             ("flagship release" in effective_prompt.lower()):
-            step("Rendering official Lexnis Brand System 1080x1350 product launch poster...")
-            # 1. Resolve custom corporate logo if provided
-            logo_to_use = None
-            if logo_path and Path(logo_path).exists():
-                logo_to_use = str(logo_path)
-            elif logo_url:
-                p_strip = Path(logo_url.lstrip("/\\"))
-                if p_strip.exists():
-                    logo_to_use = str(p_strip)
+                raw_hook = headline or ""
+                if not raw_hook or (role_en and (role_en.lower() in raw_hook.lower() or raw_hook.lower() in role_en.lower())) or raw_hook.upper() in {"LEXNIS", "LEXNIS TECHNOLOGIES", "CAREERS & OPEN POSITIONS"}:
+                    hook_en = generate_hiring_mission_hook(role_en, effective_prompt, is_ar=False)
                 else:
-                    logo_to_use = logo_url
-            elif uploaded_image_paths:
-                for up in uploaded_image_paths:
-                    if "logo" in Path(up).name.lower() and Path(up).exists():
-                        logo_to_use = str(up)
-                        break
-            elif UPLOADS_DIR.exists():
-                logo_uploads = sorted(UPLOADS_DIR.glob("logo_*.*"), key=lambda f: f.stat().st_mtime, reverse=True)
-                if logo_uploads:
-                    logo_to_use = str(logo_uploads[0])
+                    hook_en = re.sub(rf"^\s*{re.escape(brand)}\s*", "", raw_hook, flags=re.IGNORECASE).strip()
+                    hook_en = re.sub(r"^\s*lexnis(?:\s+technologies)?\s*", "", hook_en, flags=re.IGNORECASE).strip()
+                    if not hook_en or hook_en.upper() in {"LEXNIS", "LEXNIS TECHNOLOGIES", "CAREERS & OPEN POSITIONS"}:
+                        hook_en = generate_hiring_mission_hook(role_en, effective_prompt, is_ar=False)
 
-            # 2. Extract and sanitize product name (Never concatenate brand name twice!)
-            raw_prod = person_name or ""
-            if not raw_prod:
-                m_prod = re.search(r'(?:product launch|launching|announcing|introducing|flagship release|new product:?|platform launch for)\s+([A-Za-z0-9 &™/-]+?)(?:\s+(?:for|delivering|with|in)\s+([^.\n]+?))?(?:\.|\n|$)', effective_prompt, re.IGNORECASE)
-                if m_prod:
-                    raw_prod = m_prod.group(1).strip()
-            if not raw_prod:
-                raw_prod = "Lexnis VisionAI™"
+                subcopy_en = hook or caption or "Stop maintaining someone else's API. Build foundational vision systems from scratch in Manama."
+                subcopy_en = subcopy_en.split("\n")[0][:140]
 
-            clean_prod = raw_prod
-            if brand:
-                clean_prod = re.sub(rf"^\s*{re.escape(brand)}\s*", "", clean_prod, flags=re.IGNORECASE).strip()
-            clean_prod = re.sub(r"^\s*lexnis(?:\s+technologies)?\s*", "", clean_prod, flags=re.IGNORECASE).strip()
-            clean_prod = re.sub(r"^(?:a|an)\s+", "", clean_prod, flags=re.IGNORECASE).strip()
-            if not clean_prod:
-                clean_prod = "VisionAI™"
+                role_lower = role_en.lower().strip()
+                role_ar = ARABIC_TITLES_MAP.get(role_lower)
+                if not role_ar:
+                    for k, v in ARABIC_TITLES_MAP.items():
+                        if k in role_lower or role_lower in k:
+                            role_ar = v
+                            break
+                if not role_ar:
+                    role_ar = arabic_pack.get("role_title") or arabic_pack.get("visual_headline") or "مهندس أول تعلم الآلة وأنظمة الرؤية الحاسوبية"
+                role_ar = re.sub(r"^\s*لكسنس\s*", "", role_ar).strip()
 
-            prod_en = f"Lexnis {clean_prod}" if not clean_prod.startswith("Lexnis") else clean_prod
-            prod_ar = f"نظام {prod_en}"
+                team_ar = arabic_pack.get("team_location") or "المنامة، البحرين  •  دوام كامل  •  حضوري"
 
-            # 3. Category Overline & Subtitle
-            raw_overline = person_title or ""
-            if not raw_overline or raw_overline in ("Next-Gen Autonomous Systems", "Marketing Manager", "Alisha Faisal", "Autonomous Enterprise Solutions"):
-                raw_overline = "FLAGSHIP RELEASE  //  INDUSTRIAL EDGE AI"
-            overline_en = raw_overline
-            overline_ar = "الإصدار الرئيسي  //  الذكاء الاصطناعي الصناعي"
+                raw_ar_hook = arabic_pack.get("visual_headline") or ""
+                if not raw_ar_hook or (role_ar and (role_ar in raw_ar_hook or raw_ar_hook in role_ar)) or "لكسنس" in raw_ar_hook or "وظائف" in raw_ar_hook or "\n" not in raw_ar_hook:
+                    hook_ar = generate_hiring_mission_hook(role_en, effective_prompt, is_ar=True)
+                else:
+                    hook_ar = re.sub(r"^\s*لكسنس\s*", "", raw_ar_hook).strip()
+                    if not hook_ar or "\n" not in hook_ar:
+                        hook_ar = generate_hiring_mission_hook(role_en, effective_prompt, is_ar=True)
 
-            subtitle_en = "Autonomous Real-Time Visual Inspection & Defect Prediction Engine"
-            subtitle_ar = "محرك الفحص البصري الذاتي والتنبؤ الفوري بالأعطال الصناعية"
+                subcopy_ar = arabic_pack.get("visual_tagline") or "انتقل بنماذجك من التجربة إلى حافة الإنجاز الفوري. ابنِ أنظمة ذكية وتأسيسية من قلب المنامة."
 
-            # 4. Derive punchy 2-line launch hook (NEVER repeating product name)
-            raw_hook = headline or ""
-            if not raw_hook or (clean_prod.lower() in raw_hook.lower()) or raw_hook.upper() in {"LEXNIS", "LEXNIS TECHNOLOGIES", "PRODUCT LAUNCH", "NEW LAUNCH"}:
-                hook_en = generate_launch_mission_hook(prod_en, effective_prompt, is_ar=False)
-            else:
-                hook_en = re.sub(rf"^\s*{re.escape(brand)}\s*", "", raw_hook, flags=re.IGNORECASE).strip()
-                hook_en = re.sub(r"^\s*lexnis(?:\s+technologies)?\s*", "", hook_en, flags=re.IGNORECASE).strip()
-                if not hook_en or (clean_prod.lower() in hook_en.lower()) or hook_en.upper() in {"LEXNIS", "LEXNIS TECHNOLOGIES", "PRODUCT LAUNCH", "NEW LAUNCH"}:
+                chips_en = ["Manama, Bahrain", "Full-Time / Hybrid", f"{brand_theme.clean_slug} Core Lab"]
+                chips_ar = ["المنامة، البحرين", "دوام كامل • هجين", f"مختبر {brand_theme.clean_slug}"]
+
+                card_data_en = {
+                    "card_title": role_en,
+                    "team_location": team_en,
+                    "hero_hook": hook_en,
+                    "subcopy": subcopy_en,
+                    "chips": chips_en,
+                    "cta_text": "APPLY NOW",
+                    "cta_url": f"{brand_theme.domain}/careers"
+                }
+                card_data_ar = {
+                    "card_title": role_ar,
+                    "team_location": team_ar,
+                    "hero_hook": hook_ar,
+                    "subcopy": subcopy_ar,
+                    "chips": chips_ar,
+                    "cta_text": "قدّم الآن",
+                    "cta_url": f"{brand_theme.domain}/careers"
+                }
+
+            elif is_launch:
+                raw_prod = person_name or ""
+                if not raw_prod:
+                    m_prod = re.search(r'(?:product launch|launching|announcing|introducing|flagship release|new product:?|platform launch for)\s+([A-Za-z0-9 &™/-]+?)(?:\s+(?:for|delivering|with|in)\s+([^.\n]+?))?(?:\.|\n|$)', effective_prompt, re.IGNORECASE)
+                    if m_prod:
+                        raw_prod = m_prod.group(1).strip()
+                if not raw_prod:
+                    raw_prod = f"{brand_theme.clean_slug} VisionAI™" if brand_theme.is_lexnis else f"{brand_theme.clean_slug} Core Platform"
+
+                clean_prod = raw_prod
+                if brand:
+                    clean_prod = re.sub(rf"^\s*{re.escape(brand)}\s*", "", clean_prod, flags=re.IGNORECASE).strip()
+                clean_prod = re.sub(r"^\s*lexnis(?:\s+technologies)?\s*", "", clean_prod, flags=re.IGNORECASE).strip()
+                clean_prod = re.sub(r"^(?:a|an)\s+", "", clean_prod, flags=re.IGNORECASE).strip()
+                if not clean_prod:
+                    clean_prod = "VisionAI™" if brand_theme.is_lexnis else "Core Platform"
+
+                prod_en = f"{brand_theme.clean_slug} {clean_prod}" if not clean_prod.startswith(brand_theme.clean_slug) else clean_prod
+                prod_ar = f"نظام {prod_en}"
+
+                raw_overline = person_title or ""
+                if not raw_overline or raw_overline in ("Next-Gen Autonomous Systems", "Marketing Manager", "Alisha Faisal", "Autonomous Enterprise Solutions"):
+                    raw_overline = "FLAGSHIP RELEASE  //  INDUSTRIAL EDGE AI"
+                overline_en = raw_overline
+                overline_ar = "الإصدار الرئيسي  //  الذكاء الاصطناعي الصناعي"
+
+                subtitle_en = "Autonomous Real-Time Visual Inspection & Defect Prediction Engine"
+                subtitle_ar = "محرك الفحص البصري الذاتي والتنبؤ الفوري بالأعطال الصناعية"
+
+                raw_hook = headline or ""
+                if not raw_hook or (clean_prod.lower() in raw_hook.lower()) or raw_hook.upper() in {"LEXNIS", "LEXNIS TECHNOLOGIES", "PRODUCT LAUNCH", "NEW LAUNCH"}:
                     hook_en = generate_launch_mission_hook(prod_en, effective_prompt, is_ar=False)
+                else:
+                    hook_en = re.sub(rf"^\s*{re.escape(brand)}\s*", "", raw_hook, flags=re.IGNORECASE).strip()
+                    hook_en = re.sub(r"^\s*lexnis(?:\s+technologies)?\s*", "", hook_en, flags=re.IGNORECASE).strip()
+                    if not hook_en or (clean_prod.lower() in hook_en.lower()) or hook_en.upper() in {"LEXNIS", "LEXNIS TECHNOLOGIES", "PRODUCT LAUNCH", "NEW LAUNCH"}:
+                        hook_en = generate_launch_mission_hook(prod_en, effective_prompt, is_ar=False)
 
-            default_launch_subcopy_en = "Detect micro-defects on the assembly line in under 8ms—before they become costly recalls."
-            default_launch_subcopy_ar = "اكشف أدق عيوب التصنيع على خط الإنتاج في أقل من 8 ملي ثانية قبل تحولها إلى توقفات مكلفة."
+                default_launch_subcopy_en = "Detect micro-defects on the assembly line in under 8ms—before they become costly recalls."
+                default_launch_subcopy_ar = "اكشف أدق عيوب التصنيع على خط الإنتاج في أقل من 8 ملي ثانية قبل تحولها إلى توقفات مكلفة."
 
-            subcopy_en = hook or caption or default_launch_subcopy_en
-            sub_lower = subcopy_en.lower()
-            if any(w in sub_lower for w in ["breakthrough", "yesterday", "recording past", "unprecedented", "reviewing", "failures"]):
-                subcopy_en = default_launch_subcopy_en
-            subcopy_en = subcopy_en.split("\n")[0][:140]
+                subcopy_en = hook or caption or default_launch_subcopy_en
+                sub_lower = subcopy_en.lower()
+                if any(w in sub_lower for w in ["breakthrough", "yesterday", "recording past", "unprecedented", "reviewing", "failures"]):
+                    subcopy_en = default_launch_subcopy_en
+                subcopy_en = subcopy_en.split("\n")[0][:140]
 
-            # Enforce strict launch hashtags: #LexnisAI (EN) and #لكسنس_تبتكر (AR)
-            tag_to_use = "#LexnisAI"
-            tag_ar_to_use = "#لكسنس_تبتكر"
-            if brand_tag and brand_tag not in ("#LexnisTeam", "#SekawanTeam", "#Ud3", "#LexnisLaunch", "#LexnisCareers", "#وظائف_لكسنس"):
-                tag_to_use = brand_tag
-
-            # 5. Transcreate Arabic copy concurrently
-            arabic_pack = self.transcreate_to_arabic(en_pack, brand=brand, visual_analysis="Product Launch campaign", guidelines=distilled_gl)
-
-            raw_ar_hook = arabic_pack.get("visual_headline") or ""
-            if not raw_ar_hook or "لكسنس" in raw_ar_hook or (clean_prod.lower() in raw_ar_hook.lower()) or "\n" not in raw_ar_hook:
-                hook_ar = generate_launch_mission_hook(prod_en, effective_prompt, is_ar=True)
-            else:
-                hook_ar = re.sub(r"^\s*لكسنس\s*", "", raw_ar_hook).strip()
-                if not hook_ar or "\n" not in hook_ar:
+                raw_ar_hook = arabic_pack.get("visual_headline") or ""
+                if not raw_ar_hook or "لكسنس" in raw_ar_hook or (clean_prod.lower() in raw_ar_hook.lower()) or "\n" not in raw_ar_hook:
                     hook_ar = generate_launch_mission_hook(prod_en, effective_prompt, is_ar=True)
+                else:
+                    hook_ar = re.sub(r"^\s*لكسنس\s*", "", raw_ar_hook).strip()
+                    if not hook_ar or "\n" not in hook_ar:
+                        hook_ar = generate_launch_mission_hook(prod_en, effective_prompt, is_ar=True)
 
-            subcopy_ar = arabic_pack.get("visual_tagline") or default_launch_subcopy_ar
-            if any(w in subcopy_ar for w in ["لا يعرف المستحيل", "إنجازات اليوم", "تسجيل الأعطال", "استبق", "الأعطال بعد حدوثها"]):
-                subcopy_ar = default_launch_subcopy_ar
+                subcopy_ar = arabic_pack.get("visual_tagline") or default_launch_subcopy_ar
+                if any(w in subcopy_ar for w in ["لا يعرف المستحيل", "إنجازات اليوم", "تسجيل الأعطال", "استبق", "الأعطال بعد حدوثها"]):
+                    subcopy_ar = default_launch_subcopy_ar
 
-            chips_en = ["< 8ms Edge Latency", "99.4% Defect Accuracy", "100% On-Premise"]
-            chips_ar = ["استجابة فورية أقل من 8ms", "دقة كشف 99.4%", "تشغيل محلي آمن 100%"]
+                chips_en = ["< 8ms Edge Latency", "99.4% Defect Accuracy", "100% On-Premise"]
+                chips_ar = ["استجابة فورية أقل من 8ms", "دقة كشف 99.4%", "تشغيل محلي آمن 100%"]
+
+                card_data_en = {
+                    "card_title": prod_en,
+                    "card_overline": overline_en,
+                    "card_subtitle": subtitle_en,
+                    "chips": chips_en,
+                    "hero_hook": hook_en,
+                    "subcopy": subcopy_en,
+                    "cta_text": "REQUEST LIVE DEMO",
+                    "cta_url": f"{brand_theme.domain}/visionai" if brand_theme.is_lexnis else f"{brand_theme.domain}/launch"
+                }
+                card_data_ar = {
+                    "card_title": prod_ar,
+                    "card_overline": overline_ar,
+                    "card_subtitle": subtitle_ar,
+                    "chips": chips_ar,
+                    "hero_hook": hook_ar,
+                    "subcopy": subcopy_ar,
+                    "cta_text": "اطلب عرضاً تجريبياً",
+                    "cta_url": f"{brand_theme.domain}/visionai" if brand_theme.is_lexnis else f"{brand_theme.domain}/launch"
+                }
+
+            elif is_edu:
+                title_en = headline or f"{brand_theme.clean_slug} Enterprise Architecture"
+                overline_en = "KEY ENGINEERING TAKEAWAY"
+                subtitle_en = hook[:110] if hook else "Resilient enterprise architecture built for sub-millisecond edge inferencing"
+                hook_en = "RETHINKING EDGE AI\nAT ENTERPRISE SCALE."
+                subcopy_en = hook or caption or "Empowering enterprises with deterministic latency, zero telemetry leakage, and continuous resilience."
+                chips_en = ["Deterministic SLA", "Zero Data Leaks", "Edge-Native"]
+
+                title_ar = arabic_pack.get("visual_headline") or f"بنية {brand_theme.clean_slug} الذكية"
+                overline_ar = "الدرس الهندسي المستفاد"
+                subtitle_ar = arabic_pack.get("visual_tagline") or "بنية تحتية مرنة تعتمد على الاستدلال الطرفي بزمن استجابة فائق الصغر"
+                hook_ar = "استدلال طرفي فائق\nيغير معادلة الذكاء الاصطناعي."
+                subcopy_ar = "تمكين المؤسسات من بنية موثوقة ذات زمن استجابة حتمي وحماية بيانات كاملة."
+                chips_ar = ["ضمان استجابة صارم", "حماية بيانات كاملة", "تشغيل طرفي محلي"]
+
+                card_data_en = {
+                    "card_title": title_en,
+                    "card_overline": overline_en,
+                    "card_subtitle": subtitle_en,
+                    "chips": chips_en,
+                    "hero_hook": hook_en,
+                    "subcopy": subcopy_en,
+                    "cta_text": "READ WHITE PAPER",
+                    "cta_url": f"{brand_theme.domain}/research"
+                }
+                card_data_ar = {
+                    "card_title": title_ar,
+                    "card_overline": overline_ar,
+                    "card_subtitle": subtitle_ar,
+                    "chips": chips_ar,
+                    "hero_hook": hook_ar,
+                    "subcopy": subcopy_ar,
+                    "cta_text": "اقرأ التقرير الفني",
+                    "cta_url": f"{brand_theme.domain}/research"
+                }
+
+            elif is_promo:
+                title_en = headline or f"{brand_theme.clean_slug} Global Summit"
+                overline_en = "ANNUAL INNOVATION SUMMIT"
+                subtitle_en = hook[:110] if hook else "Join industry pioneers and technology executives at the annual keynote"
+                hook_en = "EXPERIENCE THE FUTURE\nOF INDUSTRIAL AI."
+                subcopy_en = "Reserve your executive pass for live platform keynotes, engineering deep dives, and architecture previews."
+                chips_en = ["Live Keynote", "Interactive Demo", "Executive Access"]
+
+                title_ar = arabic_pack.get("visual_headline") or f"قمة {brand_theme.clean_slug} العالمية"
+                overline_ar = "قمة الابتكار السنوية"
+                subtitle_ar = arabic_pack.get("visual_tagline") or "انضم إلى نخبة قادة التكنولوجيا في ملتقى الابتكار السنوي"
+                hook_ar = "استكشف مستقبل\nالذكاء الاصطناعي الصناعي."
+                subcopy_ar = "احجز مقعدك التنفيذي لحضور الجلسات الافتتاحية المباشرة والعروض التقنية التفاعلية."
+                chips_ar = ["جلسة افتتاحية حية", "عرض تفاعلي مباشر", "حضور تنفيذي"]
+
+                card_data_en = {
+                    "card_title": title_en,
+                    "card_overline": overline_en,
+                    "card_subtitle": subtitle_en,
+                    "chips": chips_en,
+                    "hero_hook": hook_en,
+                    "subcopy": subcopy_en,
+                    "cta_text": "RESERVE YOUR PASS",
+                    "cta_url": f"{brand_theme.domain}/events"
+                }
+                card_data_ar = {
+                    "card_title": title_ar,
+                    "card_overline": overline_ar,
+                    "card_subtitle": subtitle_ar,
+                    "chips": chips_ar,
+                    "hero_hook": hook_ar,
+                    "subcopy": subcopy_ar,
+                    "cta_text": "احجز مقعدك الآن",
+                    "cta_url": f"{brand_theme.domain}/events"
+                }
+
+            else:
+                title_en = headline or f"{brand_theme.clean_slug} Enterprise Milestone"
+                overline_en = "ENTERPRISE IMPACT & GROWTH"
+                subtitle_en = hook[:110] if hook else "Accelerating enterprise operational resilience through autonomous intelligence"
+                hook_en = "MEASURABLE IMPACT\nPROVEN AT SCALE."
+                subcopy_en = "Driving transformative productivity, zero-downtime reliability, and measurable ROI across critical operations."
+                chips_en = ["Enterprise Proven", "99.9% Reliability", "Global Scale"]
+
+                title_ar = arabic_pack.get("visual_headline") or f"إنجاز استراتيجي ونمو لـ {brand_theme.clean_slug}"
+                overline_ar = "الأثر المؤسسي والنمو"
+                subtitle_ar = arabic_pack.get("visual_tagline") or "تحقيق الريادة التشغيلية عبر حلول رقمية مؤتمتة وموثوقة"
+                hook_ar = "أثر تشغيلي ملموس\nبمعايير مؤسسية رائدة."
+                subcopy_ar = "دفع عجلة الإنتاجية الاستثنائية وضمان استمرارية الأعمال بأعلى مستويات الموثوقية."
+                chips_ar = ["جاهزية مؤسسية", "اعتمادية 99.9%", "نطاق عالمي"]
+
+                card_data_en = {
+                    "card_title": title_en,
+                    "card_overline": overline_en,
+                    "card_subtitle": subtitle_en,
+                    "chips": chips_en,
+                    "hero_hook": hook_en,
+                    "subcopy": subcopy_en,
+                    "cta_text": "EXPLORE CASE STUDY",
+                    "cta_url": f"{brand_theme.domain}/impact"
+                }
+                card_data_ar = {
+                    "card_title": title_ar,
+                    "card_overline": overline_ar,
+                    "card_subtitle": subtitle_ar,
+                    "chips": chips_ar,
+                    "hero_hook": hook_ar,
+                    "subcopy": subcopy_ar,
+                    "cta_text": "استكشف دراسة الحالة",
+                    "cta_url": f"{brand_theme.domain}/impact"
+                }
 
             base_bg = None
             if uploaded_image_path and Path(uploaded_image_path).exists():
@@ -3512,49 +3590,35 @@ class LexnisCampaignStudio:
 
             logo_key = Path(str(logo_to_use)).name if logo_to_use else "default_logo"
             base_key = Path(str(base_bg)).name if base_bg else "no_bg"
-            l_key = hashlib.sha1(f"launch_v2_1080x1350|{prod_en}|{hook_en}|{brand}|{logo_key}|{base_key}".encode()).hexdigest()[:16]
-            clean_path = RENDERS_DIR / f"{l_key}_clean.jpg"
-            post_path = RENDERS_DIR / f"{l_key}_post.jpg"
-            post_ar_path = RENDERS_DIR / f"{l_key}_post_ar.jpg"
+            t_key = hashlib.sha1(f"agency_card|{post_type}|{card_data_en.get('card_title')}|{brand}|{logo_key}|{base_key}".encode()).hexdigest()[:16]
+            clean_path = RENDERS_DIR / f"{t_key}_clean.jpg"
+            post_path = RENDERS_DIR / f"{t_key}_post.jpg"
+            post_ar_path = RENDERS_DIR / f"{t_key}_post_ar.jpg"
 
             if not clean_path.exists() or not post_path.exists():
-                launch_en_img = render_lexnis_launch_card(
-                    product_name=prod_en,
-                    category_overline=overline_en,
-                    product_subtitle=subtitle_en,
-                    spec_chips=chips_en,
-                    hook_headline=hook_en,
-                    subcopy=subcopy_en,
-                    cta_text="REQUEST LIVE DEMO",
-                    cta_url="lexnis.com/visionai",
+                card_en_img = render_agency_card(
+                    card_data=card_data_en,
+                    brand_theme=brand_theme,
+                    post_type=post_type or "general",
                     language="en",
-                    brand_name=brand,
-                    brand_tag=tag_to_use,
-                    logo_image=logo_to_use,
                     base_image=base_bg,
+                    logo_image=logo_to_use,
                     target_size=(1080, 1350)
                 )
-                launch_en_img.save(clean_path, "JPEG", quality=98, subsampling=0)
-                launch_en_img.save(post_path, "JPEG", quality=98, subsampling=0)
+                card_en_img.save(clean_path, "JPEG", quality=98, subsampling=0)
+                card_en_img.save(post_path, "JPEG", quality=98, subsampling=0)
 
             if not post_ar_path.exists():
-                launch_ar_img = render_lexnis_launch_card(
-                    product_name=prod_ar,
-                    category_overline=overline_ar,
-                    product_subtitle=subtitle_ar,
-                    spec_chips=chips_ar,
-                    hook_headline=hook_ar,
-                    subcopy=subcopy_ar,
-                    cta_text="اطلب عرضاً تجريبياً",
-                    cta_url="lexnis.com/visionai",
+                card_ar_img = render_agency_card(
+                    card_data=card_data_ar,
+                    brand_theme=brand_theme,
+                    post_type=post_type or "general",
                     language="ar",
-                    brand_name=brand,
-                    brand_tag=tag_ar_to_use,
-                    logo_image=logo_to_use,
                     base_image=base_bg,
+                    logo_image=logo_to_use,
                     target_size=(1080, 1350)
                 )
-                launch_ar_img.save(post_ar_path, "JPEG", quality=98, subsampling=0)
+                card_ar_img.save(post_ar_path, "JPEG", quality=98, subsampling=0)
 
             watermark_free = True
             image_status = "ready"
@@ -3563,30 +3627,6 @@ class LexnisCampaignStudio:
             uploaded_clean = clean_path
             uploaded_post_ar = post_ar_path
             has_uploaded_asset = True
-        else:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                render_future = executor.submit(
-                    self.render_image,
-                    visual_prompt, seed, model=image_model, headline=headline, brand=brand,
-                    overlay=enhance_image, output_format=output_format, tagline=hook[:110]
-                )
-                arabic_future = executor.submit(
-                    self.transcreate_to_arabic,
-                    en_pack, brand=brand, visual_analysis="", guidelines=distilled_gl
-                )
-
-                try:
-                    render_res = render_future.result()
-                    post_path, clean_path, watermark_free = render_res[0], render_res[1], render_res[2]
-                    image_status = "ready"
-                except RuntimeError as exc:
-                    post_path = clean_path = None
-                    render_res = None
-                    watermark_free = False
-                    image_status = "unavailable"
-                    warnings.append(str(exc))
-
-                arabic_pack = arabic_future.result()
 
         vm = getattr(self, "last_vision_meta", {})
         final_headline = vm.get("visual_headline") or headline
@@ -3599,15 +3639,8 @@ class LexnisCampaignStudio:
         ar_hl = arabic_pack.get("visual_headline") or arabic_pack.get("image_headline") or vm.get("visual_ar_headline") or "ريادة تتخطى الآفاق"
         ar_tl = arabic_pack.get("visual_tagline") or vm.get("visual_ar_tagline") or ""
 
-        # Render Arabic visual overlay for AI generated base (suppressed for template swap, hiring & launch cards to preserve crisp brand typography)
-        is_hiring_mode = (post_type == "hiring") or ("hiring" in (post_type or "").lower()) or ("we are hiring" in effective_prompt.lower())
-        is_launch_mode = (post_type in ("launch", "product_launch", "announcement", "product")) or \
-                         ("launch" in (post_type or "").lower()) or \
-                         ("product_launch" in (post_type or "").lower()) or \
-                         ("product launch" in effective_prompt.lower()) or \
-                         ("flagship release" in effective_prompt.lower())
-
-        if (t_file and s_file) or is_hiring_mode or is_launch_mode:
+        # Render Arabic visual overlay for AI generated base (suppressed for template swap & agency cards to preserve crisp brand typography)
+        if (t_file and s_file) or (post_ar_path and Path(str(post_ar_path)).exists()):
             arabic_post_path = post_ar_path
         elif clean_path and clean_path.exists() and not (t_file and s_file):
             ar_tag = hashlib.sha1(f"ad-v5-ar|{ar_hl}|{brand}|{ar_tl}".encode()).hexdigest()[:8]
@@ -3628,7 +3661,12 @@ class LexnisCampaignStudio:
         uploaded_post_ar = None
         uploaded_clean = None
 
-        if has_uploaded_asset and not (t_file and s_file) and not is_hiring_mode and not is_launch_mode:
+        if post_path and Path(str(post_path)).exists():
+            uploaded_post_en = post_path
+            uploaded_clean = clean_path
+            uploaded_post_ar = post_ar_path
+            has_uploaded_asset = True
+        elif has_uploaded_asset and not (t_file and s_file):
             step("Compositing campaign typography directly onto uploaded brand asset...")
             try:
                 up_res = self.render_image(
@@ -3643,12 +3681,8 @@ class LexnisCampaignStudio:
                 uploaded_post_ar = up_res[3] if len(up_res) > 3 else getattr(self, "last_arabic_post_path", None)
             except Exception:
                 pass
-        elif (t_file and s_file) or is_hiring_mode or is_launch_mode:
-            uploaded_post_en = post_path
-            uploaded_clean = clean_path
-            uploaded_post_ar = post_ar_path
-            has_uploaded_asset = True
 
+        is_launch_mode = ("launch" in (post_type or "").lower()) or ("product" in (post_type or "").lower()) or ("announcement" in (post_type or "").lower())
         if is_launch_mode and 'prod_en' in locals():
             brief["product_name"] = locals()['prod_en']
             if not brief.get("target_audience") or "customer" in str(brief.get("target_audience", "")).lower():
