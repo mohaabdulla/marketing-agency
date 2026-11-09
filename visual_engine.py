@@ -2318,15 +2318,35 @@ def resolve_brand_theme(
             hashtag_ar = "#لكسنس"
     else:
         resolved_name = b_name or "Enterprise"
-        colors = (brand_profile.get("brand_colors") if isinstance(brand_profile, dict) else None) or {}
-        pri_raw = (brand_profile.get("primary_accent") if isinstance(brand_profile, dict) else None) or colors.get("accent") or colors.get("primary") or "#2563EB"
-        sec_raw = (brand_profile.get("secondary_accent") if isinstance(brand_profile, dict) else None) or colors.get("accent_lime") or colors.get("secondary")
+        colors = {}
+        if isinstance(brand_profile, dict):
+            colors = brand_profile.get("color_palette") or brand_profile.get("brand_colors") or brand_profile.get("colors") or {}
+        
+        pri_raw = (
+            (brand_profile.get("primary_accent") if isinstance(brand_profile, dict) else None)
+            or (colors.get("primary") if isinstance(colors, dict) else None)
+            or (colors.get("accent") if isinstance(colors, dict) else None)
+            or (colors.get("primary_hex") if isinstance(colors, dict) else None)
+            or (colors[0] if isinstance(colors, list) and len(colors) > 0 else None)
+            or "#2563EB"
+        )
+        sec_raw = (
+            (brand_profile.get("secondary_accent") if isinstance(brand_profile, dict) else None)
+            or (colors.get("secondary") if isinstance(colors, dict) else None)
+            or (colors.get("accent_lime") if isinstance(colors, dict) else None)
+            or (colors.get("secondary_hex") if isinstance(colors, dict) else None)
+            or (colors[1] if isinstance(colors, list) and len(colors) > 1 else None)
+        )
 
         pri_rgb = hex_to_rgb(str(pri_raw))
         h, l, s = colorsys.rgb_to_hls(pri_rgb[0] / 255.0, pri_rgb[1] / 255.0, pri_rgb[2] / 255.0)
 
-        bg_dark_start = hsl_to_rgb(h, 0.08, min(s, 0.45))
-        bg_dark_end = hsl_to_rgb(h, 0.14, min(s, 0.50))
+        if isinstance(colors, dict) and colors.get("dark_bg"):
+            bg_dark_start = hex_to_rgb(str(colors["dark_bg"]))
+            bg_dark_end = hsl_to_rgb(h, 0.14, min(s, 0.50))
+        else:
+            bg_dark_start = hsl_to_rgb(h, 0.08, min(s, 0.45))
+            bg_dark_end = hsl_to_rgb(h, 0.14, min(s, 0.50))
         primary_accent = pri_rgb
 
         if sec_raw:
@@ -2342,8 +2362,13 @@ def resolve_brand_theme(
         primary_hex = rgb_to_hex(primary_accent)
         secondary_hex = rgb_to_hex(secondary_accent)
 
-        raw_domain = (brand_profile.get("website") or brand_profile.get("domain") or f"{clean_slug.lower()}.com") if isinstance(brand_profile, dict) else f"{clean_slug.lower()}.com"
-        domain = re.sub(r'^https?://', '', str(raw_domain)).rstrip('/')
+        raw_domain = ""
+        if isinstance(brand_profile, dict):
+            raw_domain = brand_profile.get("website") or brand_profile.get("domain") or ""
+        if raw_domain:
+            domain = re.sub(r'^https?://', '', str(raw_domain)).rstrip('/')
+        else:
+            domain = ""
         if "hiring" in p_lower:
             hashtag_en = f"#{clean_slug}Careers"
             hashtag_ar = f"#وظائف_{clean_slug}"
@@ -3236,18 +3261,24 @@ def render_agency_card(
     else:
         left_lbl = "استكشف دراسة الحالة" if is_ar else "EXPLORE CASE STUDY"
 
-    if card_data.get("cta_url"):
-        right_url = card_data["cta_url"]
-    elif is_hiring:
-        right_url = f"{brand_theme.domain}/careers"
-    elif is_launch:
-        right_url = f"{brand_theme.domain}/visionai" if brand_theme.is_lexnis else f"{brand_theme.domain}/launch"
-    elif is_edu:
-        right_url = f"{brand_theme.domain}/research"
-    elif is_promo:
-        right_url = f"{brand_theme.domain}/events"
+    # Determine cta_url / right_url:
+    # If cta_url is explicitly provided as empty string "", do NOT fall back to domain
+    raw_cta_url = card_data.get("cta_url")
+    if raw_cta_url is not None:
+        right_url = raw_cta_url.strip()
+    elif brand_theme.domain:
+        if is_hiring:
+            right_url = f"{brand_theme.domain}/careers"
+        elif is_launch:
+            right_url = f"{brand_theme.domain}/visionai" if brand_theme.is_lexnis else f"{brand_theme.domain}/launch"
+        elif is_edu:
+            right_url = f"{brand_theme.domain}/research"
+        elif is_promo:
+            right_url = f"{brand_theme.domain}/events"
+        else:
+            right_url = f"{brand_theme.domain}/impact"
     else:
-        right_url = f"{brand_theme.domain}/impact"
+        right_url = ""
 
     disp_llbl = prepare_bidi_text(left_lbl) if is_ar else left_lbl
     disp_rurl = right_url
@@ -3256,14 +3287,21 @@ def render_agency_card(
     lw = l_bbox[2] - l_bbox[0]
     lh = l_bbox[3] - l_bbox[1]
 
-    r_bbox = draw.textbbox((0, 0), disp_rurl, font=f_btn_med)
-    rw = r_bbox[2] - r_bbox[0]
-    rh = r_bbox[3] - r_bbox[1]
-
     badge_d = 36
     spacing = 20
-    content_w = lw + spacing + badge_d + spacing + rw
     pad_x = 38
+    r_bbox = (0, 0, 0, 0)
+
+    if disp_rurl:
+        r_bbox = draw.textbbox((0, 0), disp_rurl, font=f_btn_med)
+        rw = r_bbox[2] - r_bbox[0]
+        rh = r_bbox[3] - r_bbox[1]
+        content_w = lw + spacing + badge_d + spacing + rw
+    else:
+        content_w = lw + spacing + badge_d
+        rw = 0
+        rh = 0
+
     btn_w = int(round(content_w + pad_x * 2))
     btn_x = (1008 - btn_w) if is_ar else 72
 
@@ -3284,29 +3322,47 @@ def render_agency_card(
     inner_start_x = btn_x + pad_x
 
     if is_ar:
-        t2_x = inner_start_x - r_bbox[0]
-        t2_y = cta_y + (btn_h - rh) / 2.0 - r_bbox[1]
-        draw.text((t2_x, t2_y), disp_rurl, font=f_btn_med, fill=brand_theme.bg_dark_start)
+        if disp_rurl:
+            t2_x = inner_start_x - r_bbox[0]
+            t2_y = cta_y + (btn_h - rh) / 2.0 - r_bbox[1]
+            draw.text((t2_x, t2_y), disp_rurl, font=f_btn_med, fill=brand_theme.bg_dark_start)
 
-        bx = inner_start_x + rw + spacing
-        by = cta_y + (btn_h - badge_d) / 2.0
-        canvas.paste(badge_crisp, (int(round(bx)), int(round(by))), badge_crisp)
+            bx = inner_start_x + rw + spacing
+            by = cta_y + (btn_h - badge_d) / 2.0
+            canvas.paste(badge_crisp, (int(round(bx)), int(round(by))), badge_crisp)
 
-        t1_x = bx + badge_d + spacing - l_bbox[0]
-        t1_y = cta_y + (btn_h - lh) / 2.0 - l_bbox[1] - 3
-        draw.text((t1_x, t1_y), disp_llbl, font=f_btn_bold, fill=brand_theme.bg_dark_start)
+            t1_x = bx + badge_d + spacing - l_bbox[0]
+            t1_y = cta_y + (btn_h - lh) / 2.0 - l_bbox[1] - 3
+            draw.text((t1_x, t1_y), disp_llbl, font=f_btn_bold, fill=brand_theme.bg_dark_start)
+        else:
+            bx = inner_start_x
+            by = cta_y + (btn_h - badge_d) / 2.0
+            canvas.paste(badge_crisp, (int(round(bx)), int(round(by))), badge_crisp)
+
+            t1_x = bx + badge_d + spacing - l_bbox[0]
+            t1_y = cta_y + (btn_h - lh) / 2.0 - l_bbox[1] - 3
+            draw.text((t1_x, t1_y), disp_llbl, font=f_btn_bold, fill=brand_theme.bg_dark_start)
     else:
-        t1_x = inner_start_x - l_bbox[0]
-        t1_y = cta_y + (btn_h - lh) / 2.0 - l_bbox[1]
-        draw.text((t1_x, t1_y), disp_llbl, font=f_btn_bold, fill=brand_theme.bg_dark_start)
+        if disp_rurl:
+            t1_x = inner_start_x - l_bbox[0]
+            t1_y = cta_y + (btn_h - lh) / 2.0 - l_bbox[1]
+            draw.text((t1_x, t1_y), disp_llbl, font=f_btn_bold, fill=brand_theme.bg_dark_start)
 
-        bx = inner_start_x + lw + spacing
-        by = cta_y + (btn_h - badge_d) / 2.0
-        canvas.paste(badge_crisp, (int(round(bx)), int(round(by))), badge_crisp)
+            bx = inner_start_x + lw + spacing
+            by = cta_y + (btn_h - badge_d) / 2.0
+            canvas.paste(badge_crisp, (int(round(bx)), int(round(by))), badge_crisp)
 
-        t2_x = bx + badge_d + spacing - r_bbox[0]
-        t2_y = cta_y + (btn_h - rh) / 2.0 - r_bbox[1]
-        draw.text((t2_x, t2_y), disp_rurl, font=f_btn_med, fill=brand_theme.bg_dark_start)
+            t2_x = bx + badge_d + spacing - r_bbox[0]
+            t2_y = cta_y + (btn_h - rh) / 2.0 - r_bbox[1]
+            draw.text((t2_x, t2_y), disp_rurl, font=f_btn_med, fill=brand_theme.bg_dark_start)
+        else:
+            t1_x = inner_start_x - l_bbox[0]
+            t1_y = cta_y + (btn_h - lh) / 2.0 - l_bbox[1]
+            draw.text((t1_x, t1_y), disp_llbl, font=f_btn_bold, fill=brand_theme.bg_dark_start)
+
+            bx = inner_start_x + lw + spacing
+            by = cta_y + (btn_h - badge_d) / 2.0
+            canvas.paste(badge_crisp, (int(round(bx)), int(round(by))), badge_crisp)
 
     return canvas.convert("RGB")
 

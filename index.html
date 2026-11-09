@@ -658,45 +658,63 @@
         </div>
 
         <div class="p-4 rounded-xl bg-obsidian-950/70 border border-obsidian-800 space-y-4">
-          <!-- URL Input Bar -->
-          <div class="space-y-2">
-            <label class="block text-xs font-mono font-bold text-slate-300 uppercase tracking-wider">
-              Company Website URL (Optional / Recommended)
-            </label>
-            <div class="flex flex-col sm:flex-row gap-2">
-              <div class="relative flex-1">
-                <i data-lucide="link" class="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+          <!-- Brand Name & Website Input Bar -->
+          <div class="space-y-3">
+            <div class="space-y-1.5">
+              <label class="block text-xs font-mono font-bold text-slate-300 uppercase tracking-wider">
+                Company / Brand Name
+              </label>
+              <div class="relative">
+                <i data-lucide="building-2" class="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
                 <input 
-                  type="url" 
-                  id="company-url-input" 
-                  placeholder="https://lexnis.com (or enter your company website)" 
-                  value="https://lexnis.com"
+                  type="text" 
+                  id="brandNameInput" 
+                  placeholder="Auto-detected from Guideline PDF, or enter Company Name..." 
+                  value=""
                   class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-obsidian-900 border border-obsidian-700 text-white placeholder-slate-500 text-sm font-mono focus:border-cyan-500 focus:outline-none transition-all shadow-inner"
                 >
               </div>
-              <button 
-                type="button" 
-                id="btn-analyze-website"
-                class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-tech font-bold text-xs tracking-wider uppercase transition-all flex items-center justify-center space-x-2 shadow-lg hover:shadow-cyan-500/20 active:scale-95 cursor-pointer shrink-0"
-              >
-                <i data-lucide="sparkles" class="w-4 h-4"></i>
-                <span id="btn-analyze-website-text">Research &amp; Extract Brand DNA</span>
-                <svg id="website-spinner" class="animate-spin -ml-1 mr-1 h-3.5 w-3.5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-              </button>
             </div>
-            
-            <!-- Preset Quick Chips -->
-            <div class="flex items-center gap-2 pt-1 text-[11px] font-mono text-slate-400">
-              <span>Quick Presets:</span>
-              <button type="button" class="preset-url-chip px-2 py-0.5 rounded bg-obsidian-800 hover:bg-obsidian-700 text-cyan-300 border border-cyan-500/30 cursor-pointer" data-url="https://lexnis.com">
-                lexnis.com (Verified Book)
-              </button>
-              <button type="button" class="preset-url-chip px-2 py-0.5 rounded bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 border border-obsidian-700 hover:border-slate-500 cursor-pointer" data-url="https://stripe.com">
-                stripe.com
-              </button>
+
+            <div class="space-y-1.5">
+              <label class="block text-xs font-mono font-bold text-slate-300 uppercase tracking-wider">
+                Company Website URL (Optional / Leave Blank if Guideline-Only)
+              </label>
+              <div class="flex flex-col sm:flex-row gap-2">
+                <div class="relative flex-1">
+                  <i data-lucide="link" class="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                  <input 
+                    type="url" 
+                    id="company-url-input" 
+                    placeholder="Optional: https://yourcompany.com (leave blank if guideline-only)" 
+                    value=""
+                    class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-obsidian-900 border border-obsidian-700 text-white placeholder-slate-500 text-sm font-mono focus:border-cyan-500 focus:outline-none transition-all shadow-inner"
+                  >
+                </div>
+                <button 
+                  type="button" 
+                  id="btn-analyze-website"
+                  class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-tech font-bold text-xs tracking-wider uppercase transition-all flex items-center justify-center space-x-2 shadow-lg hover:shadow-cyan-500/20 active:scale-95 cursor-pointer shrink-0"
+                >
+                  <i data-lucide="sparkles" class="w-4 h-4"></i>
+                  <span id="btn-analyze-website-text">Research &amp; Extract Brand DNA</span>
+                  <svg id="website-spinner" class="animate-spin -ml-1 mr-1 h-3.5 w-3.5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                </button>
+              </div>
+              
+              <!-- Preset Quick Chips -->
+              <div class="flex items-center gap-2 pt-1 text-[11px] font-mono text-slate-400">
+                <span>Quick Presets:</span>
+                <button type="button" class="preset-url-chip px-2 py-0.5 rounded bg-obsidian-800 hover:bg-obsidian-700 text-cyan-300 border border-cyan-500/30 cursor-pointer" data-url="https://lexnis.com">
+                  lexnis.com (Verified Book)
+                </button>
+                <button type="button" class="preset-url-chip px-2 py-0.5 rounded bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 border border-obsidian-700 hover:border-slate-500 cursor-pointer" data-url="https://stripe.com">
+                  stripe.com
+                </button>
+              </div>
             </div>
           </div>
 
@@ -2404,6 +2422,10 @@
         if (isPythonBackendActive && backendApiBase) {
           const fd = new FormData();
           fileList.forEach(f => fd.append('files', f));
+          const userBName = document.getElementById('brandNameInput')?.value.trim() || '';
+          const userWeb = document.getElementById('company-url-input')?.value.trim() || '';
+          if (userBName) fd.append('brand_name_input', userBName);
+          if (userWeb) fd.append('website', userWeb);
           const resp = await fetch(`${backendApiBase}/api/upload-guidelines`, {
             method: 'POST',
             body: fd
@@ -2444,9 +2466,11 @@
             syncGuidelinesFromActiveFiles();
 
             // Automatically populate and lock Stage 3 Brand DNA from Stage 1 Guidelines
-            if (data.brand_dna && Object.keys(data.brand_dna).length > 0) {
-              applyBrandDnaToUI(data.brand_dna);
-              showToast(`🔒 Brand DNA locked from Stage 1 guidelines: ${data.brand_dna.company_name} (${data.brand_dna.brand_tag || '#LexnisTeam'})`, true);
+            const prof = data.profile || data.brand_dna;
+            if (prof && Object.keys(prof).length > 0) {
+              applyBrandDnaToUI(prof);
+              const nameToShow = prof.brand_name || prof.company_name || 'Brand';
+              showToast(`🔒 Brand profile locked from guidelines: ${nameToShow}`, true);
             } else {
               showToast(`Added ${fileList.length} brand asset${fileList.length > 1 ? 's' : ''}! (${activeGuidelineFiles.length} total active)`, true);
             }
@@ -3212,17 +3236,17 @@
 
           const pName = (personNameInput && personNameInput.value.trim()) || 'Alisha Faisal';
           const pTitle = (personTitleInput && personTitleInput.value.trim()) || 'Marketing Manager';
-          const bName = (brandInput && brandInput.value.trim()) || 'Lexnis Technologies';
-          const cUrl = (companyUrlInput && companyUrlInput.value.trim()) || currentCompanyUrl || 'https://lexnis.com';
+          const brandNameFromInput = (brandNameInput && brandNameInput.value.trim()) || (brandInput && brandInput.value.trim());
+          const brandNameFromProfile = (window.brandProfile && window.brandProfile.brand_name) ? window.brandProfile.brand_name : '';
+          const bName = brandNameFromInput || brandNameFromProfile || 'Lexnis Technologies';
+          const isLexnis = bName.toLowerCase().includes('lexnis');
+          const cUrl = (companyUrlInput && companyUrlInput.value.trim()) || currentCompanyUrl || (isLexnis ? 'https://lexnis.com' : '');
           formData.append('person_name', pName);
           formData.append('person_title', pTitle);
           formData.append('brand_name', bName);
           formData.append('company_url', cUrl);
-          if (currentBrandDna && currentBrandDna.brand_tag) {
-            formData.append('brand_tag', currentBrandDna.brand_tag);
-          } else {
-            formData.append('brand_tag', '#LexnisTeam');
-          }
+          const brandTagVal = (currentBrandDna && currentBrandDna.brand_tag) || (window.brandProfile && window.brandProfile.brand_tag) || (isLexnis ? '#LexnisTeam' : `#${bName.replace(/[^a-zA-Z0-9]/g, '') || 'Brand'}`);
+          formData.append('brand_tag', brandTagVal);
           formData.append('recolor_gradient', 'true');
           const lang = campaignLanguageSelect ? campaignLanguageSelect.value : 'both';
           formData.append('language', lang);
@@ -3388,7 +3412,7 @@
     const dnaFontSec = document.getElementById('dna-font-sec');
     const dnaAestheticText = document.getElementById('dna-aesthetic-text');
 
-    let currentCompanyUrl = 'https://lexnis.com';
+    let currentCompanyUrl = '';
     const LEXNIS_DEFAULT_DNA = {
       company_name: 'Lexnis Technologies',
       brand_tag: '#LexnisTeam',
@@ -3409,24 +3433,26 @@
         heading_style: 'Poppins Bold 700 / Cairo Bold 700'
       },
       visual_aesthetic: 'Enterprise transformation minimalism with 135° Depth Gradient (#131724 -> #023024), Tech Green & Lime dual open chevrons, Core Chevron Field pattern, and Poppins/Cairo bilingual typography.',
-      locked_by_guidelines: true
+      locked_by_guidelines: false
     };
     let currentBrandDna = { ...LEXNIS_DEFAULT_DNA };
 
     function applyBrandDnaToUI(dna) {
       if (!dna) return;
       currentBrandDna = dna;
-      if (dna.company_name && dnaBrandBadge) {
-        dnaBrandBadge.textContent = dna.company_name.toUpperCase();
-        if (brandInput && (!brandInput.value || brandInput.value === 'Lexnis Technologies')) {
-          brandInput.value = dna.company_name;
-        }
+      window.brandProfile = dna;
+      const compName = dna.brand_name || dna.company_name;
+      if (compName) {
+        if (dnaBrandBadge) dnaBrandBadge.textContent = compName.toUpperCase();
+        const brandNameInputElem = document.getElementById('brandNameInput');
+        if (brandNameInputElem) brandNameInputElem.value = compName;
+        if (brandInput) brandInput.value = compName;
       }
       if (dna.brand_tag && dnaTagText) {
         dnaTagText.textContent = dna.brand_tag;
       }
-      if (dna.domain && dnaDomainText) {
-        dnaDomainText.textContent = dna.domain;
+      if (dnaDomainText) {
+        dnaDomainText.textContent = dna.domain || (dna.has_website ? dna.website : 'No Website (Guideline-Only)');
       }
       const colors = dna.brand_colors || {};
       if (colors.primary && dnaSwatchPri && dnaHexPri) {
@@ -4066,20 +4092,69 @@
       // Hook up Apply button
       const applyBtn = document.getElementById('btn-apply-post-type-prompt');
       if (applyBtn) {
-        applyBtn.addEventListener('click', () => {
+        applyBtn.addEventListener('click', async () => {
           syncCurrentFields();
           const values = {};
           container.querySelectorAll('.pt-guided-input').forEach(inp => {
             values[inp.id] = inp.value.trim();
           });
-          const brand = (brandInput && brandInput.value.trim()) || 'Lexnis Technologies';
-          const generated = config.generatePrompt(values, brand);
-          if (promptInput) {
-            promptInput.value = generated;
-            if (charCount) charCount.textContent = promptInput.value.length;
-            promptInput.focus();
+          const bp = window.brandProfile || {};
+          const brandName = document.getElementById('brandNameInput')?.value.trim() || bp.brand_name || (brandInput && brandInput.value.trim()) || 'Our Brand';
+          const industry = bp.industry || 'Technology & Infrastructure';
+          const tone = bp.brand_tone || 'Professional, authoritative and innovative';
+          const offerings = (bp.core_offerings || []).join(', ');
+          const website = bp.website || '';
+          const hasWeb = Boolean(website && website.trim());
+
+          // Instant client-side guideline-interpolated template
+          let clientPrompt = '';
+          if (typeId === 'hiring') {
+            const role = values['pt-hire-role'] || 'Senior Systems Engineer';
+            const team = values['pt-hire-team'] || `${brandName} Core Team, Hybrid`;
+            const cta = hasWeb ? `Apply online at ${website}/careers` : 'Apply now by submitting your CV to our hiring team';
+            clientPrompt = `Recruitment campaign for ${brandName} (${industry}): We are hiring a ${role} for our ${team}. Building ${offerings || 'foundational solutions'} with ${tone.toLowerCase()} culture. Call to action: ${cta}. Visual style: Premium corporate workspace photography with clean negative space for role specifications.`;
+          } else if (typeId === 'product_launch') {
+            const prod = values['pt-prod-name'] || `${brandName} Next-Gen Platform`;
+            const feat = values['pt-prod-feature'] || `flagship innovation in ${industry}`;
+            const cta = hasWeb ? `Explore at ${website}` : 'Contact us today for a live briefing and access';
+            clientPrompt = `Commercial product launch campaign for ${brandName}: Announcing ${prod}, delivering ${feat}. Engineered for ${industry} with ${tone.toLowerCase()} identity. Call to action: ${cta}. Visual direction: Dramatic commercial product packshot with studio lighting and clean negative space.`;
+          } else {
+            clientPrompt = config.generatePrompt(values, brandName);
           }
-          showToast(`Applied ${config.name} prompt template! Click ✨ Enhance Prompt to elevate.`);
+
+          if (promptInput) {
+            promptInput.value = clientPrompt;
+            if (charCount) charCount.textContent = promptInput.value.length;
+          }
+
+          // Query /api/suggest-prompt for enhanced AI brief if backend is online
+          if (isPythonBackendActive && backendApiBase) {
+            try {
+              const resp = await fetch(`${backendApiBase}/api/suggest-prompt`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  brand_profile: bp,
+                  brand_name: brandName,
+                  post_type: typeId,
+                  lang: 'en',
+                  quick_fields: values
+                })
+              });
+              if (resp.ok) {
+                const sData = await resp.json();
+                if (sData.prompt_en && promptInput) {
+                  promptInput.value = sData.prompt_en;
+                  if (charCount) charCount.textContent = promptInput.value.length;
+                }
+              }
+            } catch (e) {
+              // Graceful fallback to clientPrompt
+            }
+          }
+
+          if (promptInput) promptInput.focus();
+          showToast(`Applied bespoke ${config.name} campaign prompt for ${brandName}!`);
         });
       }
     }
@@ -4914,7 +4989,8 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               prompt: userPrompt,
-              brand: brandInput.value.trim() || 'Lexnis Technologies',
+              brand: document.getElementById('brandNameInput')?.value.trim() || (brandInput ? brandInput.value.trim() : '') || window.brandProfile?.brand_name || 'Our Brand',
+              brand_profile_json: JSON.stringify(window.brandProfile || {}),
               tone: tone,
               theme: theme,
               seed: Math.floor(Math.random() * 1000000),
@@ -4923,7 +4999,7 @@
               output_format: campaignFormat,
               enhance_image: enhanceImageCheckbox.checked,
               guidelines: currentGuidelines || '',
-              company_url: (companyUrlInput && companyUrlInput.value.trim()) || currentCompanyUrl || '',
+              company_url: (companyUrlInput && companyUrlInput.value.trim()) || '',
               recolor_to_brand: true,
               uploaded_image_url: finalUploadedUrl,
               uploaded_image_urls: finalUploadedUrls,
@@ -5605,17 +5681,17 @@ Deployable directly into legacy PLC racks and air-gapped SCADA environments, Lex
 
             const pName = (personNameInput && personNameInput.value.trim()) || 'Alisha Faisal';
             const pTitle = (personTitleInput && personTitleInput.value.trim()) || 'Marketing Manager';
-            const bName = (brandInput && brandInput.value.trim()) || 'Lexnis Technologies';
-            const cUrl = (companyUrlInput && companyUrlInput.value.trim()) || currentCompanyUrl || 'https://lexnis.com';
+            const brandNameFromInput = (brandNameInput && brandNameInput.value.trim()) || (brandInput && brandInput.value.trim());
+            const brandNameFromProfile = (window.brandProfile && window.brandProfile.brand_name) ? window.brandProfile.brand_name : '';
+            const bName = brandNameFromInput || brandNameFromProfile || 'Lexnis Technologies';
+            const isLexnis = bName.toLowerCase().includes('lexnis');
+            const cUrl = (companyUrlInput && companyUrlInput.value.trim()) || currentCompanyUrl || (isLexnis ? 'https://lexnis.com' : '');
             formData.append('person_name', pName);
             formData.append('person_title', pTitle);
             formData.append('brand_name', bName);
             formData.append('company_url', cUrl);
-            if (currentBrandDna && currentBrandDna.brand_tag) {
-              formData.append('brand_tag', currentBrandDna.brand_tag);
-            } else {
-              formData.append('brand_tag', '#LexnisTeam');
-            }
+            const brandTagVal = (currentBrandDna && currentBrandDna.brand_tag) || (window.brandProfile && window.brandProfile.brand_tag) || (isLexnis ? '#LexnisTeam' : `#${bName.replace(/[^a-zA-Z0-9]/g, '') || 'Brand'}`);
+            formData.append('brand_tag', brandTagVal);
             formData.append('recolor_gradient', 'true');
             const lang = campaignLanguageSelect ? campaignLanguageSelect.value : 'both';
             formData.append('language', lang);

@@ -473,24 +473,24 @@ def detect_featured_person(prompt: str, post_type: Optional[str] = None) -> Tupl
     if not p:
         return None, None
 
-    if (post_type and 'hiring' in post_type.lower()) or 'hiring' in p.lower() or 'we are hiring' in p.lower():
-        m_hire = re.search(r'(?:we are hiring|hiring|open role:?|seeking|looking for)\s+([A-Za-z0-9 &/-]+?)(?:\s+(?:for our|for the|for|in|at)\s+([^.\n]+?))?(?:\.|\n|$)', p, re.IGNORECASE)
+    if (post_type and 'hiring' in post_type.lower()) or 'hiring' in p.lower() or 'we are hiring' in p.lower() or 'recruitment' in p.lower():
+        m_hire = re.search(r'(?:recruitment campaign for|recruitment for|hiring campaign for|we are hiring|hiring|open role:?|seeking|looking for)\s+([A-Za-z0-9 &/-]+?)(?:\s+(?:for our|for the|for|in|at)\s+([^.\n]+?))?(?:\.|\n|$)', p, re.IGNORECASE)
         if m_hire:
             clean_role = m_hire.group(1).strip()
             clean_role = re.sub(r'^(?:a|an)\s+', '', clean_role, flags=re.IGNORECASE).strip()
             team_str = (m_hire.group(2) or "").strip()
             if not team_str:
-                team_str = "Core Engineering & Innovation Lab"
+                team_str = "Core Engineering & Innovation Lab · Hybrid"
             return clean_role.title(), team_str
-        return "Senior AI & ML Engineer", "Lexnis Core AI Lab · Hybrid"
+        return "Senior Systems Engineer", "Engineering & Innovation Lab · Hybrid"
 
     if (post_type and any(k in post_type.lower() for k in ['product', 'launch', 'announcement'])) or any(k in p.lower() for k in ['launching', 'introducing', 'predictive maintenance', 'visionai', 'sensor']):
         m_launch = re.search(r'(?:launching|introducing|announcing|unveiling|launch for)\s+(?:the\s+)?([^.,;\n]+?)(?:\s*(?:–|-|:|,|\bas\b|\bwith\b)\s*([^.,;\n]+?))?(?:\.|\n|$)', p, re.IGNORECASE)
         if m_launch:
             prod_name = m_launch.group(1).strip()
-            cat_str = (m_launch.group(2) or "FLAGSHIP RELEASE  //  INDUSTRIAL EDGE AI").strip()
+            cat_str = (m_launch.group(2) or "FLAGSHIP RELEASE  //  ENTERPRISE INNOVATION").strip()
             return prod_name.title(), cat_str
-        return "Lexnis VisionAI™", "FLAGSHIP RELEASE  //  INDUSTRIAL EDGE AI"
+        return "Flagship Innovation Platform", "FLAGSHIP RELEASE  //  ENTERPRISE INNOVATION"
 
     if post_type and 'milestone' in post_type.lower():
         return "Global Enterprise Milestone", "Excellence & Growth Award"
@@ -1525,7 +1525,8 @@ class LexnisCampaignStudio:
 
         if is_hiring:
             hire_role = person_name or "Senior Machine Learning & Vision Systems Engineer"
-            hire_team = person_title or "Lexnis Core AI Lab · Hybrid"
+            is_lex = "lexnis" in brand_label.lower()
+            hire_team = person_title or ("Lexnis Core AI Lab · Hybrid" if is_lex else f"{brand_label} Core Engineering Lab · Hybrid")
             fallback_enhanced = {
                 "detected_brand": brand_label,
                 "product_name": f"Careers: {hire_role}",
@@ -1891,7 +1892,7 @@ class LexnisCampaignStudio:
 
         clean_url = (url or "").strip()
         if not clean_url:
-            clean_url = "https://lexnis.com"
+            return {}
         if not clean_url.startswith("http://") and not clean_url.startswith("https://"):
             clean_url = "https://" + clean_url
 
@@ -2030,91 +2031,331 @@ class LexnisCampaignStudio:
         except Exception:
             return fallback_dna
 
-    def extract_brand_dna_from_guidelines(self, guidelines_text: str, default_brand: str = "Lexnis Technologies") -> Dict[str, Any]:
+    def extract_brand_profile_from_guideline(
+        self,
+        guideline_raw_text: str = "",
+        pdf_bytes: Optional[bytes] = None,
+        image_bytes: Optional[bytes] = None,
+        filename: str = "",
+        website: str = "",
+        user_brand_name_input: str = ""
+    ) -> Dict[str, Any]:
         """
-        Extract structured Brand DNA from uploaded brand guidelines text/document:
-        - Prioritizes official brand book specifications (Lexnis 16-page Brand System Expansion)
-        - Locks corporate color architecture (Tier 1 Solids, Tier 2 Gradients, Tier 3 Division Accents)
-        - Locks typography pairs (Poppins + Cairo / Tajawal / Almarai)
-        - Locks corporate hashtag (#LexnisTeam) and right-facing chevron governance rules
+        Deep Guideline Extraction Engine:
+        Extracts rich structured brand intelligence from PDF/image brand books:
+        - Priority 1: user_brand_name_input (if provided)
+        - Priority 2: Guideline PDF / filename extraction (e.g. Sadad Bahrain, Noor Solar Energy)
+        - Priority 3: website domain (ONLY if user typed a website)
+        - Fallback: "Brand" (NEVER default to Lexnis when custom files uploaded)
+        - Extracts explicit hex codes from text + visual K-Means
+        - Extracts industry, brand tone, core offerings, visual rules, 3-sentence summary, color palette
         """
         import re
-        txt_lower = (guidelines_text or "").lower()
-        if "lexnis" in txt_lower or "edition 01" in txt_lower or "forward architecture" in txt_lower or "deep forest" in txt_lower:
-            return {
-                "company_name": "Lexnis Technologies",
-                "domain": "lexnis.com",
-                "brand_tag": "#LexnisTeam",
-                "brand_colors": {
-                    "primary": "#131724",
-                    "secondary": "#023024",
-                    "accent": "#53B849",
-                    "accent_lime": "#BCD755",
-                    "accent_yellow": "#FFBD23",
-                    "text_primary": "#FFFFFF",
-                    "text_secondary": "#E2E8F0",
-                    "gradient_start": "#131724",
-                    "gradient_end": "#023024",
-                    "division_cybersecurity": "#00C2FF",
-                    "division_managed_it": "#6675FF",
-                    "division_ai": "#8C5CFF",
-                    "division_webapp": "#2EC4B6",
-                    "division_marketing": "#FF5C8A",
-                    "division_activations": "#FF7A30"
-                },
-                "typography": {
-                    "primary_font": "Poppins",
-                    "secondary_font": "Poppins Medium",
-                    "arabic_font": "Cairo",
-                    "arabic_secondary": "Tajawal",
-                    "heading_style": "Geometric Bold Sans (Poppins Bold 700 / Cairo Bold 700)",
-                    "body_style": "High-Legibility Modern Sans (Poppins Regular 400 / Almarai Regular)"
-                },
-                "visual_aesthetic": "Enterprise transformation minimalism with 135° Depth Gradient (#131724 -> #023024), Tech Green & Lime dual open chevrons, Core Chevron Field pattern, and Poppins/Cairo bilingual typography.",
-                "governance_rules": {
-                    "chevrons": "Strictly right-facing open chevrons (336x284), never mirrored, never rotated. Arrow 1 = Tech Green #53B849, Arrow 2 = Lime Green #BCD755.",
-                    "clear_space": "Equal to the height of 'L' around wordmark.",
-                    "substrate": "Depth Gradient (#131724 -> #023024) with Core Chevron Field at 10-12% opacity."
-                },
-                "guidelines_summary": "Brand guidelines locked: Tier 1 Dark Navy (#131724) to Deep Forest (#023024) Depth Gradient with Tech Green (#53B849) and Lime Green (#BCD755) dual chevrons. Poppins & Cairo typography. #LexnisTeam.",
-                "locked_by_guidelines": True,
-                "source": "uploaded_guidelines"
-            }
+        from visual_engine import hex_to_rgb, get_relative_luminance, rgb_to_hex
 
-        # Custom guidelines extraction
-        hex_codes = list(dict.fromkeys(re.findall(r'#([0-9a-fA-F]{6})', guidelines_text)))
-        pri_hex = f"#{hex_codes[0]}" if hex_codes else "#131724"
-        sec_hex = f"#{hex_codes[1]}" if len(hex_codes) > 1 else "#023024"
-        acc_hex = f"#{hex_codes[2]}" if len(hex_codes) > 2 else "#53B849"
+        extracted_pages = []
+        rendered_images = []
 
-        tag_match = re.search(r'#([A-Za-z0-9_]{3,30})', guidelines_text)
-        raw_tag = f"#{tag_match.group(1)}" if tag_match else None
-        tag = sanitize_brand_tag(raw_tag or "", default_brand)
+        if pdf_bytes:
+            try:
+                import fitz  # PyMuPDF
+                doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+                for p_idx in range(min(len(doc), 10)):
+                    page = doc[p_idx]
+                    raw_txt = page.get_text() or ""
+                    txt_str = str(raw_txt).strip()
+                    if txt_str:
+                        extracted_pages.append(txt_str)
+                    if p_idx < 3:
+                        try:
+                            pix = page.get_pixmap(dpi=150)
+                            im = Image.frombytes("RGB", (int(pix.width), int(pix.height)), pix.samples)
+                            rendered_images.append(im)
+                        except Exception:
+                            pass
+                if extracted_pages:
+                    combined_pdf_text = "\n\n".join(extracted_pages)
+                    guideline_raw_text = f"{combined_pdf_text}\n\n{guideline_raw_text}".strip()
+            except Exception:
+                pass
+
+        if image_bytes and not rendered_images:
+            try:
+                im = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+                rendered_images.append(im)
+            except Exception:
+                pass
+
+        # 1. Color Extraction: Explicit Hex Codes + Visual K-Means
+        explicit_hex_codes = [f"#{c.upper()}" for c in dict.fromkeys(re.findall(r'#([0-9A-Fa-f]{6})\b', guideline_raw_text))]
+        accent_hex_candidates = [
+            h for h in explicit_hex_codes 
+            if h.upper() not in ("#FFFFFF", "#000000", "#111111", "#222222", "#333333", "#CCCCCC", "#EEEEEE", "#F8FAFC")
+        ]
+
+        visual_hex_codes = []
+        for rim in rendered_images:
+            try:
+                q = rim.convert("P", palette=Image.Palette.ADAPTIVE, colors=8)
+                pal = q.getpalette()
+                if pal:
+                    for i in range(min(8, len(pal) // 3)):
+                        r, g, b = pal[i*3], pal[i*3+1], pal[i*3+2]
+                        hex_c = f"#{r:02X}{g:02X}{b:02X}"
+                        if hex_c not in ("#FFFFFF", "#000000") and hex_c not in visual_hex_codes:
+                            visual_hex_codes.append(hex_c)
+            except Exception:
+                pass
+
+        all_palette = accent_hex_candidates + [c for c in visual_hex_codes if c not in accent_hex_candidates]
+
+        # 2. Brand Name Resolution
+        detected_name = ""
+        u_name = (user_brand_name_input or "").strip()
+        if u_name:
+            detected_name = u_name
+        else:
+            m_title = re.search(r'(?:Brand Guidelines|Brand Book|Style Guide|Brand Identity)\s*[-—–:]\s*([A-Za-z0-9 &]+)', guideline_raw_text, re.IGNORECASE)
+            if not m_title:
+                m_title = re.search(r'([A-Za-z0-9 &]{3,35})\s+(?:Brand Guidelines|Brand Book|Style Guide|Brand Identity)', guideline_raw_text, re.IGNORECASE)
+            if m_title:
+                cand = m_title.group(1).strip()
+                if len(cand) >= 3 and cand.lower() not in ("the", "our", "official", "version", "edition", "corporate"):
+                    detected_name = cand
+
+            if not detected_name and filename:
+                stem = Path(filename).stem
+                clean_stem = re.sub(r'[-_](?:brand[-_]?guide(?:lines)?|style[-_]?guide|logo|identity|book).*$', '', stem, flags=re.IGNORECASE)
+                clean_stem = clean_stem.replace('_', ' ').replace('-', ' ').strip()
+                if len(clean_stem) >= 3 and clean_stem.lower() not in ("brand", "guidelines", "asset", "document"):
+                    detected_name = clean_stem
+
+            if not detected_name and website and website.strip():
+                try:
+                    w_dom = re.sub(r'^https?://', '', website.strip()).split('/')[0].replace('www.', '')
+                    detected_name = w_dom.split('.')[0].capitalize()
+                except Exception:
+                    pass
+
+            if not detected_name:
+                txt_low = guideline_raw_text.lower()
+                if "lexnis" in txt_low:
+                    detected_name = "Lexnis Technologies"
+                else:
+                    detected_name = "Brand"
+
+        is_lexnis = ("lexnis" in detected_name.lower())
+
+        # 3. Website & Domain Resolution
+        clean_website = (website or "").strip()
+        extracted_domain = ""
+        if not clean_website:
+            m_web = re.search(r'(?:https?://)?(?:www\.)?([a-zA-Z0-9-]+\.(?:com|ai|io|org|net|me|bh|sa|ae))\b', guideline_raw_text)
+            if m_web:
+                extracted_domain = m_web.group(1).lower()
+                clean_website = f"https://{extracted_domain}"
+
+        has_website = bool(clean_website)
+        domain = re.sub(r'^https?://', '', clean_website).rstrip('/').replace('www.', '') if clean_website else ("lexnis.com" if is_lexnis else "")
+
+        # 4. Deterministic Extraction for Industry, Tone, Offerings
+        industry = "Enterprise Technology & Infrastructure"
+        if re.search(r'\b(?:solar|photovoltaic|inverter|renewable|clean energy|wind)\b', guideline_raw_text, re.IGNORECASE):
+            industry = "Solar & Renewable Clean Energy Solutions"
+        elif re.search(r'\b(?:fintech|payment|wallet|banking|credit|pos|transaction)\b', guideline_raw_text, re.IGNORECASE):
+            industry = "FinTech & Digital Payment Solutions"
+        elif re.search(r'\b(?:healthcare|hospital|pharma|medical|clinic)\b', guideline_raw_text, re.IGNORECASE):
+            industry = "Healthcare & Medical Technology"
+        elif re.search(r'\b(?:logistics|freight|supply chain|cargo|shipping)\b', guideline_raw_text, re.IGNORECASE):
+            industry = "Logistics & Global Supply Chain"
+        elif re.search(r'\b(?:food|beverage|restaurant|culinary|dining)\b', guideline_raw_text, re.IGNORECASE):
+            industry = "Food & Beverage Innovation"
+        elif is_lexnis:
+            industry = "Industrial AI & Enterprise Intelligence Infrastructure"
+
+        brand_tone = "Bold, engineering-led, authoritative and trustworthy"
+        if "sustainable" in guideline_raw_text.lower():
+            brand_tone = "Sustainable, forward-looking, high-efficiency excellence"
+        elif "fintech" in industry.lower():
+            brand_tone = "Frictionless, secure, customer-centric and progressive"
+
+        core_offerings = []
+        for line in guideline_raw_text.splitlines():
+            line_str = line.strip(" -*•·\t")
+            if (line.strip().startswith(("-", "•", "*", "1.", "2.", "3.")) or "products:" in line.lower() or "solutions:" in line.lower()) and 8 < len(line_str) < 60:
+                if line_str not in core_offerings and not any(w in line_str.lower() for w in ["guideline", "color", "logo", "font", "page"]):
+                    core_offerings.append(line_str)
+                    if len(core_offerings) >= 4:
+                        break
+        if not core_offerings:
+            if "solar" in industry.lower():
+                core_offerings = ["Commercial Photovoltaic Systems", "Smart Solar Inverters", "Grid-Tied Energy Storage"]
+            elif "fintech" in industry.lower():
+                core_offerings = ["Instant Digital Settlement", "Unified Merchant POS", "Cross-Border Remittance"]
+            elif is_lexnis:
+                core_offerings = ["Lexnis VisionAI™", "Real-Time Visual Telemetry", "Autonomous Defect Prediction"]
+            else:
+                core_offerings = [f"{detected_name} Core Platform", "Autonomous Operations", "Enterprise Infrastructure"]
+
+        visual_rules = "Maintain high-contrast visual architecture, generous negative space, and crisp typography alignment."
+        if is_lexnis:
+            visual_rules = "Strict 135° Depth Gradient (#131724 -> #023024), Tech Green #53B849 & Lime #BCD755 dual chevrons, Core Chevron Field."
+
+        brand_name_ar = ""
+        m_ar = re.search(r'[\u0600-\u06FF\s]{3,30}', guideline_raw_text)
+        if is_lexnis:
+            brand_name_ar = "لكسنس تكنولوجيز"
+        elif "noor solar" in detected_name.lower():
+            brand_name_ar = "نور للطاقة الشمسية"
+        elif "sadad" in detected_name.lower():
+            brand_name_ar = "سداد"
+        elif "tamkeen" in detected_name.lower():
+            brand_name_ar = "تمكين"
+        elif "quantumgrid" in detected_name.lower():
+            brand_name_ar = "كوانتوم جريد للأنظمة"
+        elif m_ar:
+            brand_name_ar = m_ar.group(0).strip()
+        else:
+            brand_name_ar = detected_name
+
+        if is_lexnis:
+            color_palette = ["#131724", "#023024", "#53B849", "#BCD755", "#FFFFFF"]
+        else:
+            pri_acc = all_palette[0] if len(all_palette) > 0 else "#2563EB"
+            sec_acc = all_palette[1] if len(all_palette) > 1 else "#38BDF8"
+            bg_dark = "#0F172A"
+            bg_sec = "#1E293B"
+            for c in all_palette:
+                try:
+                    rgb = hex_to_rgb(c)
+                    lum = get_relative_luminance(rgb)
+                    if lum < 0.12:
+                        bg_dark = c
+                        break
+                except Exception:
+                    pass
+            color_palette = [bg_dark, bg_sec, pri_acc, sec_acc, "#FFFFFF"]
+
+        guideline_summary = (
+            f"Official brand guidelines for {detected_name} ({industry}). "
+            f"Core brand palette emphasizes {color_palette[2]} and {color_palette[3]} with {brand_tone.lower()} voice. "
+            f"Key offerings focus on {', '.join(core_offerings[:3])}."
+        )
+
+        clean_slug = re.sub(r'[^a-zA-Z0-9]', '', detected_name) or "Brand"
+        hashtag_en = f"#{clean_slug}Team" if is_lexnis else f"#{clean_slug}"
+        hashtag_ar = f"#لكسنس" if is_lexnis else f"#{clean_slug}"
 
         return {
-            "company_name": default_brand,
-            "domain": "custom",
-            "brand_tag": tag,
+            "brand_name": detected_name,
+            "company_name": detected_name,
+            "brand_name_ar": brand_name_ar,
+            "has_website": has_website,
+            "website": clean_website,
+            "domain": domain,
+            "industry": industry,
+            "brand_tone": brand_tone,
+            "core_offerings": core_offerings,
+            "visual_rules": visual_rules,
+            "guideline_summary": guideline_summary,
+            "color_palette": color_palette,
             "brand_colors": {
-                "primary": pri_hex,
-                "secondary": sec_hex,
-                "accent": acc_hex,
-                "gradient_start": pri_hex,
-                "gradient_end": sec_hex,
-                "text_primary": "#FFFFFF",
-                "text_secondary": "#E2E8F0"
+                "primary": color_palette[0],
+                "secondary": color_palette[1],
+                "accent": color_palette[2],
+                "accent_lime": color_palette[3],
+                "surface": color_palette[4]
             },
-            "typography": {
-                "primary_font": "Poppins",
-                "secondary_font": "Inter",
-                "arabic_font": "Cairo",
-                "heading_style": "Geometric Bold Sans",
-                "body_style": "Clean Modern Sans"
-            },
-            "visual_aesthetic": f"Custom brand directives following uploaded guidelines with primary {pri_hex} and accent {acc_hex}.",
-            "guidelines_summary": f"Custom brand guidelines: Palette {pri_hex} / {sec_hex} with accent {acc_hex}. Tag: {tag}.",
+            "brand_tag": hashtag_en,
+            "hashtag_en": hashtag_en,
+            "hashtag_ar": hashtag_ar,
+            "is_lexnis": is_lexnis,
             "locked_by_guidelines": True,
             "source": "uploaded_guidelines"
+        }
+
+    def extract_brand_dna_from_guidelines(self, guidelines_text: str, default_brand: str = "Lexnis Technologies") -> Dict[str, Any]:
+        """Backward-compatible wrapper that delegates to extract_brand_profile_from_guideline."""
+        user_input = default_brand if default_brand != "Lexnis Technologies" else ""
+        return self.extract_brand_profile_from_guideline(
+            guideline_raw_text=guidelines_text,
+            user_brand_name_input=user_input
+        )
+
+    def suggest_post_prompt(
+        self,
+        brand_profile: Dict[str, Any],
+        post_type: str = "hiring",
+        lang: str = "en",
+        quick_fields: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, str]:
+        """
+        Dynamically synthesize a tailored Stage 4 prompt using the brand profile:
+        - If company has NO website: does NOT mention any URL, uses clean action CTA
+        - Incorporates actual brand name, industry, offerings, tone, and visual guidelines
+        """
+        b_name = brand_profile.get("brand_name") or brand_profile.get("company_name") or "Our Brand"
+        industry = brand_profile.get("industry") or "Technology"
+        tone = brand_profile.get("brand_tone") or "Professional and innovative"
+        offerings = brand_profile.get("core_offerings") or []
+        offering_str = ", ".join(offerings[:3]) if offerings else "core solutions"
+        has_web = brand_profile.get("has_website", False)
+        web = brand_profile.get("website", "")
+        qf = quick_fields or {}
+
+        p_lower = str(post_type).lower()
+
+        if "hiring" in p_lower:
+            role = qf.get("pt-hire-role") or (f"Senior Engineer for {offering_str.split(',')[0]}" if offerings else "Senior Systems Engineer")
+            team = qf.get("pt-hire-team") or "HQ Engineering Team, Hybrid"
+            cta_part = f"Visit {web}/careers to apply" if has_web and web else "Apply now by sending your CV directly to our team"
+            prompt_en = (
+                f"Recruitment campaign for {b_name} ({industry}): We are hiring a {role} for our {team}. "
+                f"Empowering talent to engineer {offering_str} with {tone.lower()} standards. "
+                f"Call to action: {cta_part}. "
+                f"Visual style: High-end modern workspace photography with clean typography negative space."
+            )
+            prompt_ar = (
+                f"حملة توظيف رسمية لشركة {brand_profile.get('brand_name_ar', b_name)} ({industry}): "
+                f"نعلن عن فتح باب التقديم لشغل وظيفة {role} ضمن فريق العمل ({team}). "
+                f"دعوة للانضمام والعمل على {offering_str}. "
+                f"تواصل وقدم الآن. تصوير مكتبي عصري وإضاءة سينمائية ومساحة سلبية مخصصة للنصوص."
+            )
+        elif "launch" in p_lower or "product" in p_lower:
+            prod = qf.get("pt-prod-name") or (offerings[0] if offerings else f"{b_name} Next-Gen Platform")
+            feat = qf.get("pt-prod-feature") or f"unprecedented performance in {industry}"
+            cta_part = f"Learn more at {web}" if has_web and web else "Contact us today to schedule your private briefing"
+            prompt_en = (
+                f"Commercial flagship product launch campaign for {b_name}: Unveiling {prod}, delivering {feat}. "
+                f"Engineered specifically for {industry} with {tone.lower()} brand aesthetic. "
+                f"Call to action: {cta_part}. "
+                f"Visual direction: Hero packshot photography with dramatic commercial rim lighting and clean negative space."
+            )
+            prompt_ar = (
+                f"حملة إطلاق تجارية رئيسية لشركة {brand_profile.get('brand_name_ar', b_name)}: "
+                f"إطلاق {prod} لتقديم {feat} في قطاع {industry}. "
+                f"تواصل معنا اليوم للبدء. تصوير منتج احترافي بإضاءة استوديو متقدمة."
+            )
+        else:
+            cta_part = f"Explore more at {web}" if has_web and web else "Discover more and partner with us"
+            prompt_en = (
+                f"Brand campaign for {b_name} in {industry}, highlighting our leadership in {offering_str}. "
+                f"Tone: {tone}. Call to action: {cta_part}. "
+                f"Visual style: Executive commercial photography with clean negative space for typography."
+            )
+            prompt_ar = (
+                f"حملة استراتيجية لشركة {brand_profile.get('brand_name_ar', b_name)} في مجال {industry}، "
+                f"تسلط الضوء على ريادتنا في {offering_str}. تواصل معنا لاكتشاف المزيد."
+            )
+
+        return {
+            "status": "success",
+            "prompt_en": prompt_en,
+            "prompt_ar": prompt_ar,
+            "suggested_prompt": prompt_ar if lang == "ar" else prompt_en,
+            "brand_name": b_name,
+            "industry": industry,
+            "has_website": has_web
         }
 
     def synthesize_brief_and_strategy(
@@ -2878,6 +3119,7 @@ class LexnisCampaignStudio:
         person_title: Optional[str] = None,
         logo_path: Optional[str] = None,
         logo_url: Optional[str] = None,
+        brand_profile: Optional[Dict[str, Any]] = None,
     ) -> CampaignAsset:
         """
         Run the full agency pipeline with Dual-Agent Collaborative refinement:
@@ -2890,9 +3132,22 @@ class LexnisCampaignStudio:
 
         # 0. Live Brand DNA extraction: Stage 1 Guidelines (Highest priority) or company website
         brand_dna = None
-        has_custom_gl = bool(guidelines and guidelines.strip())
-        if has_custom_gl:
-            brand_dna = self.extract_brand_dna_from_guidelines(guidelines, default_brand=brand)
+        if brand_profile and isinstance(brand_profile, dict):
+            brand_dna = brand_profile
+            detected_company = brand_profile.get("brand_name") or brand_profile.get("company_name")
+            if detected_company and (not brand or brand == "Lexnis Technologies" and "lexnis" not in detected_company.lower()):
+                brand = detected_company
+            dna_summary = brand_profile.get("guideline_summary")
+            if dna_summary and dna_summary not in guidelines:
+                guidelines = f"{guidelines}\n\nBRAND GUIDELINE DIRECTIVES:\n{dna_summary}".strip()
+        elif guidelines and guidelines.strip():
+            brand_dna = self.extract_brand_profile_from_guideline(
+                guideline_raw_text=guidelines,
+                user_brand_name_input=brand if brand != "Lexnis Technologies" else ""
+            )
+            detected_company = brand_dna.get("brand_name")
+            if detected_company and (not brand or brand == "Lexnis Technologies" and "lexnis" not in detected_company.lower()):
+                brand = detected_company
         elif company_url:
             step(f"Extracting live Brand DNA from {company_url}...")
             try:
@@ -3124,62 +3379,97 @@ class LexnisCampaignStudio:
                 if logo_uploads:
                     logo_to_use = str(logo_uploads[0])
 
+            clean_bname = brand or "Our Brand"
+            clean_slug = re.sub(r'[^a-zA-Z0-9]', '', clean_bname) or "Brand"
+            is_lexnis_candidate = ("lexnis" in clean_bname.lower())
+
             # Dynamic post type typography presets
             if post_type == "hiring":
                 hl_en = headline or "WE'RE HIRING"
                 hl_ar = "انضم إلى فريقنا"
-                foot_en = "Build the future with us · careers.lexnis.com"
-                foot_ar = "ابنِ المستقبل معنا · قدم الآن عبر careers.lexnis.com"
-                tag_to_use = "#LexnisCareers"
-                tag_ar_to_use = "#وظائف_لكسنس"
+                if is_lexnis_candidate:
+                    foot_en = "Build the future with us · careers.lexnis.com"
+                    foot_ar = "ابنِ المستقبل معنا · قدم الآن عبر careers.lexnis.com"
+                    tag_to_use = "#LexnisCareers"
+                    tag_ar_to_use = "#وظائف_لكسنس"
+                else:
+                    foot_en = "Build the future with us · Send Your CV"
+                    foot_ar = "ابنِ المستقبل معنا · قدّم سيرتك الذاتية"
+                    tag_to_use = f"#{clean_slug}Careers"
+                    tag_ar_to_use = f"#وظائف_{clean_slug}"
             elif post_type == "product_launch":
                 hl_en = headline or "NEW LAUNCH"
                 hl_ar = "إطلاق جديد"
-                foot_en = "Accelerate enterprise innovation · discover at lexnis.com"
-                foot_ar = "سرّع وتيرة الابتكار المؤسسي · lexnis.com"
-                tag_to_use = "#LexnisInnovation"
-                tag_ar_to_use = "#ابتكار_لكسنس"
+                if is_lexnis_candidate:
+                    foot_en = "Accelerate enterprise innovation · discover at lexnis.com"
+                    foot_ar = "سرّع وتيرة الابتكار المؤسسي · lexnis.com"
+                    tag_to_use = "#LexnisInnovation"
+                    tag_ar_to_use = "#ابتكار_لكسنس"
+                else:
+                    foot_en = "Accelerate innovation with us"
+                    foot_ar = "سرّع وتيرة الابتكار وتواصل معنا"
+                    tag_to_use = f"#{clean_slug}Launch"
+                    tag_ar_to_use = f"#إطلاق_{clean_slug}"
             elif post_type == "milestone_achievement":
                 hl_en = headline or "MILESTONE"
                 hl_ar = "إنجاز استثنائي"
                 foot_en = "Celebrating collective achievements and continued leadership"
                 foot_ar = "نحتفي بالإنجازات الجماعية والريادة المستمرة"
-                tag_to_use = "#LexnisMilestone"
-                tag_ar_to_use = "#إنجازات_لكسنس"
+                tag_to_use = "#LexnisMilestone" if is_lexnis_candidate else f"#{clean_slug}Milestone"
+                tag_ar_to_use = "#إنجازات_لكسنس" if is_lexnis_candidate else f"#إنجازات_{clean_slug}"
             elif post_type == "event_announcement":
                 hl_en = headline or "JOIN US"
                 hl_ar = "فعالية قادمة"
-                foot_en = "Reserve your seat today · register at lexnis.com/events"
-                foot_ar = "احجز مقعدك اليوم · سجّل الآن عبر lexnis.com/events"
-                tag_to_use = "#LexnisEvents"
-                tag_ar_to_use = "#فعاليات_لكسنس"
+                if is_lexnis_candidate:
+                    foot_en = "Reserve your seat today · register at lexnis.com/events"
+                    foot_ar = "احجز مقعدك اليوم · سجّل الآن عبر lexnis.com/events"
+                    tag_to_use = "#LexnisEvents"
+                    tag_ar_to_use = "#فعاليات_لكسنس"
+                else:
+                    foot_en = "Reserve your seat today"
+                    foot_ar = "احجز مقعدك اليوم وتواصل معنا"
+                    tag_to_use = f"#{clean_slug}Events"
+                    tag_ar_to_use = f"#فعاليات_{clean_slug}"
             elif post_type == "thought_leadership":
                 hl_en = headline or "INSIGHTS"
                 hl_ar = "رؤى رقمية"
-                foot_en = "Read the complete insights report at lexnis.com"
-                foot_ar = "اقرأ التقرير البحثي الكامل عبر lexnis.com"
-                tag_to_use = "#LexnisInsights"
-                tag_ar_to_use = "#رؤى_لكسنس"
+                if is_lexnis_candidate:
+                    foot_en = "Read the complete insights report at lexnis.com"
+                    foot_ar = "اقرأ التقرير البحثي الكامل عبر lexnis.com"
+                    tag_to_use = "#LexnisInsights"
+                    tag_ar_to_use = "#رؤى_لكسنس"
+                else:
+                    foot_en = "Read the complete insights report"
+                    foot_ar = "اقرأ التقرير البحثي وتواصل معنا"
+                    tag_to_use = f"#{clean_slug}Insights"
+                    tag_ar_to_use = f"#رؤى_{clean_slug}"
             elif post_type == "case_study":
                 hl_en = headline or "CASE STUDY"
                 hl_ar = "قصة نجاح"
-                foot_en = "Explore the full client transformation story at lexnis.com"
-                foot_ar = "استكشف قصة التحول الرقمي الكاملة عبر lexnis.com"
-                tag_to_use = "#LexnisCaseStudy"
-                tag_ar_to_use = "#قصص_نجاح_لكسنس"
+                if is_lexnis_candidate:
+                    foot_en = "Explore the full client transformation story at lexnis.com"
+                    foot_ar = "استكشف قصة التحول الرقمي الكاملة عبر lexnis.com"
+                    tag_to_use = "#LexnisCaseStudy"
+                    tag_ar_to_use = "#قصص_نجاح_لكسنس"
+                else:
+                    foot_en = "Explore the full client transformation story"
+                    foot_ar = "استكشف قصة التحول الرقمي وتواصل معنا"
+                    tag_to_use = f"#{clean_slug}CaseStudy"
+                    tag_ar_to_use = f"#قصة_نجاح_{clean_slug}"
             elif post_type == "brand_awareness":
                 hl_en = headline or "OUR VISION"
                 hl_ar = "رؤيتنا"
-                foot_en = "Empowering organizations with sovereign enterprise AI"
-                foot_ar = "نقود المرحلة القادمة من الذكاء الصناعي والمؤسسي"
-                tag_to_use = "#LexnisVision"
-                tag_ar_to_use = "#رؤية_لكسنس"
+                foot_en = "Empowering organizations with next-generation solutions"
+                foot_ar = "نقود المرحلة القادمة من الابتكار والريادة"
+                tag_to_use = "#LexnisVision" if is_lexnis_candidate else f"#{clean_slug}Vision"
+                tag_ar_to_use = "#رؤية_لكسنس" if is_lexnis_candidate else f"#رؤية_{clean_slug}"
             else:
                 hl_en = headline or "WELCOME"
                 hl_ar = "مرحباً بك في فريقنا"
                 foot_en = "We are so excited to have you on our team!"
                 foot_ar = "نحن سعداء جداً بانضمامك إلى فريقنا!"
-                tag_to_use = brand_tag or "#LexnisTeam"
+                tag_to_use = brand_tag or ("#LexnisTeam" if is_lexnis_candidate else f"#{clean_slug}Team")
+                tag_ar_to_use = "#فريق_لكسنس" if is_lexnis_candidate else f"#فريق_{clean_slug}"
                 tag_ar_to_use = "#فريق_لكسنس"
 
             logo_key = Path(str(logo_to_use)).name if logo_to_use else "default_logo"
@@ -3374,14 +3664,25 @@ class LexnisCampaignStudio:
                 chips_en = ["Manama, Bahrain", "Full-Time / Hybrid", f"{brand_theme.clean_slug} Core Lab"]
                 chips_ar = ["المنامة، البحرين", "دوام كامل • هجين", f"مختبر {brand_theme.clean_slug}"]
 
+                if brand_theme.domain:
+                    cta_u_en = f"{brand_theme.domain}/careers"
+                    cta_u_ar = f"{brand_theme.domain}/careers"
+                    cta_t_en = "APPLY NOW"
+                    cta_t_ar = "قدّم الآن"
+                else:
+                    cta_u_en = ""
+                    cta_u_ar = ""
+                    cta_t_en = "APPLY NOW • SEND YOUR CV"
+                    cta_t_ar = "قدّم الآن • أرسل سيرتك الذاتية"
+
                 card_data_en = {
                     "card_title": role_en,
                     "team_location": team_en,
                     "hero_hook": hook_en,
                     "subcopy": subcopy_en,
                     "chips": chips_en,
-                    "cta_text": "APPLY NOW",
-                    "cta_url": f"{brand_theme.domain}/careers"
+                    "cta_text": cta_t_en,
+                    "cta_url": cta_u_en
                 }
                 card_data_ar = {
                     "card_title": role_ar,
@@ -3389,8 +3690,8 @@ class LexnisCampaignStudio:
                     "hero_hook": hook_ar,
                     "subcopy": subcopy_ar,
                     "chips": chips_ar,
-                    "cta_text": "قدّم الآن",
-                    "cta_url": f"{brand_theme.domain}/careers"
+                    "cta_text": cta_t_ar,
+                    "cta_url": cta_u_ar
                 }
 
             elif is_launch:
@@ -3455,6 +3756,17 @@ class LexnisCampaignStudio:
                 chips_en = ["< 8ms Edge Latency", "99.4% Defect Accuracy", "100% On-Premise"]
                 chips_ar = ["استجابة فورية أقل من 8ms", "دقة كشف 99.4%", "تشغيل محلي آمن 100%"]
 
+                if brand_theme.domain:
+                    cta_u_en = f"{brand_theme.domain}/visionai" if brand_theme.is_lexnis else f"{brand_theme.domain}/launch"
+                    cta_u_ar = f"{brand_theme.domain}/visionai" if brand_theme.is_lexnis else f"{brand_theme.domain}/launch"
+                    cta_t_en = "REQUEST LIVE DEMO"
+                    cta_t_ar = "اطلب عرضاً تجريبياً"
+                else:
+                    cta_u_en = ""
+                    cta_u_ar = ""
+                    cta_t_en = "GET STARTED TODAY"
+                    cta_t_ar = "ابدأ الآن وتواصل معنا"
+
                 card_data_en = {
                     "card_title": prod_en,
                     "card_overline": overline_en,
@@ -3462,8 +3774,8 @@ class LexnisCampaignStudio:
                     "chips": chips_en,
                     "hero_hook": hook_en,
                     "subcopy": subcopy_en,
-                    "cta_text": "REQUEST LIVE DEMO",
-                    "cta_url": f"{brand_theme.domain}/visionai" if brand_theme.is_lexnis else f"{brand_theme.domain}/launch"
+                    "cta_text": cta_t_en,
+                    "cta_url": cta_u_en
                 }
                 card_data_ar = {
                     "card_title": prod_ar,
@@ -3472,8 +3784,8 @@ class LexnisCampaignStudio:
                     "chips": chips_ar,
                     "hero_hook": hook_ar,
                     "subcopy": subcopy_ar,
-                    "cta_text": "اطلب عرضاً تجريبياً",
-                    "cta_url": f"{brand_theme.domain}/visionai" if brand_theme.is_lexnis else f"{brand_theme.domain}/launch"
+                    "cta_text": cta_t_ar,
+                    "cta_url": cta_u_ar
                 }
 
             elif is_edu:
@@ -3491,6 +3803,11 @@ class LexnisCampaignStudio:
                 subcopy_ar = "تمكين المؤسسات من بنية موثوقة ذات زمن استجابة حتمي وحماية بيانات كاملة."
                 chips_ar = ["ضمان استجابة صارم", "حماية بيانات كاملة", "تشغيل طرفي محلي"]
 
+                cta_u_en = f"{brand_theme.domain}/research" if brand_theme.domain else ""
+                cta_u_ar = f"{brand_theme.domain}/research" if brand_theme.domain else ""
+                cta_t_en = "READ WHITE PAPER"
+                cta_t_ar = "اقرأ التقرير الفني"
+
                 card_data_en = {
                     "card_title": title_en,
                     "card_overline": overline_en,
@@ -3498,8 +3815,8 @@ class LexnisCampaignStudio:
                     "chips": chips_en,
                     "hero_hook": hook_en,
                     "subcopy": subcopy_en,
-                    "cta_text": "READ WHITE PAPER",
-                    "cta_url": f"{brand_theme.domain}/research"
+                    "cta_text": cta_t_en,
+                    "cta_url": cta_u_en
                 }
                 card_data_ar = {
                     "card_title": title_ar,
@@ -3508,8 +3825,8 @@ class LexnisCampaignStudio:
                     "chips": chips_ar,
                     "hero_hook": hook_ar,
                     "subcopy": subcopy_ar,
-                    "cta_text": "اقرأ التقرير الفني",
-                    "cta_url": f"{brand_theme.domain}/research"
+                    "cta_text": cta_t_ar,
+                    "cta_url": cta_u_ar
                 }
 
             elif is_promo:
@@ -3527,6 +3844,11 @@ class LexnisCampaignStudio:
                 subcopy_ar = "احجز مقعدك التنفيذي لحضور الجلسات الافتتاحية المباشرة والعروض التقنية التفاعلية."
                 chips_ar = ["جلسة افتتاحية حية", "عرض تفاعلي مباشر", "حضور تنفيذي"]
 
+                cta_u_en = f"{brand_theme.domain}/events" if brand_theme.domain else ""
+                cta_u_ar = f"{brand_theme.domain}/events" if brand_theme.domain else ""
+                cta_t_en = "RESERVE YOUR PASS"
+                cta_t_ar = "احجز مقعدك الآن"
+
                 card_data_en = {
                     "card_title": title_en,
                     "card_overline": overline_en,
@@ -3534,8 +3856,8 @@ class LexnisCampaignStudio:
                     "chips": chips_en,
                     "hero_hook": hook_en,
                     "subcopy": subcopy_en,
-                    "cta_text": "RESERVE YOUR PASS",
-                    "cta_url": f"{brand_theme.domain}/events"
+                    "cta_text": cta_t_en,
+                    "cta_url": cta_u_en
                 }
                 card_data_ar = {
                     "card_title": title_ar,
@@ -3544,8 +3866,8 @@ class LexnisCampaignStudio:
                     "chips": chips_ar,
                     "hero_hook": hook_ar,
                     "subcopy": subcopy_ar,
-                    "cta_text": "احجز مقعدك الآن",
-                    "cta_url": f"{brand_theme.domain}/events"
+                    "cta_text": cta_t_ar,
+                    "cta_url": cta_u_ar
                 }
 
             else:
@@ -3563,6 +3885,9 @@ class LexnisCampaignStudio:
                 subcopy_ar = "دفع عجلة الإنتاجية الاستثنائية وضمان استمرارية الأعمال بأعلى مستويات الموثوقية."
                 chips_ar = ["جاهزية مؤسسية", "اعتمادية 99.9%", "نطاق عالمي"]
 
+                cta_u_en = f"{brand_theme.domain}/impact" if brand_theme.domain else ""
+                cta_u_ar = f"{brand_theme.domain}/impact" if brand_theme.domain else ""
+
                 card_data_en = {
                     "card_title": title_en,
                     "card_overline": overline_en,
@@ -3571,7 +3896,7 @@ class LexnisCampaignStudio:
                     "hero_hook": hook_en,
                     "subcopy": subcopy_en,
                     "cta_text": "EXPLORE CASE STUDY",
-                    "cta_url": f"{brand_theme.domain}/impact"
+                    "cta_url": cta_u_en
                 }
                 card_data_ar = {
                     "card_title": title_ar,
@@ -3581,7 +3906,7 @@ class LexnisCampaignStudio:
                     "hero_hook": hook_ar,
                     "subcopy": subcopy_ar,
                     "cta_text": "استكشف دراسة الحالة",
-                    "cta_url": f"{brand_theme.domain}/impact"
+                    "cta_url": cta_u_ar
                 }
 
             base_bg = None

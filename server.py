@@ -9,6 +9,7 @@ from typing import Optional, List, Dict, Any, Literal
 import os
 import io
 import re
+import json
 import hashlib
 import base64
 import concurrent.futures
@@ -105,6 +106,16 @@ class GenerateRequest(BaseModel):
     person_title: Optional[str] = Field(None, description="Featured person job title / department")
     logo_url: Optional[str] = Field(None, description="URL of uploaded custom corporate logo")
     logo_path: Optional[str] = Field(None, description="Local file path of uploaded custom corporate logo")
+    brand_profile_json: Optional[str] = Field(None, description="Serialized JSON of Brand Profile from Stage 1/2")
+    brand_profile: Optional[Dict[str, Any]] = Field(None, description="Structured brand profile dict")
+
+
+class SuggestPromptRequest(BaseModel):
+    brand_profile: Optional[Dict[str, Any]] = Field(None, description="Brand profile dict")
+    brand_name: Optional[str] = Field(None, description="Brand name")
+    post_type: Optional[str] = Field("hiring", description="Post type")
+    lang: Optional[str] = Field("en", description="Language code")
+    quick_fields: Optional[Dict[str, Any]] = Field(None, description="Quick fill fields from UI")
 
 
 class AnalyzeWebsiteRequest(BaseModel):
@@ -322,6 +333,17 @@ def generate_campaign_endpoint(req: GenerateRequest):
             if logo_uploads:
                 logo_to_use = str(logo_uploads[0])
 
+        bp = dict(req.brand_profile) if req.brand_profile else {}
+        if req.brand_profile_json:
+            try:
+                parsed_bp = json.loads(req.brand_profile_json)
+                if isinstance(parsed_bp, dict):
+                    bp.update(parsed_bp)
+            except Exception:
+                pass
+        if req.brand and req.brand != "Lexnis Technologies" and not bp.get("brand_name"):
+            bp["brand_name"] = req.brand
+
         asset: CampaignAsset = studio.generate_campaign(
             prompt=req.prompt,
             brand=req.brand or "Lexnis Technologies",
@@ -343,6 +365,7 @@ def generate_campaign_endpoint(req: GenerateRequest):
             person_title=req.person_title,
             logo_path=logo_to_use,
             logo_url=req.logo_url,
+            brand_profile=bp or None,
         )
         data = asset.to_dict()
         data["image_url"] = render_url(asset.image_path)
@@ -372,6 +395,113 @@ def analyze_website_endpoint(req: AnalyzeWebsiteRequest):
         studio = LexnisCampaignStudio()
         dna = studio.analyze_company_website(req.url, brand=req.brand)
         return dna
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/analyze-brand")
+async def analyze_brand_endpoint(
+    pdf_file: Optional[UploadFile] = File(None),
+    logo_file: Optional[UploadFile] = File(None),
+    image_file: Optional[UploadFile] = File(None),
+    file: Optional[UploadFile] = File(None),
+    files: Optional[List[UploadFile]] = File(None),
+    website: Optional[str] = Form(""),
+    brand_name_input: Optional[str] = Form("")
+):
+    """
+    Guideline-Driven Brand Analysis:
+    Extracts structured company intelligence, full text, and explicit brand hex codes
+    from uploaded guidelines (PDF or image) even when website is empty.
+    """
+    try:
+        studio = LexnisCampaignStudio()
+        all_files: List[UploadFile] = []
+        if files:
+            all_files.extend(files)
+        if file and file not in all_files:
+            all_files.append(file)
+        if pdf_file and pdf_file not in all_files:
+            all_files.append(pdf_file)
+        if logo_file and logo_file not in all_files:
+            all_files.append(logo_file)
+        if image_file and image_file not in all_files:
+            all_files.append(image_file)
+
+        pdf_bytes = None
+        image_bytes = None
+        guideline_raw_text = ""
+        filename = ""
+        saved_logo_url = None
+        saved_logo_path = None
+
+        IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tiff", ".svg"}
+
+        for f in all_files:
+            fname = f.filename or "brand_asset"
+            ext = Path(fname).suffix.lower()
+            content_bytes = await f.read()
+            if not content_bytes:
+                continue
+
+            if ext == ".pdf":
+                pdf_bytes = content_bytes
+                filename = fname
+            elif ext in IMAGE_EXTENSIONS or (f.content_type and f.content_type.startswith("image/")):
+                image_bytes = content_bytes
+                if not filename:
+                    filename = fname
+                f_hash = hashlib.sha1(content_bytes).hexdigest()[:12]
+                clean_stem = re.sub(r'[^a-zA-Z0-9_-]', '_', Path(fname).stem)[:24]
+                safe_ext = ext if ext in IMAGE_EXTENSIONS else '.jpg'
+                saved_name = f"logo_{clean_stem}_{f_hash}{safe_ext}"
+                disk_path = UPLOADS_DIR / saved_name
+                disk_path.write_bytes(content_bytes)
+                saved_logo_url = f"/uploads/{saved_name}"
+                saved_logo_path = str(disk_path)
+            elif ext in [".txt", ".md", ".json", ".csv"]:
+                try:
+                    guideline_raw_text += "\n\n" + content_bytes.decode("utf-8")
+                except Exception:
+                    guideline_raw_text += "\n\n" + content_bytes.decode("latin-1", errors="ignore")
+                if not filename:
+                    filename = fname
+
+        profile = studio.extract_brand_profile_from_guideline(
+            guideline_raw_text=guideline_raw_text,
+            pdf_bytes=pdf_bytes,
+            image_bytes=image_bytes,
+            filename=filename,
+            website=website or "",
+            user_brand_name_input=brand_name_input or ""
+        )
+
+        if saved_logo_url:
+            profile["logo_url"] = saved_logo_url
+            profile["logo_path"] = saved_logo_path
+
+        return {
+            "status": "success",
+            "profile": profile,
+            "brand_dna": profile,
+            "guidelines": profile.get("guideline_summary", "")
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/suggest-prompt")
+def suggest_prompt_endpoint(req: SuggestPromptRequest):
+    """Synthesizes a tailored, guideline-aware campaign prompt for Stage 4."""
+    try:
+        studio = LexnisCampaignStudio()
+        res = studio.suggest_post_prompt(
+            brand_profile=req.brand_profile or {},
+            post_type=req.post_type or "hiring",
+            lang=req.lang or "en",
+            quick_fields=req.quick_fields or {}
+        )
+        return res
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -645,7 +775,13 @@ async def upload_guidelines_endpoint(
     primary_img = next((pf for pf in processed_files if pf["is_image"]), None)
 
     # Extract structured Brand DNA directly from uploaded guidelines (highest-priority source of truth)
-    brand_dna = studio.extract_brand_dna_from_guidelines(distilled_combined, default_brand="Lexnis Technologies")
+    brand_profile = studio.extract_brand_profile_from_guideline(
+        guideline_raw_text=distilled_combined,
+        filename=primary_name
+    )
+    if primary_img and primary_img.get("file_url"):
+        brand_profile["logo_url"] = primary_img["file_url"]
+        brand_profile["logo_path"] = primary_img["file_path"]
 
     return {
         "status": "success",
@@ -661,7 +797,8 @@ async def upload_guidelines_endpoint(
         "char_count": len(distilled_combined),
         "guidelines": distilled_combined,
         "preview": distilled_combined[:350] + ("..." if len(distilled_combined) > 350 else ""),
-        "brand_dna": brand_dna
+        "brand_dna": brand_profile,
+        "profile": brand_profile
     }
 
 
@@ -814,10 +951,11 @@ async def template_swap_endpoint(
 
         brand_colors = None
         final_tag = sanitize_brand_tag(brand_tag or "", brand_name)
-        if company_url or "lexnis" in brand_name.lower():
+        target_c_url = company_url or ("https://lexnis.com" if "lexnis" in brand_name.lower() else "")
+        if target_c_url:
             try:
                 studio = LexnisCampaignStudio()
-                dna = studio.analyze_company_website(company_url or "https://lexnis.com", brand=brand_name)
+                dna = studio.analyze_company_website(target_c_url, brand=brand_name)
                 if dna:
                     brand_colors = dna.get("brand_colors")
                     if not brand_tag:

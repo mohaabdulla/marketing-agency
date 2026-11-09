@@ -307,12 +307,12 @@ def run_verification():
     # -------------------------------------------------------------------------
     # TEST 4: Zero Lexnis Leaks Verification (Color, Chevron & URL Audit)
     # -------------------------------------------------------------------------
-    print("\n[4/4] Verifying Zero Lexnis Color Leaks, Logo Leaks & URL Leaks...")
+    print("\n[4/5] Verifying Zero Lexnis Color Leaks, Logo Leaks & URL Leaks...")
     # Check that QuantumGrid card accent bar is blue/cyan, not Lexnis green
-    q_arr = np.array(q_launch_en)
-    # Sample status accent bar on left edge (x = 4..8, y = 600..700)
-    accent_sample = q_arr[650, 4]
-    print(f"  -> QuantumGrid accent bar pixel color at (4, 650): RGB {tuple(accent_sample[:3])}")
+    q_arr = np.array(q_hire_en)
+    # Sample status accent bar on left card edge (x = 75, y = 650)
+    accent_sample = q_arr[650, 75]
+    print(f"  -> QuantumGrid accent bar pixel color at (75, 650): RGB {tuple(accent_sample[:3])}")
     # Lexnis Tech Green is (83, 184, 73)
     dist_to_lexnis_green = np.linalg.norm(accent_sample[:3] - np.array([83, 184, 73]))
     assert dist_to_lexnis_green > 60.0, f"Lexnis green leaked into QuantumGrid card! Distance: {dist_to_lexnis_green}"
@@ -323,6 +323,85 @@ def run_verification():
     )
     print("  ✓ Status accent bar strictly matches QuantumGrid Royal Blue (#2563EB). Zero Lexnis green.")
 
+    # -------------------------------------------------------------------------
+    # TEST 5: Guideline-Only Brand Without Website (Noor Solar Energy)
+    # -------------------------------------------------------------------------
+    print("\n[5/5] Verifying Guideline-Only Brand Without Website Link (Noor Solar Energy)...")
+    noor_profile = {
+        "brand_name": "Noor Solar Energy",
+        "brand_name_ar": "نور للطاقة الشمسية",
+        "has_website": False,
+        "website": "",
+        "domain": "",
+        "industry": "Solar & Renewable Clean Energy Solutions",
+        "brand_tone": "Warm, sustainable, forward-looking and engineering-driven",
+        "core_offerings": ["High-efficiency bifacial solar panels", "Industrial microgrid inverters", "Commercial storage"],
+        "visual_rules": "Deep amber and golden sunlit warmth, clean geometric lines",
+        "color_palette": {
+            "primary": "#D97706",
+            "secondary": "#F59E0B",
+            "dark_bg": "#18181B",
+            "light_card": "#FFFFFF",
+            "text_dark": "#0F172A"
+        }
+    }
+    noor_theme = resolve_brand_theme(noor_profile, None, "Noor Solar Energy", post_type="hiring")
+    assert noor_theme.brand_name == "Noor Solar Energy"
+    assert noor_theme.is_lexnis is False
+    assert noor_theme.domain == "", f"Expected empty domain for Noor Solar Energy, got: '{noor_theme.domain}'"
+    print("  ✓ Noor Solar Energy theme successfully resolved with domain = '' and is_lexnis = False")
+
+    # Render Noor Solar Hiring EN (Link-Free CTA)
+    noor_hire_en = render_agency_card(
+        card_data={
+            "card_title": "Lead Photovoltaic Systems Engineer",
+            "team_location": "Riyadh, Saudi Arabia  •  Full-Time  •  On-Site",
+            "card_overline": "CAREER OPPORTUNITY  //  SOLAR ENGINEERING",
+            "hero_hook": "HARNESS THE POWER\nOF CLEAN DESERT SUN.",
+            "subcopy": "Lead the deployment of multi-megawatt bifacial photovoltaic systems across utility installations.",
+            "chips": ["Riyadh, KSA", "Full-Time", "Solar Grid Lab"],
+            "cta_text": "APPLY NOW • SEND YOUR CV",
+            "cta_url": ""  # Explicitly empty: No broken URLs!
+        },
+        brand_theme=noor_theme,
+        post_type="hiring",
+        language="en"
+    )
+    noor_hire_en_path = OUTPUT_DIR / "noor_solar_hiring_en.jpg"
+    noor_hire_en.save(noor_hire_en_path, "JPEG", quality=98, subsampling=0)
+    assert noor_hire_en.size == (1080, 1350)
+    print(f"  ✓ Saved Noor Solar Hiring EN (Link-Free CTA): {noor_hire_en_path}")
+
+    # Render Noor Solar Hiring AR (Link-Free CTA)
+    noor_hire_ar = render_agency_card(
+        card_data={
+            "card_title": "مهندس أول أنظمة كهروضوئية وتصميم مصفوفات شمسية",
+            "team_location": "الرياض، المملكة العربية السعودية  •  دوام كامل  •  موقعي",
+            "card_overline": "فرصة مهنية  //  هندسة الطاقة المتجددة",
+            "hero_hook": "استثمر طاقة المستقبل\nمع حلول الطاقة الشمسية النظيفة.",
+            "subcopy": "انضم لقيادة مشاريع الطاقة المتجددة الكبرى وتطوير محطات شمسية متقدمة بأحدث المعايير الهندسية.",
+            "chips": ["الرياض، السعودية", "دوام كامل", "مختبر الطاقة الشمسية"],
+            "cta_text": "قدّم الآن • أرسل سيرتك الذاتية",
+            "cta_url": ""  # Explicitly empty: Link-Free CTA pill!
+        },
+        brand_theme=noor_theme,
+        post_type="hiring",
+        language="ar"
+    )
+    noor_hire_ar_path = OUTPUT_DIR / "noor_solar_hiring_ar.jpg"
+    noor_hire_ar.save(noor_hire_ar_path, "JPEG", quality=98, subsampling=0)
+    assert noor_hire_ar.size == (1080, 1350)
+    print(f"  ✓ Saved Noor Solar Hiring AR (Link-Free CTA): {noor_hire_ar_path}")
+
+    # Verify zero lexnis leaks on Noor card
+    noor_arr = np.array(noor_hire_en)
+    noor_accent = noor_arr[650, 75]
+    print(f"  -> Noor Solar accent bar pixel color at (75, 650): RGB {tuple(noor_accent[:3])}")
+    dist_to_lex_g = np.linalg.norm(noor_accent[:3] - np.array([83, 184, 73]))
+    assert dist_to_lex_g > 50.0, f"Lexnis green leaked into Noor card! Distance: {dist_to_lex_g}"
+    assert noor_accent[0] > noor_accent[2], f"Noor accent should be warm amber (R > B): {noor_accent[:3]}"
+    print(f"  ✓ Noor Solar accent bar strictly matches Amber (#D97706): RGB {tuple(noor_accent[:3])}. Zero Lexnis green.")
+
     # Copy files to artifacts directory
     artifact_files = [
         lex_hire_en_path,
@@ -332,7 +411,9 @@ def run_verification():
         q_launch_en_path,
         q_launch_ar_path,
         q_hire_en_path,
-        q_hire_ar_path
+        q_hire_ar_path,
+        noor_hire_en_path,
+        noor_hire_ar_path
     ]
     for af in artifact_files:
         if af.exists() and ARTIFACTS_DIR.exists():
@@ -341,7 +422,7 @@ def run_verification():
             print(f"  -> Copied to artifact directory: {dest.name}")
 
     print("\n" + "=" * 75)
-    print("ALL 4 VERIFICATION STAGES PASSED WITH 100% BRAND COMPLIANCE!")
+    print("ALL 5 VERIFICATION STAGES PASSED WITH 100% BRAND COMPLIANCE!")
     print("=" * 75)
 
 
