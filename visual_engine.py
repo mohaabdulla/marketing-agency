@@ -1146,10 +1146,10 @@ def composite_template_swap(
         "team_welcome": {
             "headline_en": "WELCOME",
             "headline_ar": "مرحباً بك في فريقنا",
-            "name_en": "Alisha Faisal",
-            "role_en": "Marketing Manager",
-            "name_ar": "أليشا فيصل",
-            "role_ar": "مديرة التسويق",
+            "name_en": "New Team Member",
+            "role_en": "Leadership Team",
+            "name_ar": "عضو الفريق الجديد",
+            "role_ar": "فريق القيادة",
             "footer_en": "We are so excited to have you on our team!",
             "footer_ar": "نحن سعداء جداً بانضمامك إلى فريقنا!",
             "tag_en": "#LexnisTeam",
@@ -1264,9 +1264,9 @@ def composite_template_swap(
             brand_tag = preset["tag_ar" if is_ar else "tag_en"]
 
     if post_type != "team_welcome":
-        if not person_name or person_name.strip() in ("Alisha Faisal", "Anyta Putri"):
+        if not person_name or not person_name.strip():
             person_name = preset["name_ar" if is_ar else "name_en"]
-        if not person_title or person_title.strip() in ("Marketing Manager", "مديرة التسويق"):
+        if not person_title or not person_title.strip():
             person_title = preset["role_ar" if is_ar else "role_en"]
 
     # Load blueprint if provided
@@ -1303,7 +1303,8 @@ def composite_template_swap(
     clean_plate = t_res.copy()
 
     # Brand Identity & Palette Check
-    is_lexnis = bool(brand_name and "lexnis" in brand_name.lower()) or (recolor_gradient and not brand_name) or (brand_colors and any(k in str(brand_colors).upper() for k in ["53B849", "023024", "131724"]))
+    b_name_clean = re.sub(r'[^a-z0-9]', '', str(brand_name or '').lower())
+    is_lexnis = bool(b_name_clean and ("lexnis" in b_name_clean) and b_name_clean not in ("brand", "ourbrand"))
     is_brand_upgrade = bool(recolor_gradient or is_lexnis or brand_colors or (brand_name and "sekawan" not in brand_name.lower()) or (person_name and "anyta" not in person_name.lower()))
 
     # Frame & element geometry
@@ -1828,8 +1829,8 @@ def render_reflowed_campaign_visual(
     subject_image,
     blueprint,
     target_format: str = "portrait",
-    person_name: str = "Alisha Faisal",
-    person_title: str = "Marketing Manager",
+    person_name: str = "New Team Member",
+    person_title: str = "Leadership Team",
     brand_name: str = "Lexnis Technologies",
     brand_tag: str = "#SekawanTeam",
     brand_colors: Optional[Dict[str, Any]] = None,
@@ -2090,8 +2091,8 @@ def render_reflowed_campaign_visual(
 
 def render_lexnis_executive_artboard(
     subject_image,
-    person_name: str = "Alisha Faisal",
-    person_title: str = "Marketing Manager",
+    person_name: str = "New Team Member",
+    person_title: str = "Leadership Team",
     headline_en: str = "LEADERSHIP IN MOTION",
     tagline_en: str = "From vision to operating reality. Empowering enterprise transformation.",
     headline_ar: str = "قيادة تصنع الأثر",
@@ -2196,8 +2197,8 @@ def render_lexnis_executive_artboard(
     draw.text((W - 270, 60), "EXECUTIVE LEADERSHIP", font=font_tag, fill=lime_green)
 
     # Person Name & Role
-    p_name = person_name or "Alisha Faisal"
-    p_title = person_title or "Marketing Manager"
+    p_name = person_name or "New Team Member"
+    p_title = person_title or "Leadership Team"
     draw.text((64, 210), p_name, font=font_title, fill=white)
     draw.text((64, 275), f"{p_title} · {brand}", font=font_sub, fill=tech_green)
 
@@ -2273,26 +2274,37 @@ def resolve_brand_theme(
 ) -> BrandTheme:
     b_name = (
         brand_name or
-        (brand_profile.get("company_name") if isinstance(brand_profile, dict) else "") or
         (brand_profile.get("brand_name") if isinstance(brand_profile, dict) else "") or
+        (brand_profile.get("company_name") if isinstance(brand_profile, dict) else "") or
         ""
     ).strip()
-    is_lexnis_candidate = (not b_name) or (b_name.lower() in ["lexnis", "lexnis technologies", "lexnis ai"])
+
+    b_name_lower = b_name.lower().strip()
+    name_clean = re.sub(r'[^a-z0-9]', '', b_name_lower)
+
+    # is_lexnis is strictly True ONLY if name explicitly matches lexnis
+    is_lexnis = bool(name_clean in ("lexnis", "lexnistechnologies", "lexnisai") or name_clean.startswith("lexnis"))
+    if name_clean in ("", "brand", "ourbrand", "company", "unknown", "enterprise"):
+        is_lexnis = False
 
     has_custom_profile = False
     if isinstance(brand_profile, dict):
-        comp = str(brand_profile.get("company_name", "")).strip().lower()
-        if comp and comp not in ["lexnis", "lexnis technologies", "lexnis ai"]:
+        comp = str(brand_profile.get("company_name", "") or brand_profile.get("brand_name", "")).strip().lower()
+        if comp and not comp.startswith("lexnis"):
             has_custom_profile = True
-        if brand_profile.get("primary_accent") and not is_lexnis_candidate:
+        if brand_profile.get("primary_accent") and not is_lexnis:
             has_custom_profile = True
-        if brand_profile.get("brand_colors") and not is_lexnis_candidate:
+        if brand_profile.get("brand_colors") and not is_lexnis:
+            has_custom_profile = True
+        if brand_profile.get("color_palette") and not is_lexnis:
             has_custom_profile = True
 
-    is_lexnis = is_lexnis_candidate and not has_custom_profile
+    if has_custom_profile and not name_clean.startswith("lexnis"):
+        is_lexnis = False
 
-    clean_slug = re.sub(r'[^a-zA-Z0-9]', '', b_name) if b_name else "Lexnis"
-    if not clean_slug:
+    resolved_name = "Lexnis Technologies" if is_lexnis else (b_name if (b_name and b_name.lower() not in ("brand", "our brand")) else "Enterprise")
+    clean_slug = re.sub(r'[^a-zA-Z0-9]', '', resolved_name) if resolved_name else "Brand"
+    if not clean_slug or clean_slug.lower() in ("brand", "ourbrand"):
         clean_slug = "Brand"
 
     p_lower = str(post_type).lower()
@@ -2405,35 +2417,43 @@ def generate_agency_geometric_motif(
     height: int = 1350,
     brand_theme: Optional[BrandTheme] = None
 ) -> Image.Image:
+    """
+    Sleek, modern Ambient Dot-Matrix + Soft Concentric Tech Rings
+    tinted with primary_accent and secondary_accent at <=7% opacity with smooth radial falloff.
+    Zero harsh crosshairs or diagonal grid artifacts.
+    """
     motif = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(motif)
     pri = brand_theme.primary_accent if brand_theme else (37, 99, 235)
     sec = brand_theme.secondary_accent if brand_theme else (56, 189, 248)
 
-    grid_color = pri + (20,)   # ~8% opacity
-    fine_color = pri + (12,)   # ~5% opacity
-    cross_color = sec + (28,)  # ~11% opacity
+    # Ambient Dot-Matrix (36px grid, 2px dots, ~5-7% opacity with radial vignette)
+    cx, cy = width / 2.0, height * 0.42
+    max_dist = math.sqrt(cx * cx + cy * cy)
+    dot_base_alpha = 18  # ~7%
 
-    step = 72
-    for offset in range(-height, width + height, step):
-        draw.line([(offset, 0), (offset + height, height)], fill=grid_color, width=1)
+    step_dot = 36
+    for x in range(36, width - 36, step_dot):
+        for y in range(36, height - 36, step_dot):
+            dist = math.sqrt((x - cx) ** 2 + (y - cy) ** 2)
+            falloff = max(0.0, 1.0 - (dist / max_dist) ** 1.3)
+            alpha = int(round(dot_base_alpha * falloff))
+            if alpha > 2:
+                d_color = pri + (alpha,)
+                draw.rectangle([x, y, x + 1, y + 1], fill=d_color)
 
-    step_cross = 144
-    for offset in range(0, width + height * 2, step_cross):
-        draw.line([(offset, 0), (offset - height, height)], fill=fine_color, width=1)
-
-    for gx in range(72, width - 60, 180):
-        for gy in range(120, height - 100, 180):
-            arm = 6
-            draw.line([(gx - arm, gy), (gx + arm, gy)], fill=cross_color, width=1)
-            draw.line([(gx, gy - arm), (gx, gy + arm)], fill=cross_color, width=1)
-
-    center_x = width - 40
-    center_y = 60
-    for r in [90, 150, 220]:
-        draw.arc([center_x - r, center_y - r, center_x + r, center_y + r], start=90, end=180, fill=cross_color, width=1)
+    # Soft Concentric Tech Rings in top-right ambient zone
+    ring_cx = width - 80
+    ring_cy = 100
+    for r in [80, 140, 210, 290]:
+        r_alpha = 14  # ~5.5% opacity
+        ring_color = sec + (r_alpha,)
+        draw.arc([ring_cx - r, ring_cy - r, ring_cx + r, ring_cy + r], start=70, end=200, fill=ring_color, width=1)
 
     return motif
+
+
+create_universal_agency_motif = generate_agency_geometric_motif
 
 
 def render_agency_mesh_background(
@@ -2502,6 +2522,8 @@ def draw_brand_header(
     logo_pasted = False
 
     logo_to_load = custom_logo or brand_theme.logo_path
+    if logo_to_load and not brand_theme.is_lexnis and "lexnis" in str(logo_to_load).lower():
+        logo_to_load = None
     if logo_to_load:
         p_logo = load_logo_pil(logo_to_load, is_dark_bg=True)
         if p_logo:
@@ -2519,36 +2541,82 @@ def draw_brand_header(
             official_logo = render_lexnis_logo(height=32, is_dark_bg=True)
             canvas.paste(official_logo, (72, 72), official_logo)
         else:
-            badge_size = 44
-            badge_radius = 10
-            badge_img = Image.new("RGBA", (badge_size, badge_size), (0, 0, 0, 0))
-            b_draw = ImageDraw.Draw(badge_img)
-            b_draw.rounded_rectangle(
-                [0, 0, badge_size - 1, badge_size - 1],
-                radius=badge_radius,
-                fill=brand_theme.primary_accent + (255,),
-                outline=brand_theme.secondary_accent + (255,),
-                width=2
-            )
-            initial = (brand_theme.brand_name.strip()[:1] or "A").upper()
-            f_mono_path = FONTS_DIR / "Poppins-Bold.ttf"
-            f_mono = ImageFont.truetype(str(f_mono_path), 24) if f_mono_path.exists() else ImageFont.load_default()
-            m_bbox = b_draw.textbbox((0, 0), initial, font=f_mono)
-            mw = m_bbox[2] - m_bbox[0]
-            mh = m_bbox[3] - m_bbox[1]
-            mx = (badge_size - mw) / 2.0 - m_bbox[0]
-            my = (badge_size - mh) / 2.0 - m_bbox[1]
-            b_draw.text((mx, my), initial, font=f_mono, fill=(255, 255, 255, 255))
-            canvas.paste(badge_img, (72, 72), badge_img)
+            badge_size = 46
+            badge_radius = 12
+            # 1. 46x46px rounded-rect glass/gradient icon with crisp 1.5px white/40% border
+            badge_scale = 4  # 4x supersampling for ultra-crisp corners and text
+            hi_size = badge_size * badge_scale
+            badge_hi = Image.new("RGBA", (hi_size, hi_size), (0, 0, 0, 0))
 
-            f_name_path = FONTS_DIR / "Poppins-Bold.ttf"
-            f_name = ImageFont.truetype(str(f_name_path), 28) if f_name_path.exists() else ImageFont.load_default()
-            b_name_disp = brand_theme.brand_name.upper()
-            nb = draw.textbbox((0, 0), b_name_disp, font=f_name)
-            nh = nb[3] - nb[1]
-            nx = 72 + badge_size + 14
-            ny = 72 + (badge_size - nh) / 2.0 - nb[1]
-            draw.text((nx, ny), b_name_disp, font=f_name, fill=(255, 255, 255))
+            # Diagonal gradient from primary_accent to secondary_accent
+            c1 = np.array(brand_theme.primary_accent, dtype=np.float32)
+            c2 = np.array(brand_theme.secondary_accent, dtype=np.float32)
+            grad_arr = np.zeros((hi_size, hi_size, 4), dtype=np.uint8)
+            for py in range(hi_size):
+                for px in range(hi_size):
+                    t = (px + py) / float(hi_size * 2 - 2)
+                    col = c1 * (1.0 - t) + c2 * t
+                    grad_arr[py, px, :3] = np.clip(col, 0, 255).astype(np.uint8)
+                    grad_arr[py, px, 3] = 255
+            grad_img = Image.fromarray(grad_arr, "RGBA")
+
+            # Create rounded-rect mask with 1.5px border
+            mask_img = Image.new("L", (hi_size, hi_size), 0)
+            m_draw = ImageDraw.Draw(mask_img)
+            m_draw.rounded_rectangle([0, 0, hi_size - 1, hi_size - 1], radius=badge_radius * badge_scale, fill=255)
+            grad_img.putalpha(mask_img)
+
+            # Draw 1.5px border in white at 40% opacity
+            g_draw = ImageDraw.Draw(grad_img)
+            g_draw.rounded_rectangle(
+                [1, 1, hi_size - 2, hi_size - 2],
+                radius=badge_radius * badge_scale,
+                outline=(255, 255, 255, 102),
+                width=int(round(1.5 * badge_scale))
+            )
+
+            # Determine 1-2 letter monogram
+            raw_bname = brand_theme.brand_name.strip()
+            b_words = [w for w in re.split(r'[\s_-]+', raw_bname) if w]
+            if len(b_words) >= 2:
+                monogram = (b_words[0][:1] + b_words[1][:1]).upper()
+            else:
+                w0 = b_words[0] if b_words else "B"
+                uppers = [c for c in w0 if c.isupper()]
+                if len(uppers) >= 2:
+                    monogram = (uppers[0] + uppers[1]).upper()
+                else:
+                    monogram = w0[:2].upper() if len(w0) >= 2 else (w0[:1] or "B").upper()
+
+            f_mono_path = FONTS_DIR / "Poppins-Bold.ttf"
+            f_mono = ImageFont.truetype(str(f_mono_path), 22 * badge_scale) if f_mono_path.exists() else ImageFont.load_default()
+            mb = g_draw.textbbox((0, 0), monogram, font=f_mono)
+            mw = mb[2] - mb[0]
+            mh = mb[3] - mb[1]
+            mx = (hi_size - mw) / 2.0 - mb[0]
+            my = (hi_size - mh) / 2.0 - mb[1]
+            g_draw.text((mx, my), monogram, font=f_mono, fill=(11, 15, 23, 255))
+
+            badge_final = grad_img.resize((badge_size, badge_size), Image.Resampling.LANCZOS)
+            canvas.paste(badge_final, (72, 68), badge_final)
+
+            # 2. Next to icon (x = 132): Brand Name and optional subtitle descriptor
+            f_title_path = FONTS_DIR / "Poppins-Bold.ttf"
+            f_sub_path = FONTS_DIR / "Poppins-SemiBold.ttf"
+            f_title = ImageFont.truetype(str(f_title_path), 30) if f_title_path.exists() else ImageFont.load_default()
+            f_sub_desc = ImageFont.truetype(str(f_sub_path), 11) if f_sub_path.exists() else ImageFont.load_default()
+
+            if len(b_words) >= 2:
+                head_word = b_words[0].upper()
+                sub_words = " ".join(b_words[1:]).upper()
+                draw.text((132, 66), head_word, font=f_title, fill=(255, 255, 255))
+                draw.text((133, 98), sub_words, font=f_sub_desc, fill=brand_theme.secondary_accent)
+            else:
+                full_name = raw_bname.upper()
+                nb = draw.textbbox((0, 0), full_name, font=f_title)
+                nh = nb[3] - nb[1]
+                ny = 68 + (badge_size - nh) / 2.0 - nb[1]
+                draw.text((132, ny), full_name, font=f_title, fill=(255, 255, 255))
 
     tag_str = brand_theme.hashtag_ar if is_ar else brand_theme.hashtag_en
     f_tag_path = (FONTS_DIR / "Cairo-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-Medium.ttf")
@@ -2753,8 +2821,25 @@ def render_agency_card(
     if card_data.get("eyebrow_text"):
         eyebrow_text = card_data["eyebrow_text"]
     elif is_hiring:
-        city = card_data.get("city") or ("المنامة" if is_ar else "MANAMA")
-        eyebrow_text = f"نحن نوظف  •  {city}" if is_ar else f"WE'RE HIRING  •  {city}"
+        if card_data.get("city"):
+            city = card_data["city"]
+            eyebrow_text = f"نحن نوظف  •  {city}" if is_ar else f"WE'RE HIRING  •  {city}"
+        elif brand_theme.is_lexnis:
+            city = "المنامة" if is_ar else "MANAMA"
+            eyebrow_text = f"نحن نوظف  •  {city}" if is_ar else f"WE'RE HIRING  •  {city}"
+        else:
+            t_loc = card_data.get("team_location") or ""
+            loc_clean = ""
+            if t_loc:
+                parts = [p.strip() for p in re.split(r'[•·|/]', t_loc) if p.strip()]
+                if parts:
+                    first_p = parts[0]
+                    if not any(w in first_p.lower() for w in ["full-time", "part-time", "contract", "hybrid", "remote", "دوام"]):
+                        loc_clean = first_p.upper()
+            if loc_clean and loc_clean.lower() not in ("manama", "المنامة"):
+                eyebrow_text = f"نحن نوظف  •  {loc_clean}" if is_ar else f"WE'RE HIRING  •  {loc_clean}"
+            else:
+                eyebrow_text = "انضم إلى فريقنا  •  فرص مهنية" if is_ar else "WE'RE HIRING  •  JOIN OUR TEAM"
     elif is_launch:
         eyebrow_text = "إطلاق منتج جديد  •  حلول الذكاء الاصطناعي" if is_ar else "PRODUCT LAUNCH  •  NEW RELEASE"
     elif is_edu:
@@ -3082,14 +3167,6 @@ def render_agency_card(
                 (cx + wm_t, wm_y0 + wm_h), (cx, wm_y0 + wm_h), (cx + wm_dx, wm_y0 + wm_h / 2.0)
             ]
             c_draw.polygon(pts, fill=wm_color)
-    else:
-        # Subtle technical vector grid watermark
-        wm_color = brand_theme.primary_accent + (9,)
-        w_step = 40
-        w_start = 36 if is_ar else (card_w - 260)
-        for wo in range(0, 240, w_step):
-            c_draw.line([(w_start + wo, card_h_int - 140), (w_start + wo + 100, card_h_int - 20)], fill=wm_color, width=2)
-        c_draw.arc([w_start, card_h_int - 160, w_start + 180, card_h_int + 20], start=0, end=180, fill=wm_color, width=2)
 
     # Perimeter border
     c_draw.rounded_rectangle([0, 0, card_w - 1, card_h_int - 1], radius=16, outline=(255, 255, 255, 242), width=1)
@@ -3266,7 +3343,7 @@ def render_agency_card(
     raw_cta_url = card_data.get("cta_url")
     if raw_cta_url is not None:
         right_url = raw_cta_url.strip()
-    elif brand_theme.domain:
+    elif brand_theme.domain and brand_theme.domain.strip():
         if is_hiring:
             right_url = f"{brand_theme.domain}/careers"
         elif is_launch:
@@ -3279,6 +3356,13 @@ def render_agency_card(
             right_url = f"{brand_theme.domain}/impact"
     else:
         right_url = ""
+
+    # Hard guardrail: If not Lexnis, sanitize any accidental "lexnis.com" or "lexnis"
+    if not brand_theme.is_lexnis:
+        if "lexnis" in right_url.lower():
+            right_url = "" if not brand_theme.domain else (f"{brand_theme.domain}/careers" if is_hiring else brand_theme.domain)
+        if "lexnis" in left_lbl.lower():
+            left_lbl = "APPLY NOW" if is_hiring else ("GET STARTED" if is_launch else "LEARN MORE")
 
     disp_llbl = prepare_bidi_text(left_lbl) if is_ar else left_lbl
     disp_rurl = right_url

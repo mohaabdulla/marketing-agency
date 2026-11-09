@@ -102,551 +102,16 @@
     <div class="grid grid-cols-1 gap-8">
 
       <!-- ========================================== -->
-      <!-- STAGE 1: BRAND GUIDELINES & DIRECTIVES SECTION -->
-      <!-- ========================================== -->
-      <section id="guidelines-card" class="bg-obsidian-900/80 backdrop-blur-md border border-obsidian-800 rounded-2xl p-6 shadow-xl space-y-4">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <div class="flex items-center space-x-2">
-              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950/80 text-cyan-accent border border-cyan-500/40 uppercase">STAGE 1</span>
-              <h2 class="text-lg font-tech font-bold text-white flex items-center space-x-2">
-                <i data-lucide="shield-check" class="w-5 h-5 text-cyan-accent"></i>
-                <span>BRAND GUIDELINES &amp; STRATEGY DIRECTIVES</span>
-              </h2>
-            </div>
-            <p class="text-xs text-slate-400 font-mono mt-1">
-              Upload your company's official brand book / style guide — or let our market research engine synthesize custom guidelines automatically.
-            </p>
-          </div>
-
-          <!-- Quick Action Buttons -->
-          <div class="flex items-center space-x-2">
-            <button 
-              type="button" 
-              id="btn-auto-research-guidelines" 
-              class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-violet-600/30 via-indigo-600/30 to-cyan-500/30 hover:from-violet-600/50 hover:to-cyan-500/50 text-cyan-200 border border-cyan-500/40 font-mono text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer shadow-sm active:scale-95 group"
-              title="Synthesize comprehensive brand guidelines from real-time market research"
-            >
-              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-cyan-400 group-hover:rotate-12 transition-transform"></i>
-              <span id="btn-auto-research-text">🔍 Auto-Generate from Market Research</span>
-            </button>
-
-            <button type="button" id="guidelines-toggle-paste" class="px-3 py-1.5 rounded-xl bg-obsidian-950 border border-obsidian-800 hover:border-slate-600 text-xs font-mono text-slate-300 transition-colors flex items-center space-x-1.5 cursor-pointer">
-              <i data-lucide="type" class="w-3.5 h-3.5 text-slate-400"></i>
-              <span id="paste-toggle-label">Paste / Edit Rules</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Mode A: When No Guidelines Active (Split Option Cards) -->
-        <div id="guidelines-empty-state" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <!-- Option 1: Upload Custom Guidelines Document -->
-          <div id="guidelines-dropzone" class="border border-dashed border-obsidian-700 hover:border-cyan-accent/50 rounded-xl p-4 text-center cursor-pointer transition-all bg-obsidian-950/60 hover:bg-obsidian-900/60 group flex flex-col justify-center items-center space-y-2">
-            <input type="file" id="guidelines-file-input" class="hidden" multiple accept=".png,.jpg,.jpeg,.webp,.gif,.bmp,.svg,.pdf,.docx,.doc,.txt,.md,.markdown,.json,.csv,image/*">
-            <div class="w-10 h-10 rounded-full bg-cyan-950/60 border border-cyan-500/30 flex items-center justify-center text-cyan-accent group-hover:scale-110 transition-transform">
-              <i data-lucide="upload-cloud" class="w-5 h-5"></i>
-            </div>
-            <div>
-              <p class="text-xs font-mono font-bold text-slate-200 group-hover:text-cyan-accent transition-colors">
-                Upload Specific Brand Guidelines
-              </p>
-              <p class="text-[11px] font-mono text-slate-500 mt-0.5">
-                Drop PDF, DOCX, TXT, MD or style guide images (.png, .jpg)
-              </p>
-            </div>
-            <span class="text-[10px] font-mono text-cyan-accent underline underline-offset-2">Browse files</span>
-          </div>
-
-          <!-- Option 2: Automated Market Research Directives Callout -->
-          <div class="border border-obsidian-800 rounded-xl p-4 bg-obsidian-950/60 flex flex-col justify-between space-y-3">
-            <div class="space-y-1.5">
-              <div class="flex items-center space-x-2">
-                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-violet-950/70 text-violet-300 border border-violet-500/30 flex items-center gap-1">
-                  <i data-lucide="sparkles" class="w-3 h-3 text-violet-400"></i> AI Auto-Pilot
-                </span>
-                <span class="text-xs font-mono font-bold text-slate-200">No Guideline? We Research &amp; Build It</span>
-              </div>
-              <p class="text-[11px] font-mono text-slate-400 leading-relaxed">
-                If no custom guideline is uploaded, our engine automatically conducts real-time market research on your brand, synthesizes target personas, tone directives, and positioning rules, and generates the post to match.
-              </p>
-            </div>
-            <div class="flex items-center justify-between pt-1 border-t border-obsidian-800/60 text-[10px] font-mono text-slate-500">
-              <span>Automatic upon campaign creation</span>
-              <button type="button" id="btn-quick-research-guidelines" class="text-cyan-400 hover:text-cyan-300 underline underline-offset-2 font-bold cursor-pointer">
-                Preview research now →
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Mode B: Active Guidelines Display (Visible when either custom or market research guidelines are loaded) -->
-        <div id="guidelines-active-pill" class="hidden p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/40 space-y-3">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div class="flex items-center space-x-3 overflow-hidden">
-              <span class="relative flex h-2.5 w-2.5 flex-shrink-0">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-              </span>
-              <div class="truncate">
-                <div class="flex items-center space-x-2">
-                  <span id="guidelines-active-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-900/60 text-emerald-200 border border-emerald-500/40 uppercase">
-                    CUSTOM GUIDELINE ACTIVE
-                  </span>
-                  <span id="guidelines-word-badge" class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-800">
-                    1,240 words
-                  </span>
-                </div>
-                <h3 id="guidelines-active-title" class="text-xs font-mono font-bold text-slate-200 mt-1 truncate">
-                  brand_guidelines.pdf
-                </h3>
-              </div>
-            </div>
-
-            <!-- Action Buttons for Active Guidelines -->
-            <div class="flex items-center space-x-2 flex-shrink-0">
-              <button type="button" id="guidelines-preview-btn" class="px-3 py-1 text-xs font-mono font-bold rounded-lg bg-emerald-900/50 text-emerald-200 hover:bg-emerald-900/80 border border-emerald-500/40 transition-all cursor-pointer flex items-center space-x-1.5">
-                <i data-lucide="eye" class="w-3.5 h-3.5"></i>
-                <span>Preview / Edit Directives</span>
-              </button>
-              <button type="button" id="guidelines-add-more-btn" class="px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-cyan-950/60 text-cyan-300 hover:bg-cyan-900/80 border border-cyan-500/30 transition-all flex items-center space-x-1 cursor-pointer" title="Upload additional brand files">
-                <i data-lucide="plus" class="w-3 h-3"></i>
-                <span>Add File</span>
-              </button>
-              <button type="button" id="guidelines-remove-btn" class="px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-rose-950/40 text-rose-300 hover:bg-rose-900/60 border border-rose-500/30 transition-all cursor-pointer" title="Reset guidelines">
-                Clear
-              </button>
-            </div>
-          </div>
-
-          <!-- Active File Chips Tray for Multiple Files -->
-          <div id="guidelines-file-chips-tray" class="flex flex-wrap gap-1.5 pt-2 border-t border-emerald-500/20">
-            <!-- Dynamically populated file chips -->
-          </div>
-        </div>
-
-        <!-- Direct Paste Textarea (toggleable) -->
-        <div id="guidelines-paste-box" class="hidden p-3 rounded-xl bg-obsidian-950 border border-obsidian-800 space-y-2">
-          <textarea id="guidelines-text-input" rows="5" placeholder="Paste custom brand voice rules, forbidden words, mandatory positioning hooks, target customer traits..." class="w-full bg-obsidian-900 border border-obsidian-700 focus:border-cyan-accent rounded-lg p-3 text-xs font-mono text-slate-200 placeholder-slate-600 outline-none resize-none"></textarea>
-          <div class="flex justify-end space-x-2">
-            <button type="button" id="guidelines-cancel-paste-btn" class="px-3 py-1 text-xs font-mono rounded bg-obsidian-900 text-slate-400 hover:text-white border border-obsidian-700 transition-all cursor-pointer">
-              Cancel
-            </button>
-            <button type="button" id="guidelines-apply-text-btn" class="px-3 py-1 text-xs font-mono rounded bg-cyan-accent/20 text-cyan-accent hover:bg-cyan-accent/30 border border-cyan-accent/40 font-bold transition-all cursor-pointer">
-              Enforce Custom Guidelines
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <!-- ============================================================ -->
-      <!-- STAGE 2: VISUAL ASSETS, REFERENCE TEMPLATES & SAMPLE IMAGES -->
-      <!-- ============================================================ -->
-      <section id="visual-assets-section" class="bg-obsidian-900/80 backdrop-blur-md border border-obsidian-800 rounded-2xl p-6 shadow-xl space-y-5">
-        <!-- Section Header -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <div class="flex items-center space-x-2">
-              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-violet-950/90 text-violet-300 border border-violet-500/50 uppercase">STAGE 2</span>
-              <h2 class="text-lg font-tech font-bold text-white flex items-center space-x-2">
-                <i data-lucide="image" class="w-5 h-5 text-violet-400"></i>
-                <span>VISUAL ASSETS, REFERENCE TEMPLATES &amp; SAMPLES</span>
-              </h2>
-            </div>
-            <p class="text-xs text-slate-400 font-mono mt-1">
-              Upload the specific portrait or product image you want the campaign to use, upload reference template graphics, or pick ready-to-test sample images.
-            </p>
-          </div>
-
-          <!-- Quick Actions & Sample Presets -->
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="text-[11px] font-mono text-slate-400 flex items-center gap-1">
-              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-cyan-accent"></i>
-              <span>Sample Images:</span>
-            </span>
-            <div class="flex flex-wrap gap-1.5" id="sample-visual-chips">
-              <button 
-                type="button" 
-                id="btn-sample-popout" 
-                class="sample-visual-chip text-[11px] font-mono bg-violet-950/70 hover:bg-violet-900/90 hover:text-white text-violet-200 border border-violet-500/50 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95" 
-                title="Load Sekawan Media blue Polaroid template + studio subject portrait in abaya (1-click benchmark test)"
-              >
-                <span>⚡ Sekawan 2.5D Pop-Out</span>
-              </button>
-              <button 
-                type="button" 
-                id="btn-sample-portrait" 
-                class="sample-visual-chip text-[11px] font-mono bg-obsidian-950 hover:bg-obsidian-800 hover:text-emerald-300 text-slate-300 border border-obsidian-700 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer active:scale-95" 
-                title="Load raw portrait subject photo only"
-              >
-                <span>👤 Studio Portrait Only</span>
-              </button>
-              <button 
-                type="button" 
-                id="btn-sample-template" 
-                class="sample-visual-chip text-[11px] font-mono bg-obsidian-950 hover:bg-obsidian-800 hover:text-cyan-accent text-slate-300 border border-obsidian-700 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer active:scale-95" 
-                title="Load Sekawan Media blue template graphic only"
-              >
-                <span>🖼️ Blue Template Only</span>
-              </button>
-              <button 
-                type="button" 
-                id="btn-clear-visuals" 
-                class="text-[11px] font-mono bg-rose-950/40 hover:bg-rose-900/70 text-rose-300 hover:text-white border border-rose-500/30 px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer hidden" 
-                title="Clear all visual assets and return to AI prompt generation"
-              >
-                <i data-lucide="trash-2" class="w-3 h-3"></i>
-                <span>Clear</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Three Primary Visual Slots: Slot 1 (Subject), Slot 2 (Template Graphic), Slot 3 (Corporate Logo) -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <!-- CARD A: TARGET SUBJECT / PRODUCT IMAGE (The image we want it to use) -->
-          <div class="bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-4 space-y-3 flex flex-col justify-between">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center space-x-2">
-                <span class="w-6 h-6 rounded-lg bg-emerald-950/80 border border-emerald-500/40 flex items-center justify-center text-xs">👤</span>
-                <div>
-                  <h3 class="text-xs font-mono font-bold text-slate-200 uppercase">1. Subject / Product Photo</h3>
-                  <p class="text-[11px] font-mono text-slate-400">Portrait, face, or product hardware</p>
-                </div>
-              </div>
-              <span id="subject-status-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-obsidian-900 text-slate-500 border border-obsidian-800 uppercase">
-                Not Loaded
-              </span>
-            </div>
-
-            <!-- Subject Empty Dropzone -->
-            <div id="subject-dropzone" class="border border-dashed border-obsidian-700 hover:border-emerald-500/60 rounded-xl p-4 text-center cursor-pointer transition-all bg-obsidian-900/40 hover:bg-obsidian-900/80 group flex flex-col items-center justify-center min-h-[140px] space-y-2">
-              <input type="file" id="subject-file-input" class="hidden" accept="image/*">
-              <div class="w-9 h-9 rounded-xl bg-obsidian-800 border border-obsidian-700 flex items-center justify-center text-slate-400 group-hover:text-emerald-400 group-hover:border-emerald-500/40 transition-all">
-                <i data-lucide="user-plus" class="w-4 h-4"></i>
-              </div>
-              <div>
-                <p class="text-xs font-mono font-bold text-slate-300 group-hover:text-emerald-300 transition-colors">
-                  Upload Target Subject
-                </p>
-                <p class="text-[10px] font-mono text-slate-500 mt-0.5">
-                  Portrait photo (JPG, PNG, WebP)
-                </p>
-              </div>
-            </div>
-
-            <!-- Subject Active Preview (Hidden initially) -->
-            <div id="subject-preview-card" class="hidden p-3 rounded-xl bg-emerald-950/20 border border-emerald-500/30 space-y-2.5">
-              <div class="flex items-start space-x-3">
-                <div class="relative shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-obsidian-900 border border-emerald-500/40 shadow-inner flex items-center justify-center">
-                  <img id="subject-preview-img" src="" alt="Target Subject" class="w-full h-full object-cover">
-                </div>
-                <div class="flex-1 min-w-0 space-y-1">
-                  <div class="flex items-center space-x-1.5">
-                    <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-emerald-900/70 text-emerald-300 border border-emerald-500/40 uppercase">
-                      ACTIVE SUBJECT
-                    </span>
-                    <span id="subject-dimensions-tag" class="text-[10px] font-mono text-slate-400 px-1 rounded bg-obsidian-900 border border-obsidian-800">
-                      1024 × 682
-                    </span>
-                  </div>
-                  <h4 id="subject-filename-text" class="text-xs font-mono font-bold text-slate-200 truncate">
-                    raw_subject.jpg
-                  </h4>
-                  <p class="text-[10px] font-mono text-emerald-400/90 flex items-center gap-1">
-                    <i data-lucide="check" class="w-3 h-3"></i> Ready for matting
-                  </p>
-                </div>
-              </div>
-              <div class="flex items-center justify-end space-x-2 pt-1 border-t border-emerald-500/20">
-                <button type="button" id="btn-replace-subject" class="px-2.5 py-1 text-[11px] font-mono rounded bg-obsidian-900 hover:bg-obsidian-800 text-slate-300 hover:text-white border border-obsidian-700 cursor-pointer transition-colors">
-                  Replace
-                </button>
-                <button type="button" id="btn-remove-subject" class="px-2.5 py-1 text-[11px] font-mono rounded bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-white border border-rose-500/30 cursor-pointer transition-colors">
-                  Remove
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- CARD B: TEMPLATE GRAPHIC / SAMPLE LAYOUT -->
-          <div class="bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-4 space-y-3 flex flex-col justify-between">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center space-x-2">
-                <span class="w-6 h-6 rounded-lg bg-cyan-950/80 border border-cyan-500/40 flex items-center justify-center text-xs">🖼️</span>
-                <div>
-                  <h3 class="text-xs font-mono font-bold text-slate-200 uppercase">2. Template / Reference Ad</h3>
-                  <p class="text-[11px] font-mono text-slate-400">Polaroid frame or style layout</p>
-                </div>
-              </div>
-              <span id="template-status-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-obsidian-900 text-slate-500 border border-obsidian-800 uppercase">
-                Not Loaded
-              </span>
-            </div>
-
-            <!-- Template Empty Dropzone -->
-            <div id="template-dropzone" class="border border-dashed border-obsidian-700 hover:border-cyan-500/60 rounded-xl p-4 text-center cursor-pointer transition-all bg-obsidian-900/40 hover:bg-obsidian-900/80 group flex flex-col items-center justify-center min-h-[140px] space-y-2">
-              <input type="file" id="template-file-input" class="hidden" accept="image/*">
-              <div class="w-9 h-9 rounded-xl bg-obsidian-800 border border-obsidian-700 flex items-center justify-center text-slate-400 group-hover:text-cyan-accent group-hover:border-cyan-500/40 transition-all">
-                <i data-lucide="layout" class="w-4 h-4"></i>
-              </div>
-              <div>
-                <p class="text-xs font-mono font-bold text-slate-300 group-hover:text-cyan-accent transition-colors">
-                  Upload Template Graphic
-                </p>
-                <p class="text-[10px] font-mono text-slate-500 mt-0.5">
-                  Brand poster / framing reference
-                </p>
-              </div>
-            </div>
-
-            <!-- Template Active Preview (Hidden initially) -->
-            <div id="template-preview-card" class="hidden p-3 rounded-xl bg-cyan-950/20 border border-cyan-500/30 space-y-2.5">
-              <div class="flex items-start space-x-3">
-                <div class="relative shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-obsidian-900 border border-cyan-500/40 shadow-inner flex items-center justify-center">
-                  <img id="template-preview-img" src="" alt="Template Reference" class="w-full h-full object-cover">
-                </div>
-                <div class="flex-1 min-w-0 space-y-1">
-                  <div class="flex items-center space-x-1.5">
-                    <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-cyan-900/70 text-cyan-300 border border-cyan-500/40 uppercase">
-                      ACTIVE TEMPLATE
-                    </span>
-                    <span id="template-dimensions-tag" class="text-[10px] font-mono text-slate-400 px-1 rounded bg-obsidian-900 border border-obsidian-800">
-                      808 × 1024
-                    </span>
-                  </div>
-                  <h4 id="template-filename-text" class="text-xs font-mono font-bold text-slate-200 truncate">
-                    template_reference.jpg
-                  </h4>
-                  <p class="text-[10px] font-mono text-cyan-400/90 flex items-center gap-1">
-                    <i data-lucide="check" class="w-3 h-3"></i> Clean plate armed
-                  </p>
-                </div>
-              </div>
-              <div class="flex items-center justify-end space-x-2 pt-1 border-t border-cyan-500/20">
-                <button type="button" id="btn-replace-template" class="px-2.5 py-1 text-[11px] font-mono rounded bg-obsidian-900 hover:bg-obsidian-800 text-slate-300 hover:text-white border border-obsidian-700 cursor-pointer transition-colors">
-                  Replace
-                </button>
-                <button type="button" id="btn-remove-template" class="px-2.5 py-1 text-[11px] font-mono rounded bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-white border border-rose-500/30 cursor-pointer transition-colors">
-                  Remove
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- CARD C: OFFICIAL COMPANY LOGO (Authentic Branding Lock) -->
-          <div class="bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-4 space-y-3 flex flex-col justify-between">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center space-x-2">
-                <span class="w-6 h-6 rounded-lg bg-amber-950/80 border border-amber-500/40 flex items-center justify-center text-xs">🛡️</span>
-                <div>
-                  <h3 class="text-xs font-mono font-bold text-slate-200 uppercase">3. Official Company Logo</h3>
-                  <p class="text-[11px] font-mono text-slate-400">Authentic corporate mark (PNG, SVG, WebP)</p>
-                </div>
-              </div>
-              <span id="logo-status-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-obsidian-900 text-slate-500 border border-obsidian-800 uppercase">
-                Vector / Default
-              </span>
-            </div>
-
-            <!-- Logo Empty Dropzone -->
-            <div id="logo-dropzone" class="border border-dashed border-obsidian-700 hover:border-amber-500/60 rounded-xl p-4 text-center cursor-pointer transition-all bg-obsidian-900/40 hover:bg-obsidian-900/80 group flex flex-col items-center justify-center min-h-[140px] space-y-2">
-              <input type="file" id="logo-file-input" class="hidden" accept="image/*,.svg">
-              <div class="w-9 h-9 rounded-xl bg-obsidian-800 border border-obsidian-700 flex items-center justify-center text-slate-400 group-hover:text-amber-400 group-hover:border-amber-500/40 transition-all">
-                <i data-lucide="shield" class="w-4 h-4"></i>
-              </div>
-              <div>
-                <p class="text-xs font-mono font-bold text-slate-300 group-hover:text-amber-300 transition-colors">
-                  Upload Company Logo
-                </p>
-                <p class="text-[10px] font-mono text-slate-500 mt-0.5">
-                  Transparent PNG or SVG recommended
-                </p>
-              </div>
-            </div>
-
-            <!-- Logo Active Preview (Hidden initially) -->
-            <div id="logo-preview-card" class="hidden p-3 rounded-xl bg-amber-950/20 border border-amber-500/30 space-y-2.5">
-              <div class="flex items-start space-x-3">
-                <div class="relative shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-obsidian-900 border border-amber-500/40 shadow-inner flex items-center justify-center p-1.5" style="background-image: linear-gradient(45deg, #1b2130 25%, transparent 25%), linear-gradient(-45deg, #1b2130 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #1b2130 75%), linear-gradient(-45deg, transparent 75%, #1b2130 75%); background-size: 10px 10px; background-position: 0 0, 0 5px, 5px -5px, -5px 0px;">
-                  <img id="logo-preview-img" src="" alt="Company Logo" class="max-w-full max-h-full object-contain">
-                </div>
-                <div class="flex-1 min-w-0 space-y-1">
-                  <div class="flex items-center space-x-1.5">
-                    <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-900/70 text-amber-300 border border-amber-500/40 uppercase">
-                      ACTIVE LOGO
-                    </span>
-                    <span id="logo-dimensions-tag" class="text-[10px] font-mono text-slate-400 px-1 rounded bg-obsidian-900 border border-obsidian-800">
-                      Custom PNG
-                    </span>
-                  </div>
-                  <h4 id="logo-filename-text" class="text-xs font-mono font-bold text-slate-200 truncate">
-                    company_logo.png
-                  </h4>
-                  <p class="text-[10px] font-mono text-amber-400/90 flex items-center gap-1">
-                    <i data-lucide="check" class="w-3 h-3"></i> Top-header brand lock armed
-                  </p>
-                </div>
-              </div>
-              <div class="flex items-center justify-end space-x-2 pt-1 border-t border-amber-500/20">
-                <button type="button" id="btn-replace-logo" class="px-2.5 py-1 text-[11px] font-mono rounded bg-obsidian-900 hover:bg-obsidian-800 text-slate-300 hover:text-white border border-obsidian-700 cursor-pointer transition-colors">
-                  Replace
-                </button>
-                <button type="button" id="btn-remove-logo" class="px-2.5 py-1 text-[11px] font-mono rounded bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-white border border-rose-500/30 cursor-pointer transition-colors">
-                  Remove
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Dynamic Person & Role Personalization Strip -->
-        <div id="personalization-strip" class="p-3.5 rounded-xl bg-obsidian-950/90 border border-obsidian-800 space-y-2">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-mono font-bold text-slate-300 flex items-center gap-1.5">
-              <i data-lucide="user-check" class="w-3.5 h-3.5 text-cyan-accent"></i>
-              <span>Featured Person &amp; Role Personalization</span>
-            </span>
-            <span class="text-[10px] font-mono text-slate-500">Auto-detected from prompt or edit manually</span>
-          </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
-            <div class="flex items-center space-x-2">
-              <span class="text-slate-400 w-24 shrink-0">Person Name:</span>
-              <input id="person-name-input" type="text" placeholder="e.g. Alisha Faisal" class="w-full bg-obsidian-900 border border-obsidian-700 text-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-accent">
-            </div>
-            <div class="flex items-center space-x-2">
-              <span class="text-slate-400 w-24 shrink-0">Role / Title:</span>
-              <input id="person-title-input" type="text" placeholder="e.g. Marketing Manager" class="w-full bg-obsidian-900 border border-obsidian-700 text-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-accent">
-            </div>
-          </div>
-        </div>
-
-        <!-- Visual Engine Mode Indicator & Quick Action Bar -->
-        <div id="visual-engine-status-bar" class="p-3.5 rounded-xl bg-obsidian-950 border border-obsidian-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
-          <div class="flex items-center space-x-3">
-            <span id="visual-mode-indicator" class="relative flex h-2.5 w-2.5">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-500 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-400"></span>
-            </span>
-            <div>
-              <span id="visual-mode-title" class="font-bold text-slate-300">PURE AI GENERATION MODE</span>
-              <p id="visual-mode-desc" class="text-[11px] text-slate-500">No custom visual assets loaded. Will generate photorealistic imagery from campaign prompt.</p>
-            </div>
-          </div>
-
-          <div class="flex items-center space-x-3">
-            <label class="flex items-center space-x-1.5 text-slate-300 hover:text-cyan-accent cursor-pointer select-none" title="When checked, the campaign visual will use your loaded visual assets instead of generating from scratch">
-              <input type="checkbox" id="use-uploaded-assets-toggle" checked class="w-3.5 h-3.5 rounded border-obsidian-700 bg-obsidian-950 text-cyan-accent focus:ring-cyan-accent accent-[#00f0ff] cursor-pointer">
-              <span>Use Assets in Campaign</span>
-            </label>
-
-            <button 
-              type="button" 
-              id="btn-analyze-template-layout" 
-              class="px-3.5 py-1.5 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 text-slate-200 font-tech font-bold text-xs tracking-wider uppercase transition-all border border-cyan-500/30 flex items-center space-x-1.5 cursor-pointer shadow-sm active:scale-95"
-              title="Reverse-engineer template into proportional design tokens"
-            >
-              <i data-lucide="scan" class="w-3.5 h-3.5 text-cyan-accent"></i>
-              <span id="analyze-layout-btn-text">📐 Layout Blueprint</span>
-            </button>
-
-            <button 
-              type="button" 
-              id="btn-quick-test-swap" 
-              class="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-cyan-600 hover:from-violet-500 hover:to-cyan-500 text-white font-tech font-bold text-xs tracking-wider uppercase transition-all shadow-sm active:scale-95 flex items-center space-x-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <i data-lucide="zap" class="w-3.5 h-3.5"></i>
-              <span id="quick-test-swap-text">⚡ Quick Test Swap</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Layout Blueprint Inspector Container (Collapsible) -->
-        <div id="layout-blueprint-inspector" class="hidden p-4 rounded-xl bg-obsidian-950 border border-cyan-500/40 space-y-3">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center space-x-2">
-              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/40 uppercase">
-                📐 REVERSE-ENGINEERED DESIGN-TOKEN BLUEPRINT
-              </span>
-              <span class="text-[11px] font-mono text-slate-400">10 Visual Elements Detected • Proportional Design Tokens • 0 Magic Numbers</span>
-            </div>
-            <div class="flex items-center space-x-2">
-              <button type="button" id="btn-toggle-blueprint-json" class="px-2.5 py-1 text-xs font-mono font-bold rounded bg-obsidian-800 text-slate-300 hover:text-white border border-obsidian-700 transition-all cursor-pointer">
-                { } View JSON
-              </button>
-              <button type="button" id="btn-close-layout-inspector" class="p-1 rounded text-slate-400 hover:text-white cursor-pointer">
-                <i data-lucide="x" class="w-4 h-4"></i>
-              </button>
-            </div>
-          </div>
-
-          <!-- 3-Panel Visual Diagnostic Preview -->
-          <div class="flex justify-center bg-obsidian-900/60 p-2 rounded-lg overflow-x-auto">
-            <img id="layout-inspector-img" class="max-h-80 rounded shadow-2xl object-contain border border-obsidian-800" src="/static/assets/debug_layout_boxes.jpg" alt="Layout Inspector Diagnostic">
-          </div>
-
-          <!-- Key Design Tokens Grid -->
-          <div id="layout-tokens-grid" class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
-            <div class="p-2 rounded bg-obsidian-900 border border-obsidian-800">
-              <div class="text-[10px] text-slate-500 uppercase">Frame Bounding Box</div>
-              <div id="token-frame-box" class="font-bold text-white">[195, 294, 418, 505]</div>
-              <div class="text-[10px] text-cyan-400">Width: 51.7% • H: 49.3%</div>
-            </div>
-            <div class="p-2 rounded bg-obsidian-900 border border-obsidian-800">
-              <div class="text-[10px] text-slate-500 uppercase">Display Headline</div>
-              <div id="token-headline" class="font-bold text-white">WELCOME</div>
-              <div class="text-[10px] text-cyan-400">Cap-H: 56px • Z-Index: 10</div>
-            </div>
-            <div class="p-2 rounded bg-obsidian-900 border border-obsidian-800">
-              <div class="text-[10px] text-slate-500 uppercase">2.5D Head Pop-Out</div>
-              <div id="token-popout" class="font-bold text-white">76px over top frame</div>
-              <div class="text-[10px] text-purple-400">Overlaps WELCOME text</div>
-            </div>
-            <div class="p-2 rounded bg-obsidian-900 border border-obsidian-800">
-              <div class="text-[10px] text-slate-500 uppercase">Auto-Fit Nameplate</div>
-              <div id="token-nameplate" class="font-bold text-white">418 × 131 px</div>
-              <div class="text-[10px] text-emerald-400">Auto-Fit Font Scaling</div>
-            </div>
-          </div>
-
-          <!-- Raw JSON Container (Collapsible) -->
-          <pre id="blueprint-raw-json" class="hidden p-3 bg-black/60 rounded-lg text-[11px] font-mono text-cyan-300 max-h-60 overflow-y-auto border border-obsidian-800"></pre>
-        </div>
-
-        <!-- Quick Test Swap Result Container (Collapsible) -->
-        <div id="quick-swap-result-box" class="hidden p-4 rounded-xl bg-obsidian-950 border border-violet-500/40 space-y-3">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center space-x-2">
-              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/40 uppercase">
-                ✓ 2.5D POP-OUT COMPOSITE READY
-              </span>
-              <span class="text-[11px] font-mono text-slate-400">808 × 1024 • Sub-pixel hair matting • Head pop-out over typography</span>
-            </div>
-            <div class="flex items-center space-x-2">
-              <a id="quick-swap-download-link" href="#" download="popout_composite.jpg" class="px-2.5 py-1 text-xs font-mono font-bold rounded bg-cyan-950 text-cyan-300 hover:bg-cyan-900 border border-cyan-500/30 transition-all flex items-center gap-1">
-                <i data-lucide="download" class="w-3.5 h-3.5"></i> <span>Download</span>
-              </a>
-              <button type="button" id="btn-close-quick-swap" class="p-1 rounded text-slate-400 hover:text-white cursor-pointer">
-                <i data-lucide="x" class="w-4 h-4"></i>
-              </button>
-            </div>
-          </div>
-          <div class="flex justify-center bg-obsidian-900/60 p-2 rounded-lg">
-            <img id="quick-swap-result-img" class="max-h-96 rounded shadow-2xl object-contain border border-obsidian-800" src="" alt="2.5D Pop-out Result">
-          </div>
-        </div>
-      </section>
-
-      <!-- ========================================== -->
-      <!-- STAGE 3: COMPANY WEBSITE & BRAND FLOW INTELLIGENCE -->
+      <!-- STAGE 1: COMPANY & BRAND IDENTITY INTELLIGENCE -->
       <!-- ========================================== -->
       <section class="bg-obsidian-900/80 backdrop-blur-md border border-obsidian-800 rounded-2xl p-6 shadow-xl space-y-5">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div class="flex items-center space-x-2">
-              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gradient-to-r from-emerald-950 to-cyan-950 text-emerald-300 border border-emerald-500/40 uppercase">STAGE 3</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gradient-to-r from-emerald-950 to-cyan-950 text-emerald-300 border border-emerald-500/40 uppercase">STAGE 1</span>
               <h2 class="text-lg font-tech font-bold text-white flex items-center space-x-2">
                 <i data-lucide="globe" class="w-5 h-5 text-emerald-400"></i>
-                <span>COMPANY WEBSITE &amp; BRAND FLOW INTELLIGENCE</span>
+                <span>COMPANY &amp; BRAND IDENTITY INTELLIGENCE</span>
               </h2>
             </div>
             <p class="text-xs text-slate-400 font-mono mt-1">Research corporate website to extract brand palette, typography, official community hashtag, and styling flow</p>
@@ -803,14 +268,153 @@
         </div>
       </section>
 
+      
+<!-- ========================================== -->
+      <!-- STAGE 1 (PART B): BRAND GUIDELINES & DIRECTIVES -->
       <!-- ========================================== -->
-      <!-- STAGE 4: CAMPAIGN PROMPT & CONCEPT STUDIO -->
+      <section id="guidelines-card" class="bg-obsidian-900/80 backdrop-blur-md border border-obsidian-800 rounded-2xl p-6 shadow-xl space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950/80 text-cyan-accent border border-cyan-500/40 uppercase">BRAND GUIDELINES</span>
+              <h2 class="text-lg font-tech font-bold text-white flex items-center space-x-2">
+                <i data-lucide="shield-check" class="w-5 h-5 text-cyan-accent"></i>
+                <span>BRAND GUIDELINES &amp; STRATEGY DIRECTIVES</span>
+              </h2>
+            </div>
+            <p class="text-xs text-slate-400 font-mono mt-1">
+              Upload your company's official brand book / style guide — or let our market research engine synthesize custom guidelines automatically.
+            </p>
+          </div>
+
+          <!-- Quick Action Buttons -->
+          <div class="flex items-center space-x-2">
+            <button 
+              type="button" 
+              id="btn-auto-research-guidelines" 
+              class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-violet-600/30 via-indigo-600/30 to-cyan-500/30 hover:from-violet-600/50 hover:to-cyan-500/50 text-cyan-200 border border-cyan-500/40 font-mono text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer shadow-sm active:scale-95 group"
+              title="Synthesize comprehensive brand guidelines from real-time market research"
+            >
+              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-cyan-400 group-hover:rotate-12 transition-transform"></i>
+              <span id="btn-auto-research-text">🔍 Auto-Generate from Market Research</span>
+            </button>
+
+            <button type="button" id="guidelines-toggle-paste" class="px-3 py-1.5 rounded-xl bg-obsidian-950 border border-obsidian-800 hover:border-slate-600 text-xs font-mono text-slate-300 transition-colors flex items-center space-x-1.5 cursor-pointer">
+              <i data-lucide="type" class="w-3.5 h-3.5 text-slate-400"></i>
+              <span id="paste-toggle-label">Paste / Edit Rules</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Mode A: When No Guidelines Active (Split Option Cards) -->
+        <div id="guidelines-empty-state" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Option 1: Upload Custom Guidelines Document -->
+          <div id="guidelines-dropzone" class="border border-dashed border-obsidian-700 hover:border-cyan-accent/50 rounded-xl p-4 text-center cursor-pointer transition-all bg-obsidian-950/60 hover:bg-obsidian-900/60 group flex flex-col justify-center items-center space-y-2">
+            <input type="file" id="guidelines-file-input" class="hidden" multiple accept=".png,.jpg,.jpeg,.webp,.gif,.bmp,.svg,.pdf,.docx,.doc,.txt,.md,.markdown,.json,.csv,image/*">
+            <div class="w-10 h-10 rounded-full bg-cyan-950/60 border border-cyan-500/30 flex items-center justify-center text-cyan-accent group-hover:scale-110 transition-transform">
+              <i data-lucide="upload-cloud" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <p class="text-xs font-mono font-bold text-slate-200 group-hover:text-cyan-accent transition-colors">
+                Upload Specific Brand Guidelines
+              </p>
+              <p class="text-[11px] font-mono text-slate-500 mt-0.5">
+                Drop PDF, DOCX, TXT, MD or style guide images (.png, .jpg)
+              </p>
+            </div>
+            <span class="text-[10px] font-mono text-cyan-accent underline underline-offset-2">Browse files</span>
+          </div>
+
+          <!-- Option 2: Automated Market Research Directives Callout -->
+          <div class="border border-obsidian-800 rounded-xl p-4 bg-obsidian-950/60 flex flex-col justify-between space-y-3">
+            <div class="space-y-1.5">
+              <div class="flex items-center space-x-2">
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-violet-950/70 text-violet-300 border border-violet-500/30 flex items-center gap-1">
+                  <i data-lucide="sparkles" class="w-3 h-3 text-violet-400"></i> AI Auto-Pilot
+                </span>
+                <span class="text-xs font-mono font-bold text-slate-200">No Guideline? We Research &amp; Build It</span>
+              </div>
+              <p class="text-[11px] font-mono text-slate-400 leading-relaxed">
+                If no custom guideline is uploaded, our engine automatically conducts real-time market research on your brand, synthesizes target personas, tone directives, and positioning rules, and generates the post to match.
+              </p>
+            </div>
+            <div class="flex items-center justify-between pt-1 border-t border-obsidian-800/60 text-[10px] font-mono text-slate-500">
+              <span>Automatic upon campaign creation</span>
+              <button type="button" id="btn-quick-research-guidelines" class="text-cyan-400 hover:text-cyan-300 underline underline-offset-2 font-bold cursor-pointer">
+                Preview research now →
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mode B: Active Guidelines Display (Visible when either custom or market research guidelines are loaded) -->
+        <div id="guidelines-active-pill" class="hidden p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/40 space-y-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center space-x-3 overflow-hidden">
+              <span class="relative flex h-2.5 w-2.5 flex-shrink-0">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+              <div class="truncate">
+                <div class="flex items-center space-x-2">
+                  <span id="guidelines-active-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-900/60 text-emerald-200 border border-emerald-500/40 uppercase">
+                    CUSTOM GUIDELINE ACTIVE
+                  </span>
+                  <span id="guidelines-word-badge" class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-800">
+                    1,240 words
+                  </span>
+                </div>
+                <h3 id="guidelines-active-title" class="text-xs font-mono font-bold text-slate-200 mt-1 truncate">
+                  brand_guidelines.pdf
+                </h3>
+              </div>
+            </div>
+
+            <!-- Action Buttons for Active Guidelines -->
+            <div class="flex items-center space-x-2 flex-shrink-0">
+              <button type="button" id="guidelines-preview-btn" class="px-3 py-1 text-xs font-mono font-bold rounded-lg bg-emerald-900/50 text-emerald-200 hover:bg-emerald-900/80 border border-emerald-500/40 transition-all cursor-pointer flex items-center space-x-1.5">
+                <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                <span>Preview / Edit Directives</span>
+              </button>
+              <button type="button" id="guidelines-add-more-btn" class="px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-cyan-950/60 text-cyan-300 hover:bg-cyan-900/80 border border-cyan-500/30 transition-all flex items-center space-x-1 cursor-pointer" title="Upload additional brand files">
+                <i data-lucide="plus" class="w-3 h-3"></i>
+                <span>Add File</span>
+              </button>
+              <button type="button" id="guidelines-remove-btn" class="px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-rose-950/40 text-rose-300 hover:bg-rose-900/60 border border-rose-500/30 transition-all cursor-pointer" title="Reset guidelines">
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <!-- Active File Chips Tray for Multiple Files -->
+          <div id="guidelines-file-chips-tray" class="flex flex-wrap gap-1.5 pt-2 border-t border-emerald-500/20">
+            <!-- Dynamically populated file chips -->
+          </div>
+        </div>
+
+        <!-- Direct Paste Textarea (toggleable) -->
+        <div id="guidelines-paste-box" class="hidden p-3 rounded-xl bg-obsidian-950 border border-obsidian-800 space-y-2">
+          <textarea id="guidelines-text-input" rows="5" placeholder="Paste custom brand voice rules, forbidden words, mandatory positioning hooks, target customer traits..." class="w-full bg-obsidian-900 border border-obsidian-700 focus:border-cyan-accent rounded-lg p-3 text-xs font-mono text-slate-200 placeholder-slate-600 outline-none resize-none"></textarea>
+          <div class="flex justify-end space-x-2">
+            <button type="button" id="guidelines-cancel-paste-btn" class="px-3 py-1 text-xs font-mono rounded bg-obsidian-900 text-slate-400 hover:text-white border border-obsidian-700 transition-all cursor-pointer">
+              Cancel
+            </button>
+            <button type="button" id="guidelines-apply-text-btn" class="px-3 py-1 text-xs font-mono rounded bg-cyan-accent/20 text-cyan-accent hover:bg-cyan-accent/30 border border-cyan-accent/40 font-bold transition-all cursor-pointer">
+              Enforce Custom Guidelines
+            </button>
+          </div>
+        </div>
+      </section>
+
+      
+<!-- ========================================== -->
+      <!-- STAGE 2: CAMPAIGN OBJECTIVE & CONCEPT STUDIO -->
       <!-- ========================================== -->
       <section class="bg-obsidian-900/80 backdrop-blur-md border border-obsidian-800 rounded-2xl p-6 shadow-xl space-y-5">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div class="flex items-center space-x-2">
-              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gradient-to-r from-cyan-950 to-violet-950 text-cyan-300 border border-cyan-500/40 uppercase">STAGE 4</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gradient-to-r from-cyan-950 to-violet-950 text-cyan-300 border border-cyan-500/40 uppercase">STAGE 2</span>
               <h2 class="text-lg font-tech font-bold text-white flex items-center space-x-2">
                 <i data-lucide="sparkles" class="w-5 h-5 text-cyan-accent"></i>
                 <span>CAMPAIGN PROMPT &amp; CONCEPT STUDIO</span>
@@ -1081,6 +685,405 @@
           <div class="space-y-1">
             <p class="font-semibold" id="error-title">Generation Error</p>
             <p class="text-slate-300 text-[11px]" id="error-details">Please check your API key and network connection.</p>
+          </div>
+        </div>
+      </section>
+
+      
+<!-- ============================================================ -->
+      <!-- STAGE 3: VISUAL ASSETS, REFERENCE TEMPLATES & SAMPLE IMAGES -->
+      <!-- ============================================================ -->
+      <section id="visual-assets-section" class="bg-obsidian-900/80 backdrop-blur-md border border-obsidian-800 rounded-2xl p-6 shadow-xl space-y-5">
+        <!-- Section Header -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-violet-950/90 text-violet-300 border border-violet-500/50 uppercase">STAGE 3</span>
+              <h2 class="text-lg font-tech font-bold text-white flex items-center space-x-2">
+                <i data-lucide="image" class="w-5 h-5 text-violet-400"></i>
+                <span>VISUAL ASSETS, REFERENCE TEMPLATES &amp; SAMPLES</span>
+              </h2>
+            </div>
+            <p class="text-xs text-slate-400 font-mono mt-1">
+              Upload the specific portrait or product image you want the campaign to use, upload reference template graphics, or pick ready-to-test sample images.
+            </p>
+          </div>
+
+          <!-- Quick Actions & Sample Presets -->
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-[11px] font-mono text-slate-400 flex items-center gap-1">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-cyan-accent"></i>
+              <span>Sample Images:</span>
+            </span>
+            <div class="flex flex-wrap gap-1.5" id="sample-visual-chips">
+              <button 
+                type="button" 
+                id="btn-sample-popout" 
+                class="sample-visual-chip text-[11px] font-mono bg-violet-950/70 hover:bg-violet-900/90 hover:text-white text-violet-200 border border-violet-500/50 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95" 
+                title="Load Sekawan Media blue Polaroid template + studio subject portrait in abaya (1-click benchmark test)"
+              >
+                <span>⚡ Sekawan 2.5D Pop-Out</span>
+              </button>
+              <button 
+                type="button" 
+                id="btn-sample-portrait" 
+                class="sample-visual-chip text-[11px] font-mono bg-obsidian-950 hover:bg-obsidian-800 hover:text-emerald-300 text-slate-300 border border-obsidian-700 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer active:scale-95" 
+                title="Load raw portrait subject photo only"
+              >
+                <span>👤 Studio Portrait Only</span>
+              </button>
+              <button 
+                type="button" 
+                id="btn-sample-template" 
+                class="sample-visual-chip text-[11px] font-mono bg-obsidian-950 hover:bg-obsidian-800 hover:text-cyan-accent text-slate-300 border border-obsidian-700 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer active:scale-95" 
+                title="Load Sekawan Media blue template graphic only"
+              >
+                <span>🖼️ Blue Template Only</span>
+              </button>
+              <button 
+                type="button" 
+                id="btn-clear-visuals" 
+                class="text-[11px] font-mono bg-rose-950/40 hover:bg-rose-900/70 text-rose-300 hover:text-white border border-rose-500/30 px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer hidden" 
+                title="Clear all visual assets and return to AI prompt generation"
+              >
+                <i data-lucide="trash-2" class="w-3 h-3"></i>
+                <span>Clear</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Three Primary Visual Slots: Slot 1 (Subject), Slot 2 (Template Graphic), Slot 3 (Corporate Logo) -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- CARD A: TARGET SUBJECT / PRODUCT IMAGE (The image we want it to use) -->
+          <div class="bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-4 space-y-3 flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-2">
+                <span class="w-6 h-6 rounded-lg bg-emerald-950/80 border border-emerald-500/40 flex items-center justify-center text-xs">👤</span>
+                <div>
+                  <h3 class="text-xs font-mono font-bold text-slate-200 uppercase">1. Subject / Product Photo</h3>
+                  <p class="text-[11px] font-mono text-slate-400">Portrait, face, or product hardware</p>
+                </div>
+              </div>
+              <span id="subject-status-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-obsidian-900 text-slate-500 border border-obsidian-800 uppercase">
+                Not Loaded
+              </span>
+            </div>
+
+            <!-- Subject Empty Dropzone -->
+            <div id="subject-dropzone" class="border border-dashed border-obsidian-700 hover:border-emerald-500/60 rounded-xl p-4 text-center cursor-pointer transition-all bg-obsidian-900/40 hover:bg-obsidian-900/80 group flex flex-col items-center justify-center min-h-[140px] space-y-2">
+              <input type="file" id="subject-file-input" class="hidden" accept="image/*">
+              <div class="w-9 h-9 rounded-xl bg-obsidian-800 border border-obsidian-700 flex items-center justify-center text-slate-400 group-hover:text-emerald-400 group-hover:border-emerald-500/40 transition-all">
+                <i data-lucide="user-plus" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <p class="text-xs font-mono font-bold text-slate-300 group-hover:text-emerald-300 transition-colors">
+                  Upload Target Subject
+                </p>
+                <p class="text-[10px] font-mono text-slate-500 mt-0.5">
+                  Portrait photo (JPG, PNG, WebP)
+                </p>
+              </div>
+            </div>
+
+            <!-- Subject Active Preview (Hidden initially) -->
+            <div id="subject-preview-card" class="hidden p-3 rounded-xl bg-emerald-950/20 border border-emerald-500/30 space-y-2.5">
+              <div class="flex items-start space-x-3">
+                <div class="relative shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-obsidian-900 border border-emerald-500/40 shadow-inner flex items-center justify-center">
+                  <img id="subject-preview-img" src="" alt="Target Subject" class="w-full h-full object-cover">
+                </div>
+                <div class="flex-1 min-w-0 space-y-1">
+                  <div class="flex items-center space-x-1.5">
+                    <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-emerald-900/70 text-emerald-300 border border-emerald-500/40 uppercase">
+                      ACTIVE SUBJECT
+                    </span>
+                    <span id="subject-dimensions-tag" class="text-[10px] font-mono text-slate-400 px-1 rounded bg-obsidian-900 border border-obsidian-800">
+                      1024 × 682
+                    </span>
+                  </div>
+                  <h4 id="subject-filename-text" class="text-xs font-mono font-bold text-slate-200 truncate">
+                    raw_subject.jpg
+                  </h4>
+                  <p class="text-[10px] font-mono text-emerald-400/90 flex items-center gap-1">
+                    <i data-lucide="check" class="w-3 h-3"></i> Ready for matting
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-center justify-end space-x-2 pt-1 border-t border-emerald-500/20">
+                <button type="button" id="btn-replace-subject" class="px-2.5 py-1 text-[11px] font-mono rounded bg-obsidian-900 hover:bg-obsidian-800 text-slate-300 hover:text-white border border-obsidian-700 cursor-pointer transition-colors">
+                  Replace
+                </button>
+                <button type="button" id="btn-remove-subject" class="px-2.5 py-1 text-[11px] font-mono rounded bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-white border border-rose-500/30 cursor-pointer transition-colors">
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD B: TEMPLATE GRAPHIC / SAMPLE LAYOUT -->
+          <div class="bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-4 space-y-3 flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-2">
+                <span class="w-6 h-6 rounded-lg bg-cyan-950/80 border border-cyan-500/40 flex items-center justify-center text-xs">🖼️</span>
+                <div>
+                  <h3 class="text-xs font-mono font-bold text-slate-200 uppercase">2. Template / Reference Ad</h3>
+                  <p class="text-[11px] font-mono text-slate-400">Polaroid frame or style layout</p>
+                </div>
+              </div>
+              <span id="template-status-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-obsidian-900 text-slate-500 border border-obsidian-800 uppercase">
+                Not Loaded
+              </span>
+            </div>
+
+            <!-- Template Empty Dropzone -->
+            <div id="template-dropzone" class="border border-dashed border-obsidian-700 hover:border-cyan-500/60 rounded-xl p-4 text-center cursor-pointer transition-all bg-obsidian-900/40 hover:bg-obsidian-900/80 group flex flex-col items-center justify-center min-h-[140px] space-y-2">
+              <input type="file" id="template-file-input" class="hidden" accept="image/*">
+              <div class="w-9 h-9 rounded-xl bg-obsidian-800 border border-obsidian-700 flex items-center justify-center text-slate-400 group-hover:text-cyan-accent group-hover:border-cyan-500/40 transition-all">
+                <i data-lucide="layout" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <p class="text-xs font-mono font-bold text-slate-300 group-hover:text-cyan-accent transition-colors">
+                  Upload Template Graphic
+                </p>
+                <p class="text-[10px] font-mono text-slate-500 mt-0.5">
+                  Brand poster / framing reference
+                </p>
+              </div>
+            </div>
+
+            <!-- Template Active Preview (Hidden initially) -->
+            <div id="template-preview-card" class="hidden p-3 rounded-xl bg-cyan-950/20 border border-cyan-500/30 space-y-2.5">
+              <div class="flex items-start space-x-3">
+                <div class="relative shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-obsidian-900 border border-cyan-500/40 shadow-inner flex items-center justify-center">
+                  <img id="template-preview-img" src="" alt="Template Reference" class="w-full h-full object-cover">
+                </div>
+                <div class="flex-1 min-w-0 space-y-1">
+                  <div class="flex items-center space-x-1.5">
+                    <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-cyan-900/70 text-cyan-300 border border-cyan-500/40 uppercase">
+                      ACTIVE TEMPLATE
+                    </span>
+                    <span id="template-dimensions-tag" class="text-[10px] font-mono text-slate-400 px-1 rounded bg-obsidian-900 border border-obsidian-800">
+                      808 × 1024
+                    </span>
+                  </div>
+                  <h4 id="template-filename-text" class="text-xs font-mono font-bold text-slate-200 truncate">
+                    template_reference.jpg
+                  </h4>
+                  <p class="text-[10px] font-mono text-cyan-400/90 flex items-center gap-1">
+                    <i data-lucide="check" class="w-3 h-3"></i> Clean plate armed
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-center justify-end space-x-2 pt-1 border-t border-cyan-500/20">
+                <button type="button" id="btn-replace-template" class="px-2.5 py-1 text-[11px] font-mono rounded bg-obsidian-900 hover:bg-obsidian-800 text-slate-300 hover:text-white border border-obsidian-700 cursor-pointer transition-colors">
+                  Replace
+                </button>
+                <button type="button" id="btn-remove-template" class="px-2.5 py-1 text-[11px] font-mono rounded bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-white border border-rose-500/30 cursor-pointer transition-colors">
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD C: OFFICIAL COMPANY LOGO (Authentic Branding Lock) -->
+          <div class="bg-obsidian-950/80 border border-obsidian-800 rounded-xl p-4 space-y-3 flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-2">
+                <span class="w-6 h-6 rounded-lg bg-amber-950/80 border border-amber-500/40 flex items-center justify-center text-xs">🛡️</span>
+                <div>
+                  <h3 class="text-xs font-mono font-bold text-slate-200 uppercase">3. Official Company Logo</h3>
+                  <p class="text-[11px] font-mono text-slate-400">Authentic corporate mark (PNG, SVG, WebP)</p>
+                </div>
+              </div>
+              <span id="logo-status-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-obsidian-900 text-slate-500 border border-obsidian-800 uppercase">
+                Vector / Default
+              </span>
+            </div>
+
+            <!-- Logo Empty Dropzone -->
+            <div id="logo-dropzone" class="border border-dashed border-obsidian-700 hover:border-amber-500/60 rounded-xl p-4 text-center cursor-pointer transition-all bg-obsidian-900/40 hover:bg-obsidian-900/80 group flex flex-col items-center justify-center min-h-[140px] space-y-2">
+              <input type="file" id="logo-file-input" class="hidden" accept="image/*,.svg">
+              <div class="w-9 h-9 rounded-xl bg-obsidian-800 border border-obsidian-700 flex items-center justify-center text-slate-400 group-hover:text-amber-400 group-hover:border-amber-500/40 transition-all">
+                <i data-lucide="shield" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <p class="text-xs font-mono font-bold text-slate-300 group-hover:text-amber-300 transition-colors">
+                  Upload Company Logo
+                </p>
+                <p class="text-[10px] font-mono text-slate-500 mt-0.5">
+                  Transparent PNG or SVG recommended
+                </p>
+              </div>
+            </div>
+
+            <!-- Logo Active Preview (Hidden initially) -->
+            <div id="logo-preview-card" class="hidden p-3 rounded-xl bg-amber-950/20 border border-amber-500/30 space-y-2.5">
+              <div class="flex items-start space-x-3">
+                <div class="relative shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-obsidian-900 border border-amber-500/40 shadow-inner flex items-center justify-center p-1.5" style="background-image: linear-gradient(45deg, #1b2130 25%, transparent 25%), linear-gradient(-45deg, #1b2130 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #1b2130 75%), linear-gradient(-45deg, transparent 75%, #1b2130 75%); background-size: 10px 10px; background-position: 0 0, 0 5px, 5px -5px, -5px 0px;">
+                  <img id="logo-preview-img" src="" alt="Company Logo" class="max-w-full max-h-full object-contain">
+                </div>
+                <div class="flex-1 min-w-0 space-y-1">
+                  <div class="flex items-center space-x-1.5">
+                    <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-900/70 text-amber-300 border border-amber-500/40 uppercase">
+                      ACTIVE LOGO
+                    </span>
+                    <span id="logo-dimensions-tag" class="text-[10px] font-mono text-slate-400 px-1 rounded bg-obsidian-900 border border-obsidian-800">
+                      Custom PNG
+                    </span>
+                  </div>
+                  <h4 id="logo-filename-text" class="text-xs font-mono font-bold text-slate-200 truncate">
+                    company_logo.png
+                  </h4>
+                  <p class="text-[10px] font-mono text-amber-400/90 flex items-center gap-1">
+                    <i data-lucide="check" class="w-3 h-3"></i> Top-header brand lock armed
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-center justify-end space-x-2 pt-1 border-t border-amber-500/20">
+                <button type="button" id="btn-replace-logo" class="px-2.5 py-1 text-[11px] font-mono rounded bg-obsidian-900 hover:bg-obsidian-800 text-slate-300 hover:text-white border border-obsidian-700 cursor-pointer transition-colors">
+                  Replace
+                </button>
+                <button type="button" id="btn-remove-logo" class="px-2.5 py-1 text-[11px] font-mono rounded bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-white border border-rose-500/30 cursor-pointer transition-colors">
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dynamic Person & Role Personalization Strip -->
+        <div id="personalization-strip" class="p-3.5 rounded-xl bg-obsidian-950/90 border border-obsidian-800 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-mono font-bold text-slate-300 flex items-center gap-1.5">
+              <i data-lucide="user-check" class="w-3.5 h-3.5 text-cyan-accent"></i>
+              <span>Featured Person &amp; Role Personalization</span>
+            </span>
+            <span class="text-[10px] font-mono text-slate-500">Auto-detected from prompt or edit manually</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+            <div class="flex items-center space-x-2">
+              <span class="text-slate-400 w-24 shrink-0">Person Name:</span>
+              <input id="person-name-input" type="text" placeholder="e.g. Sarah Jenkins" class="w-full bg-obsidian-900 border border-obsidian-700 text-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-accent">
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="text-slate-400 w-24 shrink-0">Role / Title:</span>
+              <input id="person-title-input" type="text" placeholder="e.g. VP of Product" class="w-full bg-obsidian-900 border border-obsidian-700 text-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-accent">
+            </div>
+          </div>
+        </div>
+
+        <!-- Visual Engine Mode Indicator & Quick Action Bar -->
+        <div id="visual-engine-status-bar" class="p-3.5 rounded-xl bg-obsidian-950 border border-obsidian-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
+          <div class="flex items-center space-x-3">
+            <span id="visual-mode-indicator" class="relative flex h-2.5 w-2.5">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-500 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-400"></span>
+            </span>
+            <div>
+              <span id="visual-mode-title" class="font-bold text-slate-300">PURE AI GENERATION MODE</span>
+              <p id="visual-mode-desc" class="text-[11px] text-slate-500">No custom visual assets loaded. Will generate photorealistic imagery from campaign prompt.</p>
+            </div>
+          </div>
+
+          <div class="flex items-center space-x-3">
+            <label class="flex items-center space-x-1.5 text-slate-300 hover:text-cyan-accent cursor-pointer select-none" title="When checked, the campaign visual will use your loaded visual assets instead of generating from scratch">
+              <input type="checkbox" id="use-uploaded-assets-toggle" checked class="w-3.5 h-3.5 rounded border-obsidian-700 bg-obsidian-950 text-cyan-accent focus:ring-cyan-accent accent-[#00f0ff] cursor-pointer">
+              <span>Use Assets in Campaign</span>
+            </label>
+
+            <button 
+              type="button" 
+              id="btn-analyze-template-layout" 
+              class="px-3.5 py-1.5 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 text-slate-200 font-tech font-bold text-xs tracking-wider uppercase transition-all border border-cyan-500/30 flex items-center space-x-1.5 cursor-pointer shadow-sm active:scale-95"
+              title="Reverse-engineer template into proportional design tokens"
+            >
+              <i data-lucide="scan" class="w-3.5 h-3.5 text-cyan-accent"></i>
+              <span id="analyze-layout-btn-text">📐 Layout Blueprint</span>
+            </button>
+
+            <button 
+              type="button" 
+              id="btn-quick-test-swap" 
+              class="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-cyan-600 hover:from-violet-500 hover:to-cyan-500 text-white font-tech font-bold text-xs tracking-wider uppercase transition-all shadow-sm active:scale-95 flex items-center space-x-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+              <span id="quick-test-swap-text">⚡ Quick Test Swap</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Layout Blueprint Inspector Container (Collapsible) -->
+        <div id="layout-blueprint-inspector" class="hidden p-4 rounded-xl bg-obsidian-950 border border-cyan-500/40 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/40 uppercase">
+                📐 REVERSE-ENGINEERED DESIGN-TOKEN BLUEPRINT
+              </span>
+              <span class="text-[11px] font-mono text-slate-400">10 Visual Elements Detected • Proportional Design Tokens • 0 Magic Numbers</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <button type="button" id="btn-toggle-blueprint-json" class="px-2.5 py-1 text-xs font-mono font-bold rounded bg-obsidian-800 text-slate-300 hover:text-white border border-obsidian-700 transition-all cursor-pointer">
+                { } View JSON
+              </button>
+              <button type="button" id="btn-close-layout-inspector" class="p-1 rounded text-slate-400 hover:text-white cursor-pointer">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- 3-Panel Visual Diagnostic Preview -->
+          <div class="flex justify-center bg-obsidian-900/60 p-2 rounded-lg overflow-x-auto">
+            <img id="layout-inspector-img" class="max-h-80 rounded shadow-2xl object-contain border border-obsidian-800" src="/static/assets/debug_layout_boxes.jpg" alt="Layout Inspector Diagnostic">
+          </div>
+
+          <!-- Key Design Tokens Grid -->
+          <div id="layout-tokens-grid" class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+            <div class="p-2 rounded bg-obsidian-900 border border-obsidian-800">
+              <div class="text-[10px] text-slate-500 uppercase">Frame Bounding Box</div>
+              <div id="token-frame-box" class="font-bold text-white">[195, 294, 418, 505]</div>
+              <div class="text-[10px] text-cyan-400">Width: 51.7% • H: 49.3%</div>
+            </div>
+            <div class="p-2 rounded bg-obsidian-900 border border-obsidian-800">
+              <div class="text-[10px] text-slate-500 uppercase">Display Headline</div>
+              <div id="token-headline" class="font-bold text-white">WELCOME</div>
+              <div class="text-[10px] text-cyan-400">Cap-H: 56px • Z-Index: 10</div>
+            </div>
+            <div class="p-2 rounded bg-obsidian-900 border border-obsidian-800">
+              <div class="text-[10px] text-slate-500 uppercase">2.5D Head Pop-Out</div>
+              <div id="token-popout" class="font-bold text-white">76px over top frame</div>
+              <div class="text-[10px] text-purple-400">Overlaps WELCOME text</div>
+            </div>
+            <div class="p-2 rounded bg-obsidian-900 border border-obsidian-800">
+              <div class="text-[10px] text-slate-500 uppercase">Auto-Fit Nameplate</div>
+              <div id="token-nameplate" class="font-bold text-white">418 × 131 px</div>
+              <div class="text-[10px] text-emerald-400">Auto-Fit Font Scaling</div>
+            </div>
+          </div>
+
+          <!-- Raw JSON Container (Collapsible) -->
+          <pre id="blueprint-raw-json" class="hidden p-3 bg-black/60 rounded-lg text-[11px] font-mono text-cyan-300 max-h-60 overflow-y-auto border border-obsidian-800"></pre>
+        </div>
+
+        <!-- Quick Test Swap Result Container (Collapsible) -->
+        <div id="quick-swap-result-box" class="hidden p-4 rounded-xl bg-obsidian-950 border border-violet-500/40 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/40 uppercase">
+                ✓ 2.5D POP-OUT COMPOSITE READY
+              </span>
+              <span class="text-[11px] font-mono text-slate-400">808 × 1024 • Sub-pixel hair matting • Head pop-out over typography</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <a id="quick-swap-download-link" href="#" download="popout_composite.jpg" class="px-2.5 py-1 text-xs font-mono font-bold rounded bg-cyan-950 text-cyan-300 hover:bg-cyan-900 border border-cyan-500/30 transition-all flex items-center gap-1">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i> <span>Download</span>
+              </a>
+              <button type="button" id="btn-close-quick-swap" class="p-1 rounded text-slate-400 hover:text-white cursor-pointer">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+          <div class="flex justify-center bg-obsidian-900/60 p-2 rounded-lg">
+            <img id="quick-swap-result-img" class="max-h-96 rounded shadow-2xl object-contain border border-obsidian-800" src="" alt="2.5D Pop-out Result">
           </div>
         </div>
       </section>
@@ -2982,6 +2985,20 @@
       return file;
     }
 
+    function extractPersonNameFromFilename(filename) {
+      if (!filename) return '';
+      let stem = filename.replace(/\.[^/.]+$/, '');
+      stem = stem.replace(/^(?:subject|portrait|team|member|person|face|img|dsc|photo|raw|new)[-_]/i, '');
+      stem = stem.replace(/[-_][0-9a-f]{8,}$/i, '');
+      stem = stem.replace(/[-_]\d+$/, '');
+      let name = stem.replace(/[-_]+/g, ' ').trim();
+      const generic = ['subject', 'portrait', 'photo', 'image', 'picture', 'file', 'pic', 'face', 'person', 'avatar', 'raw', 'template'];
+      if (generic.includes(name.toLowerCase()) || name.length < 2) {
+        return '';
+      }
+      return name.replace(/\b\w/g, l => l.toUpperCase());
+    }
+
     async function uploadVisualAssetFile(file, slot = 'subject') {
       if (!file) return;
       if (slot === 'logo') {
@@ -3015,7 +3032,17 @@
         if (slot === 'subject') {
           activeSubjectAsset = assetObj;
           currentUploadedImageUrl = data.file_url;
-          showToast(`Subject image ready: ${data.filename} (${data.width}×${data.height})`, true);
+          const derivedName = extractPersonNameFromFilename(file.name);
+          if (derivedName) {
+            const pNameInp = document.getElementById('person-name-input');
+            const ptMemberInp = document.getElementById('pt-member-name');
+            if (pNameInp) pNameInp.value = derivedName;
+            if (ptMemberInp) ptMemberInp.value = derivedName;
+            currentPersonName = derivedName;
+            showToast(`👤 Identified team member: ${derivedName}`, true);
+          } else {
+            showToast(`Subject image ready: ${data.filename} (${data.width}×${data.height})`, true);
+          }
         } else if (slot === 'template') {
           activeTemplateAsset = assetObj;
           showToast(`Template graphic ready: ${data.filename} (${data.width}×${data.height})`, true);
@@ -3234,8 +3261,8 @@
             formData.append('logo_url', activeLogoAsset.url);
           }
 
-          const pName = (personNameInput && personNameInput.value.trim()) || 'Alisha Faisal';
-          const pTitle = (personTitleInput && personTitleInput.value.trim()) || 'Marketing Manager';
+          const pName = (personNameInput && personNameInput.value.trim()) || document.getElementById('pt-member-name')?.value.trim() || currentPersonName || 'Team Member';
+          const pTitle = (personTitleInput && personTitleInput.value.trim()) || document.getElementById('pt-member-role')?.value.trim() || currentPersonTitle || 'Leadership Team';
           const brandNameFromInput = (brandNameInput && brandNameInput.value.trim()) || (brandInput && brandInput.value.trim());
           const brandNameFromProfile = (window.brandProfile && window.brandProfile.brand_name) ? window.brandProfile.brand_name : '';
           const bName = brandNameFromInput || brandNameFromProfile || 'Lexnis Technologies';
@@ -3442,11 +3469,15 @@
       currentBrandDna = dna;
       window.brandProfile = dna;
       const compName = dna.brand_name || dna.company_name;
-      if (compName) {
+      if (compName && compName.toLowerCase() !== 'brand' && compName.toLowerCase() !== 'our brand') {
         if (dnaBrandBadge) dnaBrandBadge.textContent = compName.toUpperCase();
         const brandNameInputElem = document.getElementById('brandNameInput');
         if (brandNameInputElem) brandNameInputElem.value = compName;
         if (brandInput) brandInput.value = compName;
+      }
+      const compUrlInput = document.getElementById('company-url-input');
+      if (compUrlInput) {
+        compUrlInput.value = (dna.has_website && dna.website) ? dna.website : (dna.website || '');
       }
       if (dna.brand_tag && dnaTagText) {
         dnaTagText.textContent = dna.brand_tag;
@@ -3454,24 +3485,29 @@
       if (dnaDomainText) {
         dnaDomainText.textContent = dna.domain || (dna.has_website ? dna.website : 'No Website (Guideline-Only)');
       }
-      const colors = dna.brand_colors || {};
-      if (colors.primary && dnaSwatchPri && dnaHexPri) {
-        dnaSwatchPri.style.backgroundColor = colors.primary;
-        dnaHexPri.textContent = colors.primary;
+      const colors = dna.color_palette || dna.brand_colors || {};
+      const priCol = colors.primary || colors.accent || colors.primary_hex || '#131724';
+      const secCol = colors.secondary || colors.dark_bg || colors.secondary_hex || '#023024';
+      const accCol = colors.accent || colors.primary || '#53B849';
+      const limeCol = colors.accent_lime || colors.secondary || '#BCD755';
+
+      if (dnaSwatchPri && dnaHexPri) {
+        dnaSwatchPri.style.backgroundColor = priCol;
+        dnaHexPri.textContent = priCol;
       }
-      if (colors.secondary && dnaSwatchSec && dnaHexSec) {
-        dnaSwatchSec.style.backgroundColor = colors.secondary;
-        dnaHexSec.textContent = colors.secondary;
+      if (dnaSwatchSec && dnaHexSec) {
+        dnaSwatchSec.style.backgroundColor = secCol;
+        dnaHexSec.textContent = secCol;
       }
-      if (colors.accent && dnaSwatchAcc && dnaHexAcc) {
-        dnaSwatchAcc.style.backgroundColor = colors.accent;
-        dnaHexAcc.textContent = colors.accent;
+      if (dnaSwatchAcc && dnaHexAcc) {
+        dnaSwatchAcc.style.backgroundColor = accCol;
+        dnaHexAcc.textContent = accCol;
       }
       const swatchLime = document.getElementById('dna-swatch-lime');
       const hexLime = document.getElementById('dna-hex-lime');
-      if (colors.accent_lime && swatchLime && hexLime) {
-        swatchLime.style.backgroundColor = colors.accent_lime;
-        hexLime.textContent = colors.accent_lime;
+      if (swatchLime && hexLime) {
+        swatchLime.style.backgroundColor = limeCol;
+        hexLime.textContent = limeCol;
       }
       const typo = dna.typography || {};
       if (typo.primary_font && dnaFontPri) {
@@ -3482,8 +3518,13 @@
       } else if (typo.secondary_font && dnaFontSec) {
         dnaFontSec.textContent = typo.secondary_font;
       }
-      if (dna.visual_aesthetic && dnaAestheticText) {
-        dnaAestheticText.textContent = dna.visual_aesthetic;
+      if (dnaAestheticText) {
+        if (dna.industry || dna.brand_tone) {
+          const offStr = (dna.core_offerings && dna.core_offerings.length > 0) ? ` | ${dna.core_offerings.slice(0, 3).join(', ')}` : '';
+          dnaAestheticText.textContent = `${dna.industry || 'Technology'} • ${dna.brand_tone || 'Innovative'}${offStr}`;
+        } else if (dna.visual_aesthetic) {
+          dnaAestheticText.textContent = dna.visual_aesthetic;
+        }
       }
       if (window.lucide) window.lucide.createIcons();
     }
@@ -3548,6 +3589,49 @@
         }
       });
     });
+
+    const brandNameInputElem = document.getElementById('brandNameInput');
+    if (brandNameInputElem) {
+      brandNameInputElem.addEventListener('input', () => {
+        const val = brandNameInputElem.value.trim();
+        if (!val) return;
+        const isLex = val.toLowerCase().startsWith('lexnis');
+        if (dnaBrandBadge) dnaBrandBadge.textContent = val.toUpperCase();
+        if (dnaTagText) {
+          const cleanTag = val.replace(/[^a-zA-Z0-9]/g, '');
+          dnaTagText.textContent = isLex ? '#LexnisTeam' : `#${cleanTag}Team`;
+        }
+        if (dnaDomainText) {
+          const cleanDom = val.toLowerCase().replace(/[^a-z0-9]/g, '');
+          dnaDomainText.textContent = isLex ? 'lexnis.com' : (window.brandProfile?.domain || `${cleanDom}.com`);
+        }
+        if (brandInput) brandInput.value = val;
+        if (!window.brandProfile) window.brandProfile = {};
+        window.brandProfile.brand_name = val;
+      });
+    }
+
+    if (personNameInput) {
+      personNameInput.addEventListener('input', () => {
+        const val = personNameInput.value.trim();
+        currentPersonName = val;
+        const ptMemberInp = document.getElementById('pt-member-name');
+        if (ptMemberInp && ptMemberInp.value !== val) {
+          ptMemberInp.value = val;
+        }
+      });
+    }
+
+    if (personTitleInput) {
+      personTitleInput.addEventListener('input', () => {
+        const val = personTitleInput.value.trim();
+        currentPersonTitle = val;
+        const ptRoleInp = document.getElementById('pt-member-role');
+        if (ptRoleInp && ptRoleInp.value !== val) {
+          ptRoleInp.value = val;
+        }
+      });
+    }
 
     function renderVisionTypographer(analysis, enHeadline, enTagline, arHeadline, arTagline) {
       if (!visionTypographerBox) return;
@@ -3845,8 +3929,8 @@
 
     // --- POST TYPE & CAMPAIGN OBJECTIVE SYSTEM ---
     let currentPostType = 'team_welcome';
-    let currentPersonName = 'Alisha Faisal';
-    let currentPersonTitle = 'Marketing Manager';
+    let currentPersonName = '';
+    let currentPersonTitle = '';
 
     const POST_TYPES = {
       team_welcome: {
@@ -3857,13 +3941,13 @@
         desc: 'New team member / executive onboarding announcement',
         visualHint: 'Activates Template Subject Swap with 2.5D pop-out layering, WELCOME display headline ("أهلاً وسهلاً" in Arabic), and solid white nameplate box.',
         fields: [
-          { id: 'pt-member-name', label: 'Member Name', placeholder: 'e.g. Alisha Faisal', required: true, default: 'Alisha Faisal' },
-          { id: 'pt-member-role', label: 'Role / Title', placeholder: 'e.g. Marketing Manager', required: true, default: 'Marketing Manager' },
+          { id: 'pt-member-name', label: 'Member Name', placeholder: 'e.g. Sarah Jenkins', required: true, default: '' },
+          { id: 'pt-member-role', label: 'Role / Title', placeholder: 'e.g. VP of Product', required: true, default: '' },
           { id: 'pt-member-dept', label: 'Department / Focus (Optional)', placeholder: 'e.g. Enterprise Solutions & Growth', required: false, default: '' }
         ],
         generatePrompt: (values, brand) => {
-          const name = values['pt-member-name'] || 'Alisha Faisal';
-          const role = values['pt-member-role'] || 'Marketing Manager';
+          const name = values['pt-member-name'] || document.getElementById('person-name-input')?.value.trim() || currentPersonName || 'our new team member';
+          const role = values['pt-member-role'] || document.getElementById('person-title-input')?.value.trim() || currentPersonTitle || 'Leadership Team';
           const dept = values['pt-member-dept'] ? ` in the ${values['pt-member-dept']}` : '';
           return `A high-end commercial campaign portrait for ${brand} welcoming new team member ${name}, ${role}${dept}, to the team. Shot on an 85mm lens with softbox studio lighting, clean background, and generous negative space for brand typography.`;
         }
@@ -3966,11 +4050,11 @@
         visualHint: 'Dynamic studio workspace atmosphere communicating culture, engineering excellence, and mission.',
         fields: [
           { id: 'pt-hire-role', label: 'Open Role / Position', placeholder: 'e.g. Senior Machine Learning & Vision Systems Engineer', required: true, default: 'Senior Machine Learning & Vision Systems Engineer' },
-          { id: 'pt-hire-team', label: 'Team & Location', placeholder: 'e.g. Core Engineering Team, Manama / Hybrid', required: false, default: '' }
+          { id: 'pt-hire-team', label: 'Team & Location', placeholder: 'e.g. Core Engineering Team, Hybrid', required: false, default: '' }
         ],
         generatePrompt: (values, brand) => {
           const role = values['pt-hire-role'] || 'Visionary Engineers';
-          const team = values['pt-hire-team'] ? ` for our ${values['pt-hire-team']}` : ` for our ${brand} Core Team, Manama / Hybrid`;
+          const team = values['pt-hire-team'] ? ` for our ${values['pt-hire-team']}` : ` for our ${brand} Core Team, Hybrid`;
           return `Recruitment campaign for ${brand}: We are hiring ${role}${team}. Inspiring collaborative high-tech workspace photograph with generous space for role requirements.`;
         }
       },
@@ -4004,7 +4088,14 @@
       if (badgeName) badgeName.textContent = config.name.toUpperCase();
       if (badgeIcon) badgeIcon.textContent = config.emoji;
 
-      const fieldsHtml = config.fields.map(f => `
+      const fieldsHtml = config.fields.map(f => {
+        let val = f.default || '';
+        if (f.id === 'pt-member-name') {
+          val = (personNameInput && personNameInput.value.trim()) || currentPersonName || val;
+        } else if (f.id === 'pt-member-role') {
+          val = (personTitleInput && personTitleInput.value.trim()) || currentPersonTitle || val;
+        }
+        return `
         <div class="flex-1 min-w-[200px]">
           <label class="block text-[11px] font-mono text-slate-400 mb-1 flex items-center space-x-1">
             <span>${f.label}</span>
@@ -4014,11 +4105,12 @@
             type="text" 
             id="${f.id}" 
             placeholder="${f.placeholder}" 
-            value="${f.default || ''}"
+            value="${val}"
             class="pt-guided-input w-full bg-obsidian-950 border border-obsidian-700 focus:border-cyan-accent text-slate-200 text-xs font-mono rounded-lg px-3 py-1.5 outline-none transition-colors"
           />
         </div>
-      `).join('');
+      `;
+      }).join('');
 
       container.innerHTML = `
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-obsidian-800">
@@ -4056,11 +4148,15 @@
           values[inp.id] = inp.value.trim();
         });
         if (typeId === 'team_welcome') {
-          currentPersonName = values['pt-member-name'] || 'Alisha Faisal';
-          currentPersonTitle = values['pt-member-role'] || 'Marketing Manager';
+          currentPersonName = values['pt-member-name'] || (personNameInput && personNameInput.value.trim()) || '';
+          currentPersonTitle = values['pt-member-role'] || (personTitleInput && personTitleInput.value.trim()) || '';
+          if (personNameInput && values['pt-member-name'] !== undefined) personNameInput.value = values['pt-member-name'];
+          if (personTitleInput && values['pt-member-role'] !== undefined) personTitleInput.value = values['pt-member-role'];
         } else if (typeId === 'hiring') {
+          const bName = document.getElementById('brandNameInput')?.value.trim() || window.brandProfile?.brand_name || 'Our Brand';
+          const isLex = bName.toLowerCase().startsWith('lexnis');
           currentPersonName = values['pt-hire-role'] || 'Senior Machine Learning & Vision Systems Engineer';
-          currentPersonTitle = values['pt-hire-team'] || 'Lexnis Core AI Lab, Manama / Hybrid';
+          currentPersonTitle = values['pt-hire-team'] || (isLex ? 'Lexnis Core AI Lab, Manama / Hybrid' : `${bName} Core Team, Hybrid`);
         } else if (typeId === 'product_launch') {
           currentPersonName = values['pt-prod-name'] || 'Enterprise AI Platform';
           currentPersonTitle = values['pt-prod-cat'] || 'Next-Gen Autonomous Systems';
@@ -4108,7 +4204,12 @@
 
           // Instant client-side guideline-interpolated template
           let clientPrompt = '';
-          if (typeId === 'hiring') {
+          if (typeId === 'team_welcome') {
+            const name = values['pt-member-name'] || document.getElementById('person-name-input')?.value.trim() || currentPersonName || 'our new team member';
+            const role = values['pt-member-role'] || document.getElementById('person-title-input')?.value.trim() || currentPersonTitle || 'Leadership Team';
+            const dept = values['pt-member-dept'] ? ` in the ${values['pt-member-dept']}` : '';
+            clientPrompt = `A high-end commercial campaign portrait for ${brandName} welcoming new team member ${name}, ${role}${dept}, to the team. Shot on an 85mm lens with softbox studio lighting, clean background, and generous negative space for brand typography.`;
+          } else if (typeId === 'hiring') {
             const role = values['pt-hire-role'] || 'Senior Systems Engineer';
             const team = values['pt-hire-team'] || `${brandName} Core Team, Hybrid`;
             const cta = hasWeb ? `Apply online at ${website}/careers` : 'Apply now by submitting your CV to our hiring team';
@@ -4237,8 +4338,8 @@
       const detectedBrand = isTesla ? 'Tesla' : (isBofa ? 'Bank of America' : (brand || 'Lexnis Technologies'));
 
       if (currentPostType === 'team_welcome' || /welcome/i.test(prompt)) {
-        const pName = (personNameInput && personNameInput.value.trim()) || currentPersonName || 'Alisha Faisal';
-        const pRole = (personTitleInput && personTitleInput.value.trim()) || currentPersonTitle || 'Marketing Manager';
+        const pName = (personNameInput && personNameInput.value.trim()) || document.getElementById('pt-member-name')?.value.trim() || currentPersonName || 'Team Member';
+        const pRole = (personTitleInput && personTitleInput.value.trim()) || document.getElementById('pt-member-role')?.value.trim() || currentPersonTitle || 'Leadership Team';
         return {
           detected_brand: detectedBrand,
           product_name: `${pName} (${pRole})`,
@@ -4984,12 +5085,23 @@
             }
           }
 
+          let effectiveBrand = document.getElementById('brandNameInput')?.value.trim() || (brandInput ? brandInput.value.trim() : '') || window.brandProfile?.brand_name || '';
+          if (!effectiveBrand || effectiveBrand.toLowerCase() === 'our brand' || effectiveBrand.toLowerCase() === 'brand') {
+            const pMatch = userPrompt.match(/(?:for|at)\s+([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+)?)/i) || userPrompt.match(/#([A-Za-z0-9]+?)(?:Careers|Launch|AI|Team|Tech)\b/i);
+            if (pMatch && pMatch[1] && !['a', 'an', 'the', 'our', 'senior', 'lead', 'team', 'this', 'hiring'].includes(pMatch[1].toLowerCase())) {
+              effectiveBrand = pMatch[1].trim();
+              const bInput = document.getElementById('brandNameInput');
+              if (bInput) bInput.value = effectiveBrand;
+            }
+          }
+          if (!effectiveBrand) effectiveBrand = 'Our Brand';
+
           const pyResponse = await fetch(`${backendApiBase}/api/generate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               prompt: userPrompt,
-              brand: document.getElementById('brandNameInput')?.value.trim() || (brandInput ? brandInput.value.trim() : '') || window.brandProfile?.brand_name || 'Our Brand',
+              brand: effectiveBrand,
               brand_profile_json: JSON.stringify(window.brandProfile || {}),
               tone: tone,
               theme: theme,
@@ -5679,8 +5791,8 @@ Deployable directly into legacy PLC racks and air-gapped SCADA environments, Lex
               formData.append('subject_url', 'raw_subject.jpg');
             }
 
-            const pName = (personNameInput && personNameInput.value.trim()) || 'Alisha Faisal';
-            const pTitle = (personTitleInput && personTitleInput.value.trim()) || 'Marketing Manager';
+            const pName = (personNameInput && personNameInput.value.trim()) || document.getElementById('pt-member-name')?.value.trim() || currentPersonName || 'Team Member';
+            const pTitle = (personTitleInput && personTitleInput.value.trim()) || document.getElementById('pt-member-role')?.value.trim() || currentPersonTitle || 'Leadership Team';
             const brandNameFromInput = (brandNameInput && brandNameInput.value.trim()) || (brandInput && brandInput.value.trim());
             const brandNameFromProfile = (window.brandProfile && window.brandProfile.brand_name) ? window.brandProfile.brand_name : '';
             const bName = brandNameFromInput || brandNameFromProfile || 'Lexnis Technologies';

@@ -292,7 +292,7 @@ Rules:
 - Use 0-3 tasteful emojis max, never at the start of every line.
 - Highlights: 3 short benefit lines (max 12 words each), outcome first, underscoring our unfair advantage.
 - Hashtags: 8-12 relevant hashtags.
-- Image Headline: 2-4 word luxury product title (e.g. 'LEXNIS // ENTERPRISE' or 'TESLA // MODEL 3').
+- Image Headline: 2-4 word luxury product title (e.g. '{brand} // INNOVATION' or 'FLAGSHIP // ARCHITECTURE').
 - visual_concept: Detailed description of physical subject, materials, setting, and lighting strictly faithful to the user's requested environment and scene.
 - agent1_rationale: 1-2 sentence explanation of your chosen creative angle, target audience hook, and competitive wedge.
 
@@ -321,7 +321,7 @@ Preserve the user's exact brand, product, setting, and visual direction.
 Create a photographic visual_prompt with natural materials, believable lighting, and a clear hero subject adhering strictly to the user's requested environment, lighting, lens, and backdrop (e.g. minimalist workspace, enterprise hardware, software interfaces, or studio portraiture).
 CRITICAL: If client brand guidelines or uploaded visual assets describe a person or executive (e.g. Arab female executive in black abaya, corporate team member portrait), YOU MUST integrate this person as the primary hero subject in the visual_prompt!
 NEVER inject unrelated settings (e.g. do NOT inject cars, beaches, coastal roads, or sunsets unless the user explicitly requested them).
-If client brand guidelines or uploaded visual assets are provided, strictly integrate their aesthetic and color palette (e.g. Lexnis dark navy #131724, tech green #53B849, lime #BCD755, clean matte backdrops).
+If client brand guidelines or uploaded visual assets are provided, strictly integrate their aesthetic, brand colors, and clean matte backdrops.
 Reserve upper left and lower right negative space for typography. No text, letters, logos, or watermarks in the photo.
 Write a short, distinctive emotional hook, concise benefits and one clear CTA.
 Never invent a website, official affiliation or endorsements. Report only changes actually made.
@@ -463,6 +463,53 @@ def clean_social_text(text: str) -> str:
     return text.strip()
 
 
+def extract_brand_name_from_prompt(prompt: str, fallback_name: str = "Brand") -> str:
+    """
+    Intelligently extracts company / brand name directly from user prompt text.
+    Handles 'for <Brand>', 'at <Brand>', '#<Brand>Careers', '<Brand> is hiring', etc.
+    Filters out common action words and prepositions.
+    """
+    if not prompt:
+        return fallback_name
+    p = prompt.strip()
+
+    stopwords = {
+        'a', 'an', 'the', 'our', 'my', 'this', 'senior', 'lead', 'principal', 'staff', 'junior',
+        'engineer', 'developer', 'designer', 'manager', 'director', 'team', 'company',
+        'product', 'platform', 'system', 'systems', 'hiring', 'recruitment', 'launch',
+        'new', 'open', 'role', 'position', 'careers', 'innovations', 'ai', 'tech',
+        'looking', 'seeking', 'launching', 'introducing', 'announcing', 'building',
+        'creating', 'developing', 'offering', 'expanding', 'scaling', 'partner',
+        'social', 'media', 'post', 'ad', 'campaign', 'marketing', 'us', 'we', 'you'
+    }
+
+    valid_suffixes = {
+        'technologies', 'technology', 'systems', 'energy', 'labs', 'lab', 'ai',
+        'solutions', 'dynamics', 'robotics', 'logistics', 'networks', 'security',
+        'health', 'capital', 'ventures', 'analytics', 'software', 'cloud', 'solar'
+    }
+
+    patterns = [
+        r'(?:campaign\s+for|post\s+for|hiring\s+for|recruitment\s+for)\s+([A-Za-z0-9]+(?:\s+[A-Za-z0-9]+)?)',
+        r'(?:for|at)\s+([A-Z][a-zA-Z0-9]+(?:\s+[A-Za-z0-9]+)?)',
+        r'#([A-Za-z0-9]+?)(?:Careers|Launch|AI|Team|Tech|Hiring)\b',
+        r'\b([A-Z][a-zA-Z0-9]+(?:\s+[A-Za-z0-9]+)?)\s+is\s+hiring',
+    ]
+    for pat in patterns:
+        m = re.search(pat, p, re.IGNORECASE)
+        if m:
+            candidate = m.group(1).strip()
+            words = candidate.split()
+            first_w = words[0].strip(':,.-')
+            if first_w.lower() not in stopwords and len(first_w) >= 3:
+                if len(words) > 1:
+                    second_w = words[1].strip(':,.-')
+                    if second_w.lower() in valid_suffixes or (second_w[0].isupper() and second_w.lower() not in stopwords):
+                        return f"{first_w} {second_w}"
+                return first_w
+    return fallback_name
+
+
 def detect_featured_person(prompt: str, post_type: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
     """
     Intelligently extracts featured person name (e.g. 'Alisha Faisal') and corporate title (e.g. 'Marketing Manager')
@@ -538,7 +585,7 @@ def detect_featured_person(prompt: str, post_type: Optional[str] = None) -> Tupl
                     raw_title = raw_title.title()
             else:
                 if (post_type and 'welcome' in post_type.lower()) or 'welcome' in p.lower():
-                    raw_title = "Marketing Manager" if "alisha" in clean_name.lower() else "Team Member"
+                    raw_title = raw_title or "Team Member"
 
             return clean_name, (raw_title or "Team Member")
 
@@ -670,6 +717,9 @@ def detect_brand_and_product(prompt: str, current_brand: str = "") -> Tuple[str,
         detected_brand = "Bank of America"
 
     # 1. Prompt Catalog Check FIRST (Prompt is the authoritative source of truth)
+    if not detected_brand and b and b.lower() in p_lower and b.lower() not in ("brand", "our brand", "lexnis", "lexnis technologies"):
+        detected_brand = b
+
     if not detected_brand:
         for brand_key, canonical_name, products in brand_catalog:
             if re.search(rf"\b{re.escape(brand_key)}\b", p_lower):
@@ -695,12 +745,12 @@ def detect_brand_and_product(prompt: str, current_brand: str = "") -> Tuple[str,
             )
         if m:
             raw_cand = m.group(1).strip()
-            # Stop before conjunctions/clauses like "and write", "and draft", "to launch"
-            cut = re.split(r"\s+\b(?:and|with|to|in|on|for|showcasing|illuminated)\b", raw_cand, maxsplit=1, flags=re.I)[0].strip()
+            # Stop before conjunctions/clauses like "and write", "and draft", "to launch", "looking for"
+            cut = re.split(r"\s+\b(?:and|with|to|in|on|for|showcasing|illuminated|looking|seeking|hiring|introducing|launching|building)\b", raw_cand, maxsplit=1, flags=re.I)[0].strip()
             ignored_words = {
                 "a", "an", "the", "our", "new", "this", "revolutionary", "complete", "high-impact",
                 "device", "post", "campaign", "crisp", "volumetric", "sleek", "modern", "minimalist",
-                "advanced", "high-end", "commercial", "photograph", "solutions"
+                "advanced", "high-end", "commercial", "photograph", "solutions", "looking", "seeking", "hiring"
             }
             cand_words = [w for w in cut.split() if w.lower() not in ignored_words]
             if cand_words:
@@ -710,9 +760,18 @@ def detect_brand_and_product(prompt: str, current_brand: str = "") -> Tuple[str,
                 elif len(cand_brand) >= 2:
                     detected_brand = cand_brand.title()
 
+    # 2. Extract brand from prompt patterns if not in static catalog
+    if not detected_brand:
+        extracted = extract_brand_name_from_prompt(p, fallback_name="")
+        if extracted and extracted.lower() not in ("brand", "our brand", "the brand"):
+            detected_brand = extracted
+
     # 3. Only if prompt provided NO brand at all, fall back to current_brand
     if not detected_brand:
-        detected_brand = b if b and b.lower() != "lexnis technologies" else "Lexnis Technologies"
+        if b and b.lower() not in ("lexnis technologies", "brand", "our brand"):
+            detected_brand = b
+        else:
+            detected_brand = b or "Brand"
 
     # 4. Dynamic product extraction if product is still empty
     if not detected_product:
@@ -1546,8 +1605,8 @@ class LexnisCampaignStudio:
                 "suggested_theme": "Modern High-Tech AI Workspace",
             }
         elif is_welcome:
-            p_name_clean = person_name or "Alisha Faisal"
-            p_role_clean = person_title or "Marketing Manager"
+            p_name_clean = person_name or "New Team Member"
+            p_role_clean = person_title or "Leadership Team"
             fallback_enhanced = {
                 "detected_brand": brand_label,
                 "product_name": f"{p_name_clean} ({p_role_clean})",
@@ -3374,14 +3433,16 @@ class LexnisCampaignStudio:
                     if "logo" in Path(up).name.lower() and Path(up).exists():
                         logo_to_use = str(up)
                         break
-            elif UPLOADS_DIR.exists():
-                logo_uploads = sorted(UPLOADS_DIR.glob("logo_*.*"), key=lambda f: f.stat().st_mtime, reverse=True)
-                if logo_uploads:
-                    logo_to_use = str(logo_uploads[0])
 
             clean_bname = brand or "Our Brand"
+            if clean_bname.lower() in ("our brand", "brand", "lexnis technologies", "lexnis"):
+                det_prompt_b = extract_brand_name_from_prompt(effective_prompt, fallback_name="")
+                if det_prompt_b and det_prompt_b.lower() not in ("brand", "our brand", "lexnis technologies", "lexnis"):
+                    clean_bname = det_prompt_b
+                    brand = det_prompt_b
+
             clean_slug = re.sub(r'[^a-zA-Z0-9]', '', clean_bname) or "Brand"
-            is_lexnis_candidate = ("lexnis" in clean_bname.lower())
+            is_lexnis_candidate = bool(clean_bname and ("lexnis" in clean_bname.lower()) and clean_bname.lower() not in ("brand", "our brand"))
 
             # Dynamic post type typography presets
             if post_type == "hiring":
@@ -3470,7 +3531,6 @@ class LexnisCampaignStudio:
                 foot_ar = "نحن سعداء جداً بانضمامك إلى فريقنا!"
                 tag_to_use = brand_tag or ("#LexnisTeam" if is_lexnis_candidate else f"#{clean_slug}Team")
                 tag_ar_to_use = "#فريق_لكسنس" if is_lexnis_candidate else f"#فريق_{clean_slug}"
-                tag_ar_to_use = "#فريق_لكسنس"
 
             logo_key = Path(str(logo_to_use)).name if logo_to_use else "default_logo"
             swap_key = hashlib.sha1(f"swap_v4_1080x1350|{post_type}|{t_file.name}|{s_file.name}|{logo_key}|{hl_en}|{person_name}|{person_title}|{brand}|{tag_to_use}|{company_url}|recolor_{recolor_to_brand}".encode()).hexdigest()[:16]
@@ -3543,8 +3603,8 @@ class LexnisCampaignStudio:
 
                 art_img = render_lexnis_executive_artboard(
                     s_file,
-                    person_name=person_name or "Alisha Faisal",
-                    person_title=person_title or "Marketing Manager",
+                    person_name=person_name or "New Team Member",
+                    person_title=person_title or "Leadership Team",
                     headline_en=hl_en,
                     tagline_en=tg_en,
                     headline_ar=hl_ar,
@@ -3579,10 +3639,14 @@ class LexnisCampaignStudio:
                     if "logo" in Path(up).name.lower() and Path(up).exists():
                         logo_to_use = str(up)
                         break
-            elif UPLOADS_DIR.exists():
-                logo_uploads = sorted(UPLOADS_DIR.glob("logo_*.*"), key=lambda f: f.stat().st_mtime, reverse=True)
-                if logo_uploads:
-                    logo_to_use = str(logo_uploads[0])
+
+            # If brand is generic or default Lexnis, check prompt first
+            if not brand or brand.lower() in ("lexnis technologies", "brand", "our brand", "lexnis"):
+                det_from_p = extract_brand_name_from_prompt(effective_prompt, fallback_name="")
+                if det_from_p and det_from_p.lower() not in ("brand", "our brand", "lexnis technologies", "lexnis"):
+                    brand = det_from_p
+                    if isinstance(brand_dna, dict):
+                        brand_dna["brand_name"] = det_from_p
 
             # 2. Resolve Dynamic Brand Theme
             brand_theme = resolve_brand_theme(
@@ -3623,7 +3687,7 @@ class LexnisCampaignStudio:
                     if m_hire and m_hire.group(2):
                         raw_team = m_hire.group(2).strip()
                 if not raw_team:
-                    raw_team = "Manama, Bahrain  •  Full-Time  •  On-Site"
+                    raw_team = "Manama, Bahrain  •  Full-Time  •  On-Site" if brand_theme.is_lexnis else "Global HQ  •  Full-Time  •  Hybrid"
                 team_en = raw_team
 
                 raw_hook = headline or ""
@@ -3635,7 +3699,8 @@ class LexnisCampaignStudio:
                     if not hook_en or hook_en.upper() in {"LEXNIS", "LEXNIS TECHNOLOGIES", "CAREERS & OPEN POSITIONS"}:
                         hook_en = generate_hiring_mission_hook(role_en, effective_prompt, is_ar=False)
 
-                subcopy_en = hook or caption or "Stop maintaining someone else's API. Build foundational vision systems from scratch in Manama."
+                default_hire_subcopy_en = "Stop maintaining someone else's API. Build foundational vision systems from scratch in Manama." if brand_theme.is_lexnis else f"Stop maintaining legacy tools. Build foundational systems from scratch with {brand_theme.brand_name}."
+                subcopy_en = hook or caption or default_hire_subcopy_en
                 subcopy_en = subcopy_en.split("\n")[0][:140]
 
                 role_lower = role_en.lower().strip()
@@ -3649,7 +3714,7 @@ class LexnisCampaignStudio:
                     role_ar = arabic_pack.get("role_title") or arabic_pack.get("visual_headline") or "مهندس أول تعلم الآلة وأنظمة الرؤية الحاسوبية"
                 role_ar = re.sub(r"^\s*لكسنس\s*", "", role_ar).strip()
 
-                team_ar = arabic_pack.get("team_location") or "المنامة، البحرين  •  دوام كامل  •  حضوري"
+                team_ar = arabic_pack.get("team_location") or ("المنامة، البحرين  •  دوام كامل  •  حضوري" if brand_theme.is_lexnis else "المقر الرئيسي  •  دوام كامل  •  هجين")
 
                 raw_ar_hook = arabic_pack.get("visual_headline") or ""
                 if not raw_ar_hook or (role_ar and (role_ar in raw_ar_hook or raw_ar_hook in role_ar)) or "لكسنس" in raw_ar_hook or "وظائف" in raw_ar_hook or "\n" not in raw_ar_hook:
@@ -3659,10 +3724,13 @@ class LexnisCampaignStudio:
                     if not hook_ar or "\n" not in hook_ar:
                         hook_ar = generate_hiring_mission_hook(role_en, effective_prompt, is_ar=True)
 
-                subcopy_ar = arabic_pack.get("visual_tagline") or "انتقل بنماذجك من التجربة إلى حافة الإنجاز الفوري. ابنِ أنظمة ذكية وتأسيسية من قلب المنامة."
+                default_hire_subcopy_ar = "انتقل بنماذجك من التجربة إلى حافة الإنجاز الفوري. ابنِ أنظمة ذكية وتأسيسية من قلب المنامة." if brand_theme.is_lexnis else f"انتقل بنماذجك من التجربة إلى واقع الإنتاج الفعلي. ساهم في بناء الجيل القادم من الأنظمة مع {brand_theme.brand_name}."
+                subcopy_ar = arabic_pack.get("visual_tagline") or default_hire_subcopy_ar
 
-                chips_en = ["Manama, Bahrain", "Full-Time / Hybrid", f"{brand_theme.clean_slug} Core Lab"]
-                chips_ar = ["المنامة، البحرين", "دوام كامل • هجين", f"مختبر {brand_theme.clean_slug}"]
+                loc_chip_en = "Manama, Bahrain" if brand_theme.is_lexnis else "Global HQ"
+                loc_chip_ar = "المنامة، البحرين" if brand_theme.is_lexnis else "المقر الرئيسي"
+                chips_en = [loc_chip_en, "Full-Time / Hybrid", f"{brand_theme.clean_slug} Core Lab"]
+                chips_ar = [loc_chip_ar, "دوام كامل • هجين", f"مختبر {brand_theme.clean_slug}"]
 
                 if brand_theme.domain:
                     cta_u_en = f"{brand_theme.domain}/careers"
@@ -3909,13 +3977,31 @@ class LexnisCampaignStudio:
                     "cta_url": cta_u_ar
                 }
 
+            # Hard Guardrail Sanitizer for non-Lexnis brands
+            if not brand_theme.is_lexnis:
+                def _sanitize_card(cd: Dict[str, Any]) -> Dict[str, Any]:
+                    cleaned = dict(cd)
+                    for k in ["card_title", "card_subtitle", "hero_hook", "subcopy", "cta_text", "cta_url", "team_location"]:
+                        if isinstance(cleaned.get(k), str):
+                            val = cleaned[k]
+                            val = re.sub(r'lexnis(?:\.com)?(?:/careers|/visionai)?', '', val, flags=re.IGNORECASE).strip()
+                            if not brand_theme.domain and k in ("cta_url", "cta_text"):
+                                val = re.sub(r'https?://\S+|[a-zA-Z0-9-]+\.(?:com|ai|io|net|org)\S*', '', val).strip()
+                            cleaned[k] = val
+                    if isinstance(cleaned.get("chips"), list):
+                        cleaned["chips"] = [re.sub(r'lexnis', brand_theme.clean_slug, c, flags=re.IGNORECASE) for c in cleaned["chips"]]
+                    return cleaned
+
+                card_data_en = _sanitize_card(card_data_en)
+                card_data_ar = _sanitize_card(card_data_ar)
+
             base_bg = None
             if uploaded_image_path and Path(uploaded_image_path).exists():
                 base_bg = uploaded_image_path
 
             logo_key = Path(str(logo_to_use)).name if logo_to_use else "default_logo"
             base_key = Path(str(base_bg)).name if base_bg else "no_bg"
-            t_key = hashlib.sha1(f"agency_card|{post_type}|{card_data_en.get('card_title')}|{brand}|{logo_key}|{base_key}".encode()).hexdigest()[:16]
+            t_key = hashlib.sha1(f"agency_card_v4|{post_type}|{card_data_en.get('card_title')}|{brand}|{brand_theme.clean_slug}|{brand_theme.is_lexnis}|{brand_theme.domain}|{logo_key}|{base_key}".encode()).hexdigest()[:16]
             clean_path = RENDERS_DIR / f"{t_key}_clean.jpg"
             post_path = RENDERS_DIR / f"{t_key}_post.jpg"
             post_ar_path = RENDERS_DIR / f"{t_key}_post_ar.jpg"

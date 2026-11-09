@@ -5,7 +5,7 @@ Serves the web UI and provides the AI marketing agency endpoints.
 """
 
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Literal
+from typing import Optional, List, Dict, Any, Literal, Tuple
 import os
 import io
 import re
@@ -328,10 +328,6 @@ def generate_campaign_endpoint(req: GenerateRequest):
                 logo_to_use = req.logo_url
         elif uploaded_logo_path:
             logo_to_use = uploaded_logo_path
-        elif UPLOADS_DIR.exists():
-            logo_uploads = sorted(UPLOADS_DIR.glob("logo_*.*"), key=lambda f: f.stat().st_mtime, reverse=True)
-            if logo_uploads:
-                logo_to_use = str(logo_uploads[0])
 
         bp = dict(req.brand_profile) if req.brand_profile else {}
         if req.brand_profile_json:
@@ -341,12 +337,27 @@ def generate_campaign_endpoint(req: GenerateRequest):
                     bp.update(parsed_bp)
             except Exception:
                 pass
+
+        # Auto-detect brand name from prompt if not explicitly set
+        from campaign_generator import extract_brand_name_from_prompt
+        effective_brand = bp.get("brand_name") or req.brand or ""
+        if not effective_brand or effective_brand.lower() in ("brand", "our brand", "lexnis technologies", "lexnis"):
+            detected_from_p = extract_brand_name_from_prompt(req.prompt or "", fallback_name="")
+            if detected_from_p and detected_from_p.lower() not in ("brand", "our brand", "lexnis technologies", "lexnis"):
+                effective_brand = detected_from_p
+                bp["brand_name"] = detected_from_p
+                req.brand = detected_from_p
+        if not effective_brand:
+            effective_brand = "Lexnis Technologies" if (req.prompt and "lexnis" in req.prompt.lower()) else "Brand"
+            bp["brand_name"] = effective_brand
+            req.brand = effective_brand
+
         if req.brand and req.brand != "Lexnis Technologies" and not bp.get("brand_name"):
             bp["brand_name"] = req.brand
 
         asset: CampaignAsset = studio.generate_campaign(
             prompt=req.prompt,
-            brand=req.brand or "Lexnis Technologies",
+            brand=effective_brand,
             tone=req.tone,
             theme=req.theme,
             seed=req.seed,
@@ -397,6 +408,39 @@ def analyze_website_endpoint(req: AnalyzeWebsiteRequest):
         return dna
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def extract_logo_from_pdf_stream(pdf_bytes: bytes, uploads_dir: Path) -> Optional[Tuple[str, str]]:
+    """
+    Extracts clean logo graphic embedded on Page 1 of a guideline PDF.
+    Filters for typical logo dimensions (60-800px width/height, 0.5-5.0 aspect ratio).
+    """
+    try:
+        import fitz
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        if len(doc) == 0:
+            return None
+        page = doc[0]
+        image_list = page.get_images(full=True)
+        for img_info in image_list:
+            xref = img_info[0]
+            base_image = doc.extract_image(xref)
+            image_bytes = base_image.get("image")
+            if not image_bytes:
+                continue
+            w = base_image.get("width", 0)
+            h = base_image.get("height", 0)
+            ext = base_image.get("ext", "png")
+            aspect = w / float(h) if h > 0 else 1.0
+            if 60 <= w <= 800 and 60 <= h <= 800 and 0.5 <= aspect <= 5.0:
+                f_hash = hashlib.sha1(image_bytes).hexdigest()[:12]
+                saved_name = f"extracted_guideline_logo_{f_hash}.{ext}"
+                disk_path = uploads_dir / saved_name
+                disk_path.write_bytes(image_bytes)
+                return f"/uploads/{saved_name}", str(disk_path)
+    except Exception:
+        pass
+    return None
 
 
 @app.post("/api/analyze-brand")
@@ -475,6 +519,11 @@ async def analyze_brand_endpoint(
             website=website or "",
             user_brand_name_input=brand_name_input or ""
         )
+
+        if pdf_bytes and not saved_logo_url:
+            pdf_logo = extract_logo_from_pdf_stream(pdf_bytes, UPLOADS_DIR)
+            if pdf_logo:
+                saved_logo_url, saved_logo_path = pdf_logo
 
         if saved_logo_url:
             profile["logo_url"] = saved_logo_url
@@ -774,14 +823,28 @@ async def upload_guidelines_endpoint(
     primary_name = processed_files[0]["filename"] if len(processed_files) == 1 else f"{len(processed_files)} Brand Files"
     primary_img = next((pf for pf in processed_files if pf["is_image"]), None)
 
+    # Find pdf_bytes and img_bytes from file_payloads
+    first_pdf_bytes = next((b for (fn, ct, b) in file_payloads if Path(fn).suffix.lower() == ".pdf"), None)
+    first_img_bytes = next((b for (fn, ct, b) in file_payloads if Path(fn).suffix.lower() in IMAGE_EXTENSIONS), None)
+
     # Extract structured Brand DNA directly from uploaded guidelines (highest-priority source of truth)
     brand_profile = studio.extract_brand_profile_from_guideline(
         guideline_raw_text=distilled_combined,
+        pdf_bytes=first_pdf_bytes,
+        image_bytes=first_img_bytes,
         filename=primary_name
     )
     if primary_img and primary_img.get("file_url"):
         brand_profile["logo_url"] = primary_img["file_url"]
         brand_profile["logo_path"] = primary_img["file_path"]
+    else:
+        for fname_p, ctype_p, b_payload in file_payloads:
+            if Path(fname_p).suffix.lower() == ".pdf":
+                extracted_logo = extract_logo_from_pdf_stream(b_payload, UPLOADS_DIR)
+                if extracted_logo:
+                    brand_profile["logo_url"] = extracted_logo[0]
+                    brand_profile["logo_path"] = extracted_logo[1]
+                    break
 
     return {
         "status": "success",
@@ -938,14 +1001,10 @@ async def template_swap_endpoint(
                 logo_image_param = str(Path(logo_url.lstrip("/\\")))
             else:
                 logo_image_param = logo_url
-        elif UPLOADS_DIR.exists():
-            logo_uploads = sorted(UPLOADS_DIR.glob("logo_*.*"), key=lambda f: f.stat().st_mtime, reverse=True)
-            if logo_uploads:
-                logo_image_param = str(logo_uploads[0])
 
-        brand_name = brand_name or "Lexnis Technologies"
-        person_name = person_name or "Alisha Faisal"
-        person_title = person_title or "Marketing Manager"
+        brand_name = brand_name or "Enterprise"
+        person_name = person_name or "New Team Member"
+        person_title = person_title or "Leadership Team"
         if "lexnis" in brand_name.lower() or (company_url and "lexnis" in company_url.lower()):
             recolor_gradient = True
 

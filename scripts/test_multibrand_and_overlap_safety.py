@@ -402,6 +402,64 @@ def run_verification():
     assert noor_accent[0] > noor_accent[2], f"Noor accent should be warm amber (R > B): {noor_accent[:3]}"
     print(f"  ✓ Noor Solar accent bar strictly matches Amber (#D97706): RGB {tuple(noor_accent[:3])}. Zero Lexnis green.")
 
+    # -------------------------------------------------------------------------
+    # TEST 6: Prompt-Only Non-Lexnis Brand Without Uploaded Logo (TabFlow)
+    # -------------------------------------------------------------------------
+    print("\n[6/6] Verifying Prompt-Only Brand Without Uploaded Logo (TabFlow)...")
+    from campaign_generator import extract_brand_name_from_prompt
+    tabflow_prompt = "Create a hiring social media post for TabFlow looking for a Senior Machine Learning & Vision Systems Engineer"
+    detected_brand = extract_brand_name_from_prompt(tabflow_prompt)
+    assert detected_brand == "TabFlow", f"Expected TabFlow, got {detected_brand}"
+    print(f"  ✓ Prompt extraction correctly identified: '{detected_brand}'")
+
+    tabflow_profile = {
+        "brand_name": detected_brand,
+        "brand_name_ar": "تاب فلو",
+        "has_website": False,
+        "website": "",
+        "domain": "",
+        "color_palette": {
+            "primary": "#6366F1",
+            "secondary": "#A855F7",
+            "dark_bg": "#0B0F19",
+            "light_card": "#FFFFFF",
+            "text_dark": "#0F172A"
+        }
+    }
+    tabflow_theme = resolve_brand_theme(tabflow_profile, None, detected_brand, post_type="hiring")
+    assert tabflow_theme.brand_name == "TabFlow"
+    assert tabflow_theme.is_lexnis is False
+    assert tabflow_theme.domain == ""
+    print("  ✓ TabFlow theme resolved: is_lexnis=False, brand_name='TabFlow', domain=''")
+
+    tabflow_hire_en = render_agency_card(
+        card_data={
+            "card_title": "Senior Machine Learning &\nVision Systems Engineer",
+            "team_location": "Global HQ  •  Full-Time  •  Hybrid",
+            "card_overline": "CAREER OPPORTUNITY  //  CORE AI TEAM",
+            "hero_hook": "ARCHITECT NEXT-GEN\nINTELLIGENT WORKFLOWS.",
+            "subcopy": "Join our founding engineering team building autonomous visual workflows.",
+            "chips": ["Global HQ", "Full-Time", "Core AI Lab"],
+            "cta_text": "APPLY NOW",
+            "cta_url": ""  # Clean link-free CTA
+        },
+        brand_theme=tabflow_theme,
+        post_type="hiring",
+        language="en"
+    )
+    tabflow_hire_en_path = OUTPUT_DIR / "tabflow_hiring_en.jpg"
+    tabflow_hire_en.save(tabflow_hire_en_path, "JPEG", quality=98, subsampling=0)
+    assert tabflow_hire_en.size == (1080, 1350)
+    print(f"  ✓ Saved TabFlow Hiring EN: {tabflow_hire_en_path}")
+
+    # Verify no Lexnis green in accent or monogram
+    tf_arr = np.array(tabflow_hire_en)
+    # Check monogram badge area (x=80..110, y=75..105)
+    badge_sample = tf_arr[90, 95]
+    print(f"  -> TabFlow monogram badge pixel at (95, 90): RGB {tuple(badge_sample[:3])}")
+    dist_to_lex_badge = np.linalg.norm(badge_sample[:3] - np.array([83, 184, 73]))
+    assert dist_to_lex_badge > 40.0, f"Lexnis green leaked into TabFlow monogram! Distance: {dist_to_lex_badge}"
+
     # Copy files to artifacts directory
     artifact_files = [
         lex_hire_en_path,
@@ -413,7 +471,8 @@ def run_verification():
         q_hire_en_path,
         q_hire_ar_path,
         noor_hire_en_path,
-        noor_hire_ar_path
+        noor_hire_ar_path,
+        tabflow_hire_en_path
     ]
     for af in artifact_files:
         if af.exists() and ARTIFACTS_DIR.exists():
