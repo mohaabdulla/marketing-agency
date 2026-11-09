@@ -655,18 +655,9 @@ GENERIC_BRAND_NAMES = {"", "brand", "our brand", "company", "enterprise", "unkno
 
 
 def team_welcome_headline(brand_name: str = "", language: str = "en") -> str:
-    """Short, scannable Team Welcome headline that always fits a 1080px canvas."""
-    b = (brand_name or "").strip()
-    has_brand = b.lower() not in GENERIC_BRAND_NAMES
-    if language == "ar":
-        if has_brand and re.search(r"[\u0600-\u06FF]", b) and len(b) <= 16:
-            return f"أهلاً بك في {b}"
-        return "أهلاً بك في فريقنا"
-    if has_brand:
-        candidate = f"WELCOME TO {b.upper()}"
-        if len(candidate) <= 24:
-            return candidate
-    return "WELCOME TO THE TEAM"
+    """Short, scannable Team Welcome headline (single source of truth lives in visual_engine)."""
+    from visual_engine import short_welcome_headline
+    return short_welcome_headline(brand_name, is_ar=(language == "ar"))
 
 
 # Words that describe a guideline *document* rather than the company it belongs to.
@@ -677,7 +668,8 @@ _GUIDELINE_DOC_WORDS = {
     "extension", "draft", "copy", "new", "updated", "latest", "pdf", "logo", "logos", "colour", "color",
     "colours", "colors", "typography", "narrative", "framework", "bilingual", "social", "kit", "toolkit",
     "deck", "presentation", "rev", "revised", "overview", "introduction", "playbook", "handbook", "system",
-    "guidance", "rules", "assets", "master", "complete",
+    "guidance", "rules", "assets", "master", "complete", "table", "contents", "introduction", "chapter",
+    "section", "page", "welcome", "about", "prepared", "by", "to", "in", "on", "with", "is", "are", "this",
 }
 
 # Well-known house brands normalised to their canonical name.
@@ -745,6 +737,12 @@ def detect_brand_name_from_guideline(text: str, filename: str = "") -> str:
         add(m.group(1), 3)
     for m in re.finditer(r"©\s*(?:\d{4}\s*)?([A-Z][^\n.,©]{1,40})", text):
         add(m.group(1), 2)
+    # Ownership phrases near the start of the document ("Prepared for Noor Solar", "Welcome to Tab").
+    head = text[:5000]
+    for m in re.finditer(r"(?i:prepared\s+for|(?:brand\s+)?guidelines\s+for|identity\s+for|welcome\s+to)\s+([A-Z][A-Za-z0-9&]*(?:[ ][A-Z][A-Za-z0-9&]*){0,3})", head):
+        add(m.group(1), 3)
+    for m in re.finditer(r"(?i:\babout|\bby)\s+([A-Z][A-Za-z0-9&]*(?:[ ][A-Z][A-Za-z0-9&]*){0,3})", head):
+        add(m.group(1), 1)
     for pat, canonical in _KNOWN_GUIDELINE_BRANDS:
         if pat.search(text):
             add(canonical, 2)
@@ -2349,6 +2347,9 @@ class LexnisCampaignStudio:
         else:
             detected_name = detect_brand_name_from_guideline(guideline_raw_text, filename)
 
+            if not detected_name:
+                detected_name = self._llm_guideline_company_name(guideline_raw_text)
+
             if not detected_name and website and website.strip():
                 try:
                     w_dom = re.sub(r'^https?://', '', website.strip()).split('/')[0].replace('www.', '')
@@ -2504,6 +2505,31 @@ class LexnisCampaignStudio:
             "locked_by_guidelines": True,
             "source": "uploaded_guidelines"
         }
+
+    def _llm_guideline_company_name(self, guideline_text: str) -> str:
+        """
+        Last-resort company-name lookup with Gemini when the heuristics find nothing.
+        Only runs with a configured Gemini key, and only accepts a name that literally
+        appears in the document (a hallucinated name can never become the brand).
+        """
+        text = (guideline_text or "").strip()
+        if not self.gemini_key or len(text) < 200:
+            return ""
+        try:
+            data, _ = self._chat_json(
+                "You read brand-guideline documents. Identify the company or brand the document belongs to. "
+                "Return JSON: {\"company_name\": \"<exact name as written in the document, or empty>\"}. "
+                "Never return generic words such as 'Brand Guidelines', 'Style Guide' or 'Table of Contents'.",
+                text[:6000],
+                temperature=0.0,
+                fallback_schema={"company_name": ""},
+            )
+            cand = _clean_brand_candidate(str(data.get("company_name") or ""))
+            if cand and len(cand) <= 40 and re.search(rf"(?<![A-Za-z0-9]){re.escape(cand)}(?![A-Za-z0-9])", text, re.IGNORECASE):
+                return cand
+        except Exception:
+            pass
+        return ""
 
     def extract_brand_dna_from_guidelines(self, guidelines_text: str, default_brand: str = "Lexnis Technologies") -> Dict[str, Any]:
         """Backward-compatible wrapper that delegates to extract_brand_profile_from_guideline."""
@@ -3701,10 +3727,8 @@ class LexnisCampaignStudio:
             else:
                 # LLM headlines such as "LEXNIS TECHNOLOGIES WELCOMING NEW TEAM MEMBER!" are too long
                 # for the 2.5D card; keep the welcome headline short and scannable.
-                if headline and len(headline) <= 24 and "welcoming" not in headline.lower():
-                    hl_en = headline
-                else:
-                    hl_en = team_welcome_headline(clean_bname, "en")
+                from visual_engine import is_unsafe_welcome_headline
+                hl_en = team_welcome_headline(clean_bname, "en") if is_unsafe_welcome_headline(headline) else headline
                 hl_ar = team_welcome_headline(clean_bname, "ar")
                 foot_en = "We are so excited to have you on our team!"
                 foot_ar = "نحن سعداء جداً بانضمامك إلى فريقنا!"
@@ -3754,7 +3778,7 @@ class LexnisCampaignStudio:
 
             # Arabic localized copy & design tokens
             ar_hl = arabic_pack.get("visual_headline") or hl_ar
-            if (post_type or "team_welcome") == "team_welcome" and len(ar_hl) > 24:
+            if (post_type or "team_welcome") == "team_welcome" and len(ar_hl) > 26:
                 ar_hl = hl_ar
             ar_tl = arabic_pack.get("visual_tagline") or foot_ar
 

@@ -5,8 +5,12 @@ Regression suite for the Team Welcome 2.5D card defects:
    person's name; the name and role come from the prompt instead.
 2. Brand guidelines resolve to the right company (never a year or a generic filename) and a
    non-Lexnis guideline renders with its own colours, lockup and #<Brand>Team hashtag.
-3. The headline always fits inside x = 72..1008 and sits fully above the pop-out head.
+3. The headline always fits inside x = 80..1000 and sits fully above the pop-out head:
+   headline ink y ~168..200, >= 15px clear gap, head top at 218, frame top at 335 (117px pop-out).
+   Long / LLM-sentence headlines are replaced inside the renderer itself.
 4. The subject is scaled uniformly (portrait photos are never squashed) and fills the frame.
+5. A leftover "Lexnis Technologies" brand is overridden by an uploaded guideline (profile JSON
+   or guideline text) unless the website is lexnis.com.
 
 Run:  python scripts/test_welcome_card_fixes.py
 """
@@ -40,7 +44,7 @@ from campaign_generator import (
     resolve_featured_person,
     team_welcome_headline,
 )
-from server import app
+from server import app, resolve_request_brand
 
 TEMPLATE = ROOT / "test_assets" / "template_reference.jpg"
 SUBJECT = ROOT / "test_assets" / "raw_subject.jpg"
@@ -101,6 +105,10 @@ class GuidelineBrandTests(unittest.TestCase):
         self.assertEqual(detect_brand_name_from_guideline(TAB_GUIDELINE_TEXT, "Tab_Full_Visual_Brand_Guideline (1).pdf"), "Tab")
         self.assertEqual(detect_brand_name_from_guideline("", "Brand guidelines document (3).pdf"), "")
         self.assertEqual(detect_brand_name_from_guideline("Noor Solar Energy Brand Guidelines\nNoor Solar Energy", "x.pdf"), "Noor Solar Energy")
+        prepared = ("Table of Contents\nIntroduction\nIdentity Manual\nPrepared for Noor Solar Energy\n"
+                    "Noor Solar Energy powers homes across the Gulf.")
+        self.assertEqual(detect_brand_name_from_guideline(prepared, "Brand guidelines document (3).pdf"), "Noor Solar Energy")
+        self.assertEqual(detect_brand_name_from_guideline("Welcome to Sadad\nSadad payments", ""), "Sadad")
 
     def test_tab_profile_palette_roles(self):
         prof = _tab_profile()
@@ -114,8 +122,40 @@ class GuidelineBrandTests(unittest.TestCase):
 
     def test_welcome_headlines_are_short(self):
         for brand in ("Lexnis Technologies", "Tab", "Noor Solar Energy", "", "Brand"):
-            self.assertLessEqual(len(team_welcome_headline(brand)), 24)
+            self.assertLessEqual(len(team_welcome_headline(brand)), 26)
         self.assertEqual(team_welcome_headline("Tab"), "WELCOME TO TAB")
+        self.assertEqual(team_welcome_headline("Lexnis Technologies"), "WELCOME TO THE TEAM")  # > 12 chars
+        self.assertEqual(team_welcome_headline("Tab", "ar"), "أهلاً بك في فريقنا")
+
+
+class BrandResolutionTests(unittest.TestCase):
+    """A leftover 'Lexnis Technologies' is a stale default whenever a guideline is loaded."""
+
+    def test_guideline_profile_overrides_stale_lexnis(self):
+        brand, bp = resolve_request_brand("Lexnis Technologies", _tab_profile(), None, WELCOME_PROMPT, "")
+        self.assertEqual(brand, "Tab")
+        self.assertEqual(bp["brand_name"], "Tab")
+
+    def test_guideline_text_overrides_stale_lexnis(self):
+        brand, bp = resolve_request_brand("Lexnis Technologies", None, TAB_GUIDELINE_TEXT, WELCOME_PROMPT, "")
+        self.assertEqual(brand, "Tab")
+        self.assertFalse(bp.get("is_lexnis"))
+
+    def test_lexnis_website_keeps_lexnis(self):
+        brand, _ = resolve_request_brand("Lexnis Technologies", {"brand_name": "Brand", "locked_by_guidelines": True},
+                                         None, WELCOME_PROMPT, "https://lexnis.com")
+        self.assertEqual(brand, "Lexnis Technologies")
+
+    def test_unnamed_guideline_never_falls_back_to_lexnis(self):
+        brand, _ = resolve_request_brand("Lexnis Technologies", {"brand_name": "Brand", "locked_by_guidelines": True},
+                                         None, WELCOME_PROMPT, "")
+        self.assertEqual(brand, "")
+
+    def test_no_guideline_keeps_typed_brand_and_drops_lexnis_profile(self):
+        self.assertEqual(resolve_request_brand("Lexnis Technologies", None, None, "", "")[0], "Lexnis Technologies")
+        brand, bp = resolve_request_brand("Acme Robotics", {"company_name": "Lexnis Technologies"}, None, "", "")
+        self.assertEqual(brand, "Acme Robotics")
+        self.assertEqual(bp, {})  # Lexnis DNA never styles another brand
 
 
 class HeadlineFitTests(unittest.TestCase):
@@ -123,10 +163,10 @@ class HeadlineFitTests(unittest.TestCase):
         draw = ImageDraw.Draw(Image.new("RGB", (1080, 400)))
         for text in ("WELCOME", "WELCOME TO THE TEAM", "LEXNIS TECHNOLOGIES WELCOMING NEW TEAM MEMBER!",
                      "A VERY LONG HEADLINE THAT SOMEONE TYPED INTO THE OVERRIDE FIELD FOR NO GOOD REASON"):
-            fit = fit_popout_headline(draw, text, FONTS_DIR / "Poppins-Bold.ttf", max_w=936, preferred_h=128,
-                                      max_h=172, start_size=120, min_single=56, min_double=36)
-            self.assertLessEqual(fit["block_w"], 936, text)
-            self.assertLessEqual(fit["block_h"], 172, text)
+            fit = fit_popout_headline(draw, text, FONTS_DIR / "Poppins-Bold.ttf", max_w=920, preferred_h=64,
+                                      max_h=109, start_size=46, min_single=32, min_double=28)
+            self.assertLessEqual(fit["block_w"], 920, text)
+            self.assertLessEqual(fit["block_h"], 109, text)
 
 
 class SubjectPlacementTests(unittest.TestCase):
@@ -160,10 +200,17 @@ class BrandedCardTests(unittest.TestCase):
     def _assert_headline_clear(self, img):
         layout = img.info["popout_layout"]
         lo, hi = layout["safe_x"]
+        self.assertEqual((lo, hi), (80, 1000))
+        frame_top = layout["frame"][1]
         for (x0, y0, x1, y1) in layout["headline_boxes"]:
             self.assertGreaterEqual(x0, lo - 1)
             self.assertLessEqual(x1, hi + 1)
-            self.assertLess(y1, layout["head_top"], "headline overlaps the pop-out head")
+            self.assertLessEqual(x1 - x0, 920)
+            self.assertGreaterEqual(layout["head_top"] - y1, 15, "headline must clear the head by >= 15px")
+        # 2.5D pop-out preserved: the head rises well above the white frame's top border.
+        self.assertLess(layout["head_top"], frame_top)
+        self.assertGreaterEqual(layout["pop_out"], 100)
+        self.assertEqual((layout["head_top"], frame_top, layout["pop_out"]), (218, 335, 117))
         # Pixel check: white headline ink in the headline band never leaves x = 72..1008.
         arr = np.asarray(img.convert("RGB")).astype(int)
         band = arr[136:layout["head_top"] - 4]
@@ -181,6 +228,8 @@ class BrandedCardTests(unittest.TestCase):
         )
         self.assertEqual(img.size, (1080, 1350))
         self.assertTrue(img.info["popout_layout"]["is_lexnis"])
+        # The renderer never trusts a long LLM sentence as the welcome headline.
+        self.assertEqual(img.info["popout_layout"]["headline_text"], "WELCOME TO THE TEAM")
         self._assert_headline_clear(img)
 
     def test_tab_guideline_card_has_no_lexnis_elements(self):
@@ -234,6 +283,38 @@ class BrandedCardTests(unittest.TestCase):
         self.assertEqual(data["person_title"], "AI Engineer")
         self.assertEqual(data["brand_name"], "Tab")
         self.assertEqual(data["headline_text"], "WELCOME TO TAB")
+        self.assertFalse(data["is_lexnis"])
+        self.assertEqual(data["brand_primary"].upper(), "#4F46E5")
+
+    def test_template_swap_guideline_text_overrides_stale_lexnis(self):
+        """Guideline TEXT only (no profile JSON) + leftover Lexnis brand + long LLM headline."""
+        client = TestClient(app)
+        with mock.patch.object(visual_engine, "draw_brand_header", wraps=visual_engine.draw_brand_header) as header, \
+             mock.patch.object(visual_engine, "render_lexnis_logo", wraps=visual_engine.render_lexnis_logo) as lexnis_logo:
+            resp = client.post(
+                "/api/template-swap",
+                files={
+                    "template_file": ("template_reference.jpg", TEMPLATE.read_bytes(), "image/jpeg"),
+                    "subject_file": ("WhatsApp Image 2026-11-09 at 19.48.58.jpeg", self.subject_bytes, "image/jpeg"),
+                },
+                data={
+                    "brand_name": "Lexnis Technologies",
+                    "prompt": WELCOME_PROMPT,
+                    "guidelines": TAB_GUIDELINE_TEXT,
+                    "headline_text": "LEXNIS TECHNOLOGIES WELCOMING NEW TEAM MEMBER!",
+                    "language": "en",
+                },
+            )
+        self.assertEqual(resp.status_code, 200, resp.text)
+        data = resp.json()
+        self.assertEqual(data["brand_name"], "Tab")
+        self.assertFalse(data["is_lexnis"])
+        self.assertEqual(data["brand_primary"].upper(), "#4F46E5")
+        self.assertEqual(data["headline_text"], "WELCOME TO TAB")
+        self.assertEqual(data["person_name"], "Mohamed Redha")
+        lexnis_logo.assert_not_called()
+        header.assert_called_once()
+        self.assertEqual(header.call_args[0][1].hashtag_en, "#TabTeam")
 
 
 if __name__ == "__main__":

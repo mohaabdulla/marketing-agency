@@ -188,12 +188,12 @@
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-obsidian-800 pb-3">
               <div class="flex items-center space-x-2">
                 <span id="dna-brand-badge" class="px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/40">
-                  LEXNIS TECHNOLOGIES
+                  BRAND STUDIO
                 </span>
                 <span id="dna-tag-badge" class="px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
-                  <i data-lucide="hash" class="w-3 h-3"></i> <span id="dna-tag-text">#LexnisTeam</span>
+                  <i data-lucide="hash" class="w-3 h-3"></i> <span id="dna-tag-text">#BrandTeam</span>
                 </span>
-                <span class="text-[10px] font-mono text-slate-400" id="dna-domain-text">lexnis.com</span>
+                <span class="text-[10px] font-mono text-slate-400" id="dna-domain-text">No brand loaded</span>
                 <span id="dna-logo-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-obsidian-800 text-slate-400 border border-obsidian-700 flex items-center gap-1">
                   <i data-lucide="shield" class="w-3 h-3 text-slate-400"></i> <span id="dna-logo-text">Vector Logo</span>
                 </span>
@@ -213,20 +213,20 @@
                 </div>
                 <div class="flex items-center gap-2" id="dna-colors-row">
                   <div class="flex items-center gap-1">
-                    <span class="w-5 h-5 rounded border border-white/20 shadow" id="dna-swatch-pri" style="background-color: #131724;" title="Primary Dark Navy: #131724"></span>
-                    <span class="text-[10px] font-mono text-slate-300" id="dna-hex-pri">#131724</span>
+                    <span class="w-5 h-5 rounded border border-white/20 shadow" id="dna-swatch-pri" style="background-color: #0F172A;" title="Primary (set by guideline or website)"></span>
+                    <span class="text-[10px] font-mono text-slate-300" id="dna-hex-pri">#0F172A</span>
                   </div>
                   <div class="flex items-center gap-1">
-                    <span class="w-5 h-5 rounded border border-white/20 shadow" id="dna-swatch-sec" style="background-color: #023024;" title="Secondary Deep Forest: #023024"></span>
-                    <span class="text-[10px] font-mono text-slate-300" id="dna-hex-sec">#023024</span>
+                    <span class="w-5 h-5 rounded border border-white/20 shadow" id="dna-swatch-sec" style="background-color: #1E293B;" title="Secondary (set by guideline or website)"></span>
+                    <span class="text-[10px] font-mono text-slate-300" id="dna-hex-sec">#1E293B</span>
                   </div>
                   <div class="flex items-center gap-1">
-                    <span class="w-5 h-5 rounded border border-white/20 shadow" id="dna-swatch-acc" style="background-color: #53B849;" title="Tech Green Signal: #53B849"></span>
-                    <span class="text-[10px] font-mono text-slate-300" id="dna-hex-acc">#53B849</span>
+                    <span class="w-5 h-5 rounded border border-white/20 shadow" id="dna-swatch-acc" style="background-color: #2563EB;" title="Accent (set by guideline or website)"></span>
+                    <span class="text-[10px] font-mono text-slate-300" id="dna-hex-acc">#2563EB</span>
                   </div>
                   <div class="flex items-center gap-1">
-                    <span class="w-5 h-5 rounded border border-white/20 shadow" id="dna-swatch-lime" style="background-color: #BCD755;" title="Lime Acceleration: #BCD755"></span>
-                    <span class="text-[10px] font-mono text-slate-300" id="dna-hex-lime">#BCD755</span>
+                    <span class="w-5 h-5 rounded border border-white/20 shadow" id="dna-swatch-lime" style="background-color: #38BDF8;" title="Second accent (set by guideline or website)"></span>
+                    <span class="text-[10px] font-mono text-slate-300" id="dna-hex-lime">#38BDF8</span>
                   </div>
                 </div>
               </div>
@@ -252,7 +252,7 @@
                   <i data-lucide="eye" class="w-3 h-3 text-amber-400"></i> Aesthetic Flow
                 </div>
                 <p id="dna-aesthetic-text" class="text-[11px] font-mono text-slate-300 line-clamp-2">
-                  135° Depth Gradient (#131724 -> #023024) with Tech Green & Lime dual open chevrons, Core Chevron Field pattern, and Poppins/Cairo bilingual typography.
+                  No brand loaded yet. Upload a Brand Guideline PDF, enter a company name, or analyze a website.
                 </p>
               </div>
             </div>
@@ -585,7 +585,7 @@
           <div class="flex flex-wrap items-center gap-4">
             <div class="flex items-center space-x-2">
               <span class="text-slate-400">Brand:</span>
-              <input id="brand-input" type="text" value="Lexnis Technologies" class="w-40 bg-obsidian-950 border border-obsidian-800 text-slate-300 rounded-lg px-2.5 py-1 focus:outline-none focus:border-cyan-accent text-xs">
+              <input id="brand-input" type="text" value="" placeholder="Auto (guideline / prompt)" class="w-40 bg-obsidian-950 border border-obsidian-800 text-slate-300 rounded-lg px-2.5 py-1 focus:outline-none focus:border-cyan-accent text-xs">
             </div>
 
             <div class="flex items-center space-x-2">
@@ -2409,7 +2409,7 @@
       // Drop the guideline-locked brand profile so it stops driving colours/brand on later renders.
       if (window.brandProfile && (window.brandProfile.locked_by_guidelines || window.brandProfile.source === 'uploaded_guidelines')) {
         window.brandProfile = null;
-        currentBrandDna = { ...LEXNIS_DEFAULT_DNA };
+        currentBrandDna = { ...NEUTRAL_BRAND_DNA };
       }
       if (guidelinesActivePill) guidelinesActivePill.classList.add('hidden');
       if (guidelinesEmptyState) guidelinesEmptyState.classList.remove('hidden');
@@ -2478,6 +2478,11 @@
             if (prof && Object.keys(prof).length > 0) {
               applyBrandDnaToUI(prof);
               const nameToShow = prof.brand_name || prof.company_name || 'Brand';
+              // A prompt written for the old default brand must follow the uploaded guideline's brand.
+              if (promptInput && !isGenericBrandName(nameToShow) && !/lexnis/i.test(nameToShow) && /lexnis(?:\s+technologies)?/i.test(promptInput.value)) {
+                promptInput.value = promptInput.value.replace(/lexnis(?:\s+technologies)?/gi, nameToShow);
+                if (charCount) charCount.textContent = promptInput.value.length;
+              }
               showToast(`🔒 Brand profile locked from guidelines: ${nameToShow}`, true);
             } else {
               showToast(`Added ${fileList.length} brand asset${fileList.length > 1 ? 's' : ''}! (${activeGuidelineFiles.length} total active)`, true);
@@ -2593,9 +2598,13 @@
     }
 
     async function handleAutoResearchGuidelines() {
-      const brandVal = brandInput ? brandInput.value.trim() : 'Lexnis Technologies';
+      const brandVal = resolveActiveBrandName();
       const promptVal = promptInput ? promptInput.value.trim() : '';
       const searchEnabled = searchToggle ? searchToggle.checked : true;
+      if (!brandVal) {
+        showToast('Enter a company name in Stage 1 (or upload a Brand Guideline) before running market research.', false);
+        return;
+      }
 
       const btn = document.getElementById('btn-auto-research-guidelines');
       const btnText = document.getElementById('btn-auto-research-text');
@@ -2610,7 +2619,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            brand: brandVal || 'Lexnis Technologies',
+            brand: brandVal,
             prompt: promptVal,
             use_search: searchEnabled
           })
@@ -3437,29 +3446,10 @@
     const dnaAestheticText = document.getElementById('dna-aesthetic-text');
 
     let currentCompanyUrl = '';
-    const LEXNIS_DEFAULT_DNA = {
-      company_name: 'Lexnis Technologies',
-      brand_tag: '#LexnisTeam',
-      domain: 'lexnis.com',
-      brand_colors: {
-        primary: '#131724',
-        secondary: '#023024',
-        accent: '#53B849',
-        accent_lime: '#BCD755',
-        accent_yellow: '#FFBD23',
-        gradient_start: '#131724',
-        gradient_end: '#023024'
-      },
-      typography: {
-        primary_font: 'Poppins',
-        secondary_font: 'Poppins Medium',
-        arabic_font: 'Cairo Bold / Tajawal Medium',
-        heading_style: 'Poppins Bold 700 / Cairo Bold 700'
-      },
-      visual_aesthetic: 'Enterprise transformation minimalism with 135° Depth Gradient (#131724 -> #023024), Tech Green & Lime dual open chevrons, Core Chevron Field pattern, and Poppins/Cairo bilingual typography.',
-      locked_by_guidelines: false
-    };
-    let currentBrandDna = { ...LEXNIS_DEFAULT_DNA };
+    // No brand is assumed until the user uploads a guideline, types a company name, or analyzes a website.
+    // (Lexnis DNA arrives from the backend only when lexnis.com is analyzed or a Lexnis guideline is uploaded.)
+    const NEUTRAL_BRAND_DNA = { brand_tag: '', locked_by_guidelines: false };
+    let currentBrandDna = { ...NEUTRAL_BRAND_DNA };
 
     const GENERIC_BRAND_NAMES = ['', 'brand', 'our brand', 'company', 'enterprise', 'unknown', 'your brand'];
     function isGenericBrandName(name) {
@@ -3617,7 +3607,11 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             url: url,
-            brand: (brandInput && brandInput.value.trim()) || 'Lexnis Technologies'
+            // The website decides the brand; a typed Lexnis name must not turn another site into Lexnis DNA.
+            brand: (() => {
+              const b = resolveActiveBrandName();
+              return (/lexnis/i.test(b) && !/lexnis/i.test(url)) ? '' : b;
+            })()
           })
         });
 
@@ -4222,7 +4216,7 @@
           if (personNameInput && values['pt-member-name'] !== undefined) personNameInput.value = values['pt-member-name'];
           if (personTitleInput && values['pt-member-role'] !== undefined) personTitleInput.value = values['pt-member-role'];
         } else if (typeId === 'hiring') {
-          const bName = document.getElementById('brandNameInput')?.value.trim() || window.brandProfile?.brand_name || 'Our Brand';
+          const bName = resolveActiveBrandName() || 'our company';
           const isLex = bName.toLowerCase().startsWith('lexnis');
           currentPersonName = values['pt-hire-role'] || 'Senior Machine Learning & Vision Systems Engineer';
           currentPersonTitle = values['pt-hire-team'] || (isLex ? 'Lexnis Core AI Lab, Manama / Hybrid' : `${bName} Core Team, Hybrid`);
@@ -4264,7 +4258,8 @@
             values[inp.id] = inp.value.trim();
           });
           const bp = window.brandProfile || {};
-          const brandName = document.getElementById('brandNameInput')?.value.trim() || bp.brand_name || (brandInput && brandInput.value.trim()) || 'Our Brand';
+          // Never fall back to Lexnis: uploaded guideline / typed brand, else a neutral phrase.
+          const brandName = resolveActiveBrandName() || 'our company';
           const industry = bp.industry || 'Technology & Infrastructure';
           const tone = bp.brand_tone || 'Professional, authoritative and innovative';
           const offerings = (bp.core_offerings || []).join(', ');
@@ -4356,10 +4351,8 @@
       lucide.createIcons();
       checkBackendEngine();
 
-      // Initialize Verified Lexnis Brand DNA
-      if (currentBrandDna) {
-        applyBrandDnaToUI(currentBrandDna);
-      }
+      // Start brand-neutral: no Lexnis DNA is applied until a guideline, company name or website is provided.
+      window.brandProfile = null;
 
       // Initialize Post Type Hub
       selectPostType('team_welcome');
@@ -4407,7 +4400,7 @@
     function enhancePromptClientSide(prompt, brand) {
       const isTesla = /\btesla\b/i.test(prompt);
       const isBofa = /\b(bank of america|bofa)\b/i.test(prompt);
-      const detectedBrand = isTesla ? 'Tesla' : (isBofa ? 'Bank of America' : (brand || 'Lexnis Technologies'));
+      const detectedBrand = isTesla ? 'Tesla' : (isBofa ? 'Bank of America' : (brand || resolveActiveBrandName() || 'our company'));
 
       if (currentPostType === 'team_welcome' || /welcome/i.test(prompt)) {
         sanitizePersonNameFields();

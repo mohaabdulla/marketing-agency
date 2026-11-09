@@ -21,7 +21,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from visual_engine import model_setup, preferred_local_model, composite_template_swap, sanitize_brand_tag, resolve_brand_theme
+from visual_engine import (
+    model_setup, preferred_local_model, composite_template_swap, sanitize_brand_tag, resolve_brand_theme,
+    is_unsafe_welcome_headline,
+)
 
 from campaign_generator import (
     LexnisCampaignStudio, CampaignAsset, IMAGE_MODELS, DEFAULT_IMAGE_MODEL, RENDERS_DIR,
@@ -87,9 +90,56 @@ def render_path(url: str) -> str:
     return ""
 
 
+def _is_generic_brand(name: Optional[str]) -> bool:
+    return (name or "").strip().lower() in GENERIC_BRAND_NAMES
+
+
+def resolve_request_brand(
+    req_brand: Optional[str],
+    brand_profile: Optional[Dict[str, Any]],
+    guidelines: Optional[str],
+    prompt: Optional[str],
+    company_url: Optional[str],
+) -> Tuple[str, Dict[str, Any]]:
+    """
+    Decide which brand a request is for, returning (brand_name, brand_profile).
+    - An uploaded guideline's profile (or guideline text, parsed here) is the source of truth.
+    - "Lexnis Technologies" / "Lexnis" in brand_name is treated as a stale UI default whenever a
+      guideline is present, unless the website explicitly is lexnis.com.
+    - Falls back to the prompt; never guesses Lexnis unless the prompt mentions it. May return "".
+    - A Lexnis-named profile is dropped when the resolved brand is not Lexnis.
+    """
+    bp: Dict[str, Any] = dict(brand_profile or {})
+    prompt = prompt or ""
+    if not bp and guidelines and guidelines.strip():
+        try:
+            bp = LexnisCampaignStudio().extract_brand_profile_from_guideline(guideline_raw_text=guidelines)
+        except Exception:
+            bp = {}
+
+    req = (req_brand or "").strip()
+    profile_brand = str(bp.get("brand_name") or bp.get("company_name") or "").strip()
+    profile_is_lexnis = "lexnis" in profile_brand.lower()
+    guideline_present = bool(bp.get("locked_by_guidelines") or bp.get("source") == "uploaded_guidelines" or (guidelines and guidelines.strip()))
+    req_is_stale_lexnis = "lexnis" in req.lower() and guideline_present and "lexnis.com" not in (company_url or "").lower()
+
+    if profile_brand and not _is_generic_brand(profile_brand) and (_is_generic_brand(req) or (req_is_stale_lexnis and not profile_is_lexnis)):
+        brand = profile_brand
+    elif not _is_generic_brand(req) and not (req_is_stale_lexnis and not profile_is_lexnis):
+        brand = req
+    else:
+        brand = extract_brand_name_from_prompt(prompt, fallback_name="")
+        if _is_generic_brand(brand):
+            brand = "Lexnis Technologies" if "lexnis" in prompt.lower() else ""
+
+    if bp and profile_is_lexnis and "lexnis" not in brand.lower():
+        bp = {}  # a Lexnis profile must never style another brand's card
+    return brand, bp
+
+
 class GenerateRequest(BaseModel):
     prompt: str = Field(..., description="Product, offer or campaign concept")
-    brand: Optional[str] = Field("Lexnis Technologies", description="Brand name")
+    brand: Optional[str] = Field("", description="Brand name (empty = resolve from guideline profile or prompt)")
     tone: Optional[str] = Field(None, description="Marketing tone")
     theme: Optional[str] = Field(None, description="Visual direction")
     seed: Optional[int] = Field(None, description="Image seed")
@@ -122,7 +172,7 @@ class SuggestPromptRequest(BaseModel):
 
 class AnalyzeWebsiteRequest(BaseModel):
     url: str = Field(..., description="Company website URL to extract brand DNA from")
-    brand: Optional[str] = Field("Lexnis Technologies", description="Brand name")
+    brand: Optional[str] = Field("", description="Brand name (empty = derive from the website)")
 
 
 class GenerateGuidelinesRequest(BaseModel):
@@ -340,26 +390,15 @@ def generate_campaign_endpoint(req: GenerateRequest):
             except Exception:
                 pass
 
-        # Auto-detect brand name from prompt if not explicitly set
-        from campaign_generator import extract_brand_name_from_prompt
-        effective_brand = bp.get("brand_name") or req.brand or ""
-        if not effective_brand or effective_brand.lower() in ("brand", "our brand", "lexnis technologies", "lexnis"):
-            detected_from_p = extract_brand_name_from_prompt(req.prompt or "", fallback_name="")
-            if detected_from_p and detected_from_p.lower() not in ("brand", "our brand", "lexnis technologies", "lexnis"):
-                effective_brand = detected_from_p
-                bp["brand_name"] = detected_from_p
-                req.brand = detected_from_p
+        # Brand: uploaded guideline profile > typed brand (a leftover "Lexnis Technologies" is a stale
+        # default when a guideline is loaded) > prompt. Market-research text in req.guidelines is not an
+        # uploaded guideline, so it is left to generate_campaign rather than used to override the brand.
+        effective_brand, bp = resolve_request_brand(req.brand, bp, None, req.prompt, req.company_url)
         if not effective_brand:
-            effective_brand = "Lexnis Technologies" if (req.prompt and "lexnis" in req.prompt.lower()) else "Brand"
+            effective_brand = "Brand"  # generate_campaign would otherwise default to Lexnis
+        req.brand = effective_brand
+        if not _is_generic_brand(effective_brand) and effective_brand != "Lexnis Technologies" and not bp.get("brand_name"):
             bp["brand_name"] = effective_brand
-            req.brand = effective_brand
-
-        bp_name = str(bp.get("brand_name") or bp.get("company_name") or "")
-        if bp and "lexnis" in bp_name.lower() and "lexnis" not in (effective_brand or "").lower():
-            bp = {}  # a Lexnis profile must never style another brand's card
-
-        if req.brand and req.brand != "Lexnis Technologies" and not bp.get("brand_name"):
-            bp["brand_name"] = req.brand
 
         asset: CampaignAsset = studio.generate_campaign(
             prompt=req.prompt,
@@ -1023,31 +1062,10 @@ async def template_swap_endpoint(
                     bp = parsed_bp
             except Exception:
                 bp = {}
-        if not bp and guidelines and guidelines.strip():
-            try:
-                bp = LexnisCampaignStudio().extract_brand_profile_from_guideline(guideline_raw_text=guidelines)
-            except Exception:
-                bp = {}
-
-        def _generic_brand(n: str) -> bool:
-            return (n or "").strip().lower() in GENERIC_BRAND_NAMES
-
-        # Brand resolution: a non-Lexnis guideline profile beats a stale Lexnis default; never default to Lexnis.
-        req_brand = (brand_name or "").strip()
-        profile_brand = str(bp.get("brand_name") or bp.get("company_name") or "").strip()
-        if profile_brand and not _generic_brand(profile_brand) and (
-            _generic_brand(req_brand) or ("lexnis" in req_brand.lower() and "lexnis" not in profile_brand.lower())
-        ):
-            brand_name = profile_brand
-        elif not _generic_brand(req_brand):
-            brand_name = req_brand
-        else:
-            brand_name = extract_brand_name_from_prompt(prompt, fallback_name="")
-            if _generic_brand(brand_name):
-                brand_name = "Lexnis Technologies" if "lexnis" in prompt.lower() else ""
+        # Brand resolution: guideline (profile JSON or text) > typed brand (a leftover "Lexnis Technologies"
+        # is a stale default while a guideline is loaded, unless the website is lexnis.com) > prompt.
+        brand_name, bp = resolve_request_brand(brand_name, bp, guidelines, prompt, company_url)
         is_lexnis_brand = "lexnis" in brand_name.lower()
-        if bp and "lexnis" in profile_brand.lower() and not is_lexnis_brand:
-            bp = {}  # a Lexnis profile must never style another brand's card
 
         # Person: never a camera/messenger filename; fall back to the name written in the prompt.
         if post_type in ("team_welcome", "general"):
@@ -1086,7 +1104,8 @@ async def template_swap_endpoint(
         )
 
         primary_lang = language if language and language != "both" else "en"
-        if not headline_text and post_type == "team_welcome":
+        if post_type == "team_welcome" and is_unsafe_welcome_headline(headline_text):
+            # Drop missing / long / LLM-sentence headlines ("LEXNIS TECHNOLOGIES WELCOMING NEW ...").
             headline_text = team_welcome_headline(brand_name, primary_lang)
 
         bp_path = BASE_DIR / "static" / "assets" / "learned_blueprint.json"
@@ -1160,6 +1179,8 @@ async def template_swap_endpoint(
             "person_name": person_name,
             "person_title": person_title,
             "brand_name": brand_name,
+            "is_lexnis": bool(brand_theme.is_lexnis),
+            "brand_primary": brand_theme.primary_hex,
             "headline_text": headline_text,
             "language": language
         }

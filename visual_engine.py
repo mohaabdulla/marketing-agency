@@ -1131,6 +1131,26 @@ def _draw_headline_line(draw: ImageDraw.ImageDraw, x0: float, y0: float, line: s
         x += font.getlength(c) + tracking
 
 
+WELCOME_HEADLINE_MAX_CHARS = 26
+_GENERIC_WELCOME_BRANDS = {"", "brand", "our brand", "company", "enterprise", "unknown", "your brand", "our company"}
+
+
+def is_unsafe_welcome_headline(headline: Optional[str]) -> bool:
+    """A Team Welcome headline is replaced when missing, longer than 26 chars, or an LLM sentence ("... WELCOMING NEW ...")."""
+    h = (headline or "").strip()
+    return (not h) or len(h) > WELCOME_HEADLINE_MAX_CHARS or "WELCOMING" in h.upper()
+
+
+def short_welcome_headline(brand_name: Optional[str] = "", is_ar: bool = False) -> str:
+    """Short, scannable Team Welcome headline: 'WELCOME TO TAB' for short brand names, else 'WELCOME TO THE TEAM'."""
+    if is_ar:
+        return "أهلاً بك في فريقنا"
+    b = (brand_name or "").strip()
+    if b and len(b) <= 12 and b.lower() not in _GENERIC_WELCOME_BRANDS:
+        return f"WELCOME TO {b.upper()}"
+    return "WELCOME TO THE TEAM"
+
+
 def fit_popout_headline(
     draw: ImageDraw.ImageDraw,
     text: str,
@@ -1478,6 +1498,8 @@ def composite_template_swap(
 
     is_ar = (language == "ar") or bool(headline_text and re.search(r"[\u0600-\u06FF]", headline_text))
     orig_brand_tag = brand_tag
+    orig_headline_text = headline_text
+    is_welcome_layout = (pt_key == "team_welcome")
 
     if not headline_text:
         headline_text = preset["headline_ar" if is_ar else "headline_en"]
@@ -1544,7 +1566,8 @@ def composite_template_swap(
         ih = int(round(638 * (H / 1350.0)))
         fh = border_px + ih + nh
         fx = (W - fw) // 2
-        fy = int(round(370 * (H / 1350.0)))
+        # Team Welcome: frame top at 335 leaves a dedicated headline band above a 117px head pop-out.
+        fy = int(round((335 if is_welcome_layout else 370) * (H / 1350.0)))
         nx = fx
         ny = fy + fh - nh
         nw = fw
@@ -1671,26 +1694,35 @@ def composite_template_swap(
         pil_plate = Image.fromarray(cv2.cvtColor(clean_plate, cv2.COLOR_BGR2RGB))
         draw_hl = ImageDraw.Draw(pil_plate)
         k = H / 1350.0
-        safe_x = int(round(72 * (W / 1080.0)))
+        safe_x = int(round(80 * (W / 1080.0)))   # headline ink stays inside x = 80..1000 at 1080 wide
         hl_max_w = W - 2 * safe_x
         zone_top = int(round(136 * k))
-        hl_gap = int(round(16 * k))
-        preferred_head_top = fy - int(round(92 * k))
-        latest_head_top = fy - int(round(48 * k))
-        if is_ar:
-            hl_fit = fit_popout_headline(
-                draw_hl, headline_text or preset["headline_ar"], FONTS_DIR / "Cairo-Bold.ttf",
-                max_w=hl_max_w, preferred_h=preferred_head_top - hl_gap - zone_top,
-                max_h=latest_head_top - hl_gap - zone_top,
-                start_size=int(round(96 * k)), min_single=int(round(48 * k)), min_double=int(round(34 * k)), is_ar=True,
-            )
+        if is_welcome_layout:
+            # Dedicated headline band (~148..205) -> 18px clear gap -> head pops 117px above the frame top.
+            # Never trust a long / LLM-sentence headline here.
+            if is_unsafe_welcome_headline(orig_headline_text):
+                headline_text = short_welcome_headline("" if is_generic_brand else theme.brand_name, is_ar)
+            hl_gap, pop_px, min_pop_px = 18, 117, 72
+            sizes = (46, 32, 28)
         else:
-            hl_fit = fit_popout_headline(
-                draw_hl, (headline_text or preset["headline_en"]).upper(), FONTS_DIR / "Poppins-Bold.ttf",
-                max_w=hl_max_w, preferred_h=preferred_head_top - hl_gap - zone_top,
-                max_h=latest_head_top - hl_gap - zone_top,
-                start_size=int(round(120 * k)), min_single=int(round(56 * k)), min_double=int(round(36 * k)), is_ar=False,
-            )
+            hl_gap, pop_px, min_pop_px = 16, 92, 48
+            sizes = (96, 48, 34) if is_ar else (120, 56, 36)
+        hl_gap = int(round(hl_gap * k))
+        preferred_head_top = fy - int(round(pop_px * k))
+        latest_head_top = fy - int(round(min_pop_px * k))
+        start_size, min_single, min_double = (int(round(s * k)) for s in sizes)
+        if is_ar:
+            hl_text_final = headline_text or preset["headline_ar"]
+            hl_font_path = FONTS_DIR / "Cairo-Bold.ttf"
+        else:
+            hl_text_final = (headline_text or preset["headline_en"]).upper()
+            hl_font_path = FONTS_DIR / "Poppins-Bold.ttf"
+        hl_fit = fit_popout_headline(
+            draw_hl, hl_text_final, hl_font_path,
+            max_w=hl_max_w, preferred_h=preferred_head_top - hl_gap - zone_top,
+            max_h=latest_head_top - hl_gap - zone_top,
+            start_size=start_size, min_single=min_single, min_double=min_double, is_ar=is_ar,
+        )
         head_top_y = max(preferred_head_top, zone_top + hl_fit["block_h"] + hl_gap)
         hl_block_top = head_top_y - hl_gap - hl_fit["block_h"]
         headline_boxes = []
@@ -1937,10 +1969,12 @@ def composite_template_swap(
 
         # Layout metadata for QA/tests (Image.info is not written into the saved JPEG).
         comp_pil.info["popout_layout"] = {
+            "headline_text": hl_text_final,
             "headline_boxes": headline_boxes,
             "headline_font_size": hl_fit["size"],
             "headline_lines": len(hl_fit["lines"]),
             "head_top": head_top_y,
+            "pop_out": fy - head_top_y,
             "frame": (fx, fy, fw, fh),
             "inner_window": (ix, iy, iw, ih),
             "nameplate_top": ny,
