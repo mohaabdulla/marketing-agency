@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple, List, Union
 from dataclasses import dataclass, field
+import dataclasses
 import colorsys
 import math
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
@@ -744,7 +745,7 @@ def generate_chevron_field(width: int, height: int, opacity: float = 0.12, strok
     return pat
 
 
-def render_studio_inner_window(iw: int, ih: int, c_start_hex: str = "#131724", c_end_hex: str = "#023024") -> np.ndarray:
+def render_studio_inner_window(iw: int, ih: int, c_start_hex: str = "#131724", c_end_hex: str = "#023024", glow_hex: str = "#1E3A34") -> np.ndarray:
     """
     Renders clean, pattern-free portrait backdrop inside Polaroid frame:
     - Depth Gradient (#131724 -> #023024)
@@ -770,8 +771,8 @@ def render_studio_inner_window(iw: int, ih: int, c_start_hex: str = "#131724", c
     diag = np.clip((u + v) * 0.5, 0.0, 1.0)
     bg = (c1[None, None, :] * (1.0 - diag[:, :, None]) + c2[None, None, :] * diag[:, :, None])
 
-    # Soft radial studio backlight glow (#1E3A34 -> BGR: 52, 58, 30)
-    glow_bgr = np.array([52, 58, 30], dtype=np.float32)
+    # Soft radial studio backlight glow (Lexnis default #1E3A34; brand-tinted for other brands)
+    glow_bgr = hex_to_bgr(glow_hex)
     cx = iw / 2.0
     cy = ih * 0.45
     radius = iw * 0.55
@@ -1101,6 +1102,228 @@ ARABIC_NAMES_MAP = {
 }
 
 
+def _headline_line_box(draw: ImageDraw.ImageDraw, line: str, font, tracking: int, is_ar: bool) -> Tuple[float, float, float, float]:
+    """Ink box (left, top, right, bottom) of a headline line drawn at origin (0, 0) with letter tracking."""
+    if is_ar or tracking == 0:
+        return draw.textbbox((0, 0), line, font=font)
+    x = 0.0
+    left = right = None
+    top, bottom = float("inf"), float("-inf")
+    for c in line:
+        if c.strip():
+            cb = draw.textbbox((x, 0), c, font=font)
+            left = cb[0] if left is None else min(left, cb[0])
+            right = cb[2] if right is None else max(right, cb[2])
+            top, bottom = min(top, cb[1]), max(bottom, cb[3])
+        x += font.getlength(c) + tracking
+    if left is None:
+        return (0, 0, 0, 0)
+    return (left, top, right, bottom)
+
+
+def _draw_headline_line(draw: ImageDraw.ImageDraw, x0: float, y0: float, line: str, font, tracking: int, is_ar: bool, fill) -> None:
+    if is_ar or tracking == 0:
+        draw.text((x0, y0), line, font=font, fill=fill)
+        return
+    x = float(x0)
+    for c in line:
+        draw.text((x, y0), c, font=font, fill=fill)
+        x += font.getlength(c) + tracking
+
+
+def fit_popout_headline(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    font_path: Path,
+    max_w: int,
+    preferred_h: int,
+    max_h: int,
+    start_size: int,
+    min_single: int,
+    min_double: int,
+    is_ar: bool = False,
+    tracking_ratio: float = 0.03,
+) -> Dict[str, Any]:
+    """
+    Auto-fit a 2.5D card headline inside max_w (never clipping the canvas edges).
+    Tries one line, then two balanced lines (preferring one line unless two lines are >= 20% larger),
+    first within preferred_h, then max_h, and finally shrinks below the minimums until it fits.
+    Returned boxes are per-line ink boxes relative to each line's drawing origin.
+    """
+    text = " ".join((text or "").split())
+    words = text.split()
+    two_lines = None
+    if len(words) >= 2:
+        bl = balance_lines(text, max_chars_per_line=max(8, len(text) // 2 + 2))
+        if len(bl) != 2:
+            best_i = min(range(1, len(words)), key=lambda i: abs(len(" ".join(words[:i])) - len(" ".join(words[i:]))))
+            bl = [" ".join(words[:best_i]), " ".join(words[best_i:])]
+        two_lines = bl
+
+    def load(size: int):
+        return ImageFont.truetype(str(font_path), size) if Path(font_path).exists() else ImageFont.load_default()
+
+    def measure(lines, size):
+        font = load(size)
+        tracking = 0 if is_ar else max(1, int(round(size * tracking_ratio)))
+        disp = [prepare_bidi_text(l) if is_ar else l for l in lines]
+        boxes = [_headline_line_box(draw, l, font, tracking, is_ar) for l in disp]
+        pitch = int(round(size * (1.22 if is_ar else 1.04)))
+        block_w = max(b[2] - b[0] for b in boxes)
+        ink_top = boxes[0][1]
+        ink_bottom = (len(boxes) - 1) * pitch + boxes[-1][3]
+        return {"lines": disp, "font": font, "size": size, "tracking": tracking, "pitch": pitch,
+                "boxes": boxes, "block_w": block_w, "block_h": ink_bottom - ink_top, "ink_top": ink_top}
+
+    def largest(lines, min_size, limit_h):
+        if not lines:
+            return None
+        for size in range(start_size, min_size - 1, -2):
+            m = measure(lines, size)
+            if m["block_w"] <= max_w and m["block_h"] <= limit_h:
+                return m
+        return None
+
+    for limit_h in (preferred_h, max_h):
+        single = largest([text], min_single, limit_h)
+        double = largest(two_lines, min_double, limit_h)
+        if single and (not double or single["size"] * 1.2 >= double["size"]):
+            return single
+        if double:
+            return double
+
+    lines = two_lines or [text]
+    size = min(min_double, min_single)
+    while size > 10:
+        m = measure(lines, size)
+        if m["block_w"] <= max_w and m["block_h"] <= max_h:
+            return m
+        size -= 1
+    return measure(lines, 10)
+
+
+def _studio_grade_cutout(subject_rgba: np.ndarray) -> np.ndarray:
+    """
+    Executive-studio grade for a BGRA cutout: gentle levels stretch, contrast 1.08 around the
+    subject's own mid-tone, and sharpness 1.12. Colours are first extended past the matte edge
+    so sharpening and resampling never create dark or bright fringes.
+    """
+    from PIL import ImageEnhance
+    bgr = subject_rgba[:, :, :3].astype(np.float32)
+    a = subject_rgba[:, :, 3].astype(np.float32) / 255.0
+
+    # Extend subject colours outward (normalised convolution) so edge pixels blend with themselves.
+    k = max(5, int(round(min(a.shape) * 0.02)) | 1)
+    num = cv2.GaussianBlur(bgr * a[:, :, None], (k, k), 0)
+    den = cv2.GaussianBlur(a, (k, k), 0)[:, :, None]
+    ext = np.where(den > 1e-3, num / np.maximum(den, 1e-3), bgr)
+    keep = np.clip(a * 4.0, 0.0, 1.0)[:, :, None]  # real edge colours (alpha >= 0.25) stay untouched
+    bgr = bgr * keep + ext * (1.0 - keep)
+
+    mask = a > 0.5
+    if int(mask.sum()) > 500:
+        lum = bgr.mean(axis=2)[mask]
+        lo, hi = np.percentile(lum, [0.8, 99.6])
+        if hi - lo > 40:
+            stretched = (bgr - lo) * ((248.0 - 6.0) / (hi - lo)) + 6.0
+            bgr = 0.55 * stretched + 0.45 * bgr
+        mid = float(bgr.mean(axis=2)[mask].mean())
+        bgr = mid + (bgr - mid) * 1.08
+
+    bgr = np.clip(bgr, 0, 255).astype(np.uint8)
+    pil = Image.fromarray(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
+    pil = ImageEnhance.Sharpness(pil).enhance(1.12)
+    bgr = cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR)
+    return np.dstack([bgr, subject_rgba[:, :, 3]])
+
+
+def place_popout_subject(
+    subject_rgba: np.ndarray,
+    canvas_size: Tuple[int, int],
+    head_top_y: int,
+    center_x: int,
+    target_w: float,
+    min_bottom_y: int,
+    window_w: int,
+) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
+    """
+    Aspect-preserving 2.5D placement of a BGRA cutout on a W x H canvas.
+    - Uniform scale only (portrait WhatsApp photos are never squashed into a landscape box).
+    - Silhouette width ~= target_w so shoulders meet the inner frame edges, and the body always
+      reaches min_bottom_y (hidden behind the nameplate) so no cut edge floats inside the window.
+    - Head top lands exactly at head_top_y; the head is centred on center_x as far as the
+      shoulder coverage allows.
+    Returns (bgr HxWx3 uint8, alpha HxW float32 0..1, info).
+    """
+    W, H = canvas_size
+    alpha = subject_rgba[:, :, 3]
+    mask = (alpha > 90).astype(np.uint8)
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+    if n > 1:
+        # Keep every significant part of the person (head, body, detached hair) and drop only specks.
+        areas = stats[1:, cv2.CC_STAT_AREA]
+        keep = [1 + i for i, a in enumerate(areas) if a >= max(50, 0.02 * areas.max())]
+        lefts = [stats[i, cv2.CC_STAT_LEFT] for i in keep]
+        tops = [stats[i, cv2.CC_STAT_TOP] for i in keep]
+        rights = [stats[i, cv2.CC_STAT_LEFT] + stats[i, cv2.CC_STAT_WIDTH] for i in keep]
+        bottoms = [stats[i, cv2.CC_STAT_TOP] + stats[i, cv2.CC_STAT_HEIGHT] for i in keep]
+        left, top = int(min(lefts)), int(min(tops))
+        bw, bh = int(max(rights)) - left, int(max(bottoms)) - top
+        body = np.isin(labels, keep)
+    else:
+        top, left = 0, 0
+        bh, bw = alpha.shape[:2]
+        body = np.ones(alpha.shape[:2], dtype=bool)
+
+    s_w = target_w / float(max(bw, 1))
+    s_h = (min_bottom_y - head_top_y) / float(max(bh, 1))
+    s = max(s_w, s_h)
+
+    # Head centre = centroid of the top 25% of the silhouette.
+    head_rows = body[top:top + max(1, int(bh * 0.25)), :]
+    ys, xs = np.nonzero(head_rows)
+    head_cx = float(xs.mean()) if xs.size else left + bw / 2.0
+    bbox_cx = left + bw / 2.0
+    slack = max(0.0, (s * bw - window_w) / 2.0 - 2.0)
+    shift = float(np.clip((head_cx - bbox_cx) * s, -slack, slack))
+
+    new_w = max(1, int(round(subject_rgba.shape[1] * s)))
+    new_h = max(1, int(round(subject_rgba.shape[0] * s)))
+    interp = cv2.INTER_AREA if s < 1.0 else cv2.INTER_CUBIC
+    scaled = cv2.resize(subject_rgba, (new_w, new_h), interpolation=interp)
+    # 1px matte choke removes the light rim left by white studio / phone-photo backgrounds.
+    a_s = scaled[:, :, 3]
+    choked = cv2.GaussianBlur(cv2.erode(a_s, np.ones((3, 3), np.uint8)), (3, 3), 0)
+    scaled[:, :, 3] = np.minimum(a_s, choked)
+
+    ox = int(round(center_x - s * bbox_cx - shift))
+    oy = int(round(head_top_y - s * top))
+
+    out_bgr = np.zeros((H, W, 3), dtype=np.uint8)
+    out_a = np.zeros((H, W), dtype=np.float32)
+    x0, y0 = max(0, ox), max(0, oy)
+    x1, y1 = min(W, ox + new_w), min(H, oy + new_h)
+    if x1 > x0 and y1 > y0:
+        crop = scaled[y0 - oy:y1 - oy, x0 - ox:x1 - ox]
+        out_bgr[y0:y1, x0:x1] = crop[:, :, :3]
+        out_a[y0:y1, x0:x1] = crop[:, :, 3].astype(np.float32) / 255.0
+    info = {"scale": s, "head_top": head_top_y, "silhouette_w": s * bw,
+            "silhouette_bottom": oy + s * (top + bh), "offset": (ox, oy)}
+    return out_bgr, out_a, info
+
+
+def _accent_readable_on_white(rgb: Tuple[int, int, int], min_ratio: float = 4.5) -> Tuple[int, int, int]:
+    """Darken an accent colour until it reads on a white nameplate (WCAG AA for text)."""
+    r, g, b = [c / 255.0 for c in rgb]
+    h, l, s = colorsys.rgb_to_hls(r, g, b)
+    out = tuple(rgb)
+    while calculate_contrast_ratio(out, (255, 255, 255)) < min_ratio and l > 0.05:
+        l -= 0.03
+        rr, gg, bb = colorsys.hls_to_rgb(h, l, s)
+        out = (int(round(rr * 255)), int(round(gg * 255)), int(round(bb * 255)))
+    return out
+
+
 def composite_template_swap(
     template_image,
     subject_image,
@@ -1117,10 +1340,14 @@ def composite_template_swap(
     headline_text: Optional[str] = None,
     footer_text: Optional[str] = None,
     logo_image=None,
-    post_type: str = "team_welcome"
+    post_type: str = "team_welcome",
+    brand_theme=None,
+    brand_profile: Optional[dict] = None,
 ):
     """
     Autonomous Template Subject-Replacement & 2.5D Pop-Out Compositing Engine.
+    brand_theme (BrandTheme, or a brand-profile dict) / brand_profile drive the colours, header
+    lockup and hashtag of the branded card; Lexnis styling is used only when the theme is Lexnis.
     - Zero typography or brand corruption: Preserves original logos, frame, headers, and nameplate.
     - Clean removal of the original subject: Reconstructs clean gradient inside frame and top white frame line.
     - Sub-pixel alpha matting with zero studio fringe.
@@ -1250,6 +1477,7 @@ def composite_template_swap(
     preset = POST_TYPE_PRESETS[pt_key]
 
     is_ar = (language == "ar") or bool(headline_text and re.search(r"[\u0600-\u06FF]", headline_text))
+    orig_brand_tag = brand_tag
 
     if not headline_text:
         headline_text = preset["headline_ar" if is_ar else "headline_en"]
@@ -1305,7 +1533,7 @@ def composite_template_swap(
     # Brand Identity & Palette Check
     b_name_clean = re.sub(r'[^a-z0-9]', '', str(brand_name or '').lower())
     is_lexnis = bool(b_name_clean and ("lexnis" in b_name_clean) and b_name_clean not in ("brand", "ourbrand"))
-    is_brand_upgrade = bool(recolor_gradient or is_lexnis or brand_colors or (brand_name and "sekawan" not in brand_name.lower()) or (person_name and "anyta" not in person_name.lower()))
+    is_brand_upgrade = bool(brand_theme is not None or recolor_gradient or is_lexnis or brand_colors or (brand_name and "sekawan" not in brand_name.lower()) or (person_name and "anyta" not in person_name.lower()))
 
     # Frame & element geometry
     if is_brand_upgrade and (W >= 1000 and H >= 1200):
@@ -1390,117 +1618,117 @@ def composite_template_swap(
 
     if is_brand_upgrade:
         # ======================================================================
-        # LEXNIS BRAND UPGRADE PIPELINE
+        # BRANDED 2.5D POP-OUT PIPELINE (Lexnis or any guideline-driven brand)
         # ======================================================================
-        # 1. Base Depth Gradient + Large Core Chevron Field Substrate
-        c1_hex = "#131724"
-        c2_hex = "#023024"
-        if brand_colors and isinstance(brand_colors, dict):
-            c1_hex = brand_colors.get("gradient_start") or brand_colors.get("primary") or c1_hex
-            c2_hex = brand_colors.get("gradient_end") or brand_colors.get("secondary") or c2_hex
+        # 0. Resolve the active brand theme. Lexnis styling is used ONLY for Lexnis.
+        if isinstance(brand_theme, BrandTheme):
+            theme = brand_theme
+        else:
+            profile_for_theme = dict(brand_theme) if isinstance(brand_theme, dict) else (dict(brand_profile) if isinstance(brand_profile, dict) else {})
+            if brand_colors and not profile_for_theme.get("brand_colors"):
+                profile_for_theme["brand_colors"] = brand_colors
+            theme = resolve_brand_theme(
+                profile_for_theme or None,
+                uploaded_logo_path=None,
+                brand_name=brand_name or profile_for_theme.get("brand_name") or profile_for_theme.get("company_name"),
+                post_type=pt_key,
+            )
+        use_lexnis = bool(theme.is_lexnis)
+        theme_name_clean = re.sub(r'[^a-z0-9]', '', (theme.brand_name or '').lower())
+        is_generic_brand = (not use_lexnis) and theme_name_clean in ("", "brand", "ourbrand", "company", "unknown", "enterprise", "yourbrand")
 
-        bg_bgr = render_depth_gradient(W, H, c1_hex, c2_hex)
-        bg_field = generate_chevron_field(W, H, opacity=0.12)
-        bg_pil = Image.fromarray(cv2.cvtColor(bg_bgr, cv2.COLOR_BGR2RGB))
-        bg_pil.paste(bg_field, (0, 0), bg_field)
+        # 1. Canvas substrate
+        if use_lexnis:
+            c1_hex = "#131724"
+            c2_hex = "#023024"
+            if brand_colors and isinstance(brand_colors, dict):
+                c1_hex = brand_colors.get("gradient_start") or brand_colors.get("primary") or c1_hex
+                c2_hex = brand_colors.get("gradient_end") or brand_colors.get("secondary") or c2_hex
+            glow_hex = "#1E3A34"
+            bg_bgr = render_depth_gradient(W, H, c1_hex, c2_hex)
+            bg_field = generate_chevron_field(W, H, opacity=0.12)
+            bg_pil = Image.fromarray(cv2.cvtColor(bg_bgr, cv2.COLOR_BGR2RGB))
+            bg_pil.paste(bg_field, (0, 0), bg_field)
+        else:
+            c1_hex = rgb_to_hex(theme.bg_dark_start)
+            c2_hex = rgb_to_hex(theme.bg_dark_end)
+            glow_rgb = tuple(int(round(0.78 * a + 0.22 * b)) for a, b in zip(theme.bg_dark_end, theme.primary_accent))
+            glow_hex = rgb_to_hex(glow_rgb)
+            bg_pil = render_agency_mesh_background(W, H, theme).convert("RGB")
         clean_plate = cv2.cvtColor(np.array(bg_pil), cv2.COLOR_RGB2BGR)
 
         # 2. Outer White Polaroid Card
         clean_plate[fy:fy + fh, fx:fx + fw] = [255, 255, 255]
 
-        # 3. Clean Studio Inner Window (ZERO Chevron Pattern Bleed!)
-        studio_win = render_studio_inner_window(iw, ih, c1_hex, c2_hex)
+        # 3. Clean Studio Inner Window (pattern-free, brand-tinted backlight)
+        studio_win = render_studio_inner_window(iw, ih, c1_hex, c2_hex, glow_hex=glow_hex)
         clean_plate[iy:iy + ih, ix:ix + iw] = studio_win
 
-        # 4. Layer 2: Vector Anti-Aliased Display Headline (Behind Pop-Out Head)
+        # 4. Layer 2: Auto-fit display headline that sits fully ABOVE the pop-out head.
+        #    - Width never exceeds the 72px safe margins (x = 72..1008 at 1080 wide).
+        #    - One line when it reads well, two balanced lines otherwise.
+        #    - The head top is placed below the headline, so no letter is ever occluded.
         pil_plate = Image.fromarray(cv2.cvtColor(clean_plate, cv2.COLOR_BGR2RGB))
         draw_hl = ImageDraw.Draw(pil_plate)
-
+        k = H / 1350.0
+        safe_x = int(round(72 * (W / 1080.0)))
+        hl_max_w = W - 2 * safe_x
+        zone_top = int(round(136 * k))
+        hl_gap = int(round(16 * k))
+        preferred_head_top = fy - int(round(92 * k))
+        latest_head_top = fy - int(round(48 * k))
         if is_ar:
-            f_hl_path = FONTS_DIR / "Cairo-Bold.ttf"
-            font_hl_size = int(round(76 * (H / 1350.0)))
-            hl_raw = headline_text or preset["headline_ar"]
-            hl_str = prepare_bidi_text(hl_raw)
-            max_ar_w = int(round(fw * 0.94))
-            font_hl = ImageFont.truetype(str(f_hl_path), font_hl_size) if f_hl_path.exists() else ImageFont.load_default()
-            bbox_hl = draw_hl.textbbox((0, 0), hl_str, font=font_hl)
-            hl_w = bbox_hl[2] - bbox_hl[0]
-            while font_hl_size > 36:
-                font_hl = ImageFont.truetype(str(f_hl_path), font_hl_size) if f_hl_path.exists() else ImageFont.load_default()
-                bbox_hl = draw_hl.textbbox((0, 0), hl_str, font=font_hl)
-                hl_w = bbox_hl[2] - bbox_hl[0]
-                if hl_w <= max_ar_w:
-                    break
-                font_hl_size -= 2
-            # 24px breathing room above head (head crown at y ~ 299)
-            hl_bottom_y = int(round((299 - 24) * sy))
-            hl_y = hl_bottom_y - (bbox_hl[3] - bbox_hl[1])
-            draw_hl.text(((W - hl_w) // 2, hl_y), hl_str, font=font_hl, fill=(255, 255, 255))
+            hl_fit = fit_popout_headline(
+                draw_hl, headline_text or preset["headline_ar"], FONTS_DIR / "Cairo-Bold.ttf",
+                max_w=hl_max_w, preferred_h=preferred_head_top - hl_gap - zone_top,
+                max_h=latest_head_top - hl_gap - zone_top,
+                start_size=int(round(96 * k)), min_single=int(round(48 * k)), min_double=int(round(34 * k)), is_ar=True,
+            )
         else:
-            f_hl_path = FONTS_DIR / "Poppins-Bold.ttf"
-            font_hl_size = int(round(120 * (H / 1350.0)))
-            hl_text = (headline_text or preset["headline_en"]).upper()
-            max_hl_w = int(round(fw * 0.92))
-            font_hl = ImageFont.truetype(str(f_hl_path), font_hl_size) if f_hl_path.exists() else ImageFont.load_default()
-            tracking = max(2, int(round(font_hl_size * 0.05)))
-            char_widths = [draw_hl.textbbox((0, 0), c, font=font_hl)[2] - draw_hl.textbbox((0, 0), c, font=font_hl)[0] for c in hl_text]
-            total_hl_w = sum(char_widths) + tracking * (len(hl_text) - 1)
-
-            while font_hl_size > 44:
-                font_hl = ImageFont.truetype(str(f_hl_path), font_hl_size) if f_hl_path.exists() else ImageFont.load_default()
-                tracking = max(2, int(round(font_hl_size * 0.05)))
-                char_widths = [draw_hl.textbbox((0, 0), c, font=font_hl)[2] - draw_hl.textbbox((0, 0), c, font=font_hl)[0] for c in hl_text]
-                total_hl_w = sum(char_widths) + tracking * (len(hl_text) - 1)
-                if total_hl_w <= max_hl_w:
-                    break
-                font_hl_size -= 2
-
-            hl_x_start = (W - total_hl_w) // 2
-            hl_cap_h = draw_hl.textbbox((0, 0), "E", font=font_hl)[3] - draw_hl.textbbox((0, 0), "E", font=font_hl)[1]
-            hl_bottom_y = fy - int(round(52 * sy))
-            hl_y = hl_bottom_y - hl_cap_h
-
-            cur_x = hl_x_start
-            for c in hl_text:
-                draw_hl.text((cur_x, hl_y), c, font=font_hl, fill=(255, 255, 255))
-                cb = draw_hl.textbbox((0, 0), c, font=font_hl)
-                cur_x += (cb[2] - cb[0]) + tracking
+            hl_fit = fit_popout_headline(
+                draw_hl, (headline_text or preset["headline_en"]).upper(), FONTS_DIR / "Poppins-Bold.ttf",
+                max_w=hl_max_w, preferred_h=preferred_head_top - hl_gap - zone_top,
+                max_h=latest_head_top - hl_gap - zone_top,
+                start_size=int(round(120 * k)), min_single=int(round(56 * k)), min_double=int(round(36 * k)), is_ar=False,
+            )
+        head_top_y = max(preferred_head_top, zone_top + hl_fit["block_h"] + hl_gap)
+        hl_block_top = head_top_y - hl_gap - hl_fit["block_h"]
+        headline_boxes = []
+        for i, (line, box) in enumerate(zip(hl_fit["lines"], hl_fit["boxes"])):
+            line_w = box[2] - box[0]
+            x0 = (W - line_w) / 2.0 - box[0]
+            y0 = hl_block_top - hl_fit["ink_top"] + i * hl_fit["pitch"]
+            _draw_headline_line(draw_hl, x0, y0, line, hl_fit["font"], hl_fit["tracking"], is_ar, (255, 255, 255))
+            headline_boxes.append((x0 + box[0], y0 + box[1], x0 + box[2], y0 + box[3]))
 
         clean_plate = cv2.cvtColor(np.array(pil_plate), cv2.COLOR_RGB2BGR)
 
         # 5. Layer 3: Subject Matting & 2.5D Pop-Out Compositing
         subject_rgba = extract_subject_matte(subject_image)
         H_sub, W_sub = subject_rgba.shape[:2]
+        placement_info = None
 
         if affine_matrix is None:
-            scale_f = 1.15 if is_brand_upgrade else 1.0
-            x_shift = -(scale_f - 1.0) * 400 if is_brand_upgrade else 0.0
-            y_shift = -(scale_f - 1.0) * 50 if is_brand_upgrade else 0.0
-            base_affine = np.array([
-                [8.04139148e-01 * scale_f, 1.02160041e-03, 3.91566333e+01 + x_shift],
-                [-1.02160041e-03, 8.04139148e-01 * scale_f, 1.41156860e+02 + y_shift]
-            ], dtype=np.float32)
-
-            affine = base_affine.copy()
-            affine[0, :] *= sx
-            affine[1, :] *= sy
-            affine[:, 0] *= 1024.0 / float(W_sub)
-            affine[:, 1] *= 683.0 / float(H_sub)
-            affine_matrix = affine
+            # Aspect-preserving placement: shoulders span ~1.04x the inner window, head top just
+            # below the headline, body continues behind the nameplate.
+            graded = _studio_grade_cutout(subject_rgba)
+            w_bgr, w_alpha, placement_info = place_popout_subject(
+                graded, (W, H), head_top_y=head_top_y, center_x=W // 2,
+                target_w=iw * 1.04, min_bottom_y=ny + int(round(12 * k)), window_w=iw,
+            )
         else:
             affine_matrix = np.array(affine_matrix, dtype=np.float32)
             if affine_matrix.shape == (2, 3) and (sx != 1.0 or sy != 1.0):
                 affine_matrix = affine_matrix.copy()
                 affine_matrix[0, :] *= sx
                 affine_matrix[1, :] *= sy
-
-        warped = cv2.warpAffine(subject_rgba, affine_matrix, (W, H), flags=cv2.INTER_LANCZOS4)
-        w_bgr = warped[:, :, :3]
-        w_alpha = warped[:, :, 3].astype(np.float32) / 255.0
+            warped = cv2.warpAffine(subject_rgba, affine_matrix, (W, H), flags=cv2.INTER_LANCZOS4)
+            w_bgr = warped[:, :, :3]
+            w_alpha = warped[:, :, 3].astype(np.float32) / 255.0
 
         y_grid, x_grid = np.mgrid[0:H, 0:W]
         body_region = (y_grid >= fy) & (y_grid < ny) & (x_grid >= ix) & (x_grid <= ix + iw)
-        head_region = (y_grid < fy)
+        head_region = (y_grid < fy) & (x_grid >= fx) & (x_grid < fx + fw)
         allowed_mask = (body_region | head_region).astype(np.float32)
         eff_alpha = w_alpha * allowed_mask
 
@@ -1515,6 +1743,11 @@ def composite_template_swap(
         draw_np = ImageDraw.Draw(np_pil)
         dark_navy = (19, 23, 36)      # #131724
         tech_green = (83, 184, 73)    # #53B849
+        if not use_lexnis:
+            # Brand accent for the role line + status bar, darkened only as far as needed to read on white.
+            tech_green = _accent_readable_on_white(tuple(theme.primary_accent))
+            if calculate_contrast_ratio(tuple(theme.bg_dark_start), (255, 255, 255)) >= 10.0:
+                dark_navy = tuple(theme.bg_dark_start)
 
         if is_ar:
             # Arabic Nameplate Localization & RTL Alignment
@@ -1544,9 +1777,10 @@ def composite_template_swap(
 
             nw_px = bbox_n[2] - bbox_n[0]
             x_right = nw - margin_r
-            draw_np.text((x_right - nw_px, y_name), r_name, font=f_name, fill=dark_navy)
+            draw_np.text((x_right - nw_px - bbox_n[0], y_name), r_name, font=f_name, fill=dark_navy)
 
-            y_role = y_name + (bbox_n[3] - bbox_n[1]) + int(round(14 * (H / 1350.0)))
+            # Role sits below the name's actual ink bottom (Cairo has a large top bearing).
+            y_role = y_name + bbox_n[3] + int(round(14 * (H / 1350.0)))
             y_bar = y_role - int(round(2 * (H / 1350.0)))
             bar_h = int(round(28 * (H / 1350.0)))
 
@@ -1563,8 +1797,11 @@ def composite_template_swap(
                 font_role_size -= 1
 
             rw_px = bbox_r[2] - bbox_r[0]
+            # Centre the role's ink on the status bar.
+            role_ink_h = bbox_r[3] - bbox_r[1]
+            role_y = y_bar + (bar_h - role_ink_h) / 2.0 - bbox_r[1]
             draw_np.rectangle([x_right - 4, y_bar, x_right, y_bar + bar_h], fill=tech_green)
-            draw_np.text((x_right - 4 - 10 - rw_px, y_role), r_role, font=f_role, fill=tech_green)
+            draw_np.text((x_right - 4 - 10 - rw_px - bbox_r[0], role_y), r_role, font=f_role, fill=tech_green)
 
         else:
             # English Nameplate
@@ -1611,12 +1848,52 @@ def composite_template_swap(
         np_cv = cv2.cvtColor(np.array(np_pil), cv2.COLOR_RGB2BGR)
         composite[ny:ny + nh, nx:nx + nw] = np_cv
 
-        # 7. Layer 5: Top Header with Authentic Custom Logo or Official Solid Logo & Sanitized Hashtag (72px Safety Margin)
+        # 7. Layer 5: Top Header (logo lockup + hashtag, 72px safety margin)
         comp_pil = Image.fromarray(cv2.cvtColor(composite, cv2.COLOR_BGR2RGB))
         draw_top = ImageDraw.Draw(comp_pil)
 
-        user_logo_pil = load_logo_pil(logo_image)
-        if user_logo_pil is not None:
+        if not use_lexnis:
+            def _has_ar(t):
+                return bool(t and re.search(r"[\u0600-\u06FF]", t))
+
+            slug = theme.clean_slug or re.sub(r'[^a-zA-Z0-9]', '', theme.brand_name or '') or "Brand"
+            raw_tag = (orig_brand_tag or "").strip()
+            raw_low = raw_tag.lower()
+            tag_usable = bool(raw_tag) and "lexnis" not in raw_low and "sekawan" not in raw_low and "لكسنس" not in raw_tag \
+                and raw_low not in (f"#{slug}".lower(), slug.lower())
+            if tag_usable and not _has_ar(raw_tag):
+                tag_en = sanitize_brand_tag(raw_tag, theme.brand_name)
+            else:
+                tag_en = f"#{slug}Team" if pt_key == "team_welcome" else (theme.hashtag_en or f"#{slug}")
+            name_ar = ""
+            for src in (brand_profile, brand_theme if isinstance(brand_theme, dict) else None):
+                if isinstance(src, dict) and _has_ar(str(src.get("brand_name_ar") or "")):
+                    name_ar = str(src["brand_name_ar"]).strip()
+                    break
+            slug_ar = re.sub(r"\s+", "_", name_ar) if name_ar else slug
+            if tag_usable and _has_ar(raw_tag):
+                tag_ar = raw_tag
+            else:
+                tag_ar = f"#فريق_{slug_ar}" if pt_key == "team_welcome" else (theme.hashtag_ar or f"#{slug_ar}")
+            if is_generic_brand:
+                tag_en = tag_ar = ""  # brandless card: never invent a wordmark or hashtag
+            header_theme = dataclasses.replace(theme, hashtag_en=tag_en, hashtag_ar=tag_ar)
+
+            if not (is_generic_brand and load_logo_pil(logo_image) is None):
+                if W == 1080:
+                    draw_brand_header(comp_pil, header_theme, is_ar=is_ar, custom_logo=logo_image)
+                else:
+                    kf = 1080.0 / W
+                    band_h = min(H, int(math.ceil(150 / kf)))
+                    band = comp_pil.crop((0, 0, W, band_h)).resize((1080, int(round(band_h * kf))), Image.Resampling.LANCZOS)
+                    draw_brand_header(band, header_theme, is_ar=is_ar, custom_logo=logo_image)
+                    comp_pil.paste(band.resize((W, band_h), Image.Resampling.LANCZOS), (0, 0))
+                draw_top = ImageDraw.Draw(comp_pil)
+            user_logo_pil = None
+        else:
+            user_logo_pil = load_logo_pil(logo_image)
+
+        if use_lexnis and user_logo_pil is not None:
             if user_logo_pil.mode != "RGBA":
                 user_logo_pil = user_logo_pil.convert("RGBA")
             target_lh = int(round(32 * (H / 1350.0)))
@@ -1628,32 +1905,50 @@ def composite_template_swap(
                 new_lh = max(1, int(round(orig_lh * scale)))
                 user_logo_resized = user_logo_pil.resize((new_lw, new_lh), Image.Resampling.LANCZOS)
                 comp_pil.paste(user_logo_resized, (lx, ly), user_logo_resized)
-        else:
+        elif use_lexnis:
             logo_h = int(round(28 * (H / 1350.0)))
             logo_img = render_lexnis_logo(height=logo_h, is_dark_bg=True)
             comp_pil.paste(logo_img, (lx, ly), logo_img)
 
-        f_tag = ImageFont.truetype(str(FONTS_DIR / ("Cairo-Bold.ttf" if is_ar else "Poppins-Medium.ttf")), int(round(20 * (H / 1350.0))))
-        final_tag = sanitize_brand_tag(brand_tag, brand_name or "Lexnis Technologies")
-        if is_ar:
-            final_tag = brand_tag if (brand_tag and re.search(r"[\u0600-\u06FF]", brand_tag)) else preset["tag_ar"]
-            r_tag = prepare_bidi_text(final_tag)
-            tag_w = draw_top.textbbox((0, 0), r_tag, font=f_tag)[2] - draw_top.textbbox((0, 0), r_tag, font=f_tag)[0]
-            draw_top.text((W - lx - tag_w, ly + int(round(4 * (H / 1350.0)))), r_tag, font=f_tag, fill=(255, 255, 255))
-        else:
-            final_tag = sanitize_brand_tag(brand_tag or preset["tag_en"], brand_name or "Lexnis Technologies")
-            tag_w = draw_top.textbbox((0, 0), final_tag, font=f_tag)[2] - draw_top.textbbox((0, 0), final_tag, font=f_tag)[0]
-            draw_top.text((W - lx - tag_w, ly + int(round(4 * (H / 1350.0)))), final_tag, font=f_tag, fill=(255, 255, 255))
+        if use_lexnis:
+            f_tag = ImageFont.truetype(str(FONTS_DIR / ("Cairo-Bold.ttf" if is_ar else "Poppins-Medium.ttf")), int(round(20 * (H / 1350.0))))
+            if is_ar:
+                final_tag = brand_tag if (brand_tag and re.search(r"[\u0600-\u06FF]", brand_tag)) else preset["tag_ar"]
+                r_tag = prepare_bidi_text(final_tag)
+                tag_w = draw_top.textbbox((0, 0), r_tag, font=f_tag)[2] - draw_top.textbbox((0, 0), r_tag, font=f_tag)[0]
+                draw_top.text((W - lx - tag_w, ly + int(round(4 * (H / 1350.0)))), r_tag, font=f_tag, fill=(255, 255, 255))
+            else:
+                final_tag = sanitize_brand_tag(brand_tag or preset["tag_en"], brand_name or "Lexnis Technologies")
+                tag_w = draw_top.textbbox((0, 0), final_tag, font=f_tag)[2] - draw_top.textbbox((0, 0), final_tag, font=f_tag)[0]
+                draw_top.text((W - lx - tag_w, ly + int(round(4 * (H / 1350.0)))), final_tag, font=f_tag, fill=(255, 255, 255))
 
         # 8. Layer 6: Clean Single Footer Caption (ZERO duplication / ghost lines)
         f_foot = ImageFont.truetype(str(FONTS_DIR / ("Cairo-SemiBold.ttf" if is_ar else "Poppins-Regular.ttf")), int(round((22 if is_ar else 20) * (H / 1350.0))))
         foot_str = footer_text or (preset["footer_ar"] if is_ar else preset["footer_en"])
+        if not use_lexnis and re.search(r"lexnis|\u0644\u0643\u0633\u0646\u0633", foot_str, re.IGNORECASE):
+            # Preset footers carry lexnis.com CTAs; strip that segment for every other brand.
+            foot_str = re.sub(r"\s*\u00B7\s*[^\u00B7]*(?:lexnis|\u0644\u0643\u0633\u0646\u0633)[^\u00B7]*", "", foot_str, flags=re.IGNORECASE).strip() \
+                or (preset["footer_ar"] if is_ar else preset["footer_en"]).split("\u00B7")[0].strip()
         display_foot = prepare_bidi_text(foot_str) if is_ar else foot_str
         bbox_foot = draw_top.textbbox((0, 0), display_foot, font=f_foot)
         foot_w = bbox_foot[2] - bbox_foot[0]
         foot_y = fy + fh + int(round(44 * (H / 1350.0)))
         draw_top.text(((W - foot_w) // 2, foot_y), display_foot, font=f_foot, fill=(255, 255, 255))
 
+        # Layout metadata for QA/tests (Image.info is not written into the saved JPEG).
+        comp_pil.info["popout_layout"] = {
+            "headline_boxes": headline_boxes,
+            "headline_font_size": hl_fit["size"],
+            "headline_lines": len(hl_fit["lines"]),
+            "head_top": head_top_y,
+            "frame": (fx, fy, fw, fh),
+            "inner_window": (ix, iy, iw, ih),
+            "nameplate_top": ny,
+            "safe_x": (safe_x, W - safe_x),
+            "subject": placement_info,
+            "is_lexnis": use_lexnis,
+            "brand_name": theme.brand_name,
+        }
         return comp_pil
 
     # ======================================================================
@@ -2333,7 +2628,23 @@ def resolve_brand_theme(
         colors = {}
         if isinstance(brand_profile, dict):
             colors = brand_profile.get("color_palette") or brand_profile.get("brand_colors") or brand_profile.get("colors") or {}
-        
+            # Guideline profiles store {"primary": <dark canvas>, "accent": <brand colour>, "accent_lime": <2nd accent>}
+            # and color_palette = [dark, dark2, accent, accent2, white]. Map them onto theme roles so the
+            # dark canvas swatch is never mistaken for the brand accent.
+            bc = brand_profile.get("brand_colors")
+            pal = brand_profile.get("color_palette")
+
+            def _is_dark(hx):
+                try:
+                    return get_relative_luminance(hex_to_rgb(str(hx))) < 0.05
+                except Exception:
+                    return False
+
+            if isinstance(bc, dict) and bc.get("accent") and bc.get("primary") and _is_dark(bc["primary"]) and not brand_profile.get("primary_accent"):
+                colors = {"primary": bc["accent"], "secondary": bc.get("accent_lime") or bc.get("secondary"), "dark_bg": bc["primary"]}
+            elif isinstance(pal, list) and len(pal) >= 4 and _is_dark(pal[0]) and not brand_profile.get("primary_accent"):
+                colors = {"primary": pal[2], "secondary": pal[3], "dark_bg": pal[0]}
+
         pri_raw = (
             (brand_profile.get("primary_accent") if isinstance(brand_profile, dict) else None)
             or (colors.get("primary") if isinstance(colors, dict) else None)

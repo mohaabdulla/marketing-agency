@@ -963,7 +963,7 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
             <div class="flex items-center space-x-2">
               <span class="text-slate-400 w-24 shrink-0">Person Name:</span>
-              <input id="person-name-input" type="text" placeholder="e.g. Sarah Jenkins" class="w-full bg-obsidian-900 border border-obsidian-700 text-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-accent">
+              <input id="person-name-input" type="text" placeholder="Auto-extracted from prompt, or type name e.g. Mohamed Redha" class="w-full bg-obsidian-900 border border-obsidian-700 text-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-accent">
             </div>
             <div class="flex items-center space-x-2">
               <span class="text-slate-400 w-24 shrink-0">Role / Title:</span>
@@ -2406,6 +2406,11 @@
       activeGuidelineFiles = [];
       currentGuidelines = '';
       currentGuidelinesTitle = '';
+      // Drop the guideline-locked brand profile so it stops driving colours/brand on later renders.
+      if (window.brandProfile && (window.brandProfile.locked_by_guidelines || window.brandProfile.source === 'uploaded_guidelines')) {
+        window.brandProfile = null;
+        currentBrandDna = { ...LEXNIS_DEFAULT_DNA };
+      }
       if (guidelinesActivePill) guidelinesActivePill.classList.add('hidden');
       if (guidelinesEmptyState) guidelinesEmptyState.classList.remove('hidden');
       if (guidelinesDropzone) guidelinesDropzone.classList.remove('hidden');
@@ -2784,6 +2789,30 @@
       }
     }
 
+    // Camera / messenger / screenshot filenames are never a person's name
+    // (e.g. "WhatsApp Image 2026-11-09 at 19.48.58", "IMG_2034", "Screenshot 2026-11-09").
+    const GENERIC_FILENAME_NAME_RE = /\b(?:whatsapp|image|img|dsc|dcim|pxl|mvimg|screenshot|screen\s+shot|photo|pic|picture|untitled|download|camera|snapchat|telegram|vid|video|scan|capture|subject|portrait|avatar|headshot|file|asset|sample|test|copy)\b|\.(?:jpe?g|png|webp|heic|gif|bmp|tiff?)\b|\bat\s+\d{1,2}[.:]\d{2}/i;
+    function isGenericFilenameName(value) {
+      const s = (value || '').trim();
+      if (!s) return false;
+      if ((s.match(/\d/g) || []).length >= 4) return true;
+      if (/^[\W\d_]+$/.test(s)) return true;
+      return GENERIC_FILENAME_NAME_RE.test(s.replace(/_/g, ' '));
+    }
+
+    // Clears filename-derived names from the person fields, then recovers the real
+    // name/role from the prompt ("welcoming new team member Mohamed Redha, AI Engineer").
+    function sanitizePersonNameFields() {
+      [personNameInput, document.getElementById('pt-member-name')].forEach(f => {
+        if (f && isGenericFilenameName(f.value)) f.value = '';
+      });
+      if (isGenericFilenameName(currentPersonName)) currentPersonName = '';
+      if (promptInput && promptInput.value.trim() && (!personNameInput || !personNameInput.value.trim())) {
+        autoDetectFeaturedPerson(promptInput.value);
+      }
+      if (personNameInput && personNameInput.value.trim()) currentPersonName = personNameInput.value.trim();
+    }
+
     const visualModeIndicator = document.getElementById('visual-mode-indicator');
     const visualModeTitle = document.getElementById('visual-mode-title');
     const visualModeDesc = document.getElementById('visual-mode-desc');
@@ -2985,20 +3014,6 @@
       return file;
     }
 
-    function extractPersonNameFromFilename(filename) {
-      if (!filename) return '';
-      let stem = filename.replace(/\.[^/.]+$/, '');
-      stem = stem.replace(/^(?:subject|portrait|team|member|person|face|img|dsc|photo|raw|new)[-_]/i, '');
-      stem = stem.replace(/[-_][0-9a-f]{8,}$/i, '');
-      stem = stem.replace(/[-_]\d+$/, '');
-      let name = stem.replace(/[-_]+/g, ' ').trim();
-      const generic = ['subject', 'portrait', 'photo', 'image', 'picture', 'file', 'pic', 'face', 'person', 'avatar', 'raw', 'template'];
-      if (generic.includes(name.toLowerCase()) || name.length < 2) {
-        return '';
-      }
-      return name.replace(/\b\w/g, l => l.toUpperCase());
-    }
-
     async function uploadVisualAssetFile(file, slot = 'subject') {
       if (!file) return;
       if (slot === 'logo') {
@@ -3032,17 +3047,12 @@
         if (slot === 'subject') {
           activeSubjectAsset = assetObj;
           currentUploadedImageUrl = data.file_url;
-          const derivedName = extractPersonNameFromFilename(file.name);
-          if (derivedName) {
-            const pNameInp = document.getElementById('person-name-input');
-            const ptMemberInp = document.getElementById('pt-member-name');
-            if (pNameInp) pNameInp.value = derivedName;
-            if (ptMemberInp) ptMemberInp.value = derivedName;
-            currentPersonName = derivedName;
-            showToast(`👤 Identified team member: ${derivedName}`, true);
-          } else {
-            showToast(`Subject image ready: ${data.filename} (${data.width}×${data.height})`, true);
-          }
+          // Never derive the person's name from the photo filename; use what the user typed or the prompt.
+          sanitizePersonNameFields();
+          const knownName = (personNameInput && personNameInput.value.trim()) || '';
+          showToast(knownName
+            ? `Subject photo ready for ${knownName} (${data.width}×${data.height})`
+            : `Subject photo ready (${data.width}×${data.height}). Type the member's name or include it in the prompt.`, true);
         } else if (slot === 'template') {
           activeTemplateAsset = assetObj;
           showToast(`Template graphic ready: ${data.filename} (${data.width}×${data.height})`, true);
@@ -3261,20 +3271,7 @@
             formData.append('logo_url', activeLogoAsset.url);
           }
 
-          const pName = (personNameInput && personNameInput.value.trim()) || document.getElementById('pt-member-name')?.value.trim() || currentPersonName || 'Team Member';
-          const pTitle = (personTitleInput && personTitleInput.value.trim()) || document.getElementById('pt-member-role')?.value.trim() || currentPersonTitle || 'Leadership Team';
-          const brandNameFromInput = (brandNameInput && brandNameInput.value.trim()) || (brandInput && brandInput.value.trim());
-          const brandNameFromProfile = (window.brandProfile && window.brandProfile.brand_name) ? window.brandProfile.brand_name : '';
-          const bName = brandNameFromInput || brandNameFromProfile || 'Lexnis Technologies';
-          const isLexnis = bName.toLowerCase().includes('lexnis');
-          const cUrl = (companyUrlInput && companyUrlInput.value.trim()) || currentCompanyUrl || (isLexnis ? 'https://lexnis.com' : '');
-          formData.append('person_name', pName);
-          formData.append('person_title', pTitle);
-          formData.append('brand_name', bName);
-          formData.append('company_url', cUrl);
-          const brandTagVal = (currentBrandDna && currentBrandDna.brand_tag) || (window.brandProfile && window.brandProfile.brand_tag) || (isLexnis ? '#LexnisTeam' : `#${bName.replace(/[^a-zA-Z0-9]/g, '') || 'Brand'}`);
-          formData.append('brand_tag', brandTagVal);
-          formData.append('recolor_gradient', 'true');
+          appendTemplateSwapContext(formData);
           const lang = campaignLanguageSelect ? campaignLanguageSelect.value : 'both';
           formData.append('language', lang);
 
@@ -3464,23 +3461,95 @@
     };
     let currentBrandDna = { ...LEXNIS_DEFAULT_DNA };
 
+    const GENERIC_BRAND_NAMES = ['', 'brand', 'our brand', 'company', 'enterprise', 'unknown', 'your brand'];
+    function isGenericBrandName(name) {
+      return GENERIC_BRAND_NAMES.includes((name || '').trim().toLowerCase());
+    }
+    function isGuidelineProfileActive() {
+      const p = window.brandProfile;
+      return !!(p && (p.locked_by_guidelines || p.source === 'uploaded_guidelines'));
+    }
+
+    // Single source of truth for the brand sent to the backend. An uploaded guideline's brand
+    // always beats the "Lexnis Technologies" default; returns '' rather than guessing Lexnis.
+    function resolveActiveBrandName() {
+      const stage1 = (document.getElementById('brandNameInput')?.value || '').trim();
+      const secondary = (brandInput && brandInput.value.trim()) || '';
+      const prof = window.brandProfile || {};
+      const profName = (prof.brand_name || prof.company_name || '').trim();
+      const guidelineActive = isGuidelineProfileActive();
+      const profIsOtherBrand = guidelineActive && profName && !isGenericBrandName(profName) && !/lexnis/i.test(profName);
+      if (stage1 && !isGenericBrandName(stage1)) {
+        return (profIsOtherBrand && /lexnis/i.test(stage1)) ? profName : stage1;
+      }
+      if (profName && !isGenericBrandName(profName)) return profName;
+      if (secondary && !isGenericBrandName(secondary) && !(guidelineActive && /lexnis/i.test(secondary))) return secondary;
+      return '';
+    }
+
+    // Brand profile to send with a request: only one that belongs to the resolved brand
+    // (an uploaded guideline, or DNA extracted for that same company). The page always preloads
+    // the Lexnis DNA, which must never tint another brand's card.
+    function brandProfileForRequest(bName) {
+      const prof = window.brandProfile;
+      if (!prof) return {};
+      const profName = (prof.brand_name || prof.company_name || '').trim().toLowerCase();
+      if (isGuidelineProfileActive()) return prof;
+      return (profName && profName === (bName || '').trim().toLowerCase()) ? prof : {};
+    }
+
+    // Shared /api/template-swap context: person (never a filename), brand, guideline profile and prompt.
+    function appendTemplateSwapContext(formData) {
+      sanitizePersonNameFields();
+      const pName = (personNameInput && personNameInput.value.trim()) || document.getElementById('pt-member-name')?.value.trim() || currentPersonName || '';
+      const pTitle = (personTitleInput && personTitleInput.value.trim()) || document.getElementById('pt-member-role')?.value.trim() || currentPersonTitle || '';
+      const bName = resolveActiveBrandName();
+      const isLexnis = /lexnis/i.test(bName);
+      let cUrl = (companyUrlInput && companyUrlInput.value.trim()) || currentCompanyUrl || (isLexnis ? 'https://lexnis.com' : '');
+      if (!isLexnis && /lexnis/i.test(cUrl)) cUrl = '';
+      const prof = brandProfileForRequest(bName);
+      const rawTag = prof.brand_tag || '';
+      const tagVal = isLexnis ? '#LexnisTeam' : (rawTag && !/lexnis/i.test(rawTag) ? rawTag : '');
+      if (pName) formData.append('person_name', pName);
+      if (pTitle) formData.append('person_title', pTitle);
+      formData.append('brand_name', bName);
+      formData.append('company_url', cUrl);
+      if (tagVal) formData.append('brand_tag', tagVal);
+      formData.append('recolor_gradient', 'true');
+      formData.append('prompt', (promptInput && promptInput.value.trim()) || '');
+      formData.append('brand_profile_json', JSON.stringify(prof));
+      formData.append('guidelines', isGuidelineProfileActive() ? (currentGuidelines || '') : '');
+    }
+
     function applyBrandDnaToUI(dna) {
       if (!dna) return;
       currentBrandDna = dna;
       window.brandProfile = dna;
       const compName = dna.brand_name || dna.company_name;
-      if (compName && compName.toLowerCase() !== 'brand' && compName.toLowerCase() !== 'our brand') {
+      const fromGuideline = !!(dna.locked_by_guidelines || dna.source === 'uploaded_guidelines');
+      const brandNameInputElem = document.getElementById('brandNameInput');
+      if (compName && !isGenericBrandName(compName)) {
         if (dnaBrandBadge) dnaBrandBadge.textContent = compName.toUpperCase();
-        const brandNameInputElem = document.getElementById('brandNameInput');
         if (brandNameInputElem) brandNameInputElem.value = compName;
         if (brandInput) brandInput.value = compName;
+      } else if (fromGuideline && !dna.is_lexnis) {
+        // Guideline uploaded but its company name could not be detected: drop the stale Lexnis default
+        // so a non-Lexnis guideline never renders with Lexnis branding.
+        if (brandNameInputElem && /lexnis/i.test(brandNameInputElem.value)) brandNameInputElem.value = '';
+        if (brandInput && /lexnis/i.test(brandInput.value)) brandInput.value = '';
+        if (dnaBrandBadge) dnaBrandBadge.textContent = 'BRAND';
+        showToast('Guideline colours loaded. Please type the company name in Stage 1 (it could not be detected from the file).', false);
       }
       const compUrlInput = document.getElementById('company-url-input');
       if (compUrlInput) {
         compUrlInput.value = (dna.has_website && dna.website) ? dna.website : (dna.website || '');
       }
       if (dna.brand_tag && dnaTagText) {
-        dnaTagText.textContent = dna.brand_tag;
+        // Show the team hashtag used on welcome cards (#<Brand>Team) rather than the bare brand tag.
+        const bareSlug = '#' + String(compName || '').replace(/[^a-zA-Z0-9]/g, '');
+        dnaTagText.textContent = (bareSlug.length > 1 && dna.brand_tag.toLowerCase() === bareSlug.toLowerCase())
+          ? `${bareSlug}Team`
+          : dna.brand_tag;
       }
       if (dnaDomainText) {
         dnaDomainText.textContent = dna.domain || (dna.has_website ? dna.website : 'No Website (Guideline-Only)');
@@ -4300,6 +4369,9 @@
         });
       });
 
+      // Purge any filename-derived name restored by the browser (e.g. "WhatsApp Image 2026 ...").
+      sanitizePersonNameFields();
+
       // Setup textarea character counter
       promptInput.addEventListener('input', () => {
         charCount.textContent = promptInput.value.length;
@@ -4338,6 +4410,7 @@
       const detectedBrand = isTesla ? 'Tesla' : (isBofa ? 'Bank of America' : (brand || 'Lexnis Technologies'));
 
       if (currentPostType === 'team_welcome' || /welcome/i.test(prompt)) {
+        sanitizePersonNameFields();
         const pName = (personNameInput && personNameInput.value.trim()) || document.getElementById('pt-member-name')?.value.trim() || currentPersonName || 'Team Member';
         const pRole = (personTitleInput && personTitleInput.value.trim()) || document.getElementById('pt-member-role')?.value.trim() || currentPersonTitle || 'Leadership Team';
         return {
@@ -5085,7 +5158,8 @@
             }
           }
 
-          let effectiveBrand = document.getElementById('brandNameInput')?.value.trim() || (brandInput ? brandInput.value.trim() : '') || window.brandProfile?.brand_name || '';
+          sanitizePersonNameFields();
+          let effectiveBrand = resolveActiveBrandName();
           if (!effectiveBrand || effectiveBrand.toLowerCase() === 'our brand' || effectiveBrand.toLowerCase() === 'brand') {
             const pMatch = userPrompt.match(/(?:for|at)\s+([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+)?)/i) || userPrompt.match(/#([A-Za-z0-9]+?)(?:Careers|Launch|AI|Team|Tech)\b/i);
             if (pMatch && pMatch[1] && !['a', 'an', 'the', 'our', 'senior', 'lead', 'team', 'this', 'hiring'].includes(pMatch[1].toLowerCase())) {
@@ -5102,7 +5176,7 @@
             body: JSON.stringify({
               prompt: userPrompt,
               brand: effectiveBrand,
-              brand_profile_json: JSON.stringify(window.brandProfile || {}),
+              brand_profile_json: JSON.stringify(brandProfileForRequest(effectiveBrand)),
               tone: tone,
               theme: theme,
               seed: Math.floor(Math.random() * 1000000),
@@ -5791,20 +5865,7 @@ Deployable directly into legacy PLC racks and air-gapped SCADA environments, Lex
               formData.append('subject_url', 'raw_subject.jpg');
             }
 
-            const pName = (personNameInput && personNameInput.value.trim()) || document.getElementById('pt-member-name')?.value.trim() || currentPersonName || 'Team Member';
-            const pTitle = (personTitleInput && personTitleInput.value.trim()) || document.getElementById('pt-member-role')?.value.trim() || currentPersonTitle || 'Leadership Team';
-            const brandNameFromInput = (brandNameInput && brandNameInput.value.trim()) || (brandInput && brandInput.value.trim());
-            const brandNameFromProfile = (window.brandProfile && window.brandProfile.brand_name) ? window.brandProfile.brand_name : '';
-            const bName = brandNameFromInput || brandNameFromProfile || 'Lexnis Technologies';
-            const isLexnis = bName.toLowerCase().includes('lexnis');
-            const cUrl = (companyUrlInput && companyUrlInput.value.trim()) || currentCompanyUrl || (isLexnis ? 'https://lexnis.com' : '');
-            formData.append('person_name', pName);
-            formData.append('person_title', pTitle);
-            formData.append('brand_name', bName);
-            formData.append('company_url', cUrl);
-            const brandTagVal = (currentBrandDna && currentBrandDna.brand_tag) || (window.brandProfile && window.brandProfile.brand_tag) || (isLexnis ? '#LexnisTeam' : `#${bName.replace(/[^a-zA-Z0-9]/g, '') || 'Brand'}`);
-            formData.append('brand_tag', brandTagVal);
-            formData.append('recolor_gradient', 'true');
+            appendTemplateSwapContext(formData);
             const lang = campaignLanguageSelect ? campaignLanguageSelect.value : 'both';
             formData.append('language', lang);
             if (activeLogoAsset && activeLogoAsset.url) {

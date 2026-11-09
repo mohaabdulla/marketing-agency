@@ -528,7 +528,7 @@ def detect_featured_person(prompt: str, post_type: Optional[str] = None) -> Tupl
             team_str = (m_hire.group(2) or "").strip()
             if not team_str:
                 team_str = "Core Engineering & Innovation Lab · Hybrid"
-            return clean_role.title(), team_str
+            return smart_title(clean_role), team_str
         return "Senior Systems Engineer", "Engineering & Innovation Lab · Hybrid"
 
     if (post_type and any(k in post_type.lower() for k in ['product', 'launch', 'announcement'])) or any(k in p.lower() for k in ['launching', 'introducing', 'predictive maintenance', 'visionai', 'sensor']):
@@ -536,7 +536,7 @@ def detect_featured_person(prompt: str, post_type: Optional[str] = None) -> Tupl
         if m_launch:
             prod_name = m_launch.group(1).strip()
             cat_str = (m_launch.group(2) or "FLAGSHIP RELEASE  //  ENTERPRISE INNOVATION").strip()
-            return prod_name.title(), cat_str
+            return smart_title(prod_name), cat_str
         return "Flagship Innovation Platform", "FLAGSHIP RELEASE  //  ENTERPRISE INNOVATION"
 
     if post_type and 'milestone' in post_type.lower():
@@ -578,11 +578,11 @@ def detect_featured_person(prompt: str, post_type: Optional[str] = None) -> Tupl
                 if any(w in raw_title.lower() for w in ['confident', 'sleek', 'modern', 'futuristic', 'professional', 'approachable', 'sharp']):
                     role_m = re.search(r'\b(marketing manager|product manager|chief of business development department|chief of business development|cto|ceo|vp|director|engineer|leader|head of [a-z]+|designer|developer|specialist)\b', raw_title, re.IGNORECASE)
                     if role_m:
-                        raw_title = role_m.group(0).title()
+                        raw_title = smart_title(role_m.group(0))
                     else:
                         raw_title = "Marketing Manager" if "lexnis" in p.lower() else "Team Member"
                 else:
-                    raw_title = raw_title.title()
+                    raw_title = smart_title(raw_title)
             else:
                 if (post_type and 'welcome' in post_type.lower()) or 'welcome' in p.lower():
                     raw_title = raw_title or "Team Member"
@@ -590,6 +590,179 @@ def detect_featured_person(prompt: str, post_type: Optional[str] = None) -> Tupl
             return clean_name, (raw_title or "Team Member")
 
     return None, None
+
+
+def smart_title(text: str) -> str:
+    """Title-case words that are entirely lowercase, keeping acronyms and brand casing (AI, VisionAI, iPhone)."""
+    return " ".join(
+        w if any(c.isupper() for c in w) else (w[:1].upper() + w[1:])
+        for w in (text or "").split()
+    )
+
+
+_GENERIC_FILENAME_NAME_RE = re.compile(
+    r"\b(?:whatsapp|image|img|dsc|dcim|pxl|mvimg|screenshot|screen\s+shot|photo|pic|picture|untitled|"
+    r"download|camera|snapchat|telegram|vid|video|scan|capture|subject|portrait|avatar|headshot|"
+    r"file|asset|sample|test|copy)\b"
+    r"|\.(?:jpe?g|png|webp|heic|gif|bmp|tiff?)\b"
+    r"|\bat\s+\d{1,2}[.:]\d{2}",
+    re.IGNORECASE,
+)
+
+
+def is_generic_filename_name(name: Optional[str]) -> bool:
+    """
+    True when a "person name" is really a camera / messenger / screenshot filename,
+    e.g. "WhatsApp Image 2026 11 09 At 19.48.58", "IMG_2034", "Screenshot 2026-11-09".
+    Empty values return False (callers treat empty separately).
+    """
+    s = (name or "").strip()
+    if not s:
+        return False
+    if len(re.findall(r"\d", s)) >= 4:
+        return True
+    if re.fullmatch(r"[\W\d_]+", s):
+        return True
+    return bool(_GENERIC_FILENAME_NAME_RE.search(s.replace("_", " ")))
+
+
+def resolve_featured_person(
+    person_name: Optional[str],
+    person_title: Optional[str],
+    prompt: str = "",
+    post_type: Optional[str] = "team_welcome",
+) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Discard filename-derived names (e.g. "WhatsApp Image ...") and fall back to the
+    name and role written in the prompt, e.g. "welcoming new team member Mohamed Redha, AI Engineer".
+    """
+    name = (person_name or "").strip()
+    title = (person_title or "").strip()
+    if is_generic_filename_name(name):
+        name = ""
+    if is_generic_filename_name(title):
+        title = ""
+    if not name or not title:
+        det_name, det_title = detect_featured_person(prompt or "", post_type=post_type)
+        if not name and det_name and not is_generic_filename_name(det_name):
+            name = det_name
+        if not title and det_title:
+            title = det_title
+    return (name or None), (title or None)
+
+
+GENERIC_BRAND_NAMES = {"", "brand", "our brand", "company", "enterprise", "unknown", "your brand"}
+
+
+def team_welcome_headline(brand_name: str = "", language: str = "en") -> str:
+    """Short, scannable Team Welcome headline that always fits a 1080px canvas."""
+    b = (brand_name or "").strip()
+    has_brand = b.lower() not in GENERIC_BRAND_NAMES
+    if language == "ar":
+        if has_brand and re.search(r"[\u0600-\u06FF]", b) and len(b) <= 16:
+            return f"أهلاً بك في {b}"
+        return "أهلاً بك في فريقنا"
+    if has_brand:
+        candidate = f"WELCOME TO {b.upper()}"
+        if len(candidate) <= 24:
+            return candidate
+    return "WELCOME TO THE TEAM"
+
+
+# Words that describe a guideline *document* rather than the company it belongs to.
+_GUIDELINE_DOC_WORDS = {
+    "brand", "brands", "branding", "guideline", "guidelines", "guide", "document", "documents", "doc",
+    "final", "full", "visual", "identity", "book", "style", "manual", "standards", "edition", "version",
+    "expansion", "official", "corporate", "the", "our", "of", "a", "an", "and", "for", "working",
+    "extension", "draft", "copy", "new", "updated", "latest", "pdf", "logo", "logos", "colour", "color",
+    "colours", "colors", "typography", "narrative", "framework", "bilingual", "social", "kit", "toolkit",
+    "deck", "presentation", "rev", "revised", "overview", "introduction", "playbook", "handbook", "system",
+    "guidance", "rules", "assets", "master", "complete",
+}
+
+# Well-known house brands normalised to their canonical name.
+_KNOWN_GUIDELINE_BRANDS = [
+    (re.compile(r"\blexnis\b", re.IGNORECASE), "Lexnis Technologies"),
+]
+
+
+def _clean_brand_candidate(raw: str) -> str:
+    words = re.findall(r"[A-Za-z0-9&][A-Za-z0-9&'.+-]*", raw or "")
+    words = [w.strip(".'-") for w in words if w.strip(".'-")]
+
+    def is_noise(w: str) -> bool:
+        return (
+            w.lower() in _GUIDELINE_DOC_WORDS
+            or bool(re.fullmatch(r"[\d.()]+", w))
+            or bool(re.fullmatch(r"v\d+(?:\.\d+)*", w, re.IGNORECASE))
+        )
+
+    while words and is_noise(words[0]):
+        words.pop(0)
+    while words and is_noise(words[-1]):
+        words.pop()
+    words = words[:4]
+    if not words or all(is_noise(w) for w in words):
+        return ""
+    cand = " ".join(words).strip()
+    if len(cand) < 2 or not re.search(r"[A-Za-z]", cand):
+        return ""
+    for pat, canonical in _KNOWN_GUIDELINE_BRANDS:
+        if pat.search(cand):
+            return canonical
+    return cand
+
+
+def detect_brand_name_from_guideline(text: str, filename: str = "") -> str:
+    """
+    Detect which company a brand-guideline document belongs to.
+    Candidates come from title phrases ("X Brand Guidelines"), running headers ("Tab · Version 3.0"),
+    copyright lines, the cleaned filename and known house brands, and are ranked by how often
+    they occur in the document. Returns "" when nothing credible is found (never a year,
+    never a generic filename such as "Brand guidelines document (3)").
+    """
+    text = text or ""
+    scores: Dict[str, float] = {}
+    display: Dict[str, str] = {}
+
+    def add(raw: str, weight: float) -> None:
+        cand = _clean_brand_candidate(raw)
+        if not cand:
+            return
+        key = cand.lower()
+        scores[key] = scores.get(key, 0.0) + weight
+        # Prefer a mixed-case display form ("Tab") over an all-caps one ("TAB").
+        if key not in display or (display[key].isupper() and not cand.isupper()):
+            display[key] = cand
+
+    doc_kw = r"(?:Brand\s+Guidelines?|Brand\s+Book|Style\s+Guide|Brand\s+Identity|Brand\s+System|Visual\s+(?:Brand\s+)?Guidelines?)"
+    for m in re.finditer(rf"(?i:{doc_kw})\s*[-—–:|·]\s*([^\n]{{2,40}})", text):
+        add(m.group(1), 3)
+    for m in re.finditer(rf"([^\n]{{2,40}}?)\s+(?i:{doc_kw})", text):
+        add(m.group(1), 3)
+    # Running headers such as "Tab · Version 3.0" or "TAB / A CLEARER WAY TO WORK"
+    for m in re.finditer(r"^\s*([A-Z][A-Za-z0-9&]*(?:[ ][A-Z][A-Za-z0-9&]*){0,2})\s*[·•|/—–]\s*(?i:version|edition|v\d|brand|visual|a\b|the\b)", text, re.MULTILINE):
+        add(m.group(1), 3)
+    for m in re.finditer(r"©\s*(?:\d{4}\s*)?([A-Z][^\n.,©]{1,40})", text):
+        add(m.group(1), 2)
+    for pat, canonical in _KNOWN_GUIDELINE_BRANDS:
+        if pat.search(text):
+            add(canonical, 2)
+    if filename:
+        stem = re.sub(r"\(\d+\)", " ", Path(filename).stem)
+        add(re.sub(r"[_\-]+", " ", stem), 2)
+
+    if not scores:
+        return ""
+
+    for key in list(scores):
+        occurrences = len(re.findall(rf"(?<![A-Za-z0-9]){re.escape(key)}(?![A-Za-z0-9])", text, re.IGNORECASE))
+        if key == "lexnis technologies":
+            occurrences = max(occurrences, len(re.findall(r"\blexnis\b", text, re.IGNORECASE)))
+        scores[key] += 2.0 * min(occurrences, 15)
+
+    best = max(scores, key=lambda k: scores[k])
+    return display[best]
 
 
 def generate_hiring_mission_hook(role: str, prompt: str, is_ar: bool = False) -> str:
@@ -2174,20 +2347,7 @@ class LexnisCampaignStudio:
         if u_name:
             detected_name = u_name
         else:
-            m_title = re.search(r'(?:Brand Guidelines|Brand Book|Style Guide|Brand Identity)\s*[-—–:]\s*([A-Za-z0-9 &]+)', guideline_raw_text, re.IGNORECASE)
-            if not m_title:
-                m_title = re.search(r'([A-Za-z0-9 &]{3,35})\s+(?:Brand Guidelines|Brand Book|Style Guide|Brand Identity)', guideline_raw_text, re.IGNORECASE)
-            if m_title:
-                cand = m_title.group(1).strip()
-                if len(cand) >= 3 and cand.lower() not in ("the", "our", "official", "version", "edition", "corporate"):
-                    detected_name = cand
-
-            if not detected_name and filename:
-                stem = Path(filename).stem
-                clean_stem = re.sub(r'[-_](?:brand[-_]?guide(?:lines)?|style[-_]?guide|logo|identity|book).*$', '', stem, flags=re.IGNORECASE)
-                clean_stem = clean_stem.replace('_', ' ').replace('-', ' ').strip()
-                if len(clean_stem) >= 3 and clean_stem.lower() not in ("brand", "guidelines", "asset", "document"):
-                    detected_name = clean_stem
+            detected_name = detect_brand_name_from_guideline(guideline_raw_text, filename)
 
             if not detected_name and website and website.strip():
                 try:
@@ -2261,7 +2421,9 @@ class LexnisCampaignStudio:
             visual_rules = "Strict 135° Depth Gradient (#131724 -> #023024), Tech Green #53B849 & Lime #BCD755 dual chevrons, Core Chevron Field."
 
         brand_name_ar = ""
-        m_ar = re.search(r'[\u0600-\u06FF\s]{3,30}', guideline_raw_text)
+        # Only trust Arabic text explicitly labelled as the brand's Arabic name; the first Arabic
+        # phrase in a brand book is usually a slogan (e.g. "\u0625\u062C\u0631\u0627\u0621\u0627\u062A \u0623\u0642\u0644"), not the company name.
+        m_ar = re.search(r'(?:arabic\s+name|arabic\s+wordmark|\u0627\u0644\u0627\u0633\u0645\s+\u0627\u0644\u0639\u0631\u0628\u064A|\u0627\u0633\u0645\s+\u0627\u0644\u0639\u0644\u0627\u0645\u0629)\s*[:\uFF1A\-\u2013\u2014]\s*([\u0600-\u06FF][\u0600-\u06FF ]{1,28})', guideline_raw_text, re.IGNORECASE)
         if is_lexnis:
             brand_name_ar = "لكسنس تكنولوجيز"
         elif "noor solar" in detected_name.lower():
@@ -2273,26 +2435,36 @@ class LexnisCampaignStudio:
         elif "quantumgrid" in detected_name.lower():
             brand_name_ar = "كوانتوم جريد للأنظمة"
         elif m_ar:
-            brand_name_ar = m_ar.group(0).strip()
+            brand_name_ar = m_ar.group(1).strip()
         else:
             brand_name_ar = detected_name
 
         if is_lexnis:
             color_palette = ["#131724", "#023024", "#53B849", "#BCD755", "#FFFFFF"]
         else:
-            pri_acc = all_palette[0] if len(all_palette) > 0 else "#2563EB"
-            sec_acc = all_palette[1] if len(all_palette) > 1 else "#38BDF8"
-            bg_dark = "#0F172A"
-            bg_sec = "#1E293B"
+            import colorsys
+
+            def _lum_sat(c):
+                rgb = hex_to_rgb(c)
+                _, _, sat = colorsys.rgb_to_hls(rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0)
+                return get_relative_luminance(rgb), sat
+
+            dark_cands, accent_cands = [], []
             for c in all_palette:
                 try:
-                    rgb = hex_to_rgb(c)
-                    lum = get_relative_luminance(rgb)
-                    if lum < 0.12:
-                        bg_dark = c
-                        break
+                    lum, sat = _lum_sat(c)
                 except Exception:
-                    pass
+                    continue
+                if lum < 0.035:
+                    dark_cands.append(c)
+                elif sat >= 0.25 and lum < 0.85:
+                    accent_cands.append(c)
+            # Accents are saturated mid-tones; the background is a genuinely dark swatch,
+            # never the accent itself (e.g. indigo #4F46E5 must not become the canvas colour).
+            pri_acc = accent_cands[0] if accent_cands else (all_palette[0] if all_palette else "#2563EB")
+            sec_acc = accent_cands[1] if len(accent_cands) > 1 else "#38BDF8"
+            bg_dark = dark_cands[0] if dark_cands else "#0F172A"
+            bg_sec = "#1E293B"
             color_palette = [bg_dark, bg_sec, pri_acc, sec_acc, "#FFFFFF"]
 
         guideline_summary = (
@@ -2302,7 +2474,7 @@ class LexnisCampaignStudio:
         )
 
         clean_slug = re.sub(r'[^a-zA-Z0-9]', '', detected_name) or "Brand"
-        hashtag_en = f"#{clean_slug}Team" if is_lexnis else f"#{clean_slug}"
+        hashtag_en = "#LexnisTeam" if is_lexnis else f"#{clean_slug}"
         hashtag_ar = f"#لكسنس" if is_lexnis else f"#{clean_slug}"
 
         return {
@@ -3394,8 +3566,10 @@ class LexnisCampaignStudio:
         post_ar_path: Optional[Path] = None
         arabic_pack: Dict[str, Any] = {}
 
-        # Determine featured person & corporate title
-        if not person_name or not person_title:
+        # Determine featured person & corporate title (never a camera/messenger filename)
+        if post_type in (None, "", "general", "team_welcome"):
+            person_name, person_title = resolve_featured_person(person_name, person_title, effective_prompt, post_type=post_type)
+        elif not person_name or not person_title:
             det_pname, det_ptitle = detect_featured_person(effective_prompt, post_type=post_type)
             person_name = person_name or det_pname
             person_title = person_title or det_ptitle
@@ -3525,15 +3699,33 @@ class LexnisCampaignStudio:
                 tag_to_use = "#LexnisVision" if is_lexnis_candidate else f"#{clean_slug}Vision"
                 tag_ar_to_use = "#رؤية_لكسنس" if is_lexnis_candidate else f"#رؤية_{clean_slug}"
             else:
-                hl_en = headline or "WELCOME"
-                hl_ar = "مرحباً بك في فريقنا"
+                # LLM headlines such as "LEXNIS TECHNOLOGIES WELCOMING NEW TEAM MEMBER!" are too long
+                # for the 2.5D card; keep the welcome headline short and scannable.
+                if headline and len(headline) <= 24 and "welcoming" not in headline.lower():
+                    hl_en = headline
+                else:
+                    hl_en = team_welcome_headline(clean_bname, "en")
+                hl_ar = team_welcome_headline(clean_bname, "ar")
                 foot_en = "We are so excited to have you on our team!"
                 foot_ar = "نحن سعداء جداً بانضمامك إلى فريقنا!"
-                tag_to_use = brand_tag or ("#LexnisTeam" if is_lexnis_candidate else f"#{clean_slug}Team")
-                tag_ar_to_use = "#فريق_لكسنس" if is_lexnis_candidate else f"#فريق_{clean_slug}"
+                if is_lexnis_candidate:
+                    tag_to_use = "#LexnisTeam"
+                    tag_ar_to_use = "#فريق_لكسنس"
+                else:
+                    bare_tag = f"#{clean_slug}"
+                    usable = brand_tag and "lexnis" not in brand_tag.lower() and brand_tag.lower() != bare_tag.lower()
+                    tag_to_use = brand_tag if usable else f"#{clean_slug}Team"
+                    tag_ar_to_use = f"#فريق_{clean_slug}"
+
+            swap_theme = resolve_brand_theme(
+                brand_profile=brand_dna if isinstance(brand_dna, dict) else ({"brand_colors": brand_colors} if brand_colors else None),
+                uploaded_logo_path=logo_to_use if (logo_to_use and Path(str(logo_to_use)).exists()) else None,
+                brand_name=brand,
+                post_type=post_type or "team_welcome",
+            )
 
             logo_key = Path(str(logo_to_use)).name if logo_to_use else "default_logo"
-            swap_key = hashlib.sha1(f"swap_v4_1080x1350|{post_type}|{t_file.name}|{s_file.name}|{logo_key}|{hl_en}|{person_name}|{person_title}|{brand}|{tag_to_use}|{company_url}|recolor_{recolor_to_brand}".encode()).hexdigest()[:16]
+            swap_key = hashlib.sha1(f"swap_v5_1080x1350|{post_type}|{t_file.name}|{s_file.name}|{logo_key}|{hl_en}|{person_name}|{person_title}|{brand}|{tag_to_use}|{company_url}|{swap_theme.primary_hex}|{swap_theme.is_lexnis}|recolor_{recolor_to_brand}".encode()).hexdigest()[:16]
             clean_path = RENDERS_DIR / f"{swap_key}_clean.jpg"
             post_path = RENDERS_DIR / f"{swap_key}_post.jpg"
             post_ar_path = RENDERS_DIR / f"{swap_key}_post_ar.jpg"
@@ -3552,7 +3744,8 @@ class LexnisCampaignStudio:
                     headline_text=hl_en,
                     footer_text=foot_en,
                     logo_image=logo_to_use,
-                    post_type=post_type or "team_welcome"
+                    post_type=post_type or "team_welcome",
+                    brand_theme=swap_theme,
                 )
                 swap_img.save(clean_path, "JPEG", quality=95, optimize=True)
                 swap_img.save(post_path, "JPEG", quality=95, optimize=True)
@@ -3561,6 +3754,8 @@ class LexnisCampaignStudio:
 
             # Arabic localized copy & design tokens
             ar_hl = arabic_pack.get("visual_headline") or hl_ar
+            if (post_type or "team_welcome") == "team_welcome" and len(ar_hl) > 24:
+                ar_hl = hl_ar
             ar_tl = arabic_pack.get("visual_tagline") or foot_ar
 
             if not post_ar_path.exists():
@@ -3578,7 +3773,8 @@ class LexnisCampaignStudio:
                     headline_text=ar_hl,
                     footer_text=ar_tl,
                     logo_image=logo_to_use,
-                    post_type=post_type or "team_welcome"
+                    post_type=post_type or "team_welcome",
+                    brand_theme=swap_theme,
                 )
                 swap_ar_img.save(post_ar_path, "JPEG", quality=95, optimize=True)
 

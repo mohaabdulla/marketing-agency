@@ -21,10 +21,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from visual_engine import model_setup, preferred_local_model, composite_template_swap, sanitize_brand_tag
+from visual_engine import model_setup, preferred_local_model, composite_template_swap, sanitize_brand_tag, resolve_brand_theme
 
 from campaign_generator import (
     LexnisCampaignStudio, CampaignAsset, IMAGE_MODELS, DEFAULT_IMAGE_MODEL, RENDERS_DIR,
+    GENERIC_BRAND_NAMES, extract_brand_name_from_prompt, resolve_featured_person, team_welcome_headline,
+    is_generic_filename_name as _is_generic_filename_name,
 )
 
 app = FastAPI(
@@ -351,6 +353,10 @@ def generate_campaign_endpoint(req: GenerateRequest):
             effective_brand = "Lexnis Technologies" if (req.prompt and "lexnis" in req.prompt.lower()) else "Brand"
             bp["brand_name"] = effective_brand
             req.brand = effective_brand
+
+        bp_name = str(bp.get("brand_name") or bp.get("company_name") or "")
+        if bp and "lexnis" in bp_name.lower() and "lexnis" not in (effective_brand or "").lower():
+            bp = {}  # a Lexnis profile must never style another brand's card
 
         if req.brand and req.brand != "Lexnis Technologies" and not bp.get("brand_name"):
             bp["brand_name"] = req.brand
@@ -939,7 +945,7 @@ async def template_swap_endpoint(
     logo_url: Optional[str] = Form(None),
     person_name: Optional[str] = Form(None),
     person_title: Optional[str] = Form(None),
-    brand_name: Optional[str] = Form(None),
+    brand_name: Optional[str] = Form(""),
     brand_tag: Optional[str] = Form(None),
     company_url: Optional[str] = Form(None),
     recolor_gradient: Optional[bool] = Form(False),
@@ -947,6 +953,9 @@ async def template_swap_endpoint(
     headline_text: Optional[str] = Form(None),
     footer_text: Optional[str] = Form(None),
     post_type: Optional[str] = Form("team_welcome"),
+    prompt: Optional[str] = Form(""),
+    brand_profile_json: Optional[str] = Form(""),
+    guidelines: Optional[str] = Form(""),
 ):
     """
     Autonomous Template Subject-Replacement & 2.5D Pop-Out Compositing Endpoint.
@@ -1002,25 +1011,83 @@ async def template_swap_endpoint(
             else:
                 logo_image_param = logo_url
 
-        brand_name = brand_name or "Enterprise"
+        post_type = post_type or "team_welcome"
+        prompt = prompt or ""
+
+        # Active brand profile: Stage 1 guideline profile JSON, else parsed guideline text.
+        bp: Dict[str, Any] = {}
+        if brand_profile_json:
+            try:
+                parsed_bp = json.loads(brand_profile_json)
+                if isinstance(parsed_bp, dict):
+                    bp = parsed_bp
+            except Exception:
+                bp = {}
+        if not bp and guidelines and guidelines.strip():
+            try:
+                bp = LexnisCampaignStudio().extract_brand_profile_from_guideline(guideline_raw_text=guidelines)
+            except Exception:
+                bp = {}
+
+        def _generic_brand(n: str) -> bool:
+            return (n or "").strip().lower() in GENERIC_BRAND_NAMES
+
+        # Brand resolution: a non-Lexnis guideline profile beats a stale Lexnis default; never default to Lexnis.
+        req_brand = (brand_name or "").strip()
+        profile_brand = str(bp.get("brand_name") or bp.get("company_name") or "").strip()
+        if profile_brand and not _generic_brand(profile_brand) and (
+            _generic_brand(req_brand) or ("lexnis" in req_brand.lower() and "lexnis" not in profile_brand.lower())
+        ):
+            brand_name = profile_brand
+        elif not _generic_brand(req_brand):
+            brand_name = req_brand
+        else:
+            brand_name = extract_brand_name_from_prompt(prompt, fallback_name="")
+            if _generic_brand(brand_name):
+                brand_name = "Lexnis Technologies" if "lexnis" in prompt.lower() else ""
+        is_lexnis_brand = "lexnis" in brand_name.lower()
+        if bp and "lexnis" in profile_brand.lower() and not is_lexnis_brand:
+            bp = {}  # a Lexnis profile must never style another brand's card
+
+        # Person: never a camera/messenger filename; fall back to the name written in the prompt.
+        if post_type in ("team_welcome", "general"):
+            person_name, person_title = resolve_featured_person(person_name, person_title, prompt, post_type=post_type)
         person_name = person_name or "New Team Member"
-        person_title = person_title or "Leadership Team"
-        if "lexnis" in brand_name.lower() or (company_url and "lexnis" in company_url.lower()):
+        person_title = person_title or "Team Member"
+
+        if is_lexnis_brand or (company_url and "lexnis" in company_url.lower() and not bp.get("locked_by_guidelines")):
             recolor_gradient = True
 
-        brand_colors = None
-        final_tag = sanitize_brand_tag(brand_tag or "", brand_name)
-        target_c_url = company_url or ("https://lexnis.com" if "lexnis" in brand_name.lower() else "")
-        if target_c_url:
+        brand_colors = bp.get("brand_colors") if isinstance(bp.get("brand_colors"), dict) else None
+        final_tag = sanitize_brand_tag(brand_tag or "", brand_name) if is_lexnis_brand else (brand_tag or None)
+        target_c_url = company_url or ("https://lexnis.com" if is_lexnis_brand else "")
+        if target_c_url and "lexnis" in target_c_url.lower() and not is_lexnis_brand:
+            target_c_url = ""  # never pull Lexnis DNA into another brand's card
+        if target_c_url and not bp.get("locked_by_guidelines"):
             try:
                 studio = LexnisCampaignStudio()
-                dna = studio.analyze_company_website(target_c_url, brand=brand_name)
+                dna = studio.analyze_company_website(target_c_url, brand=brand_name or "Brand")
                 if dna:
-                    brand_colors = dna.get("brand_colors")
-                    if not brand_tag:
+                    brand_colors = brand_colors or dna.get("brand_colors")
+                    if not brand_tag and is_lexnis_brand:
                         final_tag = sanitize_brand_tag(dna.get("brand_tag") or "", brand_name)
             except Exception:
                 pass
+
+        logo_path_for_theme = logo_image_param if isinstance(logo_image_param, str) and Path(logo_image_param).exists() else None
+        theme_profile = dict(bp) if bp else {}
+        if brand_colors and not theme_profile.get("brand_colors"):
+            theme_profile["brand_colors"] = brand_colors
+        brand_theme = resolve_brand_theme(
+            theme_profile or None,
+            uploaded_logo_path=logo_path_for_theme,
+            brand_name=brand_name,
+            post_type=post_type,
+        )
+
+        primary_lang = language if language and language != "both" else "en"
+        if not headline_text and post_type == "team_welcome":
+            headline_text = team_welcome_headline(brand_name, primary_lang)
 
         bp_path = BASE_DIR / "static" / "assets" / "learned_blueprint.json"
         bp_param = str(bp_path) if bp_path.exists() else None
@@ -1037,11 +1104,13 @@ async def template_swap_endpoint(
             brand_colors=brand_colors,
             recolor_gradient=bool(recolor_gradient),
             blueprint=bp_param,
-            language=language if language and language != "both" else "en",
+            language=primary_lang,
             headline_text=headline_text,
             footer_text=footer_text,
             logo_image=logo_image_param,
-            post_type=post_type or "team_welcome"
+            post_type=post_type,
+            brand_theme=brand_theme,
+            brand_profile=bp or None,
         )
         token = hashlib.sha1(f"swap_{time.time()}".encode()).hexdigest()[:12]
         out_filename = f"template_swap_{token}.jpg"
@@ -1050,7 +1119,14 @@ async def template_swap_endpoint(
 
         arabic_url = None
         if language in ("ar", "both"):
-            ar_tag = brand_tag if (brand_tag and re.search(r"[\u0600-\u06FF]", brand_tag)) else ("#فريق_لكسنس" if "lexnis" in brand_name.lower() else f"#فريق_{re.sub(r'[^a-zA-Z0-9]', '', brand_name)}")
+            has_ar_tag = bool(brand_tag and re.search(r"[\u0600-\u06FF]", brand_tag))
+            if has_ar_tag:
+                ar_tag = brand_tag
+            elif is_lexnis_brand:
+                ar_tag = "#فريق_لكسنس"
+            else:
+                ar_tag = None  # compositor derives #فريق_<Brand> from the active theme
+            ar_headline = headline_text if (language == "ar" and headline_text) else team_welcome_headline(brand_name, "ar")
             ar_pil = composite_template_swap(
                 t_bytes,
                 s_bytes,
@@ -1063,10 +1139,12 @@ async def template_swap_endpoint(
                 recolor_gradient=bool(recolor_gradient),
                 blueprint=bp_param,
                 language="ar",
-                headline_text=headline_text if (language == "ar" and headline_text) else "مرحباً بك في فريقنا",
+                headline_text=ar_headline,
                 footer_text=footer_text if (language == "ar" and footer_text) else "نحن سعداء جداً بانضمامك إلى فريقنا!",
                 logo_image=logo_image_param,
-                post_type=post_type or "team_welcome"
+                post_type=post_type,
+                brand_theme=brand_theme,
+                brand_profile=bp or None,
             )
             ar_filename = f"template_swap_{token}_ar.jpg"
             ar_path = RENDERS_DIR / ar_filename
@@ -1081,6 +1159,8 @@ async def template_swap_endpoint(
             "dimensions": {"width": 1080, "height": 1350},
             "person_name": person_name,
             "person_title": person_title,
+            "brand_name": brand_name,
+            "headline_text": headline_text,
             "language": language
         }
     except Exception as e:
