@@ -131,15 +131,14 @@ def test_launch_and_hiring():
     print("\n==================================================================")
     print("TEST 4: Inspecting White Card Corner Masking (Clipping Assertion)")
     print("==================================================================")
-    # The card corner at (card_x1, card_y1) = (72, 580) for launch and (72, 660) for hiring
+    # The standard two-line hero places this card's rounded top edge at y=555.
     # should NOT be solid green (0, 255, 0) or sharp corner, because the mask rounds it by 16px!
     launch_arr = np.array(launch_en)
     hiring_arr = np.array(hiring_en)
     
-    # Check that (72, 572) in launch_arr is part of the background gradient, NOT white or green
-    c_pixel = launch_arr[572, 72] # [R, G, B]
-    print(f"Launch Card Top-Left Corner pixel at (72, 572): RGB={c_pixel.tolist()}")
-    # The background at (72, 572) is dark navy/emerald (R < 50, G < 80, B < 60)
+    # Sample the actual rounded corner; y=572 is inside the white vertical edge.
+    c_pixel = launch_arr[555, 72] # [R, G, B]
+    print(f"Launch Card Top-Left Corner pixel at (72, 555): RGB={c_pixel.tolist()}")
     assert c_pixel[0] < 80 and c_pixel[1] < 100, f"Corner was not smoothly clipped: RGB={c_pixel}"
     print("✓ Verified: Card accent bar corner is smoothly clipped by 16px rounded mask!")
 

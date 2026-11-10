@@ -7,7 +7,7 @@ Regression suite for the Team Welcome 2.5D card defects:
    non-Lexnis guideline renders with its own colours, lockup and #<Brand>Team hashtag.
 3. The headline always fits inside x = 90..990 (<= 900px) and sits fully above the pop-out head:
    headline ink from y=148 (bottom <= 205), head top = max(headline_bottom + 24, 222), frame top
-   340 (~118px pop-out), nameplate 955..1145. Checked on the rendered pixels as well as the layout.
+   340 (~118px pop-out), nameplate 955..1118. Checked on the rendered pixels as well as the layout.
    Long / LLM-sentence headlines are replaced inside the renderer itself.
 4. The subject is scaled uniformly (portrait photos are never squashed) and fills the frame.
    Head-size normalisation: a tight passport headshot is capped at a normal head size (face box
@@ -383,7 +383,7 @@ class BrandedCardTests(unittest.TestCase):
         frame_top = layout["frame"][1]
         self.assertEqual(frame_top, 340)
         self.assertEqual(layout["nameplate_top"], 955)
-        self.assertEqual(layout["frame"][1] + layout["frame"][3], 1145)
+        self.assertEqual(layout["frame"][1] + layout["frame"][3], 1118)
         for (x0, y0, x1, y1) in layout["headline_boxes"]:
             self.assertGreaterEqual(x0, lo - 1)
             self.assertLessEqual(x1, hi + 1)
@@ -496,6 +496,15 @@ class BrandedCardTests(unittest.TestCase):
 
         # 6. Automatic transliteration of Mohamed Redha to Arabic script in Arabic welcome card
         self.assertEqual(layout_ar["name_text"], "محمد رضا", "Latin name was not transliterated to Arabic script")
+
+        # Name + role ink and the accent tile form a vertically centred block.
+        for img in (img_en, img_ar):
+            plate = np.array(img.convert("RGB"))[956:1118, 192:888]
+            rows = np.where((plate.min(axis=2) < 200).any(axis=1))[0]
+            self.assertGreater(rows.size, 0)
+            top_padding = int(rows[0]) + 1  # include the excluded seam row
+            bottom_padding = 162 - int(rows[-1]) - 1
+            self.assertLessEqual(abs(top_padding - bottom_padding), 3)
 
         # 7. Two-tone headline pixels in both EN and AR (both #FFFFFF and primary_accent in y=130..215)
         for label, img in [("English", img_en), ("Arabic", img_ar)]:

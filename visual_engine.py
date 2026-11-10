@@ -1761,13 +1761,11 @@ def enhance_studio_portrait(cutout_rgba: np.ndarray, brand_theme=None) -> np.nda
        (unsharp mask radius=1.8, percent=115, threshold=3 + contrast factor 1.14 + brightness 1.03),
        and apply a 3% cool-emerald shadow tint from brand_theme['bg_dark'] in darks so the portrait feels rich.
     2. Alpha Edge Feathering & Decontamination:
-       Erode raw alpha mask by 1px (ImageFilter.MinFilter(3) blended at 50%) and apply 1.2px Gaussian blur
+       Erode raw alpha mask with MinFilter(3) and apply 1.0px Gaussian blur
        to eliminate jagged stair-stepping around hair and ears.
-    3. Subtle Rim Lighting:
-       Generate a 2px inner rim highlight along top hair & shoulder edges using primary_accent at 22% opacity
-       so the subject's dark hair separates cleanly from the dark background.
+       Keep boundary colours free of added rim highlights, especially around dark hair.
     """
-    from PIL import Image, ImageFilter, ImageEnhance, ImageChops
+    from PIL import Image, ImageFilter, ImageEnhance
     import numpy as np
     import cv2
 
@@ -1777,9 +1775,8 @@ def enhance_studio_portrait(cutout_rgba: np.ndarray, brand_theme=None) -> np.nda
     bgr = cutout_rgba[:, :, :3]
     a = cutout_rgba[:, :, 3]
 
-    # Resolve brand palette values for tint and rim lighting
+    # Resolve brand palette values for shadow tinting.
     bg_dark_bgr = (36, 48, 2)       # Lexnis dark emerald BGR (#023024)
-    accent_bgr = (73, 184, 83)      # Lexnis primary accent BGR (#53B849)
     if brand_theme is not None:
         if hasattr(brand_theme, "bg_dark_end") and brand_theme.bg_dark_end:
             c = brand_theme.bg_dark_end
@@ -1787,12 +1784,6 @@ def enhance_studio_portrait(cutout_rgba: np.ndarray, brand_theme=None) -> np.nda
         elif isinstance(brand_theme, dict) and "bg_dark" in brand_theme:
             c = brand_theme["bg_dark"]
             bg_dark_bgr = (int(c[2]), int(c[1]), int(c[0]))
-        if hasattr(brand_theme, "primary_accent") and brand_theme.primary_accent:
-            c = brand_theme.primary_accent
-            accent_bgr = (int(c[2]), int(c[1]), int(c[0]))
-        elif isinstance(brand_theme, dict) and "primary_accent" in brand_theme:
-            c = brand_theme["primary_accent"]
-            accent_bgr = (int(c[2]), int(c[1]), int(c[0]))
 
     # 1. Studio S-Curve B&W Grade
     gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
@@ -1810,21 +1801,8 @@ def enhance_studio_portrait(cutout_rgba: np.ndarray, brand_theme=None) -> np.nda
     # 2. Alpha Edge Feathering & Decontamination
     alpha_pil = Image.fromarray(a)
     eroded_alpha = alpha_pil.filter(ImageFilter.MinFilter(3))
-    blended_alpha = Image.blend(alpha_pil, eroded_alpha, 0.50)
-    feathered_alpha = blended_alpha.filter(ImageFilter.GaussianBlur(radius=1.2))
+    feathered_alpha = eroded_alpha.filter(ImageFilter.GaussianBlur(radius=1.0))
     feathered_a = np.minimum(np.array(feathered_alpha, dtype=np.float32), a.astype(np.float32))
-
-    # 3. Subtle Rim Lighting (inner 2px boundary on upper crown/shoulders)
-    alpha_bin = Image.fromarray((feathered_a > 40).astype(np.uint8) * 255)
-    inner_edge = ImageChops.subtract(alpha_bin, alpha_bin.filter(ImageFilter.MinFilter(5)))
-    edge_arr = np.array(inner_edge, dtype=np.float32) / 255.0
-
-    H_sub = a.shape[0]
-    y_weight = np.clip(1.0 - (np.arange(H_sub)[:, None] / float(max(1, H_sub * 0.65))), 0.0, 1.0)
-    rim_intensity = edge_arr * y_weight
-    accent_bgr_arr = np.array(accent_bgr, dtype=np.float32)
-    rim_alpha = 0.22 * rim_intensity[:, :, None]
-    graded_bgr = graded_bgr * (1.0 - rim_alpha) + accent_bgr_arr * rim_alpha
 
     return np.dstack([
         np.clip(graded_bgr, 0, 255).astype(np.uint8),
@@ -2044,6 +2022,11 @@ def place_popout_subject(
     subject_top = max(float(head_top_y), min_bottom_y - s * bh)
     ox = int(round(center_x - s * bbox_cx - shift))
     oy = int(round(subject_top - s * top))
+    # Resampling a feathered matte can extend faint hair above the measured body
+    # bounds. Preserve the headline clearance while retaining those wisps.
+    visible_rows = np.where((scaled[:, :, 3] > 0.03 * 255).any(axis=1))[0]
+    if visible_rows.size:
+        oy += max(0, int(round(head_top_y)) - 2 - (oy + int(visible_rows[0])))
 
     out_bgr = np.zeros((H, W, 3), dtype=np.uint8)
     out_a = np.zeros((H, W), dtype=np.float32)
@@ -2096,7 +2079,7 @@ def render_welcome_template_swap(
     Team Welcome 2.5D card: entry point over composite_template_swap(post_type="team_welcome"),
     which owns the headline sanitising, brand theming and subject placement.
     Layout at 1080x1350: headline ink from y=148 (<= 900px wide), head top =
-    max(headline_bottom + 24, 222), frame top 340, nameplate 955..1145.
+    max(headline_bottom + 24, 222), frame top 340, nameplate 955..1118.
     Layout metrics are returned in result.info["popout_layout"].
     """
     if template_image is None:
@@ -2329,8 +2312,8 @@ def composite_template_swap(
         border_px = max(8, int(round(12 * (W / 1080.0))))
         if is_welcome_layout:
             # Team Welcome: frame top 340 (dedicated headline band above a ~118px head pop-out),
-            # photo window down to y=955, nameplate y=955..1145.
-            fy_ref, ih_ref, nh_ref = WELCOME_FRAME_TOP, 603, 190
+            # photo window down to y=955, nameplate y=955..1118.
+            fy_ref, ih_ref, nh_ref = WELCOME_FRAME_TOP, 603, 163
         else:
             fy_ref, ih_ref, nh_ref = 370, 638, 210
         nh = int(round(nh_ref * (H / 1350.0)))
@@ -2618,7 +2601,7 @@ def composite_template_swap(
         placement_info = None
 
         if affine_matrix is None:
-            # Executive Studio Retouching: S-curve B&W grade + shadow tint + alpha feathering + rim lighting
+            # Studio grade, shadow tint and feathered matte without a bright boundary.
             graded = enhance_studio_portrait(subject_rgba, theme)
             w_bgr, w_alpha, placement_info = place_popout_subject(
                 graded, (W, H), head_top_y=head_top_y, center_x=W // 2,
@@ -2645,8 +2628,12 @@ def composite_template_swap(
         subject_px_top = int(subj_rows[0]) if subj_rows.size else None
 
         composite = clean_plate.copy().astype(np.float32)
+        # Fade the suit gently into the nameplate seam over the last 18 artboard pixels.
+        shadow_h = max(1, int(round(18 * H / 1350.0)))
+        seam_shadow = np.clip((y_grid - (ny - shadow_h)) / max(1, shadow_h - 1), 0, 1) * 0.28
+        portrait_bgr = w_bgr.astype(np.float32) * (1.0 - seam_shadow[:, :, None])
         for c in range(3):
-            composite[:, :, c] = composite[:, :, c] * (1.0 - eff_alpha) + w_bgr[:, :, c].astype(np.float32) * eff_alpha
+            composite[:, :, c] = composite[:, :, c] * (1.0 - eff_alpha) + portrait_bgr[:, :, c] * eff_alpha
         composite = np.clip(composite, 0, 255).astype(np.uint8)
 
         # 6. Layer 4: Nameplate (Solid White Box with 1px divider seam + 5px Status Tile Accent)
@@ -2686,7 +2673,6 @@ def composite_template_swap(
 
             margin_r = int(round(64 * (W / 1080.0)))
             max_np_w = nw - 2 * margin_r
-            y_name = int(round(22 * (H / 1350.0)))
 
             font_name_size = int(round(52 * (H / 1350.0)))
             f_name = get_font(role="name", size=font_name_size, lang="ar")
@@ -2700,7 +2686,6 @@ def composite_template_swap(
 
             nw_px = bbox_n[2] - bbox_n[0]
             x_right = nw - margin_r
-            draw_np.text((x_right - nw_px - bbox_n[0], y_name), r_name, font=f_name, fill=dark_navy)
 
             # Role & Accent Pill (5px wide x 26px tall, vertically centered)
             font_role_size = int(round(28 * (H / 1350.0)))
@@ -2713,7 +2698,12 @@ def composite_template_swap(
                     break
                 font_role_size -= 1
 
-            y_pill = y_name + bbox_n[3] + int(round(14 * (H / 1350.0)))
+            name_ink_h = bbox_n[3] - bbox_n[1]
+            role_row_h = max(pill_h, bbox_r[3] - bbox_r[1])
+            gap = int(round(14 * H / 1350.0))
+            block_top = (nh - name_ink_h - gap - role_row_h) / 2.0
+            draw_np.text((x_right - nw_px - bbox_n[0], block_top - bbox_n[1]), r_name, font=f_name, fill=dark_navy)
+            y_pill = block_top + name_ink_h + gap + (role_row_h - pill_h) / 2.0
             rx = x_right - pill_w
             draw_np.rounded_rectangle([rx, y_pill, rx + pill_w, y_pill + pill_h], radius=pill_radius, fill=tech_green)
 
@@ -2730,7 +2720,6 @@ def composite_template_swap(
 
             margin_l = int(round(64 * (W / 1080.0)))
             max_np_w = nw - 2 * margin_l
-            y_name = int(round(22 * (H / 1350.0)))
 
             font_name_size = int(round(52 * (H / 1350.0)))
             font_bold = get_font(role="name", size=font_name_size, lang="en")
@@ -2742,8 +2731,6 @@ def composite_template_swap(
                     break
                 font_name_size -= 2
 
-            draw_np.text((margin_l, y_name), clean_name, font=font_bold, fill=dark_navy)
-            bbox_n = draw_np.textbbox((margin_l, y_name), clean_name, font=font_bold)
 
             # Role & Accent Pill (5px wide x 26px tall, vertically centered)
             raw_role = (person_title or preset["role_en"]).strip()
@@ -2760,7 +2747,12 @@ def composite_template_swap(
                     break
                 font_role_size -= 1
 
-            y_pill = bbox_n[3] + int(round(14 * (H / 1350.0)))
+            name_ink_h = bbox_n[3] - bbox_n[1]
+            role_row_h = max(pill_h, bbox_r[3] - bbox_r[1])
+            gap = int(round(14 * H / 1350.0))
+            block_top = (nh - name_ink_h - gap - role_row_h) / 2.0
+            draw_np.text((margin_l - bbox_n[0], block_top - bbox_n[1]), clean_name, font=font_bold, fill=dark_navy)
+            y_pill = block_top + name_ink_h + gap + (role_row_h - pill_h) / 2.0
             rx = margin_l
             draw_np.rounded_rectangle([rx, y_pill, rx + pill_w, y_pill + pill_h], radius=pill_radius, fill=tech_green)
 
@@ -2812,38 +2804,21 @@ def composite_template_swap(
                     draw_brand_header(band, header_theme, is_ar=is_ar, custom_logo=logo_image)
                     comp_pil.paste(band.resize((W, band_h), Image.Resampling.LANCZOS), (0, 0))
                 draw_top = ImageDraw.Draw(comp_pil)
-            user_logo_pil = None
         else:
-            user_logo_pil = load_logo_pil(logo_image)
-
-        if use_lexnis and user_logo_pil is not None:
-            if user_logo_pil.mode != "RGBA":
-                user_logo_pil = user_logo_pil.convert("RGBA")
-            target_lh = int(round(32 * (H / 1350.0)))
-            max_lw = int(round(260 * (W / 1080.0)))
-            orig_lw, orig_lh = user_logo_pil.size
-            if orig_lh > 0 and orig_lw > 0:
-                scale = min(target_lh / float(orig_lh), max_lw / float(orig_lw))
-                new_lw = max(1, int(round(orig_lw * scale)))
-                new_lh = max(1, int(round(orig_lh * scale)))
-                user_logo_resized = user_logo_pil.resize((new_lw, new_lh), Image.Resampling.LANCZOS)
-                comp_pil.paste(user_logo_resized, (lx, ly), user_logo_resized)
-        elif use_lexnis:
-            logo_h = int(round(28 * (H / 1350.0)))
-            logo_img = render_lexnis_logo(height=logo_h, is_dark_bg=True)
-            comp_pil.paste(logo_img, (lx, ly), logo_img)
-
-        if use_lexnis:
-            f_tag = get_font("Cairo" if is_ar else "Inter", int(round(20 * (H / 1350.0))), weight="bold" if is_ar else "medium")
-            if is_ar:
-                final_tag = brand_tag if (brand_tag and re.search(r"[\u0600-\u06FF]", brand_tag)) else preset["tag_ar"]
-                r_tag = prepare_bidi_text(final_tag)
-                tag_w = draw_top.textbbox((0, 0), r_tag, font=f_tag)[2] - draw_top.textbbox((0, 0), r_tag, font=f_tag)[0]
-                draw_top.text((W - lx - tag_w, ly + int(round(4 * (H / 1350.0)))), r_tag, font=f_tag, fill=(255, 255, 255))
+            header_theme = dataclasses.replace(
+                theme,
+                hashtag_en=sanitize_brand_tag(brand_tag or preset["tag_en"], brand_name or "Lexnis Technologies"),
+                hashtag_ar=brand_tag if (brand_tag and re.search(r"[\u0600-\u06FF]", brand_tag)) else preset["tag_ar"],
+            )
+            if W == 1080:
+                draw_brand_header(comp_pil, header_theme, is_ar=is_ar, custom_logo=logo_image)
             else:
-                final_tag = sanitize_brand_tag(brand_tag or preset["tag_en"], brand_name or "Lexnis Technologies")
-                tag_w = draw_top.textbbox((0, 0), final_tag, font=f_tag)[2] - draw_top.textbbox((0, 0), final_tag, font=f_tag)[0]
-                draw_top.text((W - lx - tag_w, ly + int(round(4 * (H / 1350.0)))), final_tag, font=f_tag, fill=(255, 255, 255))
+                kf = 1080.0 / W
+                band_h = min(H, int(math.ceil(150 / kf)))
+                band = comp_pil.crop((0, 0, W, band_h)).resize((1080, int(round(band_h * kf))), Image.Resampling.LANCZOS)
+                draw_brand_header(band, header_theme, is_ar=is_ar, custom_logo=logo_image)
+                comp_pil.paste(band.resize((W, band_h), Image.Resampling.LANCZOS), (0, 0))
+            draw_top = ImageDraw.Draw(comp_pil)
 
         # 8. Layer 6: Clean Single Footer Caption (ZERO duplication / ghost lines)
         font_foot_size = int(round(25 * (H / 1350.0)))
@@ -3780,24 +3755,28 @@ def draw_brand_header(
     logo_pasted = False
 
     logo_to_load = custom_logo or brand_theme.logo_path
+    if not logo_to_load and brand_theme.is_lexnis:
+        bundled_logo = Path(__file__).resolve().parent / "static" / "assets" / "brand_logo.png"
+        if bundled_logo.is_file():
+            logo_to_load = bundled_logo
     if logo_to_load and not brand_theme.is_lexnis and "lexnis" in str(logo_to_load).lower():
         logo_to_load = None
     if logo_to_load:
         p_logo = load_logo_pil(logo_to_load, is_dark_bg=True)
         if p_logo:
-            max_lh = 48
+            max_lh = 46
             max_lw = 240
             aspect = p_logo.width / float(p_logo.height) if p_logo.height > 0 else 1.0
             target_lh = min(max_lh, int(round(max_lw / aspect)))
             target_lw = int(round(target_lh * aspect))
             logo_resized = p_logo.resize((target_lw, target_lh), Image.Resampling.LANCZOS)
-            canvas.paste(logo_resized, (72, 72), logo_resized)
+            canvas.paste(logo_resized, (80, 68 + (46 - target_lh) // 2), logo_resized)
             logo_pasted = True
 
     if not logo_pasted:
         if brand_theme.is_lexnis:
             official_logo = render_lexnis_logo(height=32, is_dark_bg=True)
-            canvas.paste(official_logo, (72, 72), official_logo)
+            canvas.paste(official_logo, (80, 91 - official_logo.height // 2), official_logo)
         else:
             badge_size = 46
             badge_radius = 12
@@ -3878,7 +3857,19 @@ def draw_brand_header(
     disp_tag = prepare_bidi_text(tag_str) if is_ar else tag_str
     tag_bbox = draw.textbbox((0, 0), disp_tag, font=f_tag)
     tag_w = tag_bbox[2] - tag_bbox[0]
-    draw.text((1008 - tag_w, 78), disp_tag, font=f_tag, fill=brand_theme.secondary_accent)
+    if tag_str:
+        tag_h = tag_bbox[3] - tag_bbox[1]
+        pill = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+        pd = ImageDraw.Draw(pill)
+        pd.rounded_rectangle([1008 - tag_w - 32, 91 - tag_h / 2 - 8, 1008, 91 + tag_h / 2 + 8],
+                             radius=18, fill=(255, 255, 255, 20), outline=(255, 255, 255, 41), width=1)
+        if canvas.mode == "RGBA":
+            canvas.alpha_composite(pill)
+        else:
+            canvas.paste(Image.alpha_composite(canvas.convert("RGBA"), pill).convert(canvas.mode))
+        draw = ImageDraw.Draw(canvas)
+        draw.text((1008 - tag_w - 16 - tag_bbox[0], 91 - tag_h / 2 - tag_bbox[1]),
+                  disp_tag, font=f_tag, fill=brand_theme.secondary_accent)
 
     return ImageDraw.Draw(canvas)
 
@@ -4319,10 +4310,10 @@ def render_agency_card(
         inner_cursor_y += 10
 
     # Row 4 (Hairline divider + 3 metadata chips)
-    divider_rel_y = inner_cursor_y
     chip_rel_y = inner_cursor_y + 22
     chip_h = 56
     card_h = (chip_rel_y + chip_h) + 30
+    divider_rel_y = card_h - 102
 
     card_x1 = 72
     card_w = 936
@@ -4405,22 +4396,30 @@ def render_agency_card(
 
     # Card Watermark
     if brand_theme.is_lexnis:
-        wm_h = min(180, card_h_int - 60)
+        watermark = Image.new("RGBA", card_layer.size, (0, 0, 0, 0))
+        wm_draw = ImageDraw.Draw(watermark)
+        wm_h = min(180, card_h_int - 135)
         wm_w = int(round(wm_h * (336.0 / 284.0)))
         wm_dx = int(round((wm_h / 2.0) / math.tan(math.radians(52.0))))
         wm_t = wm_w - wm_dx
         wm_pitch = int(round(wm_h * (261.0 / 284.0)))
         wm_total_w = wm_pitch + wm_w
-        wm_color = (83, 184, 73, 9)
-        wm_x0 = 36 if is_ar else (card_w - wm_total_w - 24)
-        wm_y0 = card_h_int - wm_h + 20
+        wm_color = brand_theme.primary_accent + (18,)
+        wm_x0 = card_w - wm_total_w - 24
+        wm_y0 = 20
         for p_offset in [0, wm_pitch]:
             cx = wm_x0 + p_offset
             pts = [
                 (cx, wm_y0), (cx + wm_t, wm_y0), (cx + wm_w, wm_y0 + wm_h / 2.0),
                 (cx + wm_t, wm_y0 + wm_h), (cx, wm_y0 + wm_h), (cx + wm_dx, wm_y0 + wm_h / 2.0)
             ]
-            c_draw.polygon(pts, fill=wm_color)
+            wm_draw.polygon(pts, fill=wm_color)
+        # Blend BEFORE applying the rounded card mask: replacing alpha on unblended
+        # polygons would turn even alpha=18 into solid green.
+        card_layer.alpha_composite(watermark)
+        c_draw = ImageDraw.Draw(card_layer)
+
+    c_draw.line([(36, divider_rel_y), (card_w - 36, divider_rel_y)], fill=(226, 232, 240, 255), width=1)
 
     # Perimeter border
     c_draw.rounded_rectangle([0, 0, card_w - 1, card_h_int - 1], radius=16, outline=(255, 255, 255, 242), width=1)
@@ -4486,7 +4485,7 @@ def render_agency_card(
     chips_data = card_data.get("chips")
     if not chips_data or len(chips_data) < 3:
         if is_hiring:
-            chips_data = [("المنامة، البحرين" if is_ar else "Manama, Bahrain"), ("دوام كامل • هجين" if is_ar else "Full-Time / Hybrid"), (f"مختبر {brand_theme.clean_slug}" if is_ar else f"{brand_theme.clean_slug} AI Lab")]
+            chips_data = [("المنامة، البحرين" if is_ar else "Manama, Bahrain"), ("دوام كامل • هجين" if is_ar else "Full-Time / Hybrid"), (f"مختبر {brand_theme.clean_slug}" if is_ar else f"{brand_theme.clean_slug} Core Lab")]
         elif is_launch:
             chips_data = ["استجابة فورية أقل من 8ms", "دقة كشف 99.4%", "تشغيل محلي آمن 100%"] if is_ar else ["< 8ms Edge Latency", "99.4% Defect Accuracy", "100% On-Premise"]
         elif is_edu:
@@ -4496,11 +4495,11 @@ def render_agency_card(
         else:
             chips_data = ["جاهزية مؤسسية", "اعتمادية 99.9%", "نطاق عالمي"] if is_ar else ["Enterprise Proven", "99.9% Reliability", "Global Scale"]
 
-    f_chip_path = (FONTS_DIR / "Cairo-SemiBold.ttf") if is_ar else (FONTS_DIR / "Poppins-Medium.ttf")
+    f_chip_path = (FONTS_DIR / "Cairo-SemiBold.ttf") if is_ar else (FONTS_DIR / "Inter-SemiBold.ttf")
 
     chip_y_grad = np.linspace(0.0, 1.0, chip_h, dtype=np.float32)[:, None]
     chip_c_top = np.array([248, 250, 252], dtype=np.float32)
-    chip_c_bot = np.array([239, 244, 241], dtype=np.float32)
+    chip_c_bot = chip_c_top
     chip_rgb = (chip_c_top * (1.0 - chip_y_grad) + chip_c_bot * chip_y_grad).astype(np.uint8)
     chip_2d = np.tile(chip_rgb[:, None, :], (1, chip_w, 1))
 
@@ -4518,7 +4517,7 @@ def render_agency_card(
         chip_surf.putalpha(chip_mask)
 
         cs_draw = ImageDraw.Draw(chip_surf)
-        cs_draw.rounded_rectangle([0, 0, chip_w - 1, chip_h - 1], radius=8, outline=(220, 229, 223, 255), width=1)
+        cs_draw.rounded_rectangle([0, 0, chip_w - 1, chip_h - 1], radius=8, outline=(226, 232, 240, 255), width=1)
         canvas.paste(chip_surf, (int(round(cx1)), int(round(cy1))), chip_surf)
         draw = ImageDraw.Draw(canvas)
 
@@ -4571,6 +4570,48 @@ def render_agency_card(
         sx = (1008 - sw) if is_ar else 72
         draw.text((sx, cur_sub_y), disp_sline, font=f_sub, fill=soft_white)
         cur_sub_y += subcopy_stride
+
+    if is_hiring or is_launch:
+        # Reserve the gap before the CTA for useful, localised role/product details.
+        focus_y = max(1045, int(cur_sub_y + 12))
+        cta_y = max(cta_y, focus_y + 112)
+        label = "مجالات التركيز الأساسية" if is_ar else "KEY FOCUS AREAS"
+        f_focus = get_font("Cairo" if is_ar else "Inter", 18, weight="semibold")
+        label_disp = prepare_bidi_text(label) if is_ar else label
+        label_box = draw.textbbox((0, 0), label_disp, font=f_focus)
+        label_x = 1008 - (label_box[2] - label_box[0]) if is_ar else 72
+        draw.text((label_x - label_box[0], focus_y - label_box[1]), label_disp, font=f_focus, fill=brand_theme.primary_accent)
+        badges = card_data.get("focus_areas")
+        if not badges:
+            if is_launch:
+                badges = ["استدلال طرفي", "رؤية حاسوبية ثلاثية الأبعاد", "تشغيل محلي آمن"] if is_ar else ["Edge AI & TensorRT", "3D Computer Vision", "Secure On-Premise"]
+            elif re.search(r"ai|vision|machine learning|ذكاء|رؤية|تعلم", str(raw_title), re.I):
+                badges = ["ذكاء طرفي و TensorRT", "رؤية حاسوبية ثلاثية الأبعاد", "VLMs و RAG", "حزمة BHD معفاة من الضرائب"] if is_ar else ["Edge AI & TensorRT", "3D Computer Vision", "VLMs & RAG", "Tax-Free BHD Package"]
+            else:
+                badges = ["تعاون الفريق", "أنظمة قابلة للتوسع", "أثر هندسي"] if is_ar else ["Team Collaboration", "Scalable Systems", "Engineering Impact"]
+        badges = [str(b) for b in badges[:4]]
+        # Fit a single row to the artboard, including Arabic's wider glyphs.
+        badge_size = 21
+        while True:
+            f_badge = get_font("Cairo" if is_ar else "Inter", badge_size, weight="medium")
+            displays = [prepare_bidi_text(b) if is_ar else b for b in badges]
+            boxes = [draw.textbbox((0, 0), b, font=f_badge) for b in displays]
+            widths = [b[2] - b[0] + 24 for b in boxes]
+            if sum(widths) + 10 * (len(widths) - 1) <= 936 or badge_size <= 14:
+                break
+            badge_size -= 1
+        badge_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+        bd = ImageDraw.Draw(badge_layer)
+        badge_y = focus_y + 33
+        cursor = 1008 if is_ar else 72
+        for disp, bb, width in zip(displays, boxes, widths):
+            bx = cursor - width if is_ar else cursor
+            bd.rounded_rectangle([bx, badge_y, bx + width, badge_y + 47], radius=10,
+                                 fill=(255, 255, 255, 18), outline=brand_theme.primary_accent + (89,), width=1)
+            bd.text((bx + 12 - bb[0], badge_y + (47 - (bb[3] - bb[1])) / 2 - bb[1]), disp, font=f_badge, fill=(241, 245, 249, 255))
+            cursor += -(width + 10) if is_ar else width + 10
+        canvas.alpha_composite(badge_layer)
+        draw = ImageDraw.Draw(canvas)
 
     # 10. High-Contrast Executive CTA Button
     f_btn_bold_path = (FONTS_DIR / "Cairo-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-Bold.ttf")
@@ -4643,6 +4684,10 @@ def render_agency_card(
     btn_w = int(round(content_w + pad_x * 2))
     btn_x = (1008 - btn_w) if is_ar else 72
 
+    glow = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    ImageDraw.Draw(glow).rounded_rectangle([btn_x, cta_y, btn_x + btn_w, cta_y + btn_h], radius=btn_h // 2, fill=brand_theme.primary_accent + (77,))
+    canvas.alpha_composite(glow.filter(ImageFilter.GaussianBlur(18)))
+    draw = ImageDraw.Draw(canvas)
     draw.rounded_rectangle([btn_x, cta_y, btn_x + btn_w, cta_y + btn_h], radius=btn_h // 2, fill=brand_theme.secondary_accent)
 
     badge_scale = 4

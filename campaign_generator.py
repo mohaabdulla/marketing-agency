@@ -1394,13 +1394,28 @@ def prepare_bidi_text(text: str) -> str:
     return text
 
 
-def _load_font(size: int, bold: bool = True):
-    for path in _FONT_CANDIDATES[bold]:
+def _load_font(size: int, bold: bool = True, *, lang: str = "en", role: str = "headline"):
+    family = "Cairo" if lang == "ar" else "Montserrat"
+    if role in {"role", "tag", "chip"} or not bold:
+        bundled = [f"{'Cairo' if lang == 'ar' else 'Inter'}-SemiBold.ttf"]
+    elif role == "name":
+        bundled = [f"{family}-Bold.ttf", f"{family}-ExtraBold.ttf"]
+    else:
+        bundled = [f"{family}-ExtraBold.ttf", f"{family}-Bold.ttf"]
+    font_dir = Path(__file__).resolve().parent / "static" / "fonts"
+    for path in [*(str(font_dir / name) for name in bundled), *_FONT_CANDIDATES[bold]]:
         try:
             return ImageFont.truetype(path, size)
         except OSError:
             continue
     return ImageFont.load_default(size=size)
+
+
+def _draw_arabic_aware(draw, xy, text: str, size: int, fill, *, bold: bool = True, role: str = "headline", **kwargs):
+    """Draw shaped text using the same bundled font roles as the card renderer."""
+    lang = "ar" if re.search(r"[\u0600-\u06FF]", text) else "en"
+    font = _load_font(size, bold, lang=lang, role=role)
+    return draw.text(xy, prepare_bidi_text(text), font=font, fill=fill, **kwargs)
 
 
 def _wrap(draw, text: str, font, max_width: int) -> List[str]:
