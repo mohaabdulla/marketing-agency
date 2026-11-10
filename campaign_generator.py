@@ -428,6 +428,10 @@ class CampaignAsset:
     companion_image_url: str = ""
     arabic_companion_image_path: str = ""
     arabic_companion_image_url: str = ""
+    animation_path: str = ""
+    animation_url: str = ""
+    arabic_animation_path: str = ""
+    arabic_animation_url: str = ""
     carousel_urls: List[str] = field(default_factory=list)
     arabic_carousel_urls: List[str] = field(default_factory=list)
 
@@ -1534,7 +1538,7 @@ def generate_companion_image(req_data: dict, brand_theme, output_path: str) -> s
             person = transliterate_to_arabic(person) if person else ""
             role = ARABIC_TITLES_MAP.get(role.lower(), role)
         image = render_companion_showcase(scene, brand_theme, lang, role, person)
-    image = finish_companion_image(image, scene, brand_theme, lang, req_data.get("logo_image"))
+    image = finish_companion_image(image, scene, brand_theme, lang, req_data.get("logo_image"), total_slides=req_data.get("total_slides", 2))
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
     image.save(output, "JPEG", quality=95, subsampling=0)
@@ -1543,21 +1547,107 @@ def generate_companion_image(req_data: dict, brand_theme, output_path: str) -> s
     return str(output)
 
 
+def generate_social_gif(topic: str, post_type: str, output_gif_path: str, *, base_image=None, brand_theme=None, language="en") -> str:
+    """Animate the employee welcome card, or the topic companion for other posts.
+
+    A shared palette keeps text/branding stable between frames. Only the glow,
+    orbiting nodes and caption outline move; no external renderer is needed.
+    """
+    import math
+    from visual_engine import (BrandTheme, resolve_brand_theme, render_companion_showcase,
+                               finish_companion_image, _companion_text,
+                               load_welcome_animation_layers, welcome_animation_frames)
+    language = "ar" if language in ("ar", "arabic") else "en"
+    if not isinstance(brand_theme, BrandTheme):
+        brand_theme = resolve_brand_theme(brand_profile=brand_theme or {}, brand_name=(brand_theme or {}).get("brand_name", "Lexnis Technologies"), post_type=post_type)
+    is_welcome = "welcome" in str(post_type or "").lower()
+    animation_layers = {}
+    if is_welcome and base_image is None:
+        raise ValueError("A welcome GIF requires the generated employee welcome card as base_image.")
+    if base_image is None:
+        scene = build_companion_scene_prompt(topic, post_type, brand_theme.brand_name)
+        base = finish_companion_image(render_companion_showcase(scene, brand_theme, language), scene, brand_theme, language)
+    elif isinstance(base_image, (str, Path)):
+        if is_welcome:
+            animation_layers = load_welcome_animation_layers(base_image)
+        with Image.open(base_image) as source:
+            base = source.convert("RGB")
+    else:
+        animation_layers = base_image.info.get("welcome_animation_layers", {})
+        base = base_image.convert("RGB")
+    base = fit_cover(base, 1080, 1350).convert("RGBA")
+    if is_welcome:
+        rgb_frames = welcome_animation_frames(base, animation_layers, brand_theme, language)
+        palette = base.convert("RGB").quantize(colors=256, method=Image.Quantize.MEDIANCUT)
+        frames = [frame.quantize(palette=palette, dither=Image.Dither.NONE) for frame in rgb_frames]
+        output = Path(output_gif_path)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        frames[0].save(output, format="GIF", save_all=True, append_images=frames[1:],
+                       duration=120, loop=0, disposal=1, optimize=False)
+        return str(output)
+    # Replace the static companion's counter with the loop's kit position.
+    counter = ImageDraw.Draw(base)
+    counter.rounded_rectangle((896, 1058, 988, 1099), radius=10, fill=(4, 27, 21, 255))
+    _companion_text(counter, "03 / 03", (904, 1062, 78, 29), size=17, weight="semibold")
+    accent = brand_theme.primary_accent
+    palette = base.convert("RGB").quantize(colors=256, method=Image.Quantize.MEDIANCUT)
+    frames = []
+    for index in range(36):
+        phase = math.tau * index / 36
+        pulse = (1 - math.cos(phase)) / 2
+        frame = base.copy()
+        # Localised, soft brand glow behind floating architecture nodes.
+        glow = Image.new("RGBA", (350, 290))
+        gd = ImageDraw.Draw(glow)
+        radius = 63 + pulse * 20
+        gd.ellipse((175-radius, 145-radius, 175+radius, 145+radius), fill=accent + (int(12 + pulse*28),))
+        frame.alpha_composite(glow.filter(ImageFilter.GaussianBlur(18)), (555, 475))
+        nodes = Image.new("RGBA", (350, 290))
+        nd = ImageDraw.Draw(nodes)
+        points = []
+        for n in range(5):
+            angle = phase + n * math.tau / 5
+            x, y = 175 + math.cos(angle)*100, 145 + math.sin(angle)*62
+            points.append((x, y))
+            nd.ellipse((x-4, y-4, x+4, y+4), fill=accent + (180,))
+        nd.line(points + points[:1], fill=accent + (32,), width=1)
+        frame.alpha_composite(nodes, (555, 475))
+        border = Image.new("RGBA", frame.size)
+        ImageDraw.Draw(border).rounded_rectangle((72, 1040, 1008, 1240), radius=24,
+                                                 outline=accent + (int(55 + pulse*110),), width=2)
+        frame.alpha_composite(border)
+        frames.append(frame.convert("RGB").quantize(palette=palette, dither=Image.Dither.NONE))
+    output = Path(output_gif_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    frames[0].save(output, format="GIF", save_all=True, append_images=frames[1:],
+                   duration=120, loop=0, disposal=1, optimize=False)
+    return str(output)
+
+
 def generate_campaign_post(primary_card, req_data: dict, brand_theme=None, output_path=None, generate_companion: bool = True) -> dict:
-    """Package a rendered primary into a two-slide post without mutating cached art."""
-    from visual_engine import add_carousel_indicator
+    """Package a graphic, static companion and GIF without mutating cached art."""
+    from visual_engine import add_carousel_indicator, BrandTheme, resolve_brand_theme, load_welcome_animation_layers
+    if not isinstance(brand_theme, BrandTheme):
+        brand_theme = resolve_brand_theme(brand_profile=brand_theme or {}, brand_name=req_data.get("brand_name", "Lexnis Technologies"), post_type=req_data.get("post_type", "general"))
     primary = Path(primary_card) if isinstance(primary_card, (str, Path)) else None
     output = Path(output_path) if output_path else primary.with_name(primary.stem + "_carousel.jpg") if primary else RENDERS_DIR / "primary_card.jpg"
     image = Image.open(primary) if primary else primary_card
+    if primary and "welcome" in str(req_data.get("post_type", "")).lower():
+        image.info["welcome_animation_layers"] = load_welcome_animation_layers(primary)
     output.parent.mkdir(parents=True, exist_ok=True)
     if generate_companion:
         image = fit_cover(image, 1080, 1350)
-        image = add_carousel_indicator(image)
+        image = add_carousel_indicator(image, total_slides=3)
     image.convert("RGB").save(output, "JPEG", quality=95, subsampling=0)
-    companion = ""
+    companion = animation = ""
     if generate_companion:
-        companion = generate_companion_image(req_data, brand_theme, str(output.with_name(output.stem + "_companion.jpg")))
-    return {"primary_card": str(output), "companion_image": companion, "carousel_paths": [str(output), companion] if companion else [str(output)]}
+        companion = generate_companion_image({**req_data, "total_slides": 3}, brand_theme, str(output.with_name(output.stem + "_companion.jpg")))
+        animation = generate_social_gif(req_data.get("topic", req_data.get("prompt", "")), req_data.get("post_type", "general"),
+                                        str(output.with_name(output.stem + "_anim.gif")),
+                                        base_image=image if "welcome" in str(req_data.get("post_type", "")).lower() else companion,
+                                        brand_theme=brand_theme, language=req_data.get("language", "en"))
+    return {"primary_card": str(output), "companion_image": companion, "animation": animation,
+            "carousel_paths": [str(output), companion, animation] if companion else [str(output)]}
 
 
 def _wrap(draw, text: str, font, max_width: int) -> List[str]:
@@ -3960,7 +4050,8 @@ class LexnisCampaignStudio:
             render_agency_card,
             resolve_brand_theme,
             BrandTheme,
-            ARABIC_TITLES_MAP
+            ARABIC_TITLES_MAP,
+            save_welcome_animation_layers,
         )
         # Bundled reference frame / sample subject live in the project root (RENDERS_DIR.parent is output/).
         ref_template = BASE_DIR / "test_assets" / "template_reference.jpg"
@@ -4164,6 +4255,7 @@ class LexnisCampaignStudio:
                     post_type=post_type or "team_welcome",
                     brand_theme=swap_theme,
                 )
+                save_welcome_animation_layers(swap_img, post_path)
                 swap_img.save(clean_path, "JPEG", quality=95, optimize=True)
                 swap_img.save(post_path, "JPEG", quality=95, optimize=True)
 
@@ -4197,6 +4289,7 @@ class LexnisCampaignStudio:
                     post_type=post_type or "team_welcome",
                     brand_theme=swap_theme,
                 )
+                save_welcome_animation_layers(swap_ar_img, post_ar_path)
                 swap_ar_img.save(post_ar_path, "JPEG", quality=95, optimize=True)
 
             watermark_free = True
@@ -4736,7 +4829,7 @@ class LexnisCampaignStudio:
             watermark_free = True
             image_status = "ready"
 
-        companion_en = companion_ar = ""
+        companion_en = companion_ar = animation_en = animation_ar = ""
         if generate_companion and primary_post:
             step("Creating the paired topic companion images...")
             pair_theme = resolve_brand_theme(brand_profile=brand_dna, uploaded_logo_path=logo_to_use,
@@ -4753,13 +4846,13 @@ class LexnisCampaignStudio:
                 pair = generate_campaign_post(old_path, {**pair_request, "language": lang}, pair_theme)
                 paired_path = Path(pair["primary_card"])
                 if lang == "en":
-                    primary_post, companion_en = paired_path, pair["companion_image"]
+                    primary_post, companion_en, animation_en = paired_path, pair["companion_image"], pair["animation"]
                     if ai_post_path == old_path:
                         ai_post_path = paired_path
                     if uploaded_post_en == old_path:
                         uploaded_post_en = paired_path
                 else:
-                    primary_arabic, companion_ar = paired_path, pair["companion_image"]
+                    primary_arabic, companion_ar, animation_ar = paired_path, pair["companion_image"], pair["animation"]
                     if ai_arabic_path == old_path:
                         ai_arabic_path = paired_path
                     if uploaded_post_ar == old_path:
@@ -4818,8 +4911,12 @@ class LexnisCampaignStudio:
             companion_image_url=f"/renders/{Path(companion_en).name}" if companion_en else "",
             arabic_companion_image_path=companion_ar,
             arabic_companion_image_url=f"/renders/{Path(companion_ar).name}" if companion_ar else "",
-            carousel_urls=([f"/renders/{primary_post.name}"] + ([f"/renders/{Path(companion_en).name}"] if companion_en else [])) if primary_post else [],
-            arabic_carousel_urls=([f"/renders/{primary_arabic.name}"] + ([f"/renders/{Path(companion_ar).name}"] if companion_ar else [])) if primary_arabic else [],
+            animation_path=animation_en,
+            animation_url=f"/renders/{Path(animation_en).name}" if animation_en else "",
+            arabic_animation_path=animation_ar,
+            arabic_animation_url=f"/renders/{Path(animation_ar).name}" if animation_ar else "",
+            carousel_urls=([f"/renders/{primary_post.name}"] + [f"/renders/{Path(p).name}" for p in (companion_en, animation_en) if p]) if primary_post else [],
+            arabic_carousel_urls=([f"/renders/{primary_arabic.name}"] + [f"/renders/{Path(p).name}" for p in (companion_ar, animation_ar) if p]) if primary_arabic else [],
         )
 
     def template_swap_composite(
@@ -4874,9 +4971,10 @@ class LexnisCampaignStudio:
             shutil.copyfile(asset.arabic_image_path, image_ar_file)
             files["arabic_image"] = str(image_ar_file)
 
-        for key, source in (("companion_image", asset.companion_image_path), ("arabic_companion_image", asset.arabic_companion_image_path)):
+        for key, source in (("companion_image", asset.companion_image_path), ("arabic_companion_image", asset.arabic_companion_image_path),
+                            ("animation", asset.animation_path), ("arabic_animation", asset.arabic_animation_path)):
             if source and Path(source).exists():
-                target = out / f"{slug}_{key}.jpg"
+                target = out / f"{slug}_{key}{Path(source).suffix}"
                 shutil.copyfile(source, target)
                 files[key] = str(target)
 
@@ -5063,6 +5161,10 @@ def run_cli():
         print(f"COMPANION: {asset.companion_image_path}")
     if asset.arabic_companion_image_path:
         print(f"ARABIC COMPANION: {asset.arabic_companion_image_path}")
+    if asset.animation_path:
+        print(f"ANIMATION: {asset.animation_path}")
+    if asset.arabic_animation_path:
+        print(f"ARABIC ANIMATION: {asset.arabic_animation_path}")
 
     if args.download:
         files = studio.export_campaign(asset, output_dir=args.outdir)

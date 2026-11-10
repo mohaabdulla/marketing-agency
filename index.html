@@ -2285,17 +2285,17 @@
       if (!container) return;
       const en = data.carousel_urls || [];
       const ar = data.arabic_carousel_urls || [];
-      const pair = (language === 'ar' && ar.length === 2) ? ar : en;
-      container.classList.toggle('hidden', pair.length !== 2);
+      const pair = (language === 'ar' && ar.length >= 2) ? ar : en;
+      container.classList.toggle('hidden', pair.length < 2);
       container.replaceChildren();
-      if (pair.length !== 2) return;
+      if (pair.length < 2) return;
       const controls = document.createElement('div');
       controls.className = 'flex items-center justify-between gap-3';
       const title = document.createElement('span');
       title.className = 'text-xs font-bold text-emerald-300';
-      title.textContent = 'Your two-slide carousel';
+      title.textContent = pair.length === 3 ? 'Your 3-card social media kit' : 'Your two-slide carousel';
       controls.appendChild(title);
-      if (ar.length === 2 && data.language !== 'ar') {
+      if (ar.length >= 2 && data.language !== 'ar') {
         const selector = document.createElement('select');
         selector.className = 'bg-obsidian-950 text-slate-200 border border-obsidian-700 rounded px-2 py-1 text-xs';
         selector.setAttribute('aria-label', 'Carousel language');
@@ -2308,27 +2308,28 @@
         controls.appendChild(selector);
       }
       const grid = document.createElement('div');
-      grid.className = 'grid grid-cols-1 sm:grid-cols-2 gap-3.5';
+      grid.className = pair.length === 3 ? 'grid grid-cols-1 lg:grid-cols-3 gap-3.5' : 'grid grid-cols-1 sm:grid-cols-2 gap-3.5';
       pair.forEach((url, index) => {
         const card = document.createElement('div');
         card.className = 'rounded-xl border border-emerald-500/30 bg-obsidian-950 p-3 space-y-3';
         const label = document.createElement('p');
         label.className = 'text-xs text-slate-200 font-semibold';
-        label.textContent = index === 0 ? 'Slide 1: Primary Graphic' : 'Slide 2: Topic Companion';
+        label.textContent = ['Card 1: Primary Graphic', 'Card 2: Topic Companion', 'Card 3: Animated Social Loop (GIF)'][index];
         const img = document.createElement('img');
         img.src = resolveBackendUrl(url); img.alt = label.textContent;
         img.className = 'w-full rounded-lg object-contain';
         img.style.aspectRatio = '4 / 5';
         const download = document.createElement('button');
-        download.type = 'button'; download.className = 'text-xs text-emerald-300 hover:text-white';
-        download.textContent = 'Download Slide ' + (index + 1);
-        download.addEventListener('click', () => downloadAssetByUrl(resolveBackendUrl(url), 'slide-' + (index + 1)));
+        download.type = 'button';
+        download.className = index === 2 ? 'w-full py-2 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-xs font-bold' : 'text-xs text-emerald-300 hover:text-white';
+        download.textContent = index === 2 ? 'Download GIF' : 'Download Static Card ' + (index + 1);
+        download.addEventListener('click', () => downloadAssetByUrl(resolveBackendUrl(url), index === 2 ? 'animation' : 'card-' + (index + 1)));
         card.append(label, img, download); grid.appendChild(card);
       });
       const both = document.createElement('button');
       both.type = 'button';
       both.className = 'w-full py-2.5 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-xs font-bold';
-      both.textContent = 'Download Both';
+      both.textContent = pair.length === 3 ? 'Download Complete Kit (.zip)' : 'Download Both';
       both.addEventListener('click', async () => {
         both.disabled = true;
         try {
@@ -2339,7 +2340,7 @@
           if (!response.ok) throw new Error('Carousel download failed');
           const blobUrl = URL.createObjectURL(await response.blob());
           const link = document.createElement('a');
-          link.href = blobUrl; link.download = `campaign-carousel-${language}.zip`;
+          link.href = blobUrl; link.download = `campaign-social-kit-${language}.zip`;
           document.body.appendChild(link); link.click(); link.remove();
           setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
         } catch (err) { showToast(err.message, false); }
@@ -3451,7 +3452,7 @@
           }
           if (quickSwapResultImg && data.image_url) {
             renderCarouselPreview('quick-swap-carousel', data, data.language === 'ar' ? 'ar' : 'en');
-            quickSwapResultImg.classList.toggle('hidden', (data.carousel_urls || []).length === 2);
+            quickSwapResultImg.classList.toggle('hidden', (data.carousel_urls || []).length >= 2);
             quickSwapResultImg.src = data.image_url;
             if (quickSwapDownloadLink) quickSwapDownloadLink.href = data.image_url;
             if (quickSwapResultBox) {
@@ -3910,7 +3911,7 @@
           }
         }
       }
-      const pairAvailable = currentCarouselData && (currentCarouselData.carousel_urls || []).length === 2 && mode !== 'clean';
+      const pairAvailable = currentCarouselData && (currentCarouselData.carousel_urls || []).length >= 2 && mode !== 'clean';
       renderCarouselPreview('carousel-preview', pairAvailable ? currentCarouselData : {}, mode === 'ar' ? 'ar' : 'en');
       if (pairAvailable) {
         dualVisualContainer.classList.add('hidden');
@@ -3989,7 +3990,8 @@
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         const slug = (brandInput.value.trim() || 'campaign').toLowerCase().replace(/[^a-z0-9]+/g, '-');
-        a.download = `${slug}-${suffix}-${currentSeed}.jpg`;
+        const extension = new URL(url, location.href).pathname.toLowerCase().endsWith('.gif') ? 'gif' : 'jpg';
+        a.download = `${slug}-${suffix}-${currentSeed}.${extension}`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -5644,6 +5646,8 @@
             arabic_image_url: currentArabicImageUrl,
             companion_image_url: currentCarouselData?.companion_image_url || '',
             arabic_companion_image_url: currentCarouselData?.arabic_companion_image_url || '',
+            animation_url: currentCarouselData?.animation_url || '',
+            arabic_animation_url: currentCarouselData?.arabic_animation_url || '',
             seed: currentSeed,
             brand: brandInput.value.trim(),
             cta: (currentEnglishPackage.cta || copyCta.textContent).trim().replace(/^—$/, ''),
@@ -6056,7 +6060,7 @@ Deployable directly into legacy PLC racks and air-gapped SCADA environments, Lex
             const data = await response.json();
             lastSwapImageUrl = data.image_url;
             renderCarouselPreview('swap-carousel', data, data.language === 'ar' ? 'ar' : 'en');
-            if (swapResultImg) swapResultImg.classList.toggle('hidden', (data.carousel_urls || []).length === 2);
+            if (swapResultImg) swapResultImg.classList.toggle('hidden', (data.carousel_urls || []).length >= 2);
             if (data.arabic_image_url) {
               currentArabicImageUrl = data.arabic_image_url;
             }

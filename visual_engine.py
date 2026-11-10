@@ -166,7 +166,7 @@ def render_companion_showcase(scene: dict, brand_theme, lang="en", role_title=""
     return canvas
 
 
-def finish_companion_image(image: Image.Image, scene: dict, brand_theme, lang="en", custom_logo=None) -> Image.Image:
+def finish_companion_image(image: Image.Image, scene: dict, brand_theme, lang="en", custom_logo=None, total_slides=2) -> Image.Image:
     """Shared brand header and editorial caption bar for GPU and CPU scenes."""
     layout = image.info.get("companion_layout", {"text_boxes": []})
     canvas = ImageOps.fit(image.convert("RGBA"), (1080, 1350), method=Image.Resampling.LANCZOS)
@@ -179,21 +179,115 @@ def finish_companion_image(image: Image.Image, scene: dict, brand_theme, lang="e
     draw = ImageDraw.Draw(canvas)
     ar = lang == "ar"
     _companion_text(draw, scene["overlay_pill_ar" if ar else "overlay_pill"], (100, 1062, 775, 29), size=18, lang=lang, weight="semibold", fill=brand_theme.primary_accent, boxes=boxes)
-    _companion_text(draw, "02 / 02", (904, 1062, 78, 29), size=17, weight="semibold", boxes=boxes)
+    _companion_text(draw, f"02 / {total_slides:02}", (904, 1062, 78, 29), size=17, weight="semibold", boxes=boxes)
     _companion_text(draw, scene["hook_ar" if ar else "hook"], (100, 1110, 880, 44), size=34, lang=lang, weight="bold", boxes=boxes)
     _companion_text(draw, scene["caption_ar" if ar else "caption"], (100, 1178, 880, 34), size=22, lang=lang, fill=(191, 211, 203), boxes=boxes)
     canvas.info["companion_layout"] = {**layout, "text_boxes": boxes, "caption_bar": (72, 1040, 1008, 1240)}
     return canvas.convert("RGB")
 
 
-def add_carousel_indicator(image: Image.Image) -> Image.Image:
+def _animation_delta(before, after) -> Image.Image:
+    """Extract only changed pixels from an already typeset layer."""
+    previous = np.asarray(before.convert("RGB")) if isinstance(before, Image.Image) else before
+    current = np.asarray(after.convert("RGB"))
+    alpha = np.any(previous != current, axis=2).astype(np.uint8) * 255
+    return Image.fromarray(np.dstack([current, alpha]))
+
+
+def save_welcome_animation_layers(image: Image.Image, primary_path) -> None:
+    """Keep lossless welcome layers beside cached JPGs for later GIF rendering."""
+    layers = image.info.get("welcome_animation_layers")
+    if not layers:
+        return
+    directory = Path(primary_path).with_suffix(".welcome_layers")
+    directory.mkdir(parents=True, exist_ok=True)
+    manifest = {}
+    for name, layer in layers.items():
+        bounds = layer.getbbox() if layer.mode == "RGBA" else (0, 0, *layer.size)
+        if bounds is None:
+            continue
+        layer.crop(bounds).save(directory / f"{name}.png")
+        manifest[name] = list(bounds)
+    (directory / "layers.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+
+def load_welcome_animation_layers(primary_path) -> dict:
+    directory = Path(primary_path).with_suffix(".welcome_layers")
+    manifest = directory / "layers.json"
+    if not manifest.is_file():
+        return {}
+    layers = {}
+    for name, bounds in json.loads(manifest.read_text(encoding="utf-8")).items():
+        layer = Image.new("RGBA", (1080, 1350))
+        with Image.open(directory / f"{name}.png") as tile:
+            layer.paste(tile.convert("RGBA"), (bounds[0], bounds[1]))
+        layers[name] = layer
+    return layers
+
+
+def welcome_animation_frames(card: Image.Image, layers: dict, brand_theme, language="en"):
+    """Stagger the original welcome artwork into place, hold, then fade to loop."""
+    card = card.convert("RGBA")
+    if not layers:
+        # Older flattened cards still animate their own employee and text. New
+        # renders use the lossless cutout, type and background layers below.
+        background = Image.new("RGBA", card.size, brand_theme.bg_dark_end + (255,))
+        layers = {"background": background}
+        for name, top, bottom in (("header", 0, 130), ("headline", 130, 220),
+                                  ("portrait", 220, 955), ("name", 955, 1045),
+                                  ("role", 1045, 1118), ("frame", 1118, 1220),
+                                  ("footer", 1220, 1350)):
+            layer = Image.new("RGBA", card.size)
+            layer.paste(card.crop((0, top, card.width, bottom)), (0, top))
+            layers[name] = layer
+    background = layers["background"].convert("RGBA")
+    # The animation is kit asset 03; keep the counter away from the employee's name.
+    final = card.copy()
+    fd = ImageDraw.Draw(final)
+    fd.rounded_rectangle((896, 1307, 1008, 1334), radius=12, fill=(4, 27, 21, 255))
+    _companion_text(fd, "03 / 03", (908, 1312, 88, 17), size=13, weight="semibold")
+    direction = -1 if language == "ar" else 1
+    stages = [
+        ("frame", .36, .60, 0, 34),
+        ("header", 0, .48, 0, -18),
+        ("headline", .12, .60, 0, 24),
+        ("portrait", .60, .84, 0, 48),
+        ("name", 1.08, .60, 42*direction, 0),
+        ("role", 1.32, .60, 32*direction, 0),
+        ("footer", 1.56, .60, 0, 18),
+    ]
+    for index in range(36):
+        time = index * .12
+        frame = background.copy()
+        for name, start, duration, dx, dy in stages:
+            progress = max(0., min(1., (time-start) / duration))
+            if not progress or name not in layers:
+                continue
+            eased = 1 - (1-progress)**3
+            layer = layers[name].copy()
+            if eased < 1:
+                layer.putalpha(layer.getchannel("A").point(lambda a: round(a*eased)))
+            frame.alpha_composite(layer, (round(dx*(1-eased)), round(dy*(1-eased))))
+        if time >= 2.16:
+            # The readable hold is the exact generated card, with no re-rendered
+            # face or typography and no architecture effects over the portrait.
+            frame = final.copy()
+        # Fade back to the clean brand backdrop before the next entrance.
+        outro = max(0., min(1., (time-3.48) / .72))
+        if outro:
+            outro = outro*outro*(3-2*outro)
+            frame = Image.blend(frame, background, outro)
+        yield frame.convert("RGB")
+
+
+def add_carousel_indicator(image: Image.Image, total_slides=2) -> Image.Image:
     canvas = image.convert("RGBA")
     overlay = Image.new("RGBA", canvas.size)
     draw = ImageDraw.Draw(overlay)
     # Below footer/caption content, safely inside the portrait artboard.
     x, y = canvas.width - 184, canvas.height - 43
     draw.rounded_rectangle((x, y, x+112, y+27), radius=12, fill=(4, 27, 21, 210), outline=(255, 255, 255, 45))
-    _companion_text(draw, "01 / 02 →", (x+12, y+5, 88, 17), size=13, weight="semibold")
+    _companion_text(draw, f"01 / {total_slides:02} →", (x+12, y+5, 88, 17), size=13, weight="semibold")
     canvas.alpha_composite(overlay)
     return canvas.convert("RGB")
 
@@ -2619,6 +2713,8 @@ def composite_template_swap(
         glow_arr[:, :, 3] = glow_alpha
         glow_pil = Image.fromarray(glow_arr, mode="RGBA")
         bg_pil = Image.alpha_composite(bg_pil.convert("RGBA"), glow_pil).convert("RGB")
+        if is_welcome_layout:
+            animation_background = bg_pil.convert("RGBA").copy()
 
         # 1c. Card Elevation Drop Shadow behind combined card (fx, fy, fx + fw, ny + nh)
         shadow_off_y = int(round(20 * (H / 1350.0)))
@@ -2630,6 +2726,8 @@ def composite_template_swap(
             fill=(0, 0, 0, int(round(0.55 * 255)))
         )
         shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(radius=shadow_blur))
+        if is_welcome_layout:
+            animation_frame = shadow_layer.copy()
         bg_pil = Image.alpha_composite(bg_pil.convert("RGBA"), shadow_layer).convert("RGB")
         clean_plate = cv2.cvtColor(np.array(bg_pil), cv2.COLOR_RGB2BGR)
 
@@ -2639,6 +2737,9 @@ def composite_template_swap(
         # 3. Clean Studio Inner Window (pattern-free, brand-tinted backlight)
         studio_win = render_studio_inner_window(iw, ih, c1_hex, c2_hex, glow_hex=glow_hex)
         clean_plate[iy:iy + ih, ix:ix + iw] = studio_win
+        if is_welcome_layout:
+            frame_art = Image.fromarray(cv2.cvtColor(clean_plate[fy:fy+fh, fx:fx+fw], cv2.COLOR_BGR2RGB)).convert("RGBA")
+            animation_frame.paste(frame_art, (fx, fy))
 
         # 4. Layer 2: Auto-fit display headline that sits fully ABOVE the pop-out head.
         #    - Width stays inside the safe margins (x = 90..990 Team Welcome, 80..1000 otherwise, at 1080 wide).
@@ -2761,6 +2862,8 @@ def composite_template_swap(
         hl_changed = np.any(np.asarray(pil_plate) != plate_before_headline, axis=2)
         hl_rows, hl_cols = np.where(hl_changed.any(axis=1))[0], np.where(hl_changed.any(axis=0))[0]
         headline_px = (int(hl_cols[0]), int(hl_rows[0]), int(hl_cols[-1]), int(hl_rows[-1])) if hl_rows.size else None
+        if is_welcome_layout:
+            animation_headline = _animation_delta(plate_before_headline, pil_plate)
         del plate_before_headline, hl_changed
 
         clean_plate = cv2.cvtColor(np.array(pil_plate), cv2.COLOR_RGB2BGR)
@@ -2802,6 +2905,9 @@ def composite_template_swap(
         shadow_h = max(1, int(round(18 * H / 1350.0)))
         seam_shadow = np.clip((y_grid - (ny - shadow_h)) / max(1, shadow_h - 1), 0, 1) * 0.28
         portrait_bgr = w_bgr.astype(np.float32) * (1.0 - seam_shadow[:, :, None])
+        if is_welcome_layout:
+            portrait_rgb = cv2.cvtColor(np.clip(portrait_bgr, 0, 255).astype(np.uint8), cv2.COLOR_BGR2RGB)
+            animation_portrait = Image.fromarray(np.dstack([portrait_rgb, np.clip(eff_alpha*255, 0, 255).astype(np.uint8)]))
         for c in range(3):
             composite[:, :, c] = composite[:, :, c] * (1.0 - eff_alpha) + portrait_bgr[:, :, c] * eff_alpha
         composite = np.clip(composite, 0, 255).astype(np.uint8)
@@ -2932,9 +3038,25 @@ def composite_template_swap(
 
         np_cv = cv2.cvtColor(np.array(np_pil), cv2.COLOR_RGB2BGR)
         composite[ny:ny + nh, nx:nx + nw] = np_cv
+        if is_welcome_layout:
+            # Preserve the actual name/role glyphs, including Arabic shaping.
+            plate_rgb = np.array(np_pil)
+            ink = np.any(plate_rgb < 255, axis=2).astype(np.uint8) * 255
+            ink[:2] = 0
+            split = int(round(block_top + name_ink_h + gap / 2))
+            name_alpha, role_alpha = ink.copy(), ink.copy()
+            name_alpha[split:] = 0
+            role_alpha[:split] = 0
+            animation_name = Image.new("RGBA", (W, H))
+            animation_role = Image.new("RGBA", (W, H))
+            animation_name.paste(Image.fromarray(np.dstack([plate_rgb, name_alpha])), (nx, ny))
+            animation_role.paste(Image.fromarray(np.dstack([plate_rgb, role_alpha])), (nx, ny))
+            ImageDraw.Draw(animation_frame).line((nx, ny, nx+nw-1, ny), fill=(226, 232, 240, 255), width=1)
 
         # 7. Layer 5: Top Header (logo lockup + hashtag, 72px safety margin)
         comp_pil = Image.fromarray(cv2.cvtColor(composite, cv2.COLOR_BGR2RGB))
+        if is_welcome_layout:
+            before_header = comp_pil.copy()
         draw_top = ImageDraw.Draw(comp_pil)
 
         if not use_lexnis:
@@ -2990,6 +3112,10 @@ def composite_template_swap(
                 comp_pil.paste(band.resize((W, band_h), Image.Resampling.LANCZOS), (0, 0))
             draw_top = ImageDraw.Draw(comp_pil)
 
+        if is_welcome_layout:
+            animation_header = _animation_delta(before_header, comp_pil)
+            before_footer = comp_pil.copy()
+
         # 8. Layer 6: Clean Single Footer Caption (ZERO duplication / ghost lines)
         font_foot_size = int(round(25 * (H / 1350.0)))
         f_foot = get_font("Cairo" if is_ar else "Inter", font_foot_size, weight="semibold" if is_ar else "medium")
@@ -3040,7 +3166,13 @@ def composite_template_swap(
             "footer_font_size": font_foot_size,
             "footer_text": foot_str,
         }
-        return comp_pil
+        if is_welcome_layout:
+            comp_pil.info["welcome_animation_layers"] = {
+                "background": animation_background, "frame": animation_frame,
+                "headline": animation_headline, "portrait": animation_portrait,
+                "name": animation_name, "role": animation_role,
+                "header": animation_header, "footer": _animation_delta(before_footer, comp_pil),
+            }
         return comp_pil
 
     # ======================================================================

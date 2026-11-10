@@ -1,4 +1,4 @@
-"""Offline dual-slide rendering, API, layout and download regressions.
+"""Offline social-kit rendering, animation, API, layout and download regressions.
 
 Run: python scripts/test_dual_social_images.py
 Writes the six bilingual pairs requested by the companion-image brief.
@@ -64,12 +64,49 @@ class DualSocialImagesTests(unittest.TestCase):
     def test_six_pairs_exist_at_portrait_dimensions(self):
         for kind, lang, pair in self.pairs:
             with self.subTest(kind=kind, lang=lang):
-                self.assertEqual(len(pair["carousel_paths"]), 2)
+                self.assertEqual(len(pair["carousel_paths"]), 3)
                 for path in pair["carousel_paths"]:
                     self.assertTrue(Path(path).is_file())
                     with Image.open(path) as image:
                         self.assertEqual(image.size, (1080, 1350))
                 self.assertNotEqual(Path(pair["primary_card"]).read_bytes(), Path(pair["companion_image"]).read_bytes())
+
+    def test_gifs_loop_with_stable_branding_and_smooth_motion(self):
+        for kind, lang, kit in self.pairs:
+            with self.subTest(kind=kind, lang=lang), Image.open(kit["animation"]) as gif:
+                self.assertEqual(gif.format, "GIF")
+                self.assertTrue(gif.is_animated)
+                self.assertTrue(18 <= gif.n_frames <= 36)
+                self.assertEqual(gif.info["loop"], 0)
+                durations, crops = [], []
+                first = np.array(gif.convert("RGB")).copy()
+                header = first[60:120].copy()
+                held_frame, hold_duration = None, 0
+                for i in range(gif.n_frames):
+                    gif.seek(i)
+                    durations.append(gif.info["duration"])
+                    frame = np.array(gif.convert("RGB"))
+                    if kind != "welcome":
+                        np.testing.assert_array_equal(header, frame[60:120])
+                    if gif.info["duration"] > hold_duration:
+                        held_frame, hold_duration = frame.copy(), gif.info["duration"]
+                    crops.append(frame[475:765, 555:905].astype(float))
+                self.assertTrue(all(d % 120 == 0 for d in durations))
+                self.assertEqual(sum(durations), 4320)
+                if kind == "welcome":
+                    self.assertGreaterEqual(hold_duration, 600)
+                    with Image.open(kit["primary_card"]) as original:
+                        reference = np.array(original.convert("RGB")).astype(float)
+                    # The readable hold must be the employee's actual generated
+                    # portrait AND nameplate, not the architecture companion.
+                    region = np.s_[220:1118, 180:900]
+                    self.assertLess(np.abs(held_frame[region].astype(float)-reference[region]).mean(), 5)
+                    self.assertGreater(np.abs(first[region].astype(float)-reference[region]).mean(), 20)
+                    np.testing.assert_array_equal(first, frame)  # clean loop seam
+                    continue
+                deltas = [np.abs(crops[i] - crops[(i+1) % len(crops)]).mean() for i in range(len(crops))]
+                self.assertGreater(min(deltas), 0)
+                self.assertLess(deltas[-1], max(deltas[:-1]) * 1.5)
 
     def test_companion_text_bounds_do_not_overlap(self):
         for kind, lang, pair in self.pairs:
@@ -146,10 +183,23 @@ class DualSocialImagesTests(unittest.TestCase):
             original = source.read_bytes()
             pair = campaign.generate_campaign_post(source, {}, output_path=Path(td) / "single.jpg", generate_companion=False)
             self.assertEqual(pair["companion_image"], "")
+            self.assertEqual(pair["animation"], "")
             self.assertEqual(len(pair["carousel_paths"]), 1)
             self.assertEqual(source.read_bytes(), original)
             with Image.open(pair["primary_card"]) as image:
                 self.assertEqual(image.getpixel((950, 1320)), (255, 255, 255))
+
+    def test_standalone_gif_helper_and_export_preserve_gif(self):
+        with tempfile.TemporaryDirectory(dir=ROOT / "output") as td:
+            output = Path(td) / "standalone_anim.gif"
+            self.assertEqual(campaign.generate_social_gif("Robotics engineering", "hiring", str(output)), str(output))
+            asset = campaign.CampaignAsset(prompt="Robotics", hook="Build together", caption="Join us", highlights=[],
+                                           hashtags="#Lexnis", visual_prompt="Robotics", image_url="", raw_response="", seed=7,
+                                           animation_path=str(output), arabic_animation_path=str(output))
+            files = campaign.LexnisCampaignStudio().export_campaign(asset, str(Path(td) / "export"))
+            for key in ("animation", "arabic_animation"):
+                self.assertEqual(Path(files[key]).suffix, ".gif")
+                self.assertEqual(Path(files[key]).read_bytes(), output.read_bytes())
 
     def test_template_api_alias_language_pair_and_logo_upload(self):
         client = TestClient(app)
@@ -163,15 +213,28 @@ class DualSocialImagesTests(unittest.TestCase):
                 data=dict(person_name="Mohamed Redha", person_title="AI Engineer", brand_name="Lexnis", language="both", use_local_sdxl="false"))
         self.assertEqual(response.status_code, 200, response.text)
         data = response.json()
-        self.assertEqual(data["carousel_urls"], [data["image_url"], data["companion_image_url"]])
-        self.assertEqual(data["arabic_carousel_urls"], [data["arabic_image_url"], data["arabic_companion_image_url"]])
+        self.assertEqual(data["carousel_urls"], [data["image_url"], data["companion_image_url"], data["animation_url"]])
+        self.assertEqual(data["arabic_carousel_urls"], [data["arabic_image_url"], data["arabic_companion_image_url"], data["arabic_animation_url"]])
+        gif_response = client.get(data["animation_url"])
+        self.assertEqual(gif_response.headers["content-type"], "image/gif")
+        with Image.open(io.BytesIO(gif_response.content)) as gif:
+            self.assertTrue(gif.is_animated)
+            self.assertGreaterEqual(gif.n_frames, 18)
+            self.assertEqual(gif.info["loop"], 0)
+
+        # The endpoint reads cached PNG layers after saving the employee card.
+        layers = visual.load_welcome_animation_layers(render_path(data["image_url"]))
+        self.assertIn("portrait", layers)
+        self.assertIn("name", layers)
+        self.assertIn("role", layers)
         self.assertGreaterEqual(header.call_count, 4)
         for call in header.call_args_list:
             self.assertEqual(call.kwargs.get("custom_logo"), logo_buf.getvalue())
         download = client.post("/api/carousel/download", json={"urls": data["carousel_urls"]})
         self.assertEqual(download.status_code, 200)
         with zipfile.ZipFile(io.BytesIO(download.content)) as archive:
-            self.assertEqual(archive.namelist(), ["slide_01.jpg", "slide_02.jpg"])
+            self.assertEqual(archive.namelist(), ["slide_01.jpg", "slide_02.jpg", "slide_03.gif"])
+            self.assertEqual(archive.read("slide_03.gif"), gif_response.content)
         self.assertEqual(client.post("/api/carousel/download", json={"urls": ["/etc/passwd"]}).status_code, 400)
 
     def test_campaign_endpoint_and_single_slide_opt_out(self):
@@ -189,8 +252,9 @@ class DualSocialImagesTests(unittest.TestCase):
                 response = client.post("/api/campaign/generate", json=data)
                 self.assertEqual(response.status_code, 200, response.text)
                 result = response.json()
-                self.assertEqual(len(result["carousel_urls"]), 2 if enabled else 1)
+                self.assertEqual(len(result["carousel_urls"]), 3 if enabled else 1)
                 self.assertEqual(bool(result["companion_image_url"]), enabled)
+                self.assertEqual(bool(result["animation_url"]), enabled)
                 if enabled:
                     with Image.open(render_path(result["companion_image_url"])) as image:
                         self.assertEqual(image.size, (1080, 1350))
@@ -207,7 +271,8 @@ class DualSocialImagesTests(unittest.TestCase):
             data = response.json()
             self.assertEqual(data["image_url"], data["arabic_image_url"])
             self.assertEqual(data["companion_image_url"], data["arabic_companion_image_url"])
-            self.assertEqual(len(data["carousel_urls"]), 2 if enabled else 1)
+            self.assertEqual(data["animation_url"], data["arabic_animation_url"])
+            self.assertEqual(len(data["carousel_urls"]), 3 if enabled else 1)
 
 
 if __name__ == "__main__":
