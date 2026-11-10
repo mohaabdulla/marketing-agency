@@ -38,7 +38,7 @@ from pathlib import Path
 from dataclasses import dataclass, asdict, field
 from PIL import Image, ImageFont, ImageDraw, ImageOps, ImageFilter
 
-from visual_engine import OPEN_MODELS, FORMATS, photo_direction, open_model_image, compose_ad, cloudflare_image, LOCAL_MODEL, LOCAL_MODELS, preferred_local_model, local_image, RENDER_VERSION, sanitize_brand_tag
+from visual_engine import OPEN_MODELS, FORMATS, photo_direction, open_model_image, compose_ad, cloudflare_image, LOCAL_MODEL, LOCAL_MODELS, preferred_local_model, local_image, RENDER_VERSION, sanitize_brand_tag, transliterate_to_arabic
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -2836,8 +2836,9 @@ class LexnisCampaignStudio:
                 f"A high-end commercial campaign portrait for {b_name} welcoming new team member {m_name}, {m_role}{m_dept}, to the team. "
                 f"Shot on an 85mm lens with softbox studio lighting, clean background, and generous negative space for brand typography."
             )
+            m_name_ar = transliterate_to_arabic(m_name) if m_name else ""
             prompt_ar = (
-                f"حملة ترحيب رسمية لشركة {brand_profile.get('brand_name_ar', b_name)}: نرحب بانضمام {m_name}، {m_role}{m_dept}، إلى فريق العمل. "
+                f"حملة ترحيب رسمية لشركة {brand_profile.get('brand_name_ar', b_name)}: نرحب بانضمام {m_name_ar or m_name}، {m_role}{m_dept}، إلى فريق العمل. "
                 f"تصوير بورتريه تنفيذي احترافي بإضاءة استوديو ناعمة ومساحة سلبية مخصصة للنصوص وهوية العلامة."
             )
         else:
@@ -4050,7 +4051,8 @@ class LexnisCampaignStudio:
                 hl_en = headline or (f"FEATURING {person_name.upper()}" if person_name else "LEADERSHIP IN MOTION")
                 tg_en = hook or "From vision to operating reality. Empowering enterprise transformation."
                 ar_pack = self.transcreate_to_arabic(en_pack, brand=brand, guidelines=distilled_gl)
-                hl_ar = ar_pack.get("visual_headline") or (f"قيادة تصنع الأثر · {person_name}" if person_name else "قيادة تصنع الأثر")
+                p_name_ar = transliterate_to_arabic(person_name) if person_name else ""
+                hl_ar = ar_pack.get("visual_headline") or (f"قيادة تصنع الأثر · {p_name_ar or person_name}" if person_name else "قيادة تصنع الأثر")
                 tg_ar = ar_pack.get("visual_tagline") or "حلول مؤسسية متقدمة من الرؤية إلى واقع تشغيلي."
 
                 art_img = render_lexnis_executive_artboard(

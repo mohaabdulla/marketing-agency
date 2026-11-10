@@ -584,25 +584,68 @@ def _resolve_font_file(font_name: str, weight: str = "regular") -> Optional[Path
     return None
 
 
-def get_font(font_name: str, size: int, weight: str = "regular") -> ImageFont.FreeTypeFont:
+def get_font(
+    font_name: str = "headline",
+    size: int = 24,
+    weight: Optional[str] = None,
+    *,
+    role: Optional[str] = None,
+    lang: str = "en",
+) -> ImageFont.FreeTypeFont:
     """
-    Robust font asset loader:
-    1. Searches local project directories (static/fonts/, assets/fonts/, fonts/) for standard modern sans-serif fonts:
-       - Inter-ExtraBold.ttf, Inter-Bold.ttf, Inter-SemiBold.ttf, Inter-Regular.ttf
-       - Montserrat-ExtraBold.ttf, Montserrat-Bold.ttf, Montserrat-Medium.ttf
-       - Cairo-Bold.ttf, Cairo-SemiBold.ttf (for Arabic script)
-       - Poppins-Bold.ttf, Poppins-SemiBold.ttf, Poppins-Medium.ttf, etc.
-    2. Falls back dynamically to high-legibility OS system fonts across platforms:
-       - Windows: Segoe UI (segoeuib.ttf, seguisb.ttf, segoeui.ttf), Arial Bold (arialbd.ttf), Calibri Bold (calibrib.ttf)
-       - Linux / Docker: DejaVuSans-Bold.ttf, FreeSansBold.ttf, LiberationSans-Bold.ttf
-       - macOS: SF-Pro-Display-Bold.otf, HelveticaNeue-Bold.otf
-    3. Never uses raw ImageFont.load_default() if any scalable TrueType font is discoverable on the machine.
+    Robust executive-grade font asset loader:
+    Maps text element roles to their exact weights across English and Arabic:
+    - English:
+      * headline: Montserrat-ExtraBold.ttf (800)
+      * name:     Montserrat-Bold.ttf (700)
+      * role:     Inter-SemiBold.ttf (600)
+      * tag:      Inter-SemiBold.ttf (600)
+      * footer:   Inter-Medium.ttf (500)
+    - Arabic:
+      * headline: Cairo-ExtraBold.ttf (800)
+      * name:     Cairo-Bold.ttf (700)
+      * role:     Cairo-SemiBold.ttf (600)
+      * tag:      Cairo-SemiBold.ttf (600)
+      * footer:   Cairo-Medium.ttf (500)
+    Also supports direct family name requests (e.g. get_font("Cairo", 40, weight="bold"))
+    with multi-tier discovery and graceful fallback to scalable OS system fonts.
     """
-    key = (str(font_name), int(size), str(weight).lower())
+    is_ar = (lang == "ar" or str(lang).lower().startswith("ar"))
+    raw_role = role or (font_name.lower() if font_name and font_name.lower() in {"headline", "name", "role", "footer", "tag", "sub_desc", "badge"} else None)
+
+    if raw_role:
+        if is_ar:
+            family_map = {
+                "headline": ("Cairo", "extrabold"),
+                "name": ("Cairo", "bold"),
+                "role": ("Cairo", "semibold"),
+                "tag": ("Cairo", "semibold"),
+                "footer": ("Cairo", "medium"),
+                "sub_desc": ("Cairo", "regular"),
+                "badge": ("Cairo", "bold"),
+            }
+        else:
+            family_map = {
+                "headline": ("Montserrat", "extrabold"),
+                "name": ("Montserrat", "bold"),
+                "role": ("Inter", "semibold"),
+                "tag": ("Inter", "semibold"),
+                "footer": ("Inter", "medium"),
+                "sub_desc": ("Inter", "regular"),
+                "badge": ("Inter", "bold"),
+            }
+        target_family, default_weight = family_map.get(raw_role, ("Cairo" if is_ar else "Inter", "regular"))
+        resolved_name = target_family
+        resolved_weight = weight or default_weight
+    else:
+        resolved_name = font_name
+        resolved_weight = weight or "regular"
+
+    key = (str(resolved_name), int(size), str(resolved_weight).lower(), "ar" if is_ar else "en")
     if key in _FONT_CACHE:
         return _FONT_CACHE[key]
 
-    path = _resolve_font_file(font_name, weight)
+    path = _resolve_font_file(resolved_name, resolved_weight)
     if path and path.exists():
         try:
             f = ImageFont.truetype(str(path), size)
@@ -611,7 +654,7 @@ def get_font(font_name: str, size: int, weight: str = "regular") -> ImageFont.Fr
         except Exception:
             pass
 
-    sys_path = _find_any_scalable_system_font(weight)
+    sys_path = _find_any_scalable_system_font(resolved_weight)
     if sys_path and sys_path.exists():
         try:
             f = ImageFont.truetype(str(sys_path), size)
@@ -648,17 +691,94 @@ def smart_title_case_role(role: str) -> str:
 
 
 def ensure_brand_fonts():
-    """Guarantee official Google Fonts for modern marketing typography exist in static/fonts."""
+    """
+    Auto-bootstraps official brand font assets into static/fonts/:
+    - English: Montserrat (ExtraBold, Bold, SemiBold, Medium, Regular),
+               Inter (ExtraBold, Bold, SemiBold, Medium, Regular).
+    - Arabic:  Cairo (ExtraBold, Bold, SemiBold, Medium, Regular),
+               Tajawal (Bold, Medium), Almarai (Bold, Regular).
+    - Legacy:  Poppins (Bold, SemiBold, Medium, Regular).
+    Instantiates variable fonts via fontTools when needed, or downloads official TTFs with 5s timeout.
+    """
     import urllib.request
+    import zipfile
+    import io
+    from pathlib import Path
+    try:
+        from fontTools.ttLib import TTFont
+        from fontTools.varLib import instancer
+    except ImportError:
+        TTFont = None
+        instancer = None
+
     FONTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    # 1. Montserrat static weights
+    mont_weights = ['ExtraBold', 'Bold', 'SemiBold', 'Medium', 'Regular']
+    for weight in mont_weights:
+        dest = FONTS_DIR / f'Montserrat-{weight}.ttf'
+        if not dest.exists() or dest.stat().st_size == 0:
+            url = f'https://raw.githubusercontent.com/JulietaUla/Montserrat/master/fonts/ttf/Montserrat-{weight}.ttf'
+            try:
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                dest.write_bytes(urllib.request.urlopen(req, timeout=5).read())
+            except Exception:
+                pass
+
+    # 2. Inter static weights
+    inter_weights = ['ExtraBold', 'Bold', 'SemiBold', 'Medium', 'Regular']
+    inter_missing = [w for w in inter_weights if not (FONTS_DIR / f'Inter-{w}.ttf').exists() or (FONTS_DIR / f'Inter-{w}.ttf').stat().st_size == 0]
+    if inter_missing:
+        try:
+            req = urllib.request.Request('https://github.com/rsms/inter/releases/download/v4.0/Inter-4.0.zip', headers={'User-Agent': 'Mozilla/5.0'})
+            data = urllib.request.urlopen(req, timeout=5).read()
+            zf = zipfile.ZipFile(io.BytesIO(data))
+            for weight in inter_weights:
+                dest = FONTS_DIR / f'Inter-{weight}.ttf'
+                if not dest.exists() or dest.stat().st_size == 0:
+                    try:
+                        dest.write_bytes(zf.read(f'extras/ttf/Inter-{weight}.ttf'))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    # 3. Cairo static weights (instantiated from Cairo[slnt,wght].ttf)
+    cairo_var_path = FONTS_DIR / 'Cairo[slnt,wght].ttf'
+    if not cairo_var_path.exists() or cairo_var_path.stat().st_size == 0:
+        try:
+            url = 'https://raw.githubusercontent.com/google/fonts/main/ofl/cairo/Cairo%5Bslnt%2Cwght%5D.ttf'
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            cairo_var_path.write_bytes(urllib.request.urlopen(req, timeout=5).read())
+        except Exception:
+            pass
+
+    cairo_weights = {
+        'ExtraBold': 800,
+        'Bold': 700,
+        'SemiBold': 600,
+        'Medium': 500,
+        'Regular': 400
+    }
+    if TTFont and instancer and cairo_var_path.exists() and cairo_var_path.stat().st_size > 0:
+        try:
+            var_font = None
+            for name, w in cairo_weights.items():
+                dest = FONTS_DIR / f'Cairo-{name}.ttf'
+                if not dest.exists() or dest.stat().st_size == 0:
+                    if var_font is None:
+                        var_font = TTFont(str(cairo_var_path))
+                    static_f = instancer.instantiateVariableFont(var_font, {'wght': w, 'slnt': 0})
+                    static_f.save(str(dest))
+        except Exception:
+            pass
+
+    # 4. Standard and legacy fonts
     urls = {
         'Poppins-Bold.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Bold.ttf',
         'Poppins-SemiBold.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-SemiBold.ttf',
         'Poppins-Medium.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Medium.ttf',
         'Poppins-Regular.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Regular.ttf',
-        'Cairo-Bold.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/cairo/Cairo%5Bslnt%2Cwght%5D.ttf',
-        'Cairo-SemiBold.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/cairo/Cairo%5Bslnt%2Cwght%5D.ttf',
-        'Cairo-Regular.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/cairo/Cairo%5Bslnt%2Cwght%5D.ttf',
         'Tajawal-Medium.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/tajawal/Tajawal-Medium.ttf',
         'Tajawal-Bold.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/tajawal/Tajawal-Bold.ttf',
         'Almarai-Regular.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/almarai/Almarai-Regular.ttf',
@@ -669,31 +789,9 @@ def ensure_brand_fonts():
         if not fpath.exists() or fpath.stat().st_size == 0:
             try:
                 req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-                fpath.write_bytes(urllib.request.urlopen(req, timeout=10).read())
+                fpath.write_bytes(urllib.request.urlopen(req, timeout=5).read())
             except Exception:
                 pass
-
-    inter_targets = ['Inter-ExtraBold.ttf', 'Inter-Bold.ttf', 'Inter-SemiBold.ttf', 'Inter-Regular.ttf']
-    mont_targets = ['Montserrat-ExtraBold.ttf', 'Montserrat-Bold.ttf', 'Montserrat-Medium.ttf']
-    inter_missing = [f for f in inter_targets if not (FONTS_DIR / f).exists() or (FONTS_DIR / f).stat().st_size == 0]
-    if inter_missing:
-        try:
-            req = urllib.request.Request('https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter%5Bopsz%2Cwght%5D.ttf', headers={'User-Agent': 'Mozilla/5.0'})
-            data = urllib.request.urlopen(req, timeout=10).read()
-            for f in inter_targets:
-                (FONTS_DIR / f).write_bytes(data)
-        except Exception:
-            pass
-
-    mont_missing = [f for f in mont_targets if not (FONTS_DIR / f).exists() or (FONTS_DIR / f).stat().st_size == 0]
-    if mont_missing:
-        try:
-            req = urllib.request.Request('https://raw.githubusercontent.com/google/fonts/main/ofl/montserrat/Montserrat%5Bwght%5D.ttf', headers={'User-Agent': 'Mozilla/5.0'})
-            data = urllib.request.urlopen(req, timeout=10).read()
-            for f in mont_targets:
-                (FONTS_DIR / f).write_bytes(data)
-        except Exception:
-            pass
 
 
 def prepare_bidi_text(text: str) -> str:
@@ -1364,10 +1462,117 @@ ARABIC_TITLES_MAP = {
     "cloud solutions architect": "مهندس حلول سحابية",
 }
 
+ARABIC_NAMES_DICT = {
+    # Common first & last names
+    "mohamed": "محمد", "mohammad": "محمد", "mohammed": "محمد", "muhammad": "محمد", "muhamed": "محمد",
+    "redha": "رضا", "reda": "رضا", "ridha": "رضا", "rida": "رضا",
+    "ahmed": "أحمد", "ahmad": "أحمد",
+    "ali": "علي", "aly": "علي",
+    "hassan": "حسن", "hasan": "حسن",
+    "hussain": "حسين", "hussein": "حسين", "husein": "حسين",
+    "fatima": "فاطمة", "fatema": "فاطمة", "fatma": "فاطمة",
+    "noor": "نور", "noora": "نورة", "noura": "نورة", "nora": "نورة",
+    "sayed": "سيد", "sayyed": "سيد", "seyed": "سيد",
+    "ebrahim": "إبراهيم", "ibrahim": "إبراهيم",
+    "abdulla": "عبدالله", "abdullah": "عبدالله", "abdel": "عبدال",
+    "khalid": "خالد", "khaled": "خالد",
+    "salman": "سلمان",
+    "yusuf": "يوسف", "yousef": "يوسف", "youssef": "يوسف",
+    "omar": "عمر",
+    "mariam": "مريم", "maryam": "مريم",
+    "zainab": "زينب", "zeinab": "زينب",
+    "reem": "ريم", "rim": "ريم",
+    "sara": "سارة", "sarah": "سارة",
+    "mahmood": "محمود", "mahmoud": "محمود",
+    "mustafa": "مصطفى", "moustafa": "مصطفى",
+    "hamad": "حمد", "hamada": "حمادة",
+    "tariq": "طارق", "tarek": "طارق",
+    "waleed": "وليد", "walid": "وليد",
+    "nasser": "ناصر", "naser": "ناصر",
+    "saud": "سعود",
+    "faisal": "فيصل", "faysal": "فيصل",
+    "rashid": "راشد", "rashed": "راشد",
+    "jasim": "جاسم", "jassim": "جاسم",
+    "mona": "منى", "muna": "منى",
+    "layla": "ليلى", "laila": "ليلى",
+    "karim": "كريم", "kareem": "كريم",
+    "amr": "عمرو",
+    "bilal": "بلال",
+    "faris": "فارس",
+    "hadi": "هادي",
+    "mahdi": "مهدي",
+    "saad": "سعد",
+    "saleh": "صالح",
+    "zaid": "زيد", "ziad": "زياد",
+    "nour": "نور",
+    "dana": "دانة",
+    "leena": "لينا", "lina": "لينا",
+    "salma": "سلمى",
+    "yasmin": "ياسمين", "yasmine": "ياسمين",
+    "alish": "عليش", "alisha": "أليشا",
+    "putri": "بوتري", "anyta": "أنيتا",
+}
+
 ARABIC_NAMES_MAP = {
+    "mohamed redha": "محمد رضا",
     "alisha faisal": "أليشا فيصل",
     "anyta putri": "أنيتا بوتري",
 }
+
+
+def _phonetic_transliterate_word(w: str) -> str:
+    """Phonetic transliteration fallback for unseen English name tokens into Arabic script."""
+    w = (w or "").lower().strip()
+    if not w:
+        return ""
+    multi = [
+        ("sh", "ش"), ("th", "ث"), ("kh", "خ"), ("gh", "غ"),
+        ("ch", "تش"), ("ph", "ف"), ("dh", "ض"), ("zh", "ژ"),
+        ("ee", "ي"), ("oo", "و"), ("ou", "و")
+    ]
+    i, res, n = 0, [], len(w)
+    single_map = {
+        'a': 'ا', 'b': 'ب', 'c': 'ك', 'd': 'د', 'e': 'ي',
+        'f': 'ف', 'g': 'ج', 'h': 'ه', 'i': 'ي', 'j': 'ج',
+        'k': 'ك', 'l': 'ل', 'm': 'م', 'n': 'ن', 'o': 'و',
+        'p': 'ب', 'q': 'ق', 'r': 'ر', 's': 'س', 't': 'ت',
+        'u': 'و', 'v': 'ف', 'w': 'و', 'x': 'كس', 'y': 'ي',
+        'z': 'ز'
+    }
+    while i < n:
+        matched = False
+        for p, ar in multi:
+            if w[i:].startswith(p):
+                res.append(ar)
+                i += len(p)
+                matched = True
+                break
+        if not matched:
+            res.append(single_map.get(w[i], w[i]))
+            i += 1
+    return "".join(res)
+
+
+def transliterate_to_arabic(name: str) -> str:
+    """
+    Transliterates English/Latin names into natural Arabic script:
+    - Checks common Arabic name dictionary first (e.g. Mohamed Redha -> محمد رضا).
+    - Falls back to rule-based phonetic transliteration for unseen tokens.
+    - Preserves existing Arabic characters.
+    """
+    if not name:
+        return ""
+    if re.search(r"[\u0600-\u06FF]", name) and not re.search(r"[a-zA-Z]", name):
+        return name.strip()
+    words = name.strip().split()
+    out = []
+    for w in words:
+        low = w.lower().strip(",.")
+        if low in ARABIC_NAMES_DICT:
+            out.append(ARABIC_NAMES_DICT[low])
+        else:
+            out.append(_phonetic_transliterate_word(low))
+    return " ".join(out)
 
 
 def _headline_line_box(draw: ImageDraw.ImageDraw, line: str, font, tracking: int, is_ar: bool) -> Tuple[float, float, float, float]:
@@ -1400,9 +1605,29 @@ def _draw_headline_line(
     fill,
     accent_fill=None,
     accent_start_col: int = -1,
+    ar_prefix: Optional[str] = None,
+    ar_target: Optional[str] = None,
 ) -> None:
-    if is_ar or tracking == 0:
-        if accent_fill and accent_start_col >= 0 and not is_ar:
+    if is_ar:
+        if accent_fill and ar_prefix and ar_target:
+            p_bidi = prepare_bidi_text(ar_prefix)
+            t_bidi = prepare_bidi_text(ar_target)
+            sw = draw.textlength(" ", font=font)
+            tw = draw.textlength(t_bidi, font=font)
+            pw = draw.textlength(p_bidi, font=font)
+            # RTL on canvas: target word on left in accent, space, prefix on right in white
+            draw.text((x0, y0), t_bidi, font=font, fill=accent_fill)
+            draw.text((x0 + tw + sw, y0), p_bidi, font=font, fill=fill)
+            return
+        elif accent_fill and not ar_prefix:
+            draw.text((x0, y0), line, font=font, fill=accent_fill)
+            return
+        else:
+            draw.text((x0, y0), line, font=font, fill=fill)
+            return
+
+    if tracking == 0:
+        if accent_fill and accent_start_col >= 0:
             prefix_txt = line[:accent_start_col]
             suffix_txt = line[accent_start_col:]
             draw.text((x0, y0), prefix_txt, font=font, fill=fill)
@@ -1411,6 +1636,7 @@ def _draw_headline_line(
         else:
             draw.text((x0, y0), line, font=font, fill=fill)
         return
+
     x = float(x0)
     for i, c in enumerate(line):
         c_fill = accent_fill if (accent_fill and accent_start_col >= 0 and i >= accent_start_col) else fill
@@ -1525,6 +1751,85 @@ def fit_popout_headline(
             return m
         size -= 1
     return measure(lines, 10)
+
+
+def enhance_studio_portrait(cutout_rgba: np.ndarray, brand_theme=None) -> np.ndarray:
+    """
+    Executive Studio Portrait Retouching & Edge Matting:
+    1. Studio S-Curve B&W Grade:
+       Convert RGB channels to luminance, apply subtle local contrast enhancement
+       (unsharp mask radius=1.8, percent=115, threshold=3 + contrast factor 1.14 + brightness 1.03),
+       and apply a 3% cool-emerald shadow tint from brand_theme['bg_dark'] in darks so the portrait feels rich.
+    2. Alpha Edge Feathering & Decontamination:
+       Erode raw alpha mask by 1px (ImageFilter.MinFilter(3) blended at 50%) and apply 1.2px Gaussian blur
+       to eliminate jagged stair-stepping around hair and ears.
+    3. Subtle Rim Lighting:
+       Generate a 2px inner rim highlight along top hair & shoulder edges using primary_accent at 22% opacity
+       so the subject's dark hair separates cleanly from the dark background.
+    """
+    from PIL import Image, ImageFilter, ImageEnhance, ImageChops
+    import numpy as np
+    import cv2
+
+    if cutout_rgba is None or cutout_rgba.size == 0:
+        return cutout_rgba
+
+    bgr = cutout_rgba[:, :, :3]
+    a = cutout_rgba[:, :, 3]
+
+    # Resolve brand palette values for tint and rim lighting
+    bg_dark_bgr = (36, 48, 2)       # Lexnis dark emerald BGR (#023024)
+    accent_bgr = (73, 184, 83)      # Lexnis primary accent BGR (#53B849)
+    if brand_theme is not None:
+        if hasattr(brand_theme, "bg_dark_end") and brand_theme.bg_dark_end:
+            c = brand_theme.bg_dark_end
+            bg_dark_bgr = (int(c[2]), int(c[1]), int(c[0]))
+        elif isinstance(brand_theme, dict) and "bg_dark" in brand_theme:
+            c = brand_theme["bg_dark"]
+            bg_dark_bgr = (int(c[2]), int(c[1]), int(c[0]))
+        if hasattr(brand_theme, "primary_accent") and brand_theme.primary_accent:
+            c = brand_theme.primary_accent
+            accent_bgr = (int(c[2]), int(c[1]), int(c[0]))
+        elif isinstance(brand_theme, dict) and "primary_accent" in brand_theme:
+            c = brand_theme["primary_accent"]
+            accent_bgr = (int(c[2]), int(c[1]), int(c[0]))
+
+    # 1. Studio S-Curve B&W Grade
+    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    pil_gray = Image.fromarray(gray)
+    pil_gray = pil_gray.filter(ImageFilter.UnsharpMask(radius=1.8, percent=115, threshold=3))
+    pil_gray = ImageEnhance.Contrast(pil_gray).enhance(1.14)
+    pil_gray = ImageEnhance.Brightness(pil_gray).enhance(1.03)
+    gray_arr = np.array(pil_gray, dtype=np.float32)
+
+    shadow_factor = np.clip((128.0 - gray_arr) / 128.0, 0.0, 1.0)[:, :, None]
+    gray_3ch = np.stack([gray_arr] * 3, axis=2)
+    tint_bgr = np.array(bg_dark_bgr, dtype=np.float32)
+    graded_bgr = gray_3ch * (1.0 - 0.03 * shadow_factor) + tint_bgr * (0.03 * shadow_factor)
+
+    # 2. Alpha Edge Feathering & Decontamination
+    alpha_pil = Image.fromarray(a)
+    eroded_alpha = alpha_pil.filter(ImageFilter.MinFilter(3))
+    blended_alpha = Image.blend(alpha_pil, eroded_alpha, 0.50)
+    feathered_alpha = blended_alpha.filter(ImageFilter.GaussianBlur(radius=1.2))
+    feathered_a = np.minimum(np.array(feathered_alpha, dtype=np.float32), a.astype(np.float32))
+
+    # 3. Subtle Rim Lighting (inner 2px boundary on upper crown/shoulders)
+    alpha_bin = Image.fromarray((feathered_a > 40).astype(np.uint8) * 255)
+    inner_edge = ImageChops.subtract(alpha_bin, alpha_bin.filter(ImageFilter.MinFilter(5)))
+    edge_arr = np.array(inner_edge, dtype=np.float32) / 255.0
+
+    H_sub = a.shape[0]
+    y_weight = np.clip(1.0 - (np.arange(H_sub)[:, None] / float(max(1, H_sub * 0.65))), 0.0, 1.0)
+    rim_intensity = edge_arr * y_weight
+    accent_bgr_arr = np.array(accent_bgr, dtype=np.float32)
+    rim_alpha = 0.22 * rim_intensity[:, :, None]
+    graded_bgr = graded_bgr * (1.0 - rim_alpha) + accent_bgr_arr * rim_alpha
+
+    return np.dstack([
+        np.clip(graded_bgr, 0, 255).astype(np.uint8),
+        np.clip(feathered_a, 0, 255).astype(np.uint8)
+    ])
 
 
 def _studio_grade_cutout(subject_rgba: np.ndarray) -> np.ndarray:
@@ -2143,6 +2448,36 @@ def composite_template_swap(
             glow_rgb = tuple(int(round(0.78 * a + 0.22 * b)) for a, b in zip(theme.bg_dark_end, theme.primary_accent))
             glow_hex = rgb_to_hex(glow_rgb)
             bg_pil = render_agency_mesh_background(W, H, theme).convert("RGB")
+
+        # 1b. Radial Back-Glow Behind Subject (radius 340px, centered at 540, 560)
+        cx_glow = int(round(540 * (W / 1080.0)))
+        cy_glow = int(round(560 * (H / 1350.0)))
+        glow_rad = int(round(340 * (W / 1080.0)))
+        accent_rgb = tuple(theme.primary_accent)
+
+        y_coords, x_coords = np.ogrid[:H, :W]
+        dist_sq = (x_coords - cx_glow) ** 2 + (y_coords - cy_glow) ** 2
+        rad_sq = float(glow_rad ** 2)
+        falloff = np.clip(1.0 - (dist_sq / rad_sq), 0.0, 1.0) ** 1.5
+        glow_alpha = (falloff * (0.16 * 255.0)).astype(np.uint8)
+        glow_arr = np.zeros((H, W, 4), dtype=np.uint8)
+        for c_idx in range(3):
+            glow_arr[:, :, c_idx] = accent_rgb[c_idx]
+        glow_arr[:, :, 3] = glow_alpha
+        glow_pil = Image.fromarray(glow_arr, mode="RGBA")
+        bg_pil = Image.alpha_composite(bg_pil.convert("RGBA"), glow_pil).convert("RGB")
+
+        # 1c. Card Elevation Drop Shadow behind combined card (fx, fy, fx + fw, ny + nh)
+        shadow_off_y = int(round(20 * (H / 1350.0)))
+        shadow_blur = int(round(36 * (W / 1080.0)))
+        shadow_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        shadow_draw = ImageDraw.Draw(shadow_layer)
+        shadow_draw.rectangle(
+            [fx, fy + shadow_off_y, fx + fw, ny + nh + shadow_off_y],
+            fill=(0, 0, 0, int(round(0.55 * 255)))
+        )
+        shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(radius=shadow_blur))
+        bg_pil = Image.alpha_composite(bg_pil.convert("RGBA"), shadow_layer).convert("RGB")
         clean_plate = cv2.cvtColor(np.array(bg_pil), cv2.COLOR_RGB2BGR)
 
         # 2. Outer White Polaroid Card
@@ -2185,12 +2520,14 @@ def composite_template_swap(
         start_size, min_single, min_double = (int(round(s * k)) for s in sizes)
         if is_ar:
             hl_text_final = headline_text or preset["headline_ar"]
-            hl_font_path = FONTS_DIR / "Cairo-Bold.ttf"
+            hl_font_path = FONTS_DIR / "Cairo-ExtraBold.ttf"
+            if not hl_font_path.exists():
+                hl_font_path = FONTS_DIR / "Cairo-Bold.ttf"
         else:
             hl_text_final = (headline_text or preset["headline_en"]).upper()
-            hl_font_path = FONTS_DIR / "Inter-ExtraBold.ttf"
+            hl_font_path = FONTS_DIR / "Montserrat-ExtraBold.ttf"
             if not hl_font_path.exists():
-                hl_font_path = FONTS_DIR / "Inter-Bold.ttf"
+                hl_font_path = FONTS_DIR / "Inter-ExtraBold.ttf"
             if not hl_font_path.exists():
                 hl_font_path = FONTS_DIR / "Poppins-Bold.ttf"
         hl_fit = fit_popout_headline(
@@ -2206,12 +2543,26 @@ def composite_template_swap(
             hl_block_top = head_top_y - hl_gap - hl_fit["block_h"]
         headline_bottom = hl_block_top + hl_fit["block_h"]
 
-        # Two-tone accent for English headline starting with "WELCOME TO "
+        # Two-tone accent for English and Arabic headlines
         accent_color = None
         accent_col_idx = -1
+        ar_prefix_text = None
+        ar_target_text = None
+
         if (not is_ar) and hl_text_final.startswith("WELCOME TO "):
             accent_color = tuple(theme.primary_accent)
             accent_col_idx = len("WELCOME TO ")
+        elif is_ar:
+            accent_color = tuple(theme.primary_accent)
+            m_ar = re.match(r"^(أهلاً\s+بك\s+في|أهلا\s+بك\s+في|مرحباً\s+بك\s+في|مرحبا\s+بك\s+في)\s+(.+)$", hl_text_final.strip())
+            if m_ar:
+                ar_prefix_text = m_ar.group(1).strip()
+                ar_target_text = m_ar.group(2).strip()
+            else:
+                words = hl_text_final.strip().split()
+                if len(words) >= 2:
+                    ar_prefix_text = " ".join(words[:-1])
+                    ar_target_text = words[-1]
 
         plate_before_headline = np.asarray(pil_plate).copy()
         headline_boxes = []
@@ -2222,20 +2573,34 @@ def composite_template_swap(
 
             line_accent_col = -1
             line_accent_color = None
+            cur_ar_prefix = None
+            cur_ar_target = None
+
             if accent_color:
-                if len(hl_fit["lines"]) == 1:
-                    line_accent_col = accent_col_idx
-                    line_accent_color = accent_color
-                elif i == 0:
-                    line_accent_col = -1
-                    line_accent_color = None
+                if not is_ar:
+                    if len(hl_fit["lines"]) == 1:
+                        line_accent_col = accent_col_idx
+                        line_accent_color = accent_color
+                    elif i == 0:
+                        line_accent_col = -1
+                        line_accent_color = None
+                    else:
+                        line_accent_col = 0
+                        line_accent_color = accent_color
                 else:
-                    line_accent_col = 0
-                    line_accent_color = accent_color
+                    if len(hl_fit["lines"]) == 1 and ar_prefix_text and ar_target_text:
+                        cur_ar_prefix = ar_prefix_text
+                        cur_ar_target = ar_target_text
+                        line_accent_color = accent_color
+                    elif i == 0:
+                        line_accent_color = None
+                    else:
+                        line_accent_color = accent_color
 
             _draw_headline_line(
                 draw_hl, x0, y0, line, hl_fit["font"], hl_fit["tracking"], is_ar, (255, 255, 255),
-                accent_fill=line_accent_color, accent_start_col=line_accent_col
+                accent_fill=line_accent_color, accent_start_col=line_accent_col,
+                ar_prefix=cur_ar_prefix, ar_target=cur_ar_target
             )
             headline_boxes.append((x0 + box[0], y0 + box[1], x0 + box[2], y0 + box[3]))
 
@@ -2253,10 +2618,8 @@ def composite_template_swap(
         placement_info = None
 
         if affine_matrix is None:
-            # Aspect-preserving placement: shoulders span ~1.04x the inner window, head top just
-            # below the headline, body continues behind the nameplate.
-            # Consistently covers full window width and anchors pop-out head top at head_top_y for all subjects.
-            graded = _studio_grade_cutout(subject_rgba)
+            # Executive Studio Retouching: S-curve B&W grade + shadow tint + alpha feathering + rim lighting
+            graded = enhance_studio_portrait(subject_rgba, theme)
             w_bgr, w_alpha, placement_info = place_popout_subject(
                 graded, (W, H), head_top_y=head_top_y, center_x=W // 2,
                 target_w=iw * 1.04, min_bottom_y=ny + int(round(12 * k)), window_w=iw,
@@ -2286,10 +2649,13 @@ def composite_template_swap(
             composite[:, :, c] = composite[:, :, c] * (1.0 - eff_alpha) + w_bgr[:, :, c].astype(np.float32) * eff_alpha
         composite = np.clip(composite, 0, 255).astype(np.uint8)
 
-        # 6. Layer 4: Nameplate (Solid White Box with 4px Status Tile Accent)
+        # 6. Layer 4: Nameplate (Solid White Box with 1px divider seam + 5px Status Tile Accent)
         composite[ny:ny + nh, nx:nx + nw] = [255, 255, 255]
         np_pil = Image.new('RGB', (nw, nh), (255, 255, 255))
         draw_np = ImageDraw.Draw(np_pil)
+        # Subtle 1px inner divider line (#E2E8F0) at the seam where portrait meets white nameplate
+        draw_np.line([(0, 0), (nw, 0)], fill=(226, 232, 240), width=1)
+
         dark_navy = (15, 23, 42)      # #0F172A slate-900 for executive contrast
         role_color = (51, 65, 85)     # #334155 slate-700
         tech_green = (83, 184, 73)    # #53B849
@@ -2299,11 +2665,18 @@ def composite_template_swap(
             if calculate_contrast_ratio(tuple(theme.bg_dark_start), (255, 255, 255)) >= 10.0:
                 dark_navy = tuple(theme.bg_dark_start)
 
+        pill_w = int(round(5 * (W / 1080.0)))
+        pill_h = int(round(26 * (H / 1350.0)))
+        pill_radius = 3
+
         if is_ar:
             # Arabic Nameplate Localization & RTL Alignment
             raw_pname = (person_name or preset["name_ar"]).strip()
             raw_pname = re.sub(r'\s+\b(as|is|our|the|a|an)\b.*$', '', raw_pname, flags=re.IGNORECASE).strip()
-            display_name = ARABIC_NAMES_MAP.get(raw_pname.lower(), raw_pname)
+            if re.search(r'[A-Za-z]', raw_pname):
+                display_name = transliterate_to_arabic(raw_pname)
+            else:
+                display_name = ARABIC_NAMES_MAP.get(raw_pname.lower(), raw_pname)
             raw_title = (person_title or preset["role_ar"]).strip()
             raw_title = re.sub(r'^(?:a|an)\s+', '', raw_title, flags=re.IGNORECASE).strip()
             display_role = ARABIC_TITLES_MAP.get(raw_title.lower(), raw_title)
@@ -2316,10 +2689,10 @@ def composite_template_swap(
             y_name = int(round(22 * (H / 1350.0)))
 
             font_name_size = int(round(52 * (H / 1350.0)))
-            f_name = get_font("Cairo", font_name_size, weight="bold")
+            f_name = get_font(role="name", size=font_name_size, lang="ar")
             bbox_n = draw_np.textbbox((0, 0), r_name, font=f_name)
             while font_name_size > int(round(38 * (H / 1350.0))):
-                f_name = get_font("Cairo", font_name_size, weight="bold")
+                f_name = get_font(role="name", size=font_name_size, lang="ar")
                 bbox_n = draw_np.textbbox((0, 0), r_name, font=f_name)
                 if (bbox_n[2] - bbox_n[0]) <= max_np_w:
                     break
@@ -2329,21 +2702,20 @@ def composite_template_swap(
             x_right = nw - margin_r
             draw_np.text((x_right - nw_px - bbox_n[0], y_name), r_name, font=f_name, fill=dark_navy)
 
-            # Role & Accent Pill
+            # Role & Accent Pill (5px wide x 26px tall, vertically centered)
             font_role_size = int(round(28 * (H / 1350.0)))
-            f_role = get_font("Cairo", font_role_size, weight="semibold")
+            f_role = get_font(role="role", size=font_role_size, lang="ar")
             bbox_r = draw_np.textbbox((0, 0), r_role, font=f_role)
             while font_role_size > int(round(20 * (H / 1350.0))):
-                f_role = get_font("Cairo", font_role_size, weight="semibold")
+                f_role = get_font(role="role", size=font_role_size, lang="ar")
                 bbox_r = draw_np.textbbox((0, 0), r_role, font=f_role)
                 if (bbox_r[2] - bbox_r[0]) <= (max_np_w - 24):
                     break
                 font_role_size -= 1
 
-            pill_h = int(round(22 * (H / 1350.0)))
             y_pill = y_name + bbox_n[3] + int(round(14 * (H / 1350.0)))
-            rx = x_right - 4
-            draw_np.rounded_rectangle([rx, y_pill, rx + 4, y_pill + pill_h], radius=2, fill=tech_green)
+            rx = x_right - pill_w
+            draw_np.rounded_rectangle([rx, y_pill, rx + pill_w, y_pill + pill_h], radius=pill_radius, fill=tech_green)
 
             rw_px = bbox_r[2] - bbox_r[0]
             role_ink_h = bbox_r[3] - bbox_r[1]
@@ -2361,10 +2733,10 @@ def composite_template_swap(
             y_name = int(round(22 * (H / 1350.0)))
 
             font_name_size = int(round(52 * (H / 1350.0)))
-            font_bold = get_font("Inter", font_name_size, weight="bold")
+            font_bold = get_font(role="name", size=font_name_size, lang="en")
             bbox_n = draw_np.textbbox((0, 0), clean_name, font=font_bold)
             while font_name_size > int(round(38 * (H / 1350.0))):
-                font_bold = get_font("Inter", font_name_size, weight="bold")
+                font_bold = get_font(role="name", size=font_name_size, lang="en")
                 bbox_n = draw_np.textbbox((0, 0), clean_name, font=font_bold)
                 if (bbox_n[2] - bbox_n[0]) <= max_np_w:
                     break
@@ -2373,29 +2745,28 @@ def composite_template_swap(
             draw_np.text((margin_l, y_name), clean_name, font=font_bold, fill=dark_navy)
             bbox_n = draw_np.textbbox((margin_l, y_name), clean_name, font=font_bold)
 
-            # Role & Accent Pill
+            # Role & Accent Pill (5px wide x 26px tall, vertically centered)
             raw_role = (person_title or preset["role_en"]).strip()
             raw_role = re.sub(r'^(?:a|an)\s+', '', raw_role, flags=re.IGNORECASE).strip()
             role_text = smart_title_case_role(raw_role)
 
             font_role_size = int(round(28 * (H / 1350.0)))
-            font_role = get_font("Inter", font_role_size, weight="semibold")
+            font_role = get_font(role="role", size=font_role_size, lang="en")
             bbox_r = draw_np.textbbox((0, 0), role_text, font=font_role)
             while font_role_size > int(round(20 * (H / 1350.0))):
-                font_role = get_font("Inter", font_role_size, weight="semibold")
+                font_role = get_font(role="role", size=font_role_size, lang="en")
                 bbox_r = draw_np.textbbox((0, 0), role_text, font=font_role)
                 if (bbox_r[2] - bbox_r[0]) <= (max_np_w - 24):
                     break
                 font_role_size -= 1
 
-            pill_h = int(round(22 * (H / 1350.0)))
             y_pill = bbox_n[3] + int(round(14 * (H / 1350.0)))
             rx = margin_l
-            draw_np.rounded_rectangle([rx, y_pill, rx + 4, y_pill + pill_h], radius=2, fill=tech_green)
+            draw_np.rounded_rectangle([rx, y_pill, rx + pill_w, y_pill + pill_h], radius=pill_radius, fill=tech_green)
 
             role_ink_h = bbox_r[3] - bbox_r[1]
             y_role = y_pill + (pill_h - role_ink_h) / 2.0 - bbox_r[1]
-            draw_np.text((rx + 4 + 10, y_role), role_text, font=font_role, fill=role_color)
+            draw_np.text((rx + pill_w + 10, y_role), role_text, font=font_role, fill=role_color)
 
         np_cv = cv2.cvtColor(np.array(np_pil), cv2.COLOR_RGB2BGR)
         composite[ny:ny + nh, nx:nx + nw] = np_cv

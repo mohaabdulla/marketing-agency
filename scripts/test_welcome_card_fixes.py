@@ -455,7 +455,15 @@ class BrandedCardTests(unittest.TestCase):
         self._assert_headline_clear(img)
 
     def test_executive_typography_and_visual_hierarchy(self):
-        """Verify typography scale, smart casing, and no canvas clipping."""
+        """Verify typography scale, smart casing, transliteration, two-tone rendering, and popout backglow."""
+        # Assert font files exist in static/fonts/ and are not default bitmap
+        required_fonts = [
+            "Montserrat-ExtraBold.ttf", "Montserrat-Bold.ttf", "Inter-SemiBold.ttf", "Inter-Medium.ttf",
+            "Cairo-ExtraBold.ttf", "Cairo-Bold.ttf", "Cairo-SemiBold.ttf", "Cairo-Medium.ttf"
+        ]
+        for f in required_fonts:
+            self.assertTrue((FONTS_DIR / f).exists(), f"Font file {f} missing in static/fonts/")
+
         img_en = render_welcome_template_swap(
             self.subject_bytes, name="Mohamed Redha", role="ai engineer",
             headline="WELCOME TO THE TEAM", brand_name="Lexnis Technologies", lang="en"
@@ -464,7 +472,7 @@ class BrandedCardTests(unittest.TestCase):
         layout_en = img_en.info["popout_layout"]
 
         img_ar = render_welcome_template_swap(
-            self.subject_bytes, name="محمد رضا", role="مهندس ذكاء اصطناعي",
+            self.subject_bytes, name="Mohamed Redha", role="ai engineer",
             headline="أهلاً بك في فريقنا", brand_name="Lexnis Technologies", lang="ar"
         )
         img_ar.convert("RGB").save(ASSETS / "api_swap_ar.jpg", quality=95)
@@ -485,6 +493,23 @@ class BrandedCardTests(unittest.TestCase):
         # 5. Acronyms like "AI" in the role line are capitalized
         self.assertIn("AI", layout_en["role_text"], "AI acronym not capitalized in role line")
         self.assertEqual(layout_en["role_text"], "AI Engineer")
+
+        # 6. Automatic transliteration of Mohamed Redha to Arabic script in Arabic welcome card
+        self.assertEqual(layout_ar["name_text"], "محمد رضا", "Latin name was not transliterated to Arabic script")
+
+        # 7. Two-tone headline pixels in both EN and AR (both #FFFFFF and primary_accent in y=130..215)
+        for label, img in [("English", img_en), ("Arabic", img_ar)]:
+            arr = np.array(img.convert("RGB"))[130:215, 80:1000]
+            # White pixels: high R, G, B
+            white_mask = (arr[:, :, 0] > 230) & (arr[:, :, 1] > 230) & (arr[:, :, 2] > 230)
+            self.assertTrue(np.any(white_mask), f"{label} card missing white headline pixels")
+            # Accent green pixels: G is dominant over R and B
+            accent_mask = (arr[:, :, 1] > 140) & (arr[:, :, 0] < 120) & (arr[:, :, 2] < 120)
+            self.assertTrue(np.any(accent_mask), f"{label} card missing primary accent headline pixels")
+
+        # 8. Pop-out head is intact within y=240..355
+        self.assertLess(layout_en["head_top"], 340, "English pop-out head does not break above frame top 340")
+        self.assertLess(layout_ar["head_top"], 340, "Arabic pop-out head does not break above frame top 340")
 
     def test_tab_guideline_card_has_no_lexnis_elements(self):
         prof = _tab_profile()
