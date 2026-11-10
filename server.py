@@ -249,6 +249,16 @@ def serve_index():
     return FileResponse(index_path)
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    """Handle browser favicon request without 404."""
+    from fastapi.responses import Response
+    return Response(
+        content=b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">\xf0\x9f\x9a\x80</text></svg>',
+        media_type="image/svg+xml"
+    )
+
+
 @app.get("/api/health")
 def health_check():
     """Engine telemetry and health check."""
