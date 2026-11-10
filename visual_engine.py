@@ -28,6 +28,176 @@ LOCAL_MODELS = {
 RENDER_VERSION = 'photo-v5-realism'
 
 
+def apply_editorial_grade(image: Image.Image, brand_theme=None) -> Image.Image:
+    """Soft colour grade and edge vignette, retaining the photograph's midtones."""
+    from PIL import ImageEnhance
+    image = ImageEnhance.Color(image.convert("RGB")).enhance(0.80)
+    arr = np.asarray(image, dtype=np.float32)
+    h, w = arr.shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w]
+    edge = np.clip(((xx - w / 2) / (w * .72)) ** 2 + ((yy - h / 2) / (h * .72)) ** 2, 0, 1)
+    tint = np.array(brand_theme.bg_dark_end if brand_theme else (4, 27, 21))
+    strength = (.08 + edge * .38)[:, :, None]
+    return Image.fromarray(np.clip(arr * (1 - strength) + tint * strength, 0, 255).astype(np.uint8))
+
+
+def _companion_text(draw, text, box, *, size=28, lang="en", weight="medium", fill=(241, 245, 249), boxes=None):
+    """Fit a single shaped line to an explicit ink box; record its actual bounds."""
+    text = " ".join(str(text).split())
+    disp = prepare_bidi_text(text)
+    x, y, w, h = box
+    for sz in range(size, 9, -1):
+        font = get_font("Cairo" if lang == "ar" else "Inter", sz, weight=weight)
+        bb = draw.textbbox((0, 0), disp, font=font)
+        if bb[2] - bb[0] <= w and bb[3] - bb[1] <= h:
+            break
+    # Ellipsise unusually long user input instead of drawing outside the box.
+    while disp and (bb[2] - bb[0] > w or bb[3] - bb[1] > h):
+        text = text[:-1]
+        disp = prepare_bidi_text(text + "…")
+        bb = draw.textbbox((0, 0), disp, font=font)
+    tw, th = bb[2] - bb[0], bb[3] - bb[1]
+    tx = x + (w - tw if lang == "ar" else 0)
+    ty = y + (h - th) / 2
+    draw.text((tx - bb[0], ty - bb[1]), disp, font=font, fill=fill)
+    if boxes is not None:
+        boxes.append((tx, ty, tx + tw, ty + th))
+
+
+def render_companion_showcase(scene: dict, brand_theme, lang="en", role_title="", person_name="") -> Image.Image:
+    """Deterministic editorial architecture window; no model or network required."""
+    W, H = 1080, 1350
+    yy, xx = np.mgrid[0:H, 0:W]
+    light = np.exp(-(((xx - 720) / 610) ** 2 + ((yy - 530) / 730) ** 2))
+    dark = np.array((4, 27, 21) if brand_theme.is_lexnis else brand_theme.bg_dark_start)
+    lit = np.array((10, 46, 35) if brand_theme.is_lexnis else brand_theme.bg_dark_end)
+    rgb = dark + light[:, :, None] * (lit - dark)
+    canvas = Image.fromarray(np.clip(rgb, 0, 255).astype(np.uint8)).convert("RGBA")
+    accent = brand_theme.primary_accent
+    # Architectural floor grid and pools of reflected light.
+    glow = Image.new("RGBA", (W, H))
+    gd = ImageDraw.Draw(glow)
+    gd.ellipse((230, 280, 1020, 1080), fill=accent + (35,))
+    canvas.alpha_composite(glow.filter(ImageFilter.GaussianBlur(100)))
+    grid = Image.new("RGBA", (W, H))
+    gr = ImageDraw.Draw(grid)
+    for x in range(-600, 1800, 150):
+        gr.line([(540, 580), (x, 1350)], fill=accent + (18,), width=1)
+    for y in (860, 920, 1000, 1100, 1230):
+        gr.line([(0, y), (W, y)], fill=accent + (15,), width=1)
+    canvas.alpha_composite(grid)
+    draw = ImageDraw.Draw(canvas)
+    boxes = []
+    is_ar = lang == "ar"
+    _companion_text(draw, scene["eyebrow_ar" if is_ar else "eyebrow"], (80, 168, 920, 38), size=21, lang=lang, weight="semibold", fill=accent, boxes=boxes)
+
+    # Draw the display in its own plane, then project the entire window (including
+    # typography) into perspective so its contents stay registered to the glass.
+    panel = Image.new("RGBA", (900, 740), (0, 0, 0, 0))
+    pd = ImageDraw.Draw(panel)
+    pd.rounded_rectangle((0, 0, 899, 739), radius=28, fill=(17, 39, 37, 245), outline=accent + (150,), width=2)
+    pd.rounded_rectangle((14, 14, 885, 725), radius=21, outline=(255, 255, 255, 28), width=1)
+    for i in range(3):
+        pd.ellipse((35 + 22*i, 34, 44 + 22*i, 43), fill=accent + (180 - 40*i,))
+    pd.line((30, 74, 870, 74), fill=(255, 255, 255, 28), width=1)
+    panel_boxes = []
+    kind = scene["post_type"]
+    titles = {
+        "hiring": ("ENGINEERING / LIVE WORKSPACE", "الهندسة / مساحة العمل"),
+        "launch": ("DEPLOYMENT / BENCHMARKS", "التشغيل / مؤشرات الأداء"),
+        "welcome": ("PEOPLE / OUR NEXT CHAPTER", "فريقنا / الفصل القادم"),
+        "general": ("IDEAS / INTO OPERATION", "من الأفكار إلى التنفيذ"),
+    }
+    _companion_text(pd, titles[kind][is_ar], (130, 24, 725, 30), size=19, lang=lang, boxes=panel_boxes)
+    headline = person_name if kind == "welcome" and person_name else scene["panel_title_ar" if is_ar else "panel_title"]
+    _companion_text(pd, headline, (42, 104, 816, 55), size=36, lang=lang, weight="bold", boxes=panel_boxes)
+    _companion_text(pd, role_title or scene["panel_subtitle_ar" if is_ar else "panel_subtitle"], (42, 170, 816, 34), size=20, lang=lang, fill=(160, 188, 179), boxes=panel_boxes)
+    # Left: the signal trail. Right: a dimensional perception / neural core.
+    pd.rounded_rectangle((40, 238, 440, 545), radius=16, fill=(4, 20, 18, 210), outline=(255, 255, 255, 30))
+    pd.rounded_rectangle((460, 238, 860, 545), radius=16, fill=(4, 20, 18, 170), outline=(255, 255, 255, 30))
+    _companion_text(pd, scene["signal_label_ar" if is_ar else "signal_label"], (62, 254, 350, 28), size=17, lang=lang, fill=accent, boxes=panel_boxes)
+    if kind == "launch":
+        for i, (label, length) in enumerate(scene.get("benchmarks", [("CLOUD / 86ms", 292), ("EDGE / 14.2ms", 78)])):
+            y = 320 + i*92
+            _companion_text(pd, label, (65, y, 320, 25), size=18, boxes=panel_boxes)
+            pd.rounded_rectangle((65, y+38, 65+length, y+53), radius=7, fill=(87, 115, 111) if i == 0 else accent)
+    elif kind == "welcome":
+        for i, label in enumerate((["LEARN / اكتشف", "BUILD / ابتكر", "GROW / تطور"] if is_ar else ["01  EXPLORE THE MISSION", "02  BUILD WITH THE TEAM", "03  SHIP WHAT MATTERS"])):
+            y = 318+i*67
+            pd.ellipse((65, y+7, 74, y+16), fill=accent)
+            _companion_text(pd, label, (90, y, 318, 32), size=17, lang=lang, boxes=panel_boxes)
+    else:
+        points = [(65, 427), (112, 402), (160, 416), (206, 348), (254, 374), (300, 326), (348, 340), (410, 303)]
+        for y in range(310, 526, 43):
+            pd.line((63, y, 418, y), fill=(255, 255, 255, 18))
+        pd.line(points, fill=accent, width=3)
+        for px, py in points:
+            pd.ellipse((px-4, py-4, px+4, py+4), fill=(223, 255, 239))
+        _companion_text(pd, "PERCEPTION → INFERENCE → ACTION", (65, 488, 350, 27), size=14, fill=(160, 188, 179), boxes=panel_boxes)
+    for i in range(7):
+        angle = i * math.pi / 7
+        pts = []
+        for t in np.linspace(0, math.tau, 110):
+            x = 98 * math.cos(t)
+            y = 98 * math.sin(t) * math.cos(angle)
+            pts.append((660 + x * math.cos(.4) - y * math.sin(.4), 390 + x * math.sin(.4) + y * math.cos(.4)))
+        pd.line(pts, fill=accent + (160,), width=1)
+    pd.ellipse((645, 375, 675, 405), fill=accent + (240,))
+    _companion_text(pd, "NEURAL CORE / 03", (512, 500, 315, 25), size=15, fill=(160, 188, 179), boxes=panel_boxes)
+    metrics = scene["metrics_ar" if is_ar else "metrics"]
+    for i, metric in enumerate(metrics):
+        x = 40 + i*280
+        pd.rounded_rectangle((x, 582, x+260, 688), radius=14, fill=(255, 255, 255, 9), outline=accent + (65,))
+        _companion_text(pd, metric[0], (x+18, 600, 224, 35), size=26, lang=lang, weight="bold", boxes=panel_boxes)
+        _companion_text(pd, metric[1], (x+18, 648, 224, 22), size=15, lang=lang, fill=(160, 188, 179), boxes=panel_boxes)
+    src = np.float32([[0, 0], [900, 0], [900, 740], [0, 740]])
+    dst = np.float32([[78, 260], [1004, 230], [982, 966], [98, 994]])
+    matrix = cv2.getPerspectiveTransform(src, dst)
+    warped = cv2.warpPerspective(np.array(panel), matrix, (W, H), flags=cv2.INTER_CUBIC)
+    shadow = Image.fromarray(warped).getchannel("A").filter(ImageFilter.GaussianBlur(26))
+    canvas.paste((0, 0, 0, 110), (0, 20, W, H+20), shadow)
+    canvas.alpha_composite(Image.fromarray(warped))
+    # Record projected text bounds for automated overlap checks.
+    for x1, y1, x2, y2 in panel_boxes:
+        corners = np.float32([[[x1, y1], [x2, y1], [x2, y2], [x1, y2]]])
+        q = cv2.perspectiveTransform(corners, matrix)[0]
+        boxes.append((float(q[:, 0].min()), float(q[:, 1].min()), float(q[:, 0].max()), float(q[:, 1].max())))
+    canvas.info["companion_layout"] = {"text_boxes": boxes, "window": (78, 230, 1004, 994)}
+    return canvas
+
+
+def finish_companion_image(image: Image.Image, scene: dict, brand_theme, lang="en", custom_logo=None) -> Image.Image:
+    """Shared brand header and editorial caption bar for GPU and CPU scenes."""
+    layout = image.info.get("companion_layout", {"text_boxes": []})
+    canvas = ImageOps.fit(image.convert("RGBA"), (1080, 1350), method=Image.Resampling.LANCZOS)
+    boxes = list(layout["text_boxes"])
+    draw_brand_header(canvas, brand_theme, is_ar=lang == "ar", custom_logo=custom_logo)
+    overlay = Image.new("RGBA", canvas.size)
+    od = ImageDraw.Draw(overlay)
+    od.rounded_rectangle((72, 1040, 1008, 1240), radius=24, fill=(4, 27, 21, 209), outline=brand_theme.primary_accent + (89,), width=1)
+    canvas.alpha_composite(overlay)
+    draw = ImageDraw.Draw(canvas)
+    ar = lang == "ar"
+    _companion_text(draw, scene["overlay_pill_ar" if ar else "overlay_pill"], (100, 1062, 775, 29), size=18, lang=lang, weight="semibold", fill=brand_theme.primary_accent, boxes=boxes)
+    _companion_text(draw, "02 / 02", (904, 1062, 78, 29), size=17, weight="semibold", boxes=boxes)
+    _companion_text(draw, scene["hook_ar" if ar else "hook"], (100, 1110, 880, 44), size=34, lang=lang, weight="bold", boxes=boxes)
+    _companion_text(draw, scene["caption_ar" if ar else "caption"], (100, 1178, 880, 34), size=22, lang=lang, fill=(191, 211, 203), boxes=boxes)
+    canvas.info["companion_layout"] = {**layout, "text_boxes": boxes, "caption_bar": (72, 1040, 1008, 1240)}
+    return canvas.convert("RGB")
+
+
+def add_carousel_indicator(image: Image.Image) -> Image.Image:
+    canvas = image.convert("RGBA")
+    overlay = Image.new("RGBA", canvas.size)
+    draw = ImageDraw.Draw(overlay)
+    # Below footer/caption content, safely inside the portrait artboard.
+    x, y = canvas.width - 184, canvas.height - 43
+    draw.rounded_rectangle((x, y, x+112, y+27), radius=12, fill=(4, 27, 21, 210), outline=(255, 255, 255, 45))
+    _companion_text(draw, "01 / 02 →", (x+12, y+5, 88, 17), size=13, weight="semibold")
+    canvas.alpha_composite(overlay)
+    return canvas.convert("RGB")
+
+
 def local_model_ready(model=LOCAL_MODEL):
     if model not in LOCAL_MODELS:
         return False

@@ -84,3 +84,20 @@ python -m unittest discover -s tests -v
 ```
 
 Exports: `output/`. Image cache: `output/renders/`. Review factual claims and visual fidelity before publication. Source-backed prompting does not implement automatic claim-by-claim verification.
+
+## Paired social posts
+
+Campaigns now produce a 1080×1350 primary graphic plus a topic companion in English and Arabic. The studio previews the two slides together, switches language, and downloads either slide or a ZIP containing both. Both slides use the shared logo/header renderer. `static/assets/brand_logo.png` was extracted from the existing uploaded Lexnis artwork (`logo_images_91926a2739df.jpg`) using the logo loader's background removal, dark-background adaptation and trimming. Uploaded logos take precedence; the existing wordmark fallback remains available if the bundled asset is removed.
+
+`POST /api/generate` (alias `/api/campaign/generate`) accepts `generate_companion` (default `true`) and `use_local_sdxl` (`null` = use a ready local model automatically, `false` = deterministic CPU editorial showcase, `true` = try the local model). Existing `/api/template-swap` and its alias `/api/template/swap` accept the same fields as multipart form values. Responses add `companion_image_url`, `carousel_urls`, `arabic_companion_image_url`, and `arabic_carousel_urls`. With companions disabled, each carousel array contains its primary image only. Dual mode uses portrait exports; disabling it preserves the existing format choices.
+
+The photographic path reuses the isolated local SDXL worker and applies an editorial grade. When no ready model exists or a render fails, the companion uses a perspective glass architecture window with topic-specific content. Each companion has a JSON sidecar recording its source, scene direction, layout bounds and any local-render failure. Showcase benchmark values are illustrative campaign copy, not measurements collected from a deployment.
+
+CLI: use `--companion-cpu` for fast deterministic output, `--no-companion` for a single graphic, and `--download` to export both languages and their companions. Python callers can use `generate_campaign_post(primary_card, req_data, brand_theme, output_path=..., generate_companion=True)` to pair an already-rendered card.
+
+```powershell
+python scripts/test_dual_social_images.py
+python scripts/test_dual_social_browser.py
+```
+
+The rendering suite regenerates `lexnis_hiring_{en,ar}`, `lexnis_launch_{en,ar}`, and `api_swap_{en,ar}` with matching `_companion.jpg` files under `static/assets/`, tests API pairing/opt-out and ZIP downloads, and checks companion text bounds for collisions. GPU routing is tested with a stub worker; these checks do not require diffusion inference. Browser checks require Playwright and Chromium.

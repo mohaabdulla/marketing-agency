@@ -1,0 +1,181 @@
+{
+  "source": "editorial_showcase",
+  "language": "en",
+  "scene": {
+    "scene_prompt": "Sleek product photography of an edge-AI smart camera and neural processing terminal mounted in a modern architectural atrium, subtle holographic bounding-box HUD reflection on glass, dramatic dark emerald and slate studio lighting, 50mm lens, ultra-detailed. Product and deployment context: Lexnis VisionOS 2.0. Brand: Lexnis Technologies. No typography, no letters, no watermarks. Leave upper header and lower caption areas clear.",
+    "overlay_pill": "LIVE DEPLOYMENT • LEXNIS VISIONOS 2.0",
+    "overlay_pill_ar": "تشغيل فعلي • Lexnis VisionOS 2.0",
+    "hook": "Intelligence. Right at the edge.",
+    "hook_ar": "ذكاء يعمل حيث يحدث كل شيء.",
+    "caption": "Sub-15ms neural inference running natively at the edge.",
+    "caption_ar": "استدلال عصبي محلي بزمن أقل من 15 مللي ثانية.",
+    "panel_title": "Lexnis VisionOS 2.0",
+    "panel_title_ar": "Lexnis VisionOS 2.0",
+    "panel_subtitle": "From cloud dependency to local intelligence",
+    "panel_subtitle_ar": "من الاعتماد على السحابة إلى الذكاء المحلي",
+    "signal_label": "BEFORE / AFTER",
+    "signal_label_ar": "قبل / بعد",
+    "metrics": [
+      [
+        "14.2ms",
+        "LATENCY"
+      ],
+      [
+        "99.4%",
+        "PRECISION"
+      ],
+      [
+        "ZERO",
+        "CLOUD LAG"
+      ]
+    ],
+    "metrics_ar": [
+      [
+        "14.2ms",
+        "زمن الاستجابة"
+      ],
+      [
+        "99.4%",
+        "الدقة"
+      ],
+      [
+        "صفر",
+        "تأخير سحابي"
+      ]
+    ],
+    "post_type": "launch",
+    "topic": "Lexnis VisionOS 2.0",
+    "brand_name": "Lexnis Technologies",
+    "eyebrow": "A CLOSER LOOK / LEXNIS",
+    "eyebrow_ar": "نظرة أقرب / لكسنس"
+  },
+  "warning": "",
+  "dimensions": [
+    1080,
+    1350
+  ],
+  "layout": {
+    "text_boxes": [
+      [
+        80,
+        177.5,
+        342,
+        196.5
+      ],
+      [
+        212.2422637939453,
+        277.5224609375,
+        498.66949462890625,
+        305.40850830078125
+      ],
+      [
+        124.16697692871094,
+        368.6343994140625,
+        485.54498291015625,
+        407.88580322265625
+      ],
+      [
+        125.69569396972656,
+        436.27044677734375,
+        319.0455322265625,
+        458.72698974609375
+      ],
+      [
+        147.9313201904297,
+        519.3032836914062,
+        284.7003479003906,
+        539.7604370117188
+      ],
+      [
+        152.45797729492188,
+        584.0418701171875,
+        281.624755859375,
+        604.1165771484375
+      ],
+      [
+        154.5667266845703,
+        675.359130859375,
+        280.98834228515625,
+        695.1517333984375
+      ],
+      [
+        601.8291015625,
+        748.5104370117188,
+        740.4472045898438,
+        765.6095581054688
+      ],
+      [
+        151.9415283203125,
+        862.75439453125,
+        244.3136749267578,
+        884.9102172851562
+      ],
+      [
+        152.98196411132812,
+        907.6126708984375,
+        223.24339294433594,
+        920.359619140625
+      ],
+      [
+        429.0793762207031,
+        854.1290283203125,
+        515.2257080078125,
+        876.1136474609375
+      ],
+      [
+        429.33465576171875,
+        898.5222778320312,
+        509.31427001953125,
+        911.5927734375
+      ],
+      [
+        706.1373901367188,
+        845.8456420898438,
+        775.7144165039062,
+        867.3123168945312
+      ],
+      [
+        705.7113037109375,
+        889.5521850585938,
+        791.7818603515625,
+        902.8211059570312
+      ],
+      [
+        100,
+        1070.0,
+        483,
+        1083.0
+      ],
+      [
+        904,
+        1068.5,
+        962,
+        1084.5
+      ],
+      [
+        100,
+        1115.5,
+        598,
+        1148.5
+      ],
+      [
+        100,
+        1184.5,
+        695,
+        1205.5
+      ]
+    ],
+    "window": [
+      78,
+      230,
+      1004,
+      994
+    ],
+    "caption_bar": [
+      72,
+      1040,
+      1008,
+      1240
+    ]
+  }
+}

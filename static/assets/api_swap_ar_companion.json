@@ -1,0 +1,187 @@
+{
+  "source": "editorial_showcase",
+  "language": "ar",
+  "scene": {
+    "scene_prompt": "Modern executive tech workspace in Manama, Bahrain, collaborative engineering desk with MacBook Pro, architectural sketches, espresso cup, and glowing emerald ambient LED strip in background, warm sunlight, 35mm editorial photography. New team member onboarding and collaboration focused on مهندس ذكاء اصطناعي. No typography, no letters, no watermarks. Leave upper header and lower caption areas clear.",
+    "overlay_pill": "GROWING THE TEAM • MANAMA HQ",
+    "overlay_pill_ar": "فريقنا ينمو • مقر المنامة",
+    "hook": "A new perspective. A shared mission.",
+    "hook_ar": "رؤية جديدة. ومهمة تجمعنا.",
+    "caption": "Expanding our AI & Automation engineering capabilities.",
+    "caption_ar": "نوسع قدراتنا الهندسية في الذكاء الاصطناعي والأتمتة.",
+    "panel_title": "Great work starts with great people.",
+    "panel_title_ar": "العمل المميز يبدأ بأشخاص مميزين.",
+    "panel_subtitle": "مهندس ذكاء اصطناعي",
+    "panel_subtitle_ar": "نتعلم ونبتكر وننمو معاً",
+    "signal_label": "THE TEAM ROADMAP",
+    "signal_label_ar": "خارطة طريق الفريق",
+    "metrics": [
+      [
+        "ONE TEAM",
+        "SHARED MISSION"
+      ],
+      [
+        "BUILD",
+        "WITH PURPOSE"
+      ],
+      [
+        "GROW",
+        "TOGETHER"
+      ]
+    ],
+    "metrics_ar": [
+      [
+        "فريق واحد",
+        "مهمة مشتركة"
+      ],
+      [
+        "نبتكر",
+        "بهدف واضح"
+      ],
+      [
+        "ننمو",
+        "معاً"
+      ]
+    ],
+    "post_type": "welcome",
+    "topic": "مهندس ذكاء اصطناعي",
+    "brand_name": "Lexnis Technologies",
+    "eyebrow": "A CLOSER LOOK / LEXNIS",
+    "eyebrow_ar": "نظرة أقرب / لكسنس"
+  },
+  "warning": "",
+  "dimensions": [
+    1080,
+    1350
+  ],
+  "layout": {
+    "text_boxes": [
+      [
+        820,
+        174.5,
+        1000,
+        199.5
+      ],
+      [
+        781.800537109375,
+        261.13623046875,
+        956.858642578125,
+        288.5468444824219
+      ],
+      [
+        800.5399780273438,
+        349.8091125488281,
+        957.5252075195312,
+        389.66900634765625
+      ],
+      [
+        756.9507446289062,
+        411.67852783203125,
+        955.8406982421875,
+        442.4723815917969
+      ],
+      [
+        369.4306945800781,
+        511.81005859375,
+        501.9973449707031,
+        533.1549072265625
+      ],
+      [
+        380.1313781738281,
+        578.59130859375,
+        498.0411376953125,
+        598.3196411132812
+      ],
+      [
+        406.7927551269531,
+        644.1924438476562,
+        498.13092041015625,
+        664.9073486328125
+      ],
+      [
+        405.26385498046875,
+        710.2351684570312,
+        498.2186584472656,
+        730.847412109375
+      ],
+      [
+        601.8291015625,
+        748.5104370117188,
+        740.4472045898438,
+        765.6095581054688
+      ],
+      [
+        252.8402557373047,
+        856.2225341796875,
+        373.8417053222656,
+        884.1073608398438
+      ],
+      [
+        283.2001953125,
+        899.9432373046875,
+        374.1771240234375,
+        919.0955810546875
+      ],
+      [
+        591.37060546875,
+        846.9218139648438,
+        650.9229736328125,
+        873.8433227539062
+      ],
+      [
+        578.3790283203125,
+        891.161376953125,
+        650.5493774414062,
+        909.7338256835938
+      ],
+      [
+        875.2920532226562,
+        838.5806884765625,
+        928.3720092773438,
+        864.3404541015625
+      ],
+      [
+        902.1842651367188,
+        885.2535400390625,
+        927.1486206054688,
+        896.5841064453125
+      ],
+      [
+        681,
+        1068.0,
+        875,
+        1085.0
+      ],
+      [
+        904,
+        1068.5,
+        962,
+        1084.5
+      ],
+      [
+        579,
+        1113.5,
+        980,
+        1150.5
+      ],
+      [
+        481,
+        1180.5,
+        980,
+        1209.5
+      ]
+    ],
+    "window": [
+      78,
+      230,
+      1004,
+      994
+    ],
+    "caption_bar": [
+      72,
+      1040,
+      1008,
+      1240
+    ]
+  }
+}

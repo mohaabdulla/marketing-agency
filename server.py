@@ -18,7 +18,7 @@ import cv2
 import numpy as np
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from visual_engine import (
@@ -30,6 +30,7 @@ from campaign_generator import (
     LexnisCampaignStudio, CampaignAsset, IMAGE_MODELS, DEFAULT_IMAGE_MODEL, RENDERS_DIR,
     GENERIC_BRAND_NAMES, extract_brand_name_from_prompt, resolve_featured_person, team_welcome_headline,
     is_generic_filename_name as _is_generic_filename_name,
+    generate_companion_image, generate_campaign_post,
 )
 
 app = FastAPI(
@@ -139,6 +140,8 @@ def resolve_request_brand(
 
 class GenerateRequest(BaseModel):
     prompt: str = Field(..., description="Product, offer or campaign concept")
+    generate_companion: bool = True
+    use_local_sdxl: Optional[bool] = None
     brand: Optional[str] = Field("", description="Brand name (empty = resolve from guideline profile or prompt)")
     tone: Optional[str] = Field(None, description="Marketing tone")
     theme: Optional[str] = Field(None, description="Visual direction")
@@ -193,6 +196,9 @@ class EnhancePromptRequest(BaseModel):
 
 class RenderRequest(BaseModel):
     visual_prompt: str
+    generate_companion: bool = True
+    use_local_sdxl: Optional[bool] = None
+    post_type: str = "general"
     seed: int
     image_model: Optional[str] = DEFAULT_IMAGE_MODEL
     headline: Optional[str] = ""
@@ -224,6 +230,8 @@ class ExportRequest(BaseModel):
     image_model: Optional[str] = DEFAULT_IMAGE_MODEL
     clean_image_url: Optional[str] = ""
     arabic_image_url: Optional[str] = ""
+    companion_image_url: str = ""
+    arabic_companion_image_url: str = ""
     search_results: Optional[List[Dict[str, Any]]] = None
     agent_dialogue: Optional[List[Dict[str, Any]]] = None
     critique_notes: Optional[List[str]] = None
@@ -325,6 +333,7 @@ def enhance_prompt_endpoint(req: EnhancePromptRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/campaign/generate")
 @app.post("/api/generate")
 def generate_campaign_endpoint(req: GenerateRequest):
     """Research -> brief -> Instagram copy -> watermark-free visual."""
@@ -413,11 +422,17 @@ def generate_campaign_endpoint(req: GenerateRequest):
             logo_path=logo_to_use,
             logo_url=req.logo_url,
             brand_profile=bp or None,
+            generate_companion=req.generate_companion,
+            use_local_sdxl=req.use_local_sdxl,
         )
         data = asset.to_dict()
         data["image_url"] = render_url(asset.image_path)
         data["clean_image_url"] = render_url(asset.clean_image_path)
         data["arabic_image_url"] = render_url(asset.arabic_image_path)
+        data["companion_image_url"] = render_url(asset.companion_image_path)
+        data["arabic_companion_image_url"] = render_url(asset.arabic_companion_image_path)
+        data["carousel_urls"] = [url for url in (data["image_url"], data["companion_image_url"]) if url]
+        data["arabic_carousel_urls"] = [url for url in (data["arabic_image_url"], data["arabic_companion_image_url"]) if url]
         data["uploaded_image_url"] = render_url(asset.uploaded_image_url)
         data["uploaded_arabic_url"] = render_url(asset.uploaded_arabic_url)
         data["ai_image_url"] = render_url(asset.ai_image_url)
@@ -972,6 +987,7 @@ async def analyze_layout_endpoint(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/template/swap")
 @app.post("/api/template-swap")
 async def template_swap_endpoint(
     template_file: Optional[UploadFile] = File(None),
@@ -993,6 +1009,8 @@ async def template_swap_endpoint(
     prompt: Optional[str] = Form(""),
     brand_profile_json: Optional[str] = Form(""),
     guidelines: Optional[str] = Form(""),
+    generate_companion: bool = Form(True),
+    use_local_sdxl: Optional[bool] = Form(None),
 ):
     """
     Autonomous Template Subject-Replacement & 2.5D Pop-Out Compositing Endpoint.
@@ -1006,6 +1024,8 @@ async def template_swap_endpoint(
     import hashlib
     import time
     try:
+        if post_type == "welcome":
+            post_type = "team_welcome"
         t_bytes = None
         s_bytes = None
 
@@ -1168,10 +1188,35 @@ async def template_swap_endpoint(
             ar_pil.save(ar_path, format="JPEG", quality=95)
             arabic_url = render_url(str(ar_path))
 
+        companion_url = arabic_companion_url = ""
+        if generate_companion:
+            pair_req = dict(topic=prompt or f"Welcoming {person_name} to {brand_name}", post_type=post_type,
+                            person_name=person_name or "", role_title=person_title or "", brand_name=brand_name,
+                            use_local_sdxl=use_local_sdxl, logo_image=logo_image_param)
+            if "welcome" in str(post_type) and not is_lexnis_brand:
+                brand_theme.hashtag_en = f"#{brand_theme.clean_slug}Team"
+                brand_theme.hashtag_ar = f"#فريق_{brand_theme.clean_slug}"
+            # Match the exact tags already used by the welcome compositor.
+            usable_tag = brand_tag and (is_lexnis_brand or not re.search(r"lexnis|sekawan|لكسنس", brand_tag, re.I))
+            if usable_tag and not re.search(r"[\u0600-\u06FF]", brand_tag):
+                brand_theme.hashtag_en = sanitize_brand_tag(brand_tag, brand_name)
+            if is_lexnis_brand:
+                brand_theme.hashtag_ar = ar_tag if language in ("ar", "both") else "#فريق_لكسنس"
+            en_pair = generate_campaign_post(out_path, {**pair_req, "language": "en"}, brand_theme, output_path=out_path)
+            companion_url = render_url(en_pair["companion_image"])
+            if arabic_url:
+                ar_pair = generate_campaign_post(ar_path, {**pair_req, "language": "ar"}, brand_theme, output_path=ar_path)
+                arabic_companion_url = render_url(ar_pair["companion_image"])
+        primary_url = render_url(str(out_path)) if language != "ar" else arabic_url
+        selected_companion_url = arabic_companion_url if language == "ar" else companion_url
         return {
             "status": "ready",
-            "image_url": render_url(str(out_path)) if language != "ar" else arabic_url,
+            "image_url": primary_url,
             "arabic_image_url": arabic_url,
+            "companion_image_url": selected_companion_url,
+            "arabic_companion_image_url": arabic_companion_url,
+            "carousel_urls": [u for u in (primary_url, selected_companion_url) if u],
+            "arabic_carousel_urls": [u for u in (arabic_url, arabic_companion_url) if u],
             "message": "Template swap with 2.5D pop-out layering successfully generated",
             "dimensions": {"width": 1080, "height": 1350},
             "person_name": person_name,
@@ -1213,12 +1258,27 @@ def render_endpoint(req: RenderRequest):
         post_path, clean_path, watermark_free = render_res[0], render_res[1], render_res[2]
         ar_post_path = getattr(render_res, "arabic_post_path", None) or (render_res[3] if len(render_res) > 3 else getattr(studio, "last_arabic_post_path", None))
         vm = getattr(studio, "last_vision_meta", {})
+        companion_url = ar_companion_url = ""
+        if req.generate_companion:
+            theme = resolve_brand_theme(brand_name=req.brand or "", post_type=req.post_type)
+            pair_req = dict(topic=req.campaign_context or req.visual_prompt, post_type=req.post_type,
+                            role_title=req.headline or "", seed=req.seed, use_local_sdxl=req.use_local_sdxl)
+            pair = generate_campaign_post(post_path, {**pair_req, "language": "en"}, theme)
+            post_path, companion_url = pair["primary_card"], render_url(pair["companion_image"])
+            if ar_post_path:
+                ar_pair = generate_campaign_post(ar_post_path, {**pair_req, "language": "ar"}, theme)
+                ar_post_path, ar_companion_url = ar_pair["primary_card"], render_url(ar_pair["companion_image"])
         return {
             "image_status": "ready",
             "warnings": [],
             "image_url": render_url(str(post_path)),
             "clean_image_url": render_url(str(clean_path)),
             "arabic_image_url": render_url(str(ar_post_path)) if ar_post_path else "",
+            "companion_image_url": companion_url,
+            "arabic_companion_image_url": ar_companion_url,
+            "carousel_urls": [u for u in (render_url(str(post_path)), companion_url) if u],
+            "arabic_carousel_urls": [u for u in (render_url(str(ar_post_path)) if ar_post_path else "", ar_companion_url) if u],
+            "post_type": req.post_type,
             "watermark_free": watermark_free,
             "seed": req.seed,
             "visual_analysis": vm.get("visual_analysis", ""),
@@ -1236,6 +1296,26 @@ def render_endpoint(req: RenderRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class CarouselDownloadRequest(BaseModel):
+    urls: List[str] = Field(..., min_length=1, max_length=2)
+
+
+@app.post("/api/carousel/download")
+def download_carousel(req: CarouselDownloadRequest):
+    import zipfile
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED) as zipped:
+        for index, url in enumerate(req.urls, 1):
+            if not re.fullmatch(r"/renders/[^/\\]+\.(?:jpg|png|webp)", url, re.I):
+                raise HTTPException(400, "Expected a generated image URL")
+            path = RENDERS_DIR / Path(url).name
+            if not path.is_file() or path.resolve().parent != RENDERS_DIR.resolve():
+                raise HTTPException(404, "Carousel image not found")
+            zipped.write(path, f"slide_{index:02}{path.suffix}")
+    archive.seek(0)
+    return StreamingResponse(archive, media_type="application/zip", headers={"Content-Disposition": 'attachment; filename="campaign-carousel.zip"'})
 
 
 @app.post("/api/export")
@@ -1263,6 +1343,8 @@ def export_campaign_endpoint(req: ExportRequest):
             image_path=render_path(req.image_url),
             clean_image_path=render_path(req.clean_image_url or ""),
             arabic_image_path=render_path(req.arabic_image_url or "") if req.arabic_image_url else "",
+            companion_image_path=render_path(req.companion_image_url),
+            arabic_companion_image_path=render_path(req.arabic_companion_image_url),
             agent_dialogue=req.agent_dialogue or [],
             critique_notes=req.critique_notes or [],
             enhanced_prompt=req.enhanced_prompt or "",

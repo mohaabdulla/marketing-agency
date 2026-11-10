@@ -1,0 +1,175 @@
+{
+  "source": "editorial_showcase",
+  "language": "en",
+  "scene": {
+    "scene_prompt": "Candid medium-wide shot inside a modern high-tech AI research lab in Manama, Bahrain. Two engineers working together at a dual-monitor workstation displaying 3D point-cloud computer vision meshes and neural network telemetry graphs, warm natural rim lighting + subtle emerald ambient accent light, Canon EOS R5 35mm f/1.8, shallow depth of field, authentic skin texture, architectural glass background. Focus area: Senior Machine Learning & Vision Systems Engineer. No typography, no letters, no watermarks. Leave upper header and lower caption areas clear.",
+    "overlay_pill": "INSIDE THE LAB • LEXNIS ENGINEERING",
+    "overlay_pill_ar": "داخل المختبر • هندسة لكسنس",
+    "hook": "Build what comes next.",
+    "hook_ar": "ابنِ ما يصنع المستقبل.",
+    "caption": "Building real-time edge AI & 3D perception systems in Bahrain.",
+    "caption_ar": "نبني أنظمة الذكاء الطرفي والإدراك ثلاثي الأبعاد في البحرين.",
+    "panel_title": "Your next engineering chapter",
+    "panel_title_ar": "فصلك الهندسي القادم",
+    "panel_subtitle": "Senior Machine Learning & Vision Systems Engineer",
+    "panel_subtitle_ar": "من الفكرة إلى أنظمة تعمل في الواقع",
+    "signal_label": "THE ENGINEERING LOOP",
+    "signal_label_ar": "دورة العمل الهندسي",
+    "metrics": [
+      [
+        "100%",
+        "R&D FOCUS"
+      ],
+      [
+        "EDGE-FIRST",
+        "ARCHITECTURE"
+      ],
+      [
+        "MANAMA",
+        "CORE LAB"
+      ]
+    ],
+    "metrics_ar": [
+      [
+        "100%",
+        "بحث وتطوير"
+      ],
+      [
+        "الذكاء الطرفي",
+        "بنية متقدمة"
+      ],
+      [
+        "المنامة",
+        "المختبر الأساسي"
+      ]
+    ],
+    "post_type": "hiring",
+    "topic": "Senior Machine Learning & Vision Systems Engineer",
+    "brand_name": "Lexnis Technologies",
+    "eyebrow": "A CLOSER LOOK / LEXNIS",
+    "eyebrow_ar": "نظرة أقرب / لكسنس"
+  },
+  "warning": "",
+  "dimensions": [
+    1080,
+    1350
+  ],
+  "layout": {
+    "text_boxes": [
+      [
+        80,
+        177.5,
+        342,
+        196.5
+      ],
+      [
+        212.2422637939453,
+        276.5586242675781,
+        528.4246826171875,
+        305.40850830078125
+      ],
+      [
+        124.07890319824219,
+        359.0790100097656,
+        670.3629760742188,
+        411.4552001953125
+      ],
+      [
+        125.64575958251953,
+        424.1438293457031,
+        632.1137084960938,
+        460.7539367675781
+      ],
+      [
+        147.96646118164062,
+        518.4716796875,
+        357.4437255859375,
+        538.2552490234375
+      ],
+      [
+        156.3582305908203,
+        748.55859375,
+        417.561279296875,
+        768.5949096679688
+      ],
+      [
+        601.8291015625,
+        748.5104370117188,
+        740.4472045898438,
+        765.6095581054688
+      ],
+      [
+        151.9415283203125,
+        863.3837890625,
+        224.54473876953125,
+        884.9102172851562
+      ],
+      [
+        152.98196411132812,
+        907.0799560546875,
+        240.0086212158203,
+        920.359619140625
+      ],
+      [
+        429.0793762207031,
+        851.9562377929688,
+        583.5503540039062,
+        876.1136474609375
+      ],
+      [
+        429.33465576171875,
+        897.3934326171875,
+        544.8551635742188,
+        911.5927734375
+      ],
+      [
+        706.1373901367188,
+        844.1128540039062,
+        830.2071533203125,
+        867.3123168945312
+      ],
+      [
+        705.7113037109375,
+        889.9286499023438,
+        779.9266357421875,
+        902.8211059570312
+      ],
+      [
+        100,
+        1070.0,
+        453,
+        1083.0
+      ],
+      [
+        904,
+        1068.5,
+        962,
+        1084.5
+      ],
+      [
+        100,
+        1119.0,
+        484,
+        1145.0
+      ],
+      [
+        100,
+        1184.5,
+        768,
+        1205.5
+      ]
+    ],
+    "window": [
+      78,
+      230,
+      1004,
+      994
+    ],
+    "caption_bar": [
+      72,
+      1040,
+      1008,
+      1240
+    ]
+  }
+}

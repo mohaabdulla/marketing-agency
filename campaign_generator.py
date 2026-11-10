@@ -146,7 +146,7 @@ def _layout_code_fingerprint() -> str:
     code changes; it is re-rendered instead.
     """
     h = hashlib.sha1()
-    for name in ("visual_engine.py", "campaign_generator.py"):
+    for name in ("visual_engine.py", "campaign_generator.py", "static/assets/brand_logo.png"):
         try:
             h.update((BASE_DIR / name).read_bytes())
         except OSError:
@@ -424,6 +424,12 @@ class CampaignAsset:
     post_type: str = "general"
     person_name: str = ""
     person_title: str = ""
+    companion_image_path: str = ""
+    companion_image_url: str = ""
+    arabic_companion_image_path: str = ""
+    arabic_companion_image_url: str = ""
+    carousel_urls: List[str] = field(default_factory=list)
+    arabic_carousel_urls: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -1416,6 +1422,142 @@ def _draw_arabic_aware(draw, xy, text: str, size: int, fill, *, bold: bool = Tru
     lang = "ar" if re.search(r"[\u0600-\u06FF]", text) else "en"
     font = _load_font(size, bold, lang=lang, role=role)
     return draw.text(xy, prepare_bidi_text(text), font=font, fill=fill, **kwargs)
+
+
+def build_companion_scene_prompt(topic: str, post_type: str, brand_name: str, role_title: str = "") -> dict:
+    """Photography direction and bilingual editorial copy for the same campaign topic."""
+    kind = str(post_type or "general").lower()
+    kind = "welcome" if "welcome" in kind else "launch" if "launch" in kind else "hiring" if "hir" in kind else "general"
+    brand = brand_name or "Our Team"
+    lexnis = "lexnis" in brand.lower()
+    short = "LEXNIS" if lexnis else brand.upper()
+    brand_ar = "لكسنس" if lexnis else brand
+    location = "Manama, Bahrain" if lexnis else f"{brand}'s headquarters"
+    subject = " ".join((role_title or topic or "Engineering innovation").split())[:220]
+    scenes = {
+        "hiring": dict(
+            scene_prompt=f"Candid medium-wide shot inside a modern high-tech AI research lab in {location}. Two engineers working together at a dual-monitor workstation displaying 3D point-cloud computer vision meshes and neural network telemetry graphs, warm natural rim lighting + subtle emerald ambient accent light, Canon EOS R5 35mm f/1.8, shallow depth of field, authentic skin texture, architectural glass background. Focus area: {subject}.",
+            overlay_pill=f"INSIDE THE LAB • {short} ENGINEERING", overlay_pill_ar=f"داخل المختبر • هندسة {brand_ar}",
+            hook="Build what comes next.", hook_ar="ابنِ ما يصنع المستقبل.",
+            caption="Building real-time edge AI & 3D perception systems in Bahrain." if lexnis else f"Building real-time systems with {brand}.",
+            caption_ar="نبني أنظمة الذكاء الطرفي والإدراك ثلاثي الأبعاد في البحرين." if lexnis else f"نبني أنظمة ذكية مع {brand_ar}.",
+            panel_title="Your next engineering chapter", panel_title_ar="فصلك الهندسي القادم",
+            panel_subtitle=subject, panel_subtitle_ar="من الفكرة إلى أنظمة تعمل في الواقع",
+            signal_label="THE ENGINEERING LOOP", signal_label_ar="دورة العمل الهندسي",
+            metrics=[("100%", "R&D FOCUS"), ("EDGE-FIRST", "ARCHITECTURE"), ("MANAMA" if lexnis else short, "CORE LAB")],
+            metrics_ar=[("100%", "بحث وتطوير"), ("الذكاء الطرفي", "بنية متقدمة"), ("المنامة" if lexnis else brand_ar, "المختبر الأساسي")]),
+        "launch": dict(
+            scene_prompt=f"Sleek product photography of an edge-AI smart camera and neural processing terminal mounted in a modern architectural atrium, subtle holographic bounding-box HUD reflection on glass, dramatic dark emerald and slate studio lighting, 50mm lens, ultra-detailed. Product and deployment context: {subject}. Brand: {brand}.",
+            overlay_pill=f"LIVE DEPLOYMENT • {subject.upper()}", overlay_pill_ar=f"تشغيل فعلي • {subject}",
+            hook="Intelligence. Right at the edge.", hook_ar="ذكاء يعمل حيث يحدث كل شيء.",
+            caption="Sub-15ms neural inference running natively at the edge.", caption_ar="استدلال عصبي محلي بزمن أقل من 15 مللي ثانية.",
+            panel_title=subject, panel_title_ar=subject,
+            panel_subtitle="From cloud dependency to local intelligence", panel_subtitle_ar="من الاعتماد على السحابة إلى الذكاء المحلي",
+            signal_label="BEFORE / AFTER", signal_label_ar="قبل / بعد",
+            metrics=[("14.2ms", "LATENCY"), ("99.4%", "PRECISION"), ("ZERO", "CLOUD LAG")],
+            metrics_ar=[("14.2ms", "زمن الاستجابة"), ("99.4%", "الدقة"), ("صفر", "تأخير سحابي")]),
+        "welcome": dict(
+            scene_prompt=f"Modern executive tech workspace in {location}, collaborative engineering desk with MacBook Pro, architectural sketches, espresso cup, and glowing emerald ambient LED strip in background, warm sunlight, 35mm editorial photography. New team member onboarding and collaboration focused on {subject}.",
+            overlay_pill="GROWING THE TEAM • MANAMA HQ" if lexnis else f"GROWING THE TEAM • {short}",
+            overlay_pill_ar="فريقنا ينمو • مقر المنامة" if lexnis else f"فريقنا ينمو • {brand_ar}",
+            hook="A new perspective. A shared mission.", hook_ar="رؤية جديدة. ومهمة تجمعنا.",
+            caption="Expanding our AI & Automation engineering capabilities.", caption_ar="نوسع قدراتنا الهندسية في الذكاء الاصطناعي والأتمتة.",
+            panel_title="Great work starts with great people.", panel_title_ar="العمل المميز يبدأ بأشخاص مميزين.",
+            panel_subtitle=subject, panel_subtitle_ar="نتعلم ونبتكر وننمو معاً",
+            signal_label="THE TEAM ROADMAP", signal_label_ar="خارطة طريق الفريق",
+            metrics=[("ONE TEAM", "SHARED MISSION"), ("BUILD", "WITH PURPOSE"), ("GROW", "TOGETHER")],
+            metrics_ar=[("فريق واحد", "مهمة مشتركة"), ("نبتكر", "بهدف واضح"), ("ننمو", "معاً")]),
+        "general": dict(
+            scene_prompt=f"Authentic editorial photograph illustrating {subject}, inside a contemporary technology workspace for {brand}, real equipment and people collaborating, architectural glass, warm daylight, restrained emerald accents, 35mm lens, natural materials and realistic skin texture.",
+            overlay_pill=f"BEHIND THE IDEAS • {short}", overlay_pill_ar=f"خلف الأفكار • {brand_ar}",
+            hook=subject, hook_ar="من الأفكار إلى أثر ملموس.",
+            caption=f"Inside the work shaping {brand}'s next chapter.", caption_ar=f"نظرة إلى العمل الذي يصنع مستقبل {brand_ar}.",
+            panel_title=subject, panel_title_ar=subject,
+            panel_subtitle="A closer look at the work behind the story", panel_subtitle_ar="نظرة أقرب إلى العمل خلف القصة",
+            signal_label="IDEA / BUILD / IMPACT", signal_label_ar="فكرة / تنفيذ / أثر",
+            metrics=[("IDEA", "FIND THE OPPORTUNITY"), ("BUILD", "MAKE IT REAL"), ("IMPACT", "MOVE FORWARD")],
+            metrics_ar=[("فكرة", "نكتشف الفرصة"), ("تنفيذ", "نحولها إلى واقع"), ("أثر", "نمضي إلى الأمام")]),
+    }
+    scene = scenes[kind]
+    ai_topic = bool(re.search(r"\bai\b|vision|neural|tensor|machine learning|robot|ذكاء|رؤية", subject, re.I))
+    if kind == "hiring" and not ai_topic:
+        scene.update(
+            scene_prompt=f"Candid medium-wide editorial photograph of {subject} professionals collaborating at {brand}'s modern workplace in {location}. Authentic working tools appropriate to {subject}, glass meeting rooms, warm natural daylight, 35mm lens, realistic materials and skin texture, restrained brand accent lighting.",
+            overlay_pill=f"INSIDE THE TEAM • {short}", overlay_pill_ar=f"داخل الفريق • {brand_ar}",
+            caption=f"A closer look at {subject} opportunities with {brand}.", caption_ar=f"فرص جديدة في فريق {brand_ar} • {subject}",
+            metrics=[("TEAMWORK", "COLLABORATE"), ("EXPERTISE", "BUILD YOUR CRAFT"), ("IMPACT", "GROW WITH US")],
+            metrics_ar=[("تعاون", "نعمل معاً"), ("خبرة", "نطور مهاراتنا"), ("أثر", "ننمو معاً")])
+    if kind == "welcome" and role_title and not ai_topic:
+        scene["caption"] = f"Growing our {role_title} capabilities together."
+        scene["caption_ar"] = f"نوسع قدرات فريقنا معاً • {role_title}"
+    if kind == "launch" and not ai_topic:
+        scene.update(
+            scene_prompt=f"Premium editorial product launch photography depicting {subject} for {brand}. Show authentic materials, objects and working context appropriate to this exact product, architectural natural light, 50mm lens, realistic textures, restrained brand accent lighting.",
+            overlay_pill=f"LAUNCH IN FOCUS • {subject.upper()}", overlay_pill_ar=f"إطلاق جديد • {subject}",
+            hook="From the first idea to what's next.", hook_ar="من الفكرة الأولى إلى الخطوة القادمة.",
+            caption=f"Introducing {subject} from {brand}.", caption_ar=f"نقدم {subject} من {brand_ar}.",
+            panel_subtitle="The story behind the release", panel_subtitle_ar="القصة خلف الإصدار الجديد",
+            benchmarks=[("IN DEVELOPMENT", 130), ("READY TO LAUNCH", 292)],
+            metrics=[("IDEA", "THE BEGINNING"), ("CRAFT", "THE DETAILS"), ("LAUNCH", "THE NEXT CHAPTER")],
+            metrics_ar=[("فكرة", "البداية"), ("إتقان", "التفاصيل"), ("إطلاق", "الفصل القادم")])
+    scene.update(post_type=kind, topic=topic, brand_name=brand,
+                 eyebrow="A CLOSER LOOK / " + short, eyebrow_ar=f"نظرة أقرب / {brand_ar}")
+    scene["scene_prompt"] += " No typography, no letters, no watermarks. Leave upper header and lower caption areas clear."
+    return scene
+
+
+def generate_companion_image(req_data: dict, brand_theme, output_path: str) -> str:
+    """Generate a topic scene locally when ready, otherwise an editorial showcase."""
+    from visual_engine import (resolve_brand_theme, BrandTheme, preferred_local_model, local_image,
+                               apply_editorial_grade, render_companion_showcase, finish_companion_image)
+    if not isinstance(brand_theme, BrandTheme):
+        brand_theme = resolve_brand_theme(brand_profile=brand_theme or {}, brand_name=req_data.get("brand_name", "Lexnis Technologies"), post_type=req_data.get("post_type", "general"))
+    scene = build_companion_scene_prompt(req_data.get("topic", req_data.get("prompt", "")), req_data.get("post_type", "general"), brand_theme.brand_name, req_data.get("role_title", ""))
+    lang = "ar" if req_data.get("language", "en") in ("ar", "arabic") else "en"
+    mode = req_data.get("use_local_sdxl")
+    model = preferred_local_model() if mode is not False else None
+    image, warning = None, ""
+    if model:
+        try:
+            raw, _ = local_image(scene["scene_prompt"], int(req_data.get("seed") or 7), 1080, 1350, model=model)
+            image = apply_editorial_grade(Image.open(io.BytesIO(raw)), brand_theme)
+        except Exception as exc:
+            warning = str(exc)
+    elif mode is True:
+        warning = "Local SDXL weights are not ready; used the editorial showcase."
+    source = "local_sdxl" if image is not None else "editorial_showcase"
+    if image is None:
+        from visual_engine import ARABIC_TITLES_MAP
+        person = req_data.get("person_name", "")
+        role = req_data.get("role_title", "")
+        if lang == "ar":
+            person = transliterate_to_arabic(person) if person else ""
+            role = ARABIC_TITLES_MAP.get(role.lower(), role)
+        image = render_companion_showcase(scene, brand_theme, lang, role, person)
+    image = finish_companion_image(image, scene, brand_theme, lang, req_data.get("logo_image"))
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    image.save(output, "JPEG", quality=95, subsampling=0)
+    metadata = dict(source=source, language=lang, scene=scene, warning=warning, dimensions=[1080, 1350], layout=image.info.get("companion_layout", {}))
+    output.with_suffix(".json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+    return str(output)
+
+
+def generate_campaign_post(primary_card, req_data: dict, brand_theme=None, output_path=None, generate_companion: bool = True) -> dict:
+    """Package a rendered primary into a two-slide post without mutating cached art."""
+    from visual_engine import add_carousel_indicator
+    primary = Path(primary_card) if isinstance(primary_card, (str, Path)) else None
+    output = Path(output_path) if output_path else primary.with_name(primary.stem + "_carousel.jpg") if primary else RENDERS_DIR / "primary_card.jpg"
+    image = Image.open(primary) if primary else primary_card
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if generate_companion:
+        image = fit_cover(image, 1080, 1350)
+        image = add_carousel_indicator(image)
+    image.convert("RGB").save(output, "JPEG", quality=95, subsampling=0)
+    companion = ""
+    if generate_companion:
+        companion = generate_companion_image(req_data, brand_theme, str(output.with_name(output.stem + "_companion.jpg")))
+    return {"primary_card": str(output), "companion_image": companion, "carousel_paths": [str(output), companion] if companion else [str(output)]}
 
 
 def _wrap(draw, text: str, font, max_width: int) -> List[str]:
@@ -3640,12 +3782,18 @@ class LexnisCampaignStudio:
         logo_path: Optional[str] = None,
         logo_url: Optional[str] = None,
         brand_profile: Optional[Dict[str, Any]] = None,
+        generate_companion: bool = True,
+        use_local_sdxl: Optional[bool] = None,
     ) -> CampaignAsset:
         """
         Run the full agency pipeline with Dual-Agent Collaborative refinement:
         Research -> Executive Brief -> Agent 1 Draft -> Agent 2 Critique & Polish -> FLUX Visual.
         """
         step = progress or (lambda msg: None)
+        if post_type == "welcome":
+            post_type = "team_welcome"
+        if generate_companion:
+            output_format = "portrait"
         tone = tone or "confident, premium and benefit-driven"
         theme = theme or "Cinematic lifestyle photography"
         brand = brand or "Lexnis Technologies"
@@ -3858,6 +4006,7 @@ class LexnisCampaignStudio:
             }
         brand_tag = sanitize_brand_tag(brand_tag or "", brand)
 
+        logo_to_use = logo_path or logo_url
         if t_file and s_file and (use_uploaded_image is not False):
             step(f"Executing autonomous 2.5D pop-out {post_type or 'campaign'} compositing...")
             logo_to_use = None
@@ -4587,6 +4736,35 @@ class LexnisCampaignStudio:
             watermark_free = True
             image_status = "ready"
 
+        companion_en = companion_ar = ""
+        if generate_companion and primary_post:
+            step("Creating the paired topic companion images...")
+            pair_theme = resolve_brand_theme(brand_profile=brand_dna, uploaded_logo_path=logo_to_use,
+                                            brand_name=brand, post_type=post_type or "general")
+            if "welcome" in str(post_type):
+                pair_theme.hashtag_en = "#LexnisTeam" if pair_theme.is_lexnis else f"#{pair_theme.clean_slug}Team"
+                pair_theme.hashtag_ar = "#فريق_لكسنس" if pair_theme.is_lexnis else f"#فريق_{pair_theme.clean_slug}"
+            pair_request = dict(topic=effective_prompt, post_type=post_type or "general", brand_name=brand,
+                                role_title=person_title if "welcome" in str(post_type) else person_name or brief.get("product_name", ""),
+                                person_name=person_name or "", seed=seed, use_local_sdxl=use_local_sdxl)
+            for lang, old_path in (("en", primary_post), ("ar", primary_arabic)):
+                if not old_path:
+                    continue
+                pair = generate_campaign_post(old_path, {**pair_request, "language": lang}, pair_theme)
+                paired_path = Path(pair["primary_card"])
+                if lang == "en":
+                    primary_post, companion_en = paired_path, pair["companion_image"]
+                    if ai_post_path == old_path:
+                        ai_post_path = paired_path
+                    if uploaded_post_en == old_path:
+                        uploaded_post_en = paired_path
+                else:
+                    primary_arabic, companion_ar = paired_path, pair["companion_image"]
+                    if ai_arabic_path == old_path:
+                        ai_arabic_path = paired_path
+                    if uploaded_post_ar == old_path:
+                        uploaded_post_ar = paired_path
+
         raw_response = json.dumps({"brief": brief, "post": post, "arabic": arabic_pack, "dialogue": dialogue, "critique": critique_notes}, indent=2, ensure_ascii=False)
         return CampaignAsset(
             prompt=prompt,
@@ -4636,6 +4814,12 @@ class LexnisCampaignStudio:
             post_type=post_type or "general",
             person_name=person_name or "",
             person_title=person_title or "",
+            companion_image_path=companion_en,
+            companion_image_url=f"/renders/{Path(companion_en).name}" if companion_en else "",
+            arabic_companion_image_path=companion_ar,
+            arabic_companion_image_url=f"/renders/{Path(companion_ar).name}" if companion_ar else "",
+            carousel_urls=([f"/renders/{primary_post.name}"] + ([f"/renders/{Path(companion_en).name}"] if companion_en else [])) if primary_post else [],
+            arabic_carousel_urls=([f"/renders/{primary_arabic.name}"] + ([f"/renders/{Path(companion_ar).name}"] if companion_ar else [])) if primary_arabic else [],
         )
 
     def template_swap_composite(
@@ -4689,6 +4873,12 @@ class LexnisCampaignStudio:
             image_ar_file = out / f"{slug}_post_ar.jpg"
             shutil.copyfile(asset.arabic_image_path, image_ar_file)
             files["arabic_image"] = str(image_ar_file)
+
+        for key, source in (("companion_image", asset.companion_image_path), ("arabic_companion_image", asset.arabic_companion_image_path)):
+            if source and Path(source).exists():
+                target = out / f"{slug}_{key}.jpg"
+                shutil.copyfile(source, target)
+                files[key] = str(target)
 
         if asset.clean_image_path and Path(asset.clean_image_path).exists() and asset.clean_image_path != asset.image_path:
             clean_file = out / f"{slug}_clean.jpg"
@@ -4809,6 +4999,9 @@ def run_cli():
     parser.add_argument("--format", choices=list(FORMATS), default="portrait", help="Output aspect ratio")
     parser.add_argument("--no-overlay", action="store_true", help="Do not print headline / brand tag on the image")
     parser.add_argument("--no-search", action="store_true", help="Disable web research")
+    parser.add_argument("--post-type", choices=["general", "hiring", "launch", "welcome"], default="general", help="Primary card and companion topic")
+    parser.add_argument("--no-companion", action="store_true", help="Generate only the primary graphic")
+    parser.add_argument("--companion-cpu", action="store_true", help="Use the deterministic editorial companion")
     parser.add_argument("--download", action="store_true", help="Export the package to the output directory")
     parser.add_argument("--outdir", default="output", help="Directory for exported assets")
     args = parser.parse_args()
@@ -4832,13 +5025,17 @@ def run_cli():
             asset = studio.generate_campaign(
                 prompt=prompt, brand=args.brand, tone=args.tone, theme=args.theme,
                 output_format=args.format, use_search=not args.no_search, image_model=args.image_model,
-                enhance_image=not args.no_overlay, progress=lambda m: status.update(f"[bold cyan]{m}")
+                enhance_image=not args.no_overlay, progress=lambda m: status.update(f"[bold cyan]{m}"),
+                generate_companion=not args.no_companion, use_local_sdxl=False if args.companion_cpu else None,
+                post_type=args.post_type,
             )
     else:
         asset = studio.generate_campaign(
             prompt=prompt, brand=args.brand, tone=args.tone, theme=args.theme,
             output_format=args.format, use_search=not args.no_search, image_model=args.image_model,
-            enhance_image=not args.no_overlay, progress=print
+            enhance_image=not args.no_overlay, progress=print,
+            generate_companion=not args.no_companion, use_local_sdxl=False if args.companion_cpu else None,
+            post_type=args.post_type,
         )
 
     if console and Table and Panel:
@@ -4862,6 +5059,10 @@ def run_cli():
 
     for warning in asset.warnings:
         print("Review: " + warning)
+    if asset.companion_image_path:
+        print(f"COMPANION: {asset.companion_image_path}")
+    if asset.arabic_companion_image_path:
+        print(f"ARABIC COMPANION: {asset.arabic_companion_image_path}")
 
     if args.download:
         files = studio.export_campaign(asset, output_dir=args.outdir)
