@@ -249,7 +249,7 @@ def serve_index():
     return FileResponse(index_path)
 
 
-@app.get("/favicon.ico", include_in_schema=False)
+@app.api_route("/favicon.ico", methods=["GET", "HEAD"], include_in_schema=False)
 def favicon():
     """Handle browser favicon request without 404."""
     from fastapi.responses import Response
