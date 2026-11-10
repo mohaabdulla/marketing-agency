@@ -251,9 +251,9 @@ class HeadlineFitTests(unittest.TestCase):
         draw = ImageDraw.Draw(Image.new("RGB", (1080, 400)))
         for text in ("WELCOME", "WELCOME TO THE TEAM", "LEXNIS TECHNOLOGIES WELCOMING NEW TEAM MEMBER!",
                      "A VERY LONG HEADLINE THAT SOMEONE TYPED INTO THE OVERRIDE FIELD FOR NO GOOD REASON"):
-            fit = fit_popout_headline(draw, text, FONTS_DIR / "Poppins-Bold.ttf", max_w=900, preferred_h=50,
-                                      max_h=96, start_size=46, min_single=28, min_double=28)
-            self.assertLessEqual(fit["block_w"], 900, text)
+            fit = fit_popout_headline(draw, text, FONTS_DIR / "Poppins-Bold.ttf", max_w=920, preferred_h=50,
+                                      max_h=96, start_size=58, min_single=38, min_double=38)
+            self.assertLessEqual(fit["block_w"], 920, text)
             self.assertLessEqual(fit["block_h"], 96, text)
 
 
@@ -379,7 +379,7 @@ class BrandedCardTests(unittest.TestCase):
     def _assert_headline_clear(self, img, english=True):
         layout = img.info["popout_layout"]
         lo, hi = layout["safe_x"]
-        self.assertEqual((lo, hi), (90, 990))
+        self.assertEqual((lo, hi), (80, 1000))
         frame_top = layout["frame"][1]
         self.assertEqual(frame_top, 340)
         self.assertEqual(layout["nameplate_top"], 955)
@@ -387,7 +387,7 @@ class BrandedCardTests(unittest.TestCase):
         for (x0, y0, x1, y1) in layout["headline_boxes"]:
             self.assertGreaterEqual(x0, lo - 1)
             self.assertLessEqual(x1, hi + 1)
-            self.assertLessEqual(x1 - x0, 900)
+            self.assertLessEqual(x1 - x0, 920)
         self.assertEqual(round(layout["headline_boxes"][0][1]), 148)  # headline ink starts at y=148
         # Head top (paste_y) = max(headline_bottom + 24, 222).
         self.assertEqual(layout["head_top"], max(layout["headline_bottom"] + 24, 222))
@@ -397,7 +397,7 @@ class BrandedCardTests(unittest.TestCase):
         # 2.5D pop-out preserved: the head rises well above the white frame's top border.
         self.assertGreaterEqual(layout["pop_out"], 100)
 
-        # Pixel-level: measured headline pixels stay in x = 90..990 and end >= 18px above the
+        # Pixel-level: measured headline pixels stay in x = 80..1000 and end >= 18px above the
         # first row holding ANY subject alpha (hair wisps included).
         hx0, hy0, hx1, hy1 = layout["headline_px"]
         self.assertGreaterEqual(hx0, lo - 1)
@@ -453,6 +453,38 @@ class BrandedCardTests(unittest.TestCase):
         # The renderer never trusts a long LLM sentence as the welcome headline.
         self.assertEqual(img.info["popout_layout"]["headline_text"], "WELCOME TO THE TEAM")
         self._assert_headline_clear(img)
+
+    def test_executive_typography_and_visual_hierarchy(self):
+        """Verify typography scale, smart casing, and no canvas clipping."""
+        img_en = render_welcome_template_swap(
+            self.subject_bytes, name="Mohamed Redha", role="ai engineer",
+            headline="WELCOME TO THE TEAM", brand_name="Lexnis Technologies", lang="en"
+        )
+        img_en.convert("RGB").save(ASSETS / "api_swap_en.jpg", quality=95)
+        layout_en = img_en.info["popout_layout"]
+
+        img_ar = render_welcome_template_swap(
+            self.subject_bytes, name="محمد رضا", role="مهندس ذكاء اصطناعي",
+            headline="أهلاً بك في فريقنا", brand_name="Lexnis Technologies", lang="ar"
+        )
+        img_ar.convert("RGB").save(ASSETS / "api_swap_ar.jpg", quality=95)
+        layout_ar = img_ar.info["popout_layout"]
+
+        for label, layout in [("English", layout_en), ("Arabic", layout_ar)]:
+            # 1. Headline font size is >= 44px
+            self.assertGreaterEqual(layout["headline_font_size"], 44, f"{label} headline size < 44px")
+            # 2. Subject name font size is >= 48px
+            self.assertGreaterEqual(layout["name_font_size"], 48, f"{label} name size < 48px")
+            # 3. Role font size is >= 26px
+            self.assertGreaterEqual(layout["role_font_size"], 26, f"{label} role size < 26px")
+            # 4. Text elements do not clip across the 1080px canvas boundaries
+            for (x0, y0, x1, y1) in layout["headline_boxes"]:
+                self.assertGreaterEqual(x0, 0, f"{label} headline clipped on left")
+                self.assertLessEqual(x1, 1080, f"{label} headline clipped on right")
+
+        # 5. Acronyms like "AI" in the role line are capitalized
+        self.assertIn("AI", layout_en["role_text"], "AI acronym not capitalized in role line")
+        self.assertEqual(layout_en["role_text"], "AI Engineer")
 
     def test_tab_guideline_card_has_no_lexnis_elements(self):
         prof = _tab_profile()

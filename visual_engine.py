@@ -400,9 +400,255 @@ def extract_subject_matte(subject_image, bg_color=None):
 
 FONTS_DIR = ROOT / "static" / "fonts"
 
+_FONT_CACHE: Dict[Tuple[str, int, str], ImageFont.FreeTypeFont] = {}
+_DISCOVERED_FONT_PATHS: Dict[Tuple[str, str], Optional[Path]] = {}
+
+PROJECT_FONT_DIRS = [
+    ROOT / "static" / "fonts",
+    ROOT / "assets" / "fonts",
+    ROOT / "fonts",
+]
+
+_WEIGHT_VARIANTS = {
+    "black": ["Black", "ExtraBold", "Bold", "SemiBold", "Regular"],
+    "extrabold": ["ExtraBold", "Bold", "Black", "SemiBold", "Regular"],
+    "bold": ["Bold", "ExtraBold", "SemiBold", "Medium", "Regular"],
+    "semibold": ["SemiBold", "Bold", "Medium", "Regular"],
+    "medium": ["Medium", "SemiBold", "Regular", "Bold"],
+    "regular": ["Regular", "Medium", "SemiBold", "Bold"],
+}
+
+
+def _normalize_weight(weight: str) -> str:
+    w = (weight or "regular").lower().strip()
+    if w in ("black", "heavy", "900"):
+        return "black"
+    if w in ("extrabold", "extra-bold", "ultrabold", "800"):
+        return "extrabold"
+    if w in ("bold", "700"):
+        return "bold"
+    if w in ("semibold", "semi-bold", "demibold", "600"):
+        return "semibold"
+    if w in ("medium", "500"):
+        return "medium"
+    return "regular"
+
+
+def _find_system_font_by_weight(norm_w: str) -> Optional[Path]:
+    import sys
+    is_bold = norm_w in ("black", "extrabold", "bold", "semibold")
+
+    # Windows
+    if sys.platform == "win32":
+        win_dirs = [
+            Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts",
+            Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "Windows" / "Fonts",
+        ]
+        win_cands = (
+            ["segoeuib.ttf", "seguibl.ttf", "seguisb.ttf", "arialbd.ttf", "calibrib.ttf", "segoeui.ttf", "arial.ttf", "calibri.ttf"]
+            if is_bold else
+            ["segoeui.ttf", "arial.ttf", "calibri.ttf", "seguisb.ttf", "segoeuib.ttf", "arialbd.ttf"]
+        )
+        for wd in win_dirs:
+            if not wd.exists():
+                continue
+            for fname in win_cands:
+                p = wd / fname
+                if p.exists() and p.stat().st_size > 0:
+                    return p
+
+    # Linux / Docker
+    elif sys.platform.startswith("linux"):
+        linux_dirs = [
+            Path("/usr/share/fonts"),
+            Path("/usr/local/share/fonts"),
+            Path.home() / ".fonts",
+            Path.home() / ".local" / "share" / "fonts",
+        ]
+        linux_cands = (
+            ["DejaVuSans-Bold.ttf", "FreeSansBold.ttf", "LiberationSans-Bold.ttf", "DejaVuSans.ttf", "FreeSans.ttf", "LiberationSans.ttf"]
+            if is_bold else
+            ["DejaVuSans.ttf", "FreeSans.ttf", "LiberationSans.ttf", "DejaVuSans-Bold.ttf"]
+        )
+        for ld in linux_dirs:
+            if not ld.exists():
+                continue
+            for root, _, files in os.walk(ld):
+                file_map = {f.lower(): f for f in files}
+                for cand in linux_cands:
+                    if cand.lower() in file_map:
+                        return Path(root) / file_map[cand.lower()]
+
+    # macOS
+    elif sys.platform == "darwin":
+        mac_dirs = [
+            Path("/System/Library/Fonts"),
+            Path("/Library/Fonts"),
+            Path.home() / "Library" / "Fonts",
+        ]
+        mac_cands = (
+            ["SF-Pro-Display-Bold.otf", "SFProDisplay-Bold.otf", "HelveticaNeue-Bold.otf", "Helvetica.ttc", "Arial.ttf"]
+            if is_bold else
+            ["SF-Pro-Display-Regular.otf", "SFProDisplay-Regular.otf", "HelveticaNeue.otf", "Helvetica.ttc", "Arial.ttf"]
+        )
+        for md in mac_dirs:
+            if not md.exists():
+                continue
+            for root, _, files in os.walk(md):
+                file_map = {f.lower(): f for f in files}
+                for cand in mac_cands:
+                    if cand.lower() in file_map:
+                        return Path(root) / file_map[cand.lower()]
+
+    return None
+
+
+def _find_any_scalable_system_font(weight: str = "regular") -> Optional[Path]:
+    import sys
+    for d in PROJECT_FONT_DIRS:
+        if d.exists():
+            for p in d.glob("*.ttf"):
+                if p.stat().st_size > 0:
+                    return p
+            for p in d.glob("*.otf"):
+                if p.stat().st_size > 0:
+                    return p
+
+    norm_w = _normalize_weight(weight)
+    sys_f = _find_system_font_by_weight(norm_w)
+    if sys_f:
+        return sys_f
+
+    if sys.platform == "win32":
+        wf = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
+        if wf.exists():
+            for p in wf.glob("*.ttf"):
+                if p.stat().st_size > 0:
+                    return p
+    return None
+
+
+def _resolve_font_file(font_name: str, weight: str = "regular") -> Optional[Path]:
+    cache_k = (str(font_name), str(weight).lower())
+    if cache_k in _DISCOVERED_FONT_PATHS:
+        return _DISCOVERED_FONT_PATHS[cache_k]
+
+    norm_w = _normalize_weight(weight)
+    variants = _WEIGHT_VARIANTS.get(norm_w, ["Regular", "Bold"])
+
+    raw_p = Path(font_name)
+    if raw_p.is_file():
+        _DISCOVERED_FONT_PATHS[cache_k] = raw_p
+        return raw_p
+
+    clean_name = raw_p.stem
+    for v in ["-Black", "-ExtraBold", "-Bold", "-SemiBold", "-Medium", "-Regular", "[opsz,wght]", "[wght]", "[slnt,wght]"]:
+        clean_name = clean_name.replace(v, "")
+    clean_name = clean_name.strip()
+
+    is_arabic_family = clean_name.lower() in ("cairo", "tajawal", "almarai", "arabic")
+
+    for d in PROJECT_FONT_DIRS:
+        if not d.exists():
+            continue
+        if raw_p.name:
+            cand = d / raw_p.name
+            if cand.exists() and cand.stat().st_size > 0:
+                _DISCOVERED_FONT_PATHS[cache_k] = cand
+                return cand
+        for v in variants:
+            for ext in (".ttf", ".otf"):
+                cand = d / f"{clean_name}-{v}{ext}"
+                if cand.exists() and cand.stat().st_size > 0:
+                    _DISCOVERED_FONT_PATHS[cache_k] = cand
+                    return cand
+
+    fallback_families = ["Cairo", "Tajawal", "Almarai"] if is_arabic_family else ["Inter", "Montserrat", "Poppins"]
+    for fam in fallback_families:
+        for d in PROJECT_FONT_DIRS:
+            if not d.exists():
+                continue
+            for v in variants:
+                for ext in (".ttf", ".otf"):
+                    cand = d / f"{fam}-{v}{ext}"
+                    if cand.exists() and cand.stat().st_size > 0:
+                        _DISCOVERED_FONT_PATHS[cache_k] = cand
+                        return cand
+
+    sys_cand = _find_system_font_by_weight(norm_w)
+    if sys_cand:
+        _DISCOVERED_FONT_PATHS[cache_k] = sys_cand
+        return sys_cand
+
+    _DISCOVERED_FONT_PATHS[cache_k] = None
+    return None
+
+
+def get_font(font_name: str, size: int, weight: str = "regular") -> ImageFont.FreeTypeFont:
+    """
+    Robust font asset loader:
+    1. Searches local project directories (static/fonts/, assets/fonts/, fonts/) for standard modern sans-serif fonts:
+       - Inter-ExtraBold.ttf, Inter-Bold.ttf, Inter-SemiBold.ttf, Inter-Regular.ttf
+       - Montserrat-ExtraBold.ttf, Montserrat-Bold.ttf, Montserrat-Medium.ttf
+       - Cairo-Bold.ttf, Cairo-SemiBold.ttf (for Arabic script)
+       - Poppins-Bold.ttf, Poppins-SemiBold.ttf, Poppins-Medium.ttf, etc.
+    2. Falls back dynamically to high-legibility OS system fonts across platforms:
+       - Windows: Segoe UI (segoeuib.ttf, seguisb.ttf, segoeui.ttf), Arial Bold (arialbd.ttf), Calibri Bold (calibrib.ttf)
+       - Linux / Docker: DejaVuSans-Bold.ttf, FreeSansBold.ttf, LiberationSans-Bold.ttf
+       - macOS: SF-Pro-Display-Bold.otf, HelveticaNeue-Bold.otf
+    3. Never uses raw ImageFont.load_default() if any scalable TrueType font is discoverable on the machine.
+    """
+    key = (str(font_name), int(size), str(weight).lower())
+    if key in _FONT_CACHE:
+        return _FONT_CACHE[key]
+
+    path = _resolve_font_file(font_name, weight)
+    if path and path.exists():
+        try:
+            f = ImageFont.truetype(str(path), size)
+            _FONT_CACHE[key] = f
+            return f
+        except Exception:
+            pass
+
+    sys_path = _find_any_scalable_system_font(weight)
+    if sys_path and sys_path.exists():
+        try:
+            f = ImageFont.truetype(str(sys_path), size)
+            _FONT_CACHE[key] = f
+            return f
+        except Exception:
+            pass
+
+    return ImageFont.load_default()
+
+
+def smart_title_case_role(role: str) -> str:
+    """Title-cases role while preserving technical and executive acronyms."""
+    if not role:
+        return ""
+    words = role.strip().split()
+    acronyms = {
+        "AI", "ML", "CTO", "CEO", "CFO", "COO", "VP", "NLP", "LLM",
+        "CV", "UX", "UI", "IT", "HR", "QA", "SRE", "DEVOPS", "API",
+        "SAAS", "B2B", "B2C", "R&D", "AR", "VR", "XR", "BI", "DBA"
+    }
+    out = []
+    for w in words:
+        match = re.match(r"^([^\w]*)([\w]+)([^\w]*)$", w)
+        if match:
+            pre, core, post = match.groups()
+            if core.upper() in acronyms:
+                out.append(f"{pre}{core.upper()}{post}")
+            else:
+                out.append(f"{pre}{core.capitalize()}{post}")
+        else:
+            out.append(w.capitalize())
+    return " ".join(out)
+
 
 def ensure_brand_fonts():
-    """Guarantee official Google Fonts for Lexnis brand identity exist in static/fonts."""
+    """Guarantee official Google Fonts for modern marketing typography exist in static/fonts."""
     import urllib.request
     FONTS_DIR.mkdir(parents=True, exist_ok=True)
     urls = {
@@ -426,6 +672,28 @@ def ensure_brand_fonts():
                 fpath.write_bytes(urllib.request.urlopen(req, timeout=10).read())
             except Exception:
                 pass
+
+    inter_targets = ['Inter-ExtraBold.ttf', 'Inter-Bold.ttf', 'Inter-SemiBold.ttf', 'Inter-Regular.ttf']
+    mont_targets = ['Montserrat-ExtraBold.ttf', 'Montserrat-Bold.ttf', 'Montserrat-Medium.ttf']
+    inter_missing = [f for f in inter_targets if not (FONTS_DIR / f).exists() or (FONTS_DIR / f).stat().st_size == 0]
+    if inter_missing:
+        try:
+            req = urllib.request.Request('https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter%5Bopsz%2Cwght%5D.ttf', headers={'User-Agent': 'Mozilla/5.0'})
+            data = urllib.request.urlopen(req, timeout=10).read()
+            for f in inter_targets:
+                (FONTS_DIR / f).write_bytes(data)
+        except Exception:
+            pass
+
+    mont_missing = [f for f in mont_targets if not (FONTS_DIR / f).exists() or (FONTS_DIR / f).stat().st_size == 0]
+    if mont_missing:
+        try:
+            req = urllib.request.Request('https://raw.githubusercontent.com/google/fonts/main/ofl/montserrat/Montserrat%5Bwght%5D.ttf', headers={'User-Agent': 'Mozilla/5.0'})
+            data = urllib.request.urlopen(req, timeout=10).read()
+            for f in mont_targets:
+                (FONTS_DIR / f).write_bytes(data)
+        except Exception:
+            pass
 
 
 def prepare_bidi_text(text: str) -> str:
@@ -1121,13 +1389,32 @@ def _headline_line_box(draw: ImageDraw.ImageDraw, line: str, font, tracking: int
     return (left, top, right, bottom)
 
 
-def _draw_headline_line(draw: ImageDraw.ImageDraw, x0: float, y0: float, line: str, font, tracking: int, is_ar: bool, fill) -> None:
+def _draw_headline_line(
+    draw: ImageDraw.ImageDraw,
+    x0: float,
+    y0: float,
+    line: str,
+    font,
+    tracking: int,
+    is_ar: bool,
+    fill,
+    accent_fill=None,
+    accent_start_col: int = -1,
+) -> None:
     if is_ar or tracking == 0:
-        draw.text((x0, y0), line, font=font, fill=fill)
+        if accent_fill and accent_start_col >= 0 and not is_ar:
+            prefix_txt = line[:accent_start_col]
+            suffix_txt = line[accent_start_col:]
+            draw.text((x0, y0), prefix_txt, font=font, fill=fill)
+            pw = font.getlength(prefix_txt)
+            draw.text((x0 + pw, y0), suffix_txt, font=font, fill=accent_fill)
+        else:
+            draw.text((x0, y0), line, font=font, fill=fill)
         return
     x = float(x0)
-    for c in line:
-        draw.text((x, y0), c, font=font, fill=fill)
+    for i, c in enumerate(line):
+        c_fill = accent_fill if (accent_fill and accent_start_col >= 0 and i >= accent_start_col) else fill
+        draw.text((x, y0), c, font=font, fill=c_fill)
         x += font.getlength(c) + tracking
 
 
@@ -1135,7 +1422,7 @@ WELCOME_HEADLINE_MAX_CHARS = 26
 WELCOME_BRAND_MAX_CHARS = 14     # "WELCOME TO {BRAND}" only for brand names up to 14 characters
 # Team Welcome geometry at 1080x1350 (scaled with the canvas height):
 WELCOME_HEADLINE_TOP = 148       # headline ink starts here
-WELCOME_HEADLINE_MAX_W = 900     # headline ink stays inside x = 90..990
+WELCOME_HEADLINE_MAX_W = 920     # headline ink stays inside x = 80..1000 (up to 920px max_w)
 WELCOME_HEAD_GAP = 24            # clear background between headline bottom and the top of the head
 WELCOME_MIN_HEAD_TOP = 222       # head top = max(headline_bottom + 24, 222)
 WELCOME_FRAME_TOP = 340          # white frame top -> head pops ~118px above it
@@ -1193,7 +1480,13 @@ def fit_popout_headline(
         two_lines = bl
 
     def load(size: int):
-        return ImageFont.truetype(str(font_path), size) if Path(font_path).exists() else ImageFont.load_default()
+        if isinstance(font_path, (str, Path)) and (str(font_path).endswith('.ttf') or str(font_path).endswith('.otf')) and Path(font_path).exists():
+            try:
+                return ImageFont.truetype(str(font_path), size)
+            except Exception:
+                pass
+        fam = str(font_path).replace("-Bold.ttf", "").replace("-Black.ttf", "").replace(".ttf", "").replace(".otf", "") if font_path else ("Cairo" if is_ar else "Inter")
+        return get_font(fam, size, weight="black" if not is_ar else "bold")
 
     def measure(lines, size):
         font = load(size)
@@ -1869,20 +2162,18 @@ def composite_template_swap(
         zone_top = int(round(136 * k))
         latest_head_top = fy - int(round(72 * k))   # the head always pops >= 72px above the frame
         if is_welcome_layout:
-            # Headline band: ink starts at y=148, 46 -> 28px until it fits 900px (x = 90..990).
+            # Headline band: ink starts at y=148, 58 -> 38px until it fits 920px (x = 80..1000).
             # Head top = max(headline_bottom + 24, 222): the head can never cover a letter.
-            # Never trust a long / LLM-sentence headline here.
             if is_unsafe_welcome_headline(orig_headline_text):
                 headline_text = short_welcome_headline("" if is_generic_brand else theme.brand_name, is_ar)
             safe_x = int(round((W - WELCOME_HEADLINE_MAX_W * (W / 1080.0)) / 2.0))
             hl_gap = int(round(WELCOME_HEAD_GAP * k))
             hl_top = int(round(WELCOME_HEADLINE_TOP * k))
             min_head_top = int(round(WELCOME_MIN_HEAD_TOP * k))
-            # Arabic (tall Cairo ascenders/descenders) may push the head down while it still pops >= 100px.
             pref_head_top = (fy - int(round(100 * k))) if is_ar else min_head_top
             fit_pref_h = pref_head_top - hl_gap - hl_top
             fit_max_h = latest_head_top - hl_gap - hl_top
-            sizes = (46, 28, 28)
+            sizes = (58, 38, 38)
         else:
             safe_x = int(round(80 * (W / 1080.0)))   # headline ink stays inside x = 80..1000 at 1080 wide
             hl_gap = int(round(16 * k))
@@ -1897,7 +2188,11 @@ def composite_template_swap(
             hl_font_path = FONTS_DIR / "Cairo-Bold.ttf"
         else:
             hl_text_final = (headline_text or preset["headline_en"]).upper()
-            hl_font_path = FONTS_DIR / "Poppins-Bold.ttf"
+            hl_font_path = FONTS_DIR / "Inter-ExtraBold.ttf"
+            if not hl_font_path.exists():
+                hl_font_path = FONTS_DIR / "Inter-Bold.ttf"
+            if not hl_font_path.exists():
+                hl_font_path = FONTS_DIR / "Poppins-Bold.ttf"
         hl_fit = fit_popout_headline(
             draw_hl, hl_text_final, hl_font_path,
             max_w=hl_max_w, preferred_h=fit_pref_h, max_h=fit_max_h,
@@ -1910,13 +2205,38 @@ def composite_template_swap(
             head_top_y = max(preferred_head_top, zone_top + hl_fit["block_h"] + hl_gap)
             hl_block_top = head_top_y - hl_gap - hl_fit["block_h"]
         headline_bottom = hl_block_top + hl_fit["block_h"]
+
+        # Two-tone accent for English headline starting with "WELCOME TO "
+        accent_color = None
+        accent_col_idx = -1
+        if (not is_ar) and hl_text_final.startswith("WELCOME TO "):
+            accent_color = tuple(theme.primary_accent)
+            accent_col_idx = len("WELCOME TO ")
+
         plate_before_headline = np.asarray(pil_plate).copy()
         headline_boxes = []
         for i, (line, box) in enumerate(zip(hl_fit["lines"], hl_fit["boxes"])):
             line_w = box[2] - box[0]
             x0 = (W - line_w) / 2.0 - box[0]
             y0 = hl_block_top - hl_fit["ink_top"] + i * hl_fit["pitch"]
-            _draw_headline_line(draw_hl, x0, y0, line, hl_fit["font"], hl_fit["tracking"], is_ar, (255, 255, 255))
+
+            line_accent_col = -1
+            line_accent_color = None
+            if accent_color:
+                if len(hl_fit["lines"]) == 1:
+                    line_accent_col = accent_col_idx
+                    line_accent_color = accent_color
+                elif i == 0:
+                    line_accent_col = -1
+                    line_accent_color = None
+                else:
+                    line_accent_col = 0
+                    line_accent_color = accent_color
+
+            _draw_headline_line(
+                draw_hl, x0, y0, line, hl_fit["font"], hl_fit["tracking"], is_ar, (255, 255, 255),
+                accent_fill=line_accent_color, accent_start_col=line_accent_col
+            )
             headline_boxes.append((x0 + box[0], y0 + box[1], x0 + box[2], y0 + box[3]))
 
         # Pixel-measured headline extent (every pixel the headline actually changed).
@@ -1970,10 +2290,11 @@ def composite_template_swap(
         composite[ny:ny + nh, nx:nx + nw] = [255, 255, 255]
         np_pil = Image.new('RGB', (nw, nh), (255, 255, 255))
         draw_np = ImageDraw.Draw(np_pil)
-        dark_navy = (19, 23, 36)      # #131724
+        dark_navy = (15, 23, 42)      # #0F172A slate-900 for executive contrast
+        role_color = (51, 65, 85)     # #334155 slate-700
         tech_green = (83, 184, 73)    # #53B849
         if not use_lexnis:
-            # Brand accent for the role line + status bar, darkened only as far as needed to read on white.
+            # Brand accent for status pill, darkened only as far as needed to read on white.
             tech_green = _accent_readable_on_white(tuple(theme.primary_accent))
             if calculate_contrast_ratio(tuple(theme.bg_dark_start), (255, 255, 255)) >= 10.0:
                 dark_navy = tuple(theme.bg_dark_start)
@@ -1992,95 +2313,89 @@ def composite_template_swap(
 
             margin_r = int(round(64 * (W / 1080.0)))
             max_np_w = nw - 2 * margin_r
-            y_name = int(round(36 * (H / 1350.0)))
+            y_name = int(round(22 * (H / 1350.0)))
 
-            font_name_size = int(round(46 * (H / 1350.0)))
-            f_name = ImageFont.truetype(str(FONTS_DIR / "Cairo-Bold.ttf"), font_name_size)
+            font_name_size = int(round(52 * (H / 1350.0)))
+            f_name = get_font("Cairo", font_name_size, weight="bold")
             bbox_n = draw_np.textbbox((0, 0), r_name, font=f_name)
-            while font_name_size > 20:
-                f_name = ImageFont.truetype(str(FONTS_DIR / "Cairo-Bold.ttf"), font_name_size)
+            while font_name_size > int(round(38 * (H / 1350.0))):
+                f_name = get_font("Cairo", font_name_size, weight="bold")
                 bbox_n = draw_np.textbbox((0, 0), r_name, font=f_name)
                 if (bbox_n[2] - bbox_n[0]) <= max_np_w:
                     break
                 font_name_size -= 2
-            if is_welcome_layout:
-                # Centre name + role block vertically in the nameplate.
-                np_block_h = (bbox_n[3] - bbox_n[1]) + int(round(40 * (H / 1350.0)))
-                y_name = int(round((nh - np_block_h) / 2.0 - bbox_n[1]))
 
             nw_px = bbox_n[2] - bbox_n[0]
             x_right = nw - margin_r
             draw_np.text((x_right - nw_px - bbox_n[0], y_name), r_name, font=f_name, fill=dark_navy)
 
-            # Role sits below the name's actual ink bottom (Cairo has a large top bearing).
-            y_role = y_name + bbox_n[3] + int(round(14 * (H / 1350.0)))
-            y_bar = y_role - int(round(2 * (H / 1350.0)))
-            bar_h = int(round(28 * (H / 1350.0)))
-
-            font_role_size = int(round(22 * (H / 1350.0)))
-            tajawal_p = FONTS_DIR / "Tajawal-Medium.ttf"
-            f_role_path = str(tajawal_p if tajawal_p.exists() else FONTS_DIR / "Cairo-SemiBold.ttf")
-            f_role = ImageFont.truetype(f_role_path, font_role_size)
+            # Role & Accent Pill
+            font_role_size = int(round(28 * (H / 1350.0)))
+            f_role = get_font("Cairo", font_role_size, weight="semibold")
             bbox_r = draw_np.textbbox((0, 0), r_role, font=f_role)
-            while font_role_size > 14:
-                f_role = ImageFont.truetype(f_role_path, font_role_size)
+            while font_role_size > int(round(20 * (H / 1350.0))):
+                f_role = get_font("Cairo", font_role_size, weight="semibold")
                 bbox_r = draw_np.textbbox((0, 0), r_role, font=f_role)
                 if (bbox_r[2] - bbox_r[0]) <= (max_np_w - 24):
                     break
                 font_role_size -= 1
 
+            pill_h = int(round(22 * (H / 1350.0)))
+            y_pill = y_name + bbox_n[3] + int(round(14 * (H / 1350.0)))
+            rx = x_right - 4
+            draw_np.rounded_rectangle([rx, y_pill, rx + 4, y_pill + pill_h], radius=2, fill=tech_green)
+
             rw_px = bbox_r[2] - bbox_r[0]
-            # Centre the role's ink on the status bar.
             role_ink_h = bbox_r[3] - bbox_r[1]
-            role_y = y_bar + (bar_h - role_ink_h) / 2.0 - bbox_r[1]
-            draw_np.rectangle([x_right - 4, y_bar, x_right, y_bar + bar_h], fill=tech_green)
-            draw_np.text((x_right - 4 - 10 - rw_px - bbox_r[0], role_y), r_role, font=f_role, fill=tech_green)
+            y_role = y_pill + (pill_h - role_ink_h) / 2.0 - bbox_r[1]
+            draw_np.text((rx - 10 - rw_px - bbox_r[0], y_role), r_role, font=f_role, fill=role_color)
 
         else:
             # English Nameplate
             clean_name = (person_name or preset["name_en"]).strip()
             clean_name = re.sub(r'\s+\b(as|is|our|the|a|an)\b.*$', '', clean_name, flags=re.IGNORECASE).strip()
+            clean_name = clean_name.title()
 
             margin_l = int(round(64 * (W / 1080.0)))
             max_np_w = nw - 2 * margin_l
-            y_name = int(round(36 * (H / 1350.0)))
+            y_name = int(round(22 * (H / 1350.0)))
 
-            font_name_size = int(round(46 * (H / 1350.0)))
-            font_bold = ImageFont.truetype(str(FONTS_DIR / "Poppins-Bold.ttf"), font_name_size)
+            font_name_size = int(round(52 * (H / 1350.0)))
+            font_bold = get_font("Inter", font_name_size, weight="bold")
             bbox_n = draw_np.textbbox((0, 0), clean_name, font=font_bold)
-            while font_name_size > 20:
-                font_bold = ImageFont.truetype(str(FONTS_DIR / "Poppins-Bold.ttf"), font_name_size)
+            while font_name_size > int(round(38 * (H / 1350.0))):
+                font_bold = get_font("Inter", font_name_size, weight="bold")
                 bbox_n = draw_np.textbbox((0, 0), clean_name, font=font_bold)
                 if (bbox_n[2] - bbox_n[0]) <= max_np_w:
                     break
                 font_name_size -= 2
-            if is_welcome_layout:
-                # Centre name + role block vertically in the nameplate.
-                np_block_h = (bbox_n[3] - bbox_n[1]) + int(round(40 * (H / 1350.0)))
-                y_name = int(round((nh - np_block_h) / 2.0 - bbox_n[1]))
 
             draw_np.text((margin_l, y_name), clean_name, font=font_bold, fill=dark_navy)
             bbox_n = draw_np.textbbox((margin_l, y_name), clean_name, font=font_bold)
 
-            y_role = bbox_n[3] + int(round(14 * (H / 1350.0)))
-            y_bar = y_role - int(round(2 * (H / 1350.0)))
-            bar_h = int(round(28 * (H / 1350.0)))
+            # Role & Accent Pill
+            raw_role = (person_title or preset["role_en"]).strip()
+            raw_role = re.sub(r'^(?:a|an)\s+', '', raw_role, flags=re.IGNORECASE).strip()
+            role_text = smart_title_case_role(raw_role)
 
-            role_text = (person_title or preset["role_en"]).strip()
-            role_text = re.sub(r'^(?:a|an)\s+', '', role_text, flags=re.IGNORECASE).strip()
-            font_role_size = int(round(22 * (H / 1350.0)))
-            font_role = ImageFont.truetype(str(FONTS_DIR / "Poppins-Medium.ttf"), font_role_size)
+            font_role_size = int(round(28 * (H / 1350.0)))
+            font_role = get_font("Inter", font_role_size, weight="semibold")
             bbox_r = draw_np.textbbox((0, 0), role_text, font=font_role)
-            while font_role_size > 14:
-                font_role = ImageFont.truetype(str(FONTS_DIR / "Poppins-Medium.ttf"), font_role_size)
+            while font_role_size > int(round(20 * (H / 1350.0))):
+                font_role = get_font("Inter", font_role_size, weight="semibold")
                 bbox_r = draw_np.textbbox((0, 0), role_text, font=font_role)
                 if (bbox_r[2] - bbox_r[0]) <= (max_np_w - 24):
                     break
                 font_role_size -= 1
 
-            # Vertical 4px Status Tile Accent Bar in Tech Green #53B849
-            draw_np.rectangle([margin_l, y_bar, margin_l + 4, y_bar + bar_h], fill=tech_green)
-            draw_np.text((margin_l + 4 + 10, y_role), role_text, font=font_role, fill=tech_green)
+            pill_h = int(round(22 * (H / 1350.0)))
+            y_pill = bbox_n[3] + int(round(14 * (H / 1350.0)))
+            rx = margin_l
+            draw_np.rounded_rectangle([rx, y_pill, rx + 4, y_pill + pill_h], radius=2, fill=tech_green)
+
+            role_ink_h = bbox_r[3] - bbox_r[1]
+            y_role = y_pill + (pill_h - role_ink_h) / 2.0 - bbox_r[1]
+            draw_np.text((rx + 4 + 10, y_role), role_text, font=font_role, fill=role_color)
 
         np_cv = cv2.cvtColor(np.array(np_pil), cv2.COLOR_RGB2BGR)
         composite[ny:ny + nh, nx:nx + nw] = np_cv
@@ -2148,7 +2463,7 @@ def composite_template_swap(
             comp_pil.paste(logo_img, (lx, ly), logo_img)
 
         if use_lexnis:
-            f_tag = ImageFont.truetype(str(FONTS_DIR / ("Cairo-Bold.ttf" if is_ar else "Poppins-Medium.ttf")), int(round(20 * (H / 1350.0))))
+            f_tag = get_font("Cairo" if is_ar else "Inter", int(round(20 * (H / 1350.0))), weight="bold" if is_ar else "medium")
             if is_ar:
                 final_tag = brand_tag if (brand_tag and re.search(r"[\u0600-\u06FF]", brand_tag)) else preset["tag_ar"]
                 r_tag = prepare_bidi_text(final_tag)
@@ -2160,7 +2475,8 @@ def composite_template_swap(
                 draw_top.text((W - lx - tag_w, ly + int(round(4 * (H / 1350.0)))), final_tag, font=f_tag, fill=(255, 255, 255))
 
         # 8. Layer 6: Clean Single Footer Caption (ZERO duplication / ghost lines)
-        f_foot = ImageFont.truetype(str(FONTS_DIR / ("Cairo-SemiBold.ttf" if is_ar else "Poppins-Regular.ttf")), int(round((22 if is_ar else 20) * (H / 1350.0))))
+        font_foot_size = int(round(25 * (H / 1350.0)))
+        f_foot = get_font("Cairo" if is_ar else "Inter", font_foot_size, weight="semibold" if is_ar else "medium")
         foot_str = footer_text or (preset["footer_ar"] if is_ar else preset["footer_en"])
         if not use_lexnis and re.search(r"lexnis|\u0644\u0643\u0633\u0646\u0633", foot_str, re.IGNORECASE):
             # Preset footers carry lexnis.com CTAs; strip that segment for every other brand.
@@ -2169,8 +2485,18 @@ def composite_template_swap(
         display_foot = prepare_bidi_text(foot_str) if is_ar else foot_str
         bbox_foot = draw_top.textbbox((0, 0), display_foot, font=f_foot)
         foot_w = bbox_foot[2] - bbox_foot[0]
-        foot_y = fy + fh + int(round(44 * (H / 1350.0)))
-        draw_top.text(((W - foot_w) // 2, foot_y), display_foot, font=f_foot, fill=(255, 255, 255))
+        foot_x = (W - foot_w) // 2 - bbox_foot[0]
+        foot_y = int(round(1272 * (H / 1350.0))) - bbox_foot[1]
+
+        # Subtle 1px blurred drop shadow for legibility over dark patterns
+        from PIL import ImageFilter
+        shadow_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        s_draw = ImageDraw.Draw(shadow_layer)
+        s_draw.text((foot_x + 1, foot_y + 1), display_foot, font=f_foot, fill=(0, 0, 0, 136))
+        shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(radius=1.0))
+        comp_pil.paste(shadow_layer, (0, 0), shadow_layer)
+        draw_top = ImageDraw.Draw(comp_pil)
+        draw_top.text((foot_x, foot_y), display_foot, font=f_foot, fill=(241, 245, 249))
 
         # Layout metadata for QA/tests (Image.info is not written into the saved JPEG).
         comp_pil.info["popout_layout"] = {
@@ -2191,7 +2517,14 @@ def composite_template_swap(
             "subject": placement_info,
             "is_lexnis": use_lexnis,
             "brand_name": theme.brand_name,
+            "name_font_size": font_name_size,
+            "name_text": clean_name if not is_ar else display_name,
+            "role_font_size": font_role_size,
+            "role_text": role_text if not is_ar else display_role,
+            "footer_font_size": font_foot_size,
+            "footer_text": foot_str,
         }
+        return comp_pil
         return comp_pil
 
     # ======================================================================
@@ -3142,8 +3475,7 @@ def draw_brand_header(
                 else:
                     monogram = w0[:2].upper() if len(w0) >= 2 else (w0[:1] or "B").upper()
 
-            f_mono_path = FONTS_DIR / "Poppins-Bold.ttf"
-            f_mono = ImageFont.truetype(str(f_mono_path), 22 * badge_scale) if f_mono_path.exists() else ImageFont.load_default()
+            f_mono = get_font("Inter", 22 * badge_scale, weight="bold")
             mb = g_draw.textbbox((0, 0), monogram, font=f_mono)
             mw = mb[2] - mb[0]
             mh = mb[3] - mb[1]
@@ -3155,10 +3487,8 @@ def draw_brand_header(
             canvas.paste(badge_final, (72, 68), badge_final)
 
             # 2. Next to icon (x = 132): Brand Name and optional subtitle descriptor
-            f_title_path = FONTS_DIR / "Poppins-Bold.ttf"
-            f_sub_path = FONTS_DIR / "Poppins-SemiBold.ttf"
-            f_title = ImageFont.truetype(str(f_title_path), 30) if f_title_path.exists() else ImageFont.load_default()
-            f_sub_desc = ImageFont.truetype(str(f_sub_path), 11) if f_sub_path.exists() else ImageFont.load_default()
+            f_title = get_font("Inter", 30, weight="bold")
+            f_sub_desc = get_font("Inter", 11, weight="semibold")
 
             if len(b_words) >= 2:
                 head_word = b_words[0].upper()
@@ -3173,8 +3503,7 @@ def draw_brand_header(
                 draw.text((132, ny), full_name, font=f_title, fill=(255, 255, 255))
 
     tag_str = brand_theme.hashtag_ar if is_ar else brand_theme.hashtag_en
-    f_tag_path = (FONTS_DIR / "Cairo-Bold.ttf") if is_ar else (FONTS_DIR / "Poppins-Medium.ttf")
-    f_tag = ImageFont.truetype(str(f_tag_path), 22) if f_tag_path.exists() else ImageFont.load_default()
+    f_tag = get_font("Cairo" if is_ar else "Inter", 22, weight="bold" if is_ar else "semibold")
     disp_tag = prepare_bidi_text(tag_str) if is_ar else tag_str
     tag_bbox = draw.textbbox((0, 0), disp_tag, font=f_tag)
     tag_w = tag_bbox[2] - tag_bbox[0]
