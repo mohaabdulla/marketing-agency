@@ -574,8 +574,11 @@ def suggest_prompt_endpoint(req: SuggestPromptRequest):
     """Synthesizes a tailored, guideline-aware campaign prompt for Stage 4."""
     try:
         studio = LexnisCampaignStudio()
+        bp = dict(req.brand_profile or {})
+        if req.brand_name and not bp.get("brand_name"):
+            bp["brand_name"] = req.brand_name
         res = studio.suggest_post_prompt(
-            brand_profile=req.brand_profile or {},
+            brand_profile=bp,
             post_type=req.post_type or "hiring",
             lang=req.lang or "en",
             quick_fields=req.quick_fields or {}

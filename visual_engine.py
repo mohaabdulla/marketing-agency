@@ -1139,6 +1139,10 @@ WELCOME_HEADLINE_MAX_W = 900     # headline ink stays inside x = 90..990
 WELCOME_HEAD_GAP = 24            # clear background between headline bottom and the top of the head
 WELCOME_MIN_HEAD_TOP = 222       # head top = max(headline_bottom + 24, 222)
 WELCOME_FRAME_TOP = 340          # white frame top -> head pops ~118px above it
+# Head-size normalisation: max crown-to-chin head height on a 1080x1350 card. Head = 1.35 x the
+# detected face box, so 296 caps the face box at ~219px - just above the half-body benchmark
+# portraits (211-215px), which therefore render exactly as before.
+WELCOME_TARGET_HEAD_H = 296
 _GENERIC_WELCOME_BRANDS = {"", "brand", "our brand", "company", "enterprise", "unknown", "your brand", "our company",
                            "lexnis technologies"}
 
@@ -1265,6 +1269,83 @@ def _studio_grade_cutout(subject_rgba: np.ndarray) -> np.ndarray:
     return np.dstack([bgr, subject_rgba[:, :, 3]])
 
 
+_FACE_CASCADE = None
+
+
+def _face_cascade():
+    global _FACE_CASCADE
+    if _FACE_CASCADE is None:
+        _FACE_CASCADE = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+    return _FACE_CASCADE
+
+
+def estimate_head_metrics(subject_rgba: np.ndarray, body: Optional[np.ndarray] = None,
+                          bbox: Optional[Tuple[int, int, int, int]] = None) -> Dict[str, Any]:
+    """
+    Crown-to-chin head height of a BGRA cutout, in source pixels.
+    1. Haar frontal-face box (largest face in the upper part of the silhouette): head_h = 1.35 * face_h.
+    2. No face: silhouette profile. The head ends where the row width first drops to 80% of its
+       running maximum (jaw -> neck); without such a constriction (long hair, hood) the head is
+       1.3x the widest row of the top quarter, capped at 40% of the silhouette height.
+    bbox = (left, top, width, height) of the silhouette; body = boolean silhouette mask.
+    Returns {"head_h", "head_cx", "method": "face" | "silhouette", "face": (x, y, w, h) | None}.
+    """
+    alpha = subject_rgba[:, :, 3]
+    if body is None:
+        body = alpha > 90
+    if bbox is None:
+        ys, xs = np.nonzero(body)
+        if not ys.size:
+            h, w = alpha.shape[:2]
+            return {"head_h": 0.4 * h, "head_cx": w / 2.0, "method": "silhouette", "face": None}
+        bbox = (int(xs.min()), int(ys.min()), int(xs.max() - xs.min() + 1), int(ys.max() - ys.min() + 1))
+    left, top, bw, bh = bbox
+
+    # --- 1. Face detection on the cutout over mid-grey (no background clutter to confuse it) ---
+    try:
+        a = alpha[top:top + bh, left:left + bw].astype(np.float32)[:, :, None] / 255.0
+        roi = subject_rgba[top:top + bh, left:left + bw, :3].astype(np.float32) * a + 128.0 * (1.0 - a)
+        gray = cv2.cvtColor(roi.astype(np.uint8), cv2.COLOR_BGR2GRAY)
+        f = min(1.0, 720.0 / max(gray.shape))
+        if f < 1.0:
+            gray = cv2.resize(gray, None, fx=f, fy=f, interpolation=cv2.INTER_AREA)
+        min_side = max(24, int(0.07 * min(gray.shape)))
+        best = None
+        for g, neighbours in ((gray, 6), (cv2.equalizeHist(gray), 4)):
+            for (x, y, w, h) in _face_cascade().detectMultiScale(g, 1.08, neighbours, minSize=(min_side, min_side)):
+                cx, cy = left + (x + w / 2.0) / f, top + (y + h / 2.0) / f
+                inside = body[min(int(cy), body.shape[0] - 1), min(int(cx), body.shape[1] - 1)]
+                if inside and (cy - top) <= 0.7 * bh and (best is None or w * h > best[2] * best[3]):
+                    best = (x, y, w, h)
+            if best is not None:
+                break
+        if best is not None:
+            x, y, w, h = [v / f for v in best]
+            face = (int(round(left + x)), int(round(top + y)), int(round(w)), int(round(h)))
+            return {"head_h": 1.35 * h, "head_cx": left + x + w / 2.0, "method": "face", "face": face}
+    except Exception:
+        pass
+
+    # --- 2. Silhouette profile fallback ---
+    widths = body[top:top + bh, left:left + bw].sum(axis=1).astype(np.float32)
+    if widths.size >= 9:
+        widths = np.convolve(widths, np.ones(9, dtype=np.float32) / 9.0, mode="same")
+    head_h = None
+    run_max = 0.0
+    for i in range(int(0.6 * bh)):
+        run_max = max(run_max, float(widths[i]))
+        if i > 0.08 * bh and run_max >= 0.12 * bw and widths[i] < 0.80 * run_max:
+            head_h = i / 0.87  # the 80% row sits on the jaw, ~87% of the way down the head
+            break
+    if head_h is None:
+        head_w = float(widths[:max(1, int(0.25 * bh))].max()) if widths.size else float(bw)
+        head_h = min(0.40 * bh, 1.3 * head_w)
+    head_rows = body[top:top + max(1, int(min(head_h, bh))), :]
+    xs = np.nonzero(head_rows)[1]
+    head_cx = float(xs.mean()) if xs.size else left + bw / 2.0
+    return {"head_h": float(max(head_h, 1.0)), "head_cx": head_cx, "method": "silhouette", "face": None}
+
+
 def place_popout_subject(
     subject_rgba: np.ndarray,
     canvas_size: Tuple[int, int],
@@ -1273,14 +1354,20 @@ def place_popout_subject(
     target_w: float,
     min_bottom_y: int,
     window_w: int,
+    target_head_h: Optional[float] = None,
 ) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
     """
     Aspect-preserving 2.5D placement of a BGRA cutout on a W x H canvas.
     - Uniform scale only (portrait WhatsApp photos are never squashed into a landscape box).
-    - Silhouette width ~= target_w so shoulders meet the inner frame edges, and the body always
-      reaches min_bottom_y (hidden behind the nameplate) so no cut edge floats inside the window.
-    - Head top lands exactly at head_top_y; the head is centred on center_x as far as the
-      shoulder coverage allows.
+    - Cover scale: silhouette width ~= target_w so shoulders meet the inner frame edges, and the
+      body reaches min_bottom_y (hidden behind the nameplate).
+    - Head-size normalisation (target_head_h): the scale is capped so the crown-to-chin head height
+      never exceeds target_head_h. A tight passport headshot therefore stays a normal-sized head
+      instead of being blown up to fill the frame; it is then anchored on min_bottom_y (shoulders
+      resting on the nameplate), and any side where the photo cropped the shoulders is feathered
+      out so no straight cut edge shows inside the window.
+    - The head top never rises above head_top_y; the head is centred on center_x as far as the
+      window allows.
     Returns (bgr HxWx3 uint8, alpha HxW float32 0..1, info).
     """
     W, H = canvas_size
@@ -1305,14 +1392,21 @@ def place_popout_subject(
 
     s_w = target_w / float(max(bw, 1))
     s_h = (min_bottom_y - head_top_y) / float(max(bh, 1))
-    s = max(s_w, s_h)
+    s_cover = max(s_w, s_h)
+    s = s_cover
 
     # Head centre = centroid of the top 25% of the silhouette.
     head_rows = body[top:top + max(1, int(bh * 0.25)), :]
     ys, xs = np.nonzero(head_rows)
     head_cx = float(xs.mean()) if xs.size else left + bw / 2.0
+    head = estimate_head_metrics(subject_rgba, body, (left, top, bw, bh))
+    if head and head.get("head_cx") is not None:
+        head_cx = head["head_cx"]
+    if target_head_h:
+        s = min(s_cover, float(target_head_h) / max(head["head_h"], 1.0))
     bbox_cx = left + bw / 2.0
-    slack = max(0.0, (s * bw - window_w) / 2.0 - 2.0)
+    # Room to centre the head: overhang past the window (wide subject) or free space in it (narrow one).
+    slack = max(0.0, abs(s * bw - window_w) / 2.0 - 2.0)
     shift = float(np.clip((head_cx - bbox_cx) * s, -slack, slack))
 
     new_w = max(1, int(round(subject_rgba.shape[1] * s)))
@@ -1324,8 +1418,34 @@ def place_popout_subject(
     choked = cv2.GaussianBlur(cv2.erode(a_s, np.ones((3, 3), np.uint8)), (3, 3), 0)
     scaled[:, :, 3] = np.minimum(a_s, choked)
 
+    # Shoulders cropped by the photo's own side edge would end in a straight vertical cut once
+    # the subject is narrower than the window: fade that side out instead.
+    feathered = []
+    if s * bw < window_w - 4:
+        feather = max(8, int(round(0.16 * s * bw)))
+        ramp = np.linspace(0.0, 1.0, feather, dtype=np.float32)
+        ramp = ramp * ramp * (3.0 - 2.0 * ramp)  # smoothstep
+        col_gain = np.ones(new_w, dtype=np.float32)
+        edge = max(2, int(0.004 * subject_rgba.shape[1]))
+        if left <= edge and body[:, :edge + 1].any():
+            x_edge = int(round(s * left))
+            col_gain[:x_edge] = 0.0
+            col_gain[x_edge:x_edge + feather] = np.minimum(col_gain[x_edge:x_edge + feather], ramp[:max(0, new_w - x_edge)][:feather])
+            feathered.append("left")
+        if left + bw >= subject_rgba.shape[1] - edge and body[:, -(edge + 1):].any():
+            x_edge = int(round(s * (left + bw)))
+            col_gain[x_edge:] = 0.0
+            seg = col_gain[max(0, x_edge - feather):x_edge]
+            col_gain[max(0, x_edge - feather):x_edge] = np.minimum(seg, ramp[::-1][-seg.size:] if seg.size else seg)
+            feathered.append("right")
+        if feathered:
+            scaled[:, :, 3] = (scaled[:, :, 3].astype(np.float32) * col_gain[None, :]).astype(np.uint8)
+
+    # Head top at head_top_y when the body fills the frame; a shorter (head-normalised) subject
+    # rests on min_bottom_y instead, leaving clear space under the headline.
+    subject_top = max(float(head_top_y), min_bottom_y - s * bh)
     ox = int(round(center_x - s * bbox_cx - shift))
-    oy = int(round(head_top_y - s * top))
+    oy = int(round(subject_top - s * top))
 
     out_bgr = np.zeros((H, W, 3), dtype=np.uint8)
     out_a = np.zeros((H, W), dtype=np.float32)
@@ -1335,8 +1455,15 @@ def place_popout_subject(
         crop = scaled[y0 - oy:y1 - oy, x0 - ox:x1 - ox]
         out_bgr[y0:y1, x0:x1] = crop[:, :, :3]
         out_a[y0:y1, x0:x1] = crop[:, :, 3].astype(np.float32) / 255.0
-    info = {"scale": s, "head_top": head_top_y, "silhouette_w": s * bw,
-            "silhouette_bottom": oy + s * (top + bh), "offset": (ox, oy)}
+    info = {"scale": s, "head_top": int(round(subject_top)), "silhouette_w": s * bw,
+            "silhouette_bottom": oy + s * (top + bh), "offset": (ox, oy),
+            "cover_scale": s_cover, "head_limited": s < s_cover - 1e-6, "feathered_sides": feathered}
+    if head is not None:
+        info.update({
+            "head_h": s * head["head_h"], "head_method": head["method"],
+            "face": None if head["face"] is None else (
+                ox + s * head["face"][0], oy + s * head["face"][1], s * head["face"][2], s * head["face"][3]),
+        })
     return out_bgr, out_a, info
 
 
@@ -1808,10 +1935,12 @@ def composite_template_swap(
         if affine_matrix is None:
             # Aspect-preserving placement: shoulders span ~1.04x the inner window, head top just
             # below the headline, body continues behind the nameplate.
+            # Consistently covers full window width and anchors pop-out head top at head_top_y for all subjects.
             graded = _studio_grade_cutout(subject_rgba)
             w_bgr, w_alpha, placement_info = place_popout_subject(
                 graded, (W, H), head_top_y=head_top_y, center_x=W // 2,
                 target_w=iw * 1.04, min_bottom_y=ny + int(round(12 * k)), window_w=iw,
+                target_head_h=None,
             )
         else:
             affine_matrix = np.array(affine_matrix, dtype=np.float32)

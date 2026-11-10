@@ -10,6 +10,8 @@ Regression suite for the Team Welcome 2.5D card defects:
    340 (~118px pop-out), nameplate 955..1145. Checked on the rendered pixels as well as the layout.
    Long / LLM-sentence headlines are replaced inside the renderer itself.
 4. The subject is scaled uniformly (portrait photos are never squashed) and fills the frame.
+   Head-size normalisation: a tight passport headshot is capped at a normal head size (face box
+   190..240px, like a half-body portrait) and rests on the nameplate instead of filling the frame.
 5. A leftover "Lexnis Technologies" brand is overridden by an uploaded guideline (profile JSON
    or guideline text) unless the website is lexnis.com.
 6. Guideline extraction: domain / copyright / title name detection, colours ranked by frequency
@@ -39,6 +41,7 @@ import visual_engine
 from visual_engine import (
     FONTS_DIR,
     composite_template_swap,
+    estimate_head_metrics,
     fit_popout_headline,
     place_popout_subject,
     render_welcome_template_swap,
@@ -66,6 +69,7 @@ LONG_HEADLINE = "LEXNIS TECHNOLOGIES WELCOMING NEW TEAM MEMBER!"
 ACME_GUIDELINE_TEXT = "Acme Solar Guidelines. Website: www.acmesolar.com. Primary Color: #FF6B00, Dark: #101828"
 ASSETS = ROOT / "static" / "assets"
 LEXNIS_GREENS = ((83, 184, 73), (188, 215, 85))  # Tech Green #53B849, Lime #BCD755
+_FACE_CASCADE = visual_engine._face_cascade()
 
 TAB_GUIDELINE_TEXT = (
     "Tab · Version 3.0 · Final edition · 9 November 2026\n"
@@ -274,6 +278,97 @@ class SubjectPlacementTests(unittest.TestCase):
         self.assertAlmostEqual(head_w / (460 * info["scale"]), 340 / 460.0, delta=0.03)
         self.assertGreaterEqual(info["silhouette_bottom"], 1032 - 2)
         self.assertAlmostEqual((cols[0] + cols[-1]) / 2.0, 540, delta=6)
+
+
+def _tight_headshot_bytes() -> bytes:
+    """A passport-style crop of the sample photo: head + collar only, shoulders cut by the photo edges."""
+    import cv2
+    im = Image.open(SUBJECT).convert("RGB")
+    gray = cv2.cvtColor(np.asarray(im), cv2.COLOR_RGB2GRAY)
+    faces = _FACE_CASCADE.detectMultiScale(gray, 1.05, 6, minSize=(60, 60))
+    x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
+    box = (max(0, int(x - 0.55 * w)), max(0, int(y - 0.6 * h)),
+           min(im.width, int(x + 1.55 * w)), min(im.height, int(y + 1.8 * h)))
+    buf = io.BytesIO()
+    im.crop(box).save(buf, format="JPEG", quality=95)
+    return buf.getvalue()
+
+
+def _card_face_height(img) -> int:
+    """Height of the largest Haar face box found on a rendered card."""
+    import cv2
+    gray = cv2.cvtColor(np.asarray(img.convert("RGB")), cv2.COLOR_RGB2GRAY)
+    faces = _FACE_CASCADE.detectMultiScale(gray, 1.05, 6, minSize=(90, 90))
+    return int(max(faces, key=lambda f: f[2] * f[3])[3]) if len(faces) else 0
+
+
+class ConsistentSubjectFramingTests(unittest.TestCase):
+    """Every subject (half-body or headshot) follows the exact same 2.5D pop-out size and structure."""
+
+    HEADLINE_ZONE_BOTTOM = 210
+
+    def _render(self, subject):
+        return render_welcome_template_swap(subject, name="Mohamed Redha", role="AI Engineer",
+                                            brand_name="Lexnis Technologies")
+
+    def _assert_consistent_framing(self, img, label):
+        layout = img.info["popout_layout"]
+        subj = layout["subject"]
+        self.assertFalse(subj["head_limited"], f"{label}: subject was incorrectly shrunk")
+        self.assertEqual(subj["head_top"], 222, f"{label}: head top not anchored at 222px pop-out")
+        self.assertGreaterEqual(subj["silhouette_w"], 696, f"{label}: silhouette width {subj['silhouette_w']} under 696px")
+        self.assertEqual(subj["feathered_sides"], [], f"{label}: shoulders feathered")
+        self.assertGreaterEqual(layout["subject_px_top"], self.HEADLINE_ZONE_BOTTOM, f"{label}: head in the headline zone")
+        self.assertGreaterEqual(layout["subject_px_top"] - layout["headline_px"][3], 18, label)
+        return layout
+
+    def test_silhouette_fallback_estimates_head_height(self):
+        # Faceless silhouette: 340 x 460 head ellipse on shoulders.
+        h, w = 1200, 900
+        rgba = np.zeros((h, w, 4), dtype=np.uint8)
+        yy, xx = np.mgrid[0:h, 0:w]
+        head = ((xx - 450) / 170.0) ** 2 + ((yy - 380) / 230.0) ** 2 <= 1.0
+        shoulders = (yy >= 600) & (np.abs(xx - 450) <= 120 + (yy - 600) * 0.9)
+        rgba[head | shoulders] = (128, 128, 128, 255)
+        m = estimate_head_metrics(rgba)
+        self.assertEqual(m["method"], "silhouette")
+        self.assertAlmostEqual(m["head_h"], 460, delta=60)
+        self.assertAlmostEqual(m["head_cx"], 450, delta=6)
+        # When target_head_h is explicitly passed to place_popout_subject, it caps scale
+        _, alpha, info = place_popout_subject(rgba, (1080, 1350), head_top_y=222, center_x=540,
+                                              target_w=696 * 1.04, min_bottom_y=967, window_w=696,
+                                              target_head_h=200)
+        self.assertTrue(info["head_limited"])
+        self.assertAlmostEqual(info["head_h"], 200, delta=1)
+        self.assertAlmostEqual(info["silhouette_bottom"], 967, delta=2)   # rests on the nameplate
+        rows = np.where((alpha > 0.5).any(axis=1))[0]
+        self.assertGreater(int(rows[0]), 222)                             # clear space under the headline
+
+    def test_half_body_portrait_keeps_frame_filling_scale(self):
+        img = self._render(SUBJECT)
+        layout = self._assert_consistent_framing(img, "half-body")
+        self.assertFalse(layout["subject"]["head_limited"])
+        self.assertEqual(layout["subject"]["head_top"], 222)
+        self.assertGreaterEqual(layout["subject"]["silhouette_w"], 696)   # shoulders fill the window
+
+    def test_tight_headshot_maintains_consistent_popout_framing(self):
+        img = self._render(_tight_headshot_bytes())
+        img.convert("RGB").save(ASSETS / "welcome_tight_headshot_en.jpg", quality=92)
+        layout = self._assert_consistent_framing(img, "tight headshot")
+        subj = layout["subject"]
+        self.assertFalse(subj["head_limited"])
+        self.assertEqual(subj["head_top"], 222)
+        self.assertGreaterEqual(subj["silhouette_w"], 696)
+        self.assertAlmostEqual(subj["face"][0] + subj["face"][2] / 2.0, 540, delta=24)  # face centred on the card
+
+    def test_uploaded_reference_photos(self):
+        """The two real uploads from the bug report (kept outside git; skipped when absent)."""
+        photos = {"half-body": ROOT / "test_assets" / "portrait_half_body.jpeg",
+                   "tight headshot": ROOT / "test_assets" / "portrait_tight_headshot.jpeg"}
+        if not all(p.exists() for p in photos.values()):
+            self.skipTest("reference uploads not present in test_assets/")
+        for label, path in photos.items():
+            self._assert_consistent_framing(self._render(path), label)
 
 
 class BrandedCardTests(unittest.TestCase):
@@ -511,9 +606,11 @@ class SubjectSelectionTests(unittest.TestCase):
 
     def test_generate_uses_uploaded_photo_not_older_upload(self):
         """/api/generate (offline) with one uploaded photo while a NEWER photo of someone else sits in uploads."""
+        import uuid
+        uid = uuid.uuid4().hex[:8]
         uploads = ROOT / "output" / "uploads"
-        mine = uploads / "subject_test_new_member_portrait.jpg"
-        decoy = uploads / "subject_test_decoy_other_person.jpg"
+        mine = uploads / f"subject_test_new_member_portrait_{uid}.jpg"
+        decoy = uploads / f"subject_test_decoy_other_person_{uid}.jpg"
         mine.write_bytes(_portrait_subject_bytes())
         Image.open(SUBJECT).convert("RGB").transpose(Image.Transpose.FLIP_LEFT_RIGHT).save(decoy, quality=90)  # newer file
         real_connect = socket.socket.connect

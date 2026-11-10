@@ -263,7 +263,7 @@
             <div class="text-[11px] font-mono text-slate-400 flex items-start gap-1.5 pt-1">
               <i data-lucide="info" class="w-3.5 h-3.5 text-cyan-400 shrink-0 mt-0.5"></i>
               <span>
-                <strong>How it works:</strong> The sample uploaded in Stage 2 dictates the 2.5D pop-out framing. The background colors, nameplate font, and corporate tags (e.g. <code>#LexnisTeam</code>) automatically flow from this Brand DNA.
+                <strong>How it works:</strong> The sample uploaded in Stage 3 dictates the 2.5D pop-out framing. The background colors, nameplate font, and corporate tags (e.g. <code>#BrandTeam</code>) automatically flow from this Brand DNA.
               </span>
             </div>
           </div>
@@ -418,42 +418,18 @@
             <div class="flex items-center space-x-2">
               <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gradient-to-r from-cyan-950 to-violet-950 text-cyan-300 border border-cyan-500/40 uppercase">STAGE 2</span>
               <h2 class="text-lg font-tech font-bold text-white flex items-center space-x-2">
-                <i data-lucide="sparkles" class="w-5 h-5 text-cyan-accent"></i>
-                <span>CAMPAIGN PROMPT &amp; CONCEPT STUDIO</span>
+                <i data-lucide="target" class="w-5 h-5 text-cyan-accent"></i>
+                <span>CAMPAIGN OBJECTIVE &amp; CONCEPT STUDIO</span>
               </h2>
             </div>
-            <p class="text-xs text-slate-400 font-mono mt-1">Define your industrial AI innovation, target use-case, or hardware/software launch</p>
+            <p class="text-xs text-slate-400 font-mono mt-1">Select your campaign objective and enter key details to auto-structure copy, persona &amp; visual rules</p>
           </div>
 
-          <!-- Quick Actions & Presets -->
-          <div class="flex flex-wrap items-center gap-2">
-            <button 
-              type="button" 
-              id="enhance-prompt-btn" 
-              class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-accent/20 via-cyan-400/20 to-violet-accent/20 hover:from-cyan-accent hover:to-violet-accent text-cyan-accent hover:text-obsidian-950 border border-cyan-accent/40 font-tech font-bold text-xs tracking-wider uppercase transition-all flex items-center space-x-1.5 shadow-sm active:scale-95 group cursor-pointer"
-              title="Transform simple or conversational requests into Fortune-500 launch briefs with auto-brand detection"
-            >
-              <i data-lucide="sparkles" class="w-3.5 h-3.5 group-hover:rotate-12 transition-transform text-cyan-accent group-hover:text-obsidian-950"></i>
-              <span id="enhance-prompt-text">✨ Enhance Prompt</span>
-              <svg id="enhance-spinner" class="animate-spin -ml-1 mr-1 h-3.5 w-3.5 text-obsidian-950 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            </button>
-
-            <span class="text-[11px] font-mono text-slate-600 hidden sm:inline">|</span>
-            <span class="text-[11px] font-mono text-slate-400">Presets:</span>
-            <div class="flex flex-wrap gap-1.5" id="preset-chips">
-              <button type="button" data-prompt="Predictive maintenance IoT platform launch for Lexnis with zero-downtime edge analytics and vibration AI sensor arrays" class="preset-chip text-[11px] font-mono bg-obsidian-800 hover:bg-cyan-accent/20 hover:text-cyan-accent text-slate-300 border border-obsidian-700 px-2.5 py-1 rounded-lg transition-all">
-                Predictive Maintenance
-              </button>
-              <button type="button" data-prompt="Tesla Model 3, deep blue, driving on a winding coastal road at sunset. Create a cinematic landscape ad with the headline Accelerate the future." class="preset-chip text-[11px] font-mono bg-obsidian-800 hover:bg-cyan-accent/20 hover:text-cyan-accent text-slate-300 border border-obsidian-700 px-2.5 py-1 rounded-lg transition-all">
-                Tesla Coastal Ad
-              </button>
-              <button type="button" data-prompt="Autonomous robotic fleet orchestration for smart gigafactories powered by Lexnis VisionAI" class="preset-chip text-[11px] font-mono bg-obsidian-800 hover:bg-violet-accent/20 hover:text-violet-accent text-slate-300 border border-obsidian-700 px-2.5 py-1 rounded-lg transition-all">
-                Robotics Fleet
-              </button>
-            </div>
+          <div class="flex items-center space-x-2">
+            <span id="active-post-type-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-accent/20 text-cyan-300 border border-cyan-500/40 shadow-sm flex items-center space-x-1">
+              <span>🤝</span>
+              <span id="active-post-type-name">TEAM WELCOME</span>
+            </span>
           </div>
         </div>
 
@@ -557,143 +533,9 @@
             <!-- Dynamic fields rendered here by JavaScript -->
           </div>
         </div>
-
-        <!-- Prompt Textarea -->
-        <div class="relative">
-          <textarea 
-            id="prompt-input" 
-            autocomplete="off"
-            rows="4" 
-            placeholder="Describe your campaign concept... e.g. Research Tesla and write a product launch hook, social media post, and a visual image description"
-            class="w-full bg-obsidian-950 border border-obsidian-700 focus:border-cyan-accent focus:ring-1 focus:ring-cyan-accent rounded-xl p-4 text-sm font-sans text-slate-100 placeholder-slate-600 outline-none transition-all resize-none shadow-inner"
-          ></textarea>
-          
-          <div class="absolute bottom-3 right-3 text-[11px] font-mono text-slate-400 flex items-center space-x-2 bg-obsidian-900/90 px-2 py-0.5 rounded border border-obsidian-800">
-            <span id="char-count">0</span>
-            <span>chars</span>
-          </div>
-        </div>
-
-        <!-- Prompt Enhancement Notification Pill -->
-        <div id="enhance-badge" class="hidden px-3.5 py-2 rounded-xl bg-cyan-950/40 border border-cyan-500/40 text-cyan-300 text-xs font-mono flex items-center justify-between transition-all">
-          <div class="flex items-center space-x-2">
-            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-cyan-400"></i>
-            <span id="enhance-badge-msg">✨ Upgraded to Fortune-500 Executive Launch Brief</span>
-          </div>
-          <span id="enhance-brand-tag" class="px-2 py-0.5 rounded text-[10px] bg-cyan-accent/20 text-cyan-accent border border-cyan-accent/30 font-bold">BRAND: TESLA</span>
-        </div>
-
-        <!-- Advanced Tone & Target Modifiers (Optional) -->
-        <div class="flex flex-wrap items-center justify-between gap-4 pt-1 text-xs font-mono">
-          <div class="flex flex-wrap items-center gap-4">
-            <div class="flex items-center space-x-2">
-              <span class="text-slate-400">Brand:</span>
-              <input id="brand-input" type="text" autocomplete="off" value="" placeholder="Auto (guideline / prompt)" class="w-40 bg-obsidian-950 border border-obsidian-800 text-slate-300 rounded-lg px-2.5 py-1 focus:outline-none focus:border-cyan-accent text-xs">
-            </div>
-
-            <div class="flex items-center space-x-2">
-              <span class="text-slate-400">Tone:</span>
-              <select id="tone-select" class="bg-obsidian-950 border border-obsidian-800 text-slate-300 rounded-lg px-2.5 py-1 focus:outline-none focus:border-cyan-accent text-xs">
-                <option value="confident, premium and benefit-driven">Premium &amp; Benefit-Driven</option>
-                <option value="warm, friendly and conversational for consumers">Friendly Consumer (B2C)</option>
-                <option value="authoritative and cutting-edge industrial technology">Authoritative B2B Enterprise</option>
-                <option value="visionary executive thought-leadership">Executive Thought Leadership</option>
-                <option value="deeply technical and data-driven for engineers">Technical / Engineering First</option>
-                <option value="high-energy disruptive product launch">Product Launch Hype</option>
-              </select>
-            </div>
-
-            <div class="flex items-center space-x-2">
-              <span class="text-slate-400">Visual Style:</span>
-              <select id="theme-select" class="bg-obsidian-950 border border-obsidian-800 text-slate-300 rounded-lg px-2.5 py-1 focus:outline-none focus:border-cyan-accent text-xs">
-                <option value="Cinematic lifestyle photography: golden-hour coastal road, ocean sunset, natural reflections, low front three-quarter tracking shot, 35mm lens, hero product fully visible, quiet upper left and lower right for copy" selected>Cinematic Lifestyle (Reference Ad)</option>
-                <option value="Apple Minimalist Studio: genuine physical hardware hero shot on dark honed graphite monolith, seamless obsidian infinity sweep, overhead strip softbox casting crisp specular reflection, Hasselblad 100mm macro lens, pure luxury isolation, no humans, no anime, no illustration">Apple Minimalist Hero (Luxury Tech)</option>
-                <option value="Teenage Engineering Industrial: genuine physical hardware photograph, CNC-milled black anodized aluminum housing, exposed ribbed heatsink fins, tactile hardware details, architectural concrete workbench, diffused natural studio lighting, Sony 90mm macro lens, no humans, no anime">Teenage Engineering (Tactile Industrial)</option>
-                <option value="Dyson / Deep Tech Physics: genuine physical high-tech hardware photograph, dark frosted optical chassis with exposed neural co-processor glow, volumetric cyan laser telemetry streams, Phase One 150MP, no humans, no anime">Dyson Deep Tech (Optical &amp; Physics)</option>
-                <option value="dark futuristic automated factory floor with neon cyan robotics and laser telemetry, crisp edge separation, tangible physical machinery, no humans, no anime">Cyber-Physical Smart Factory</option>
-                <option value="rugged industrial edge compute hardware module, brushed dark aluminum heatsink fins, glowing optical fiber channels, dark architectural slate, no humans, no anime">Edge Computing Hardware</option>
-              </select>
-            </div>
-
-            <label class="flex items-center space-x-1.5 cursor-pointer text-slate-300 hover:text-cyan-accent transition-colors select-none">
-              <input type="checkbox" id="search-toggle" checked class="w-3.5 h-3.5 rounded border-obsidian-700 bg-obsidian-950 text-cyan-accent focus:ring-cyan-accent accent-[#00f0ff] cursor-pointer">
-              <span class="flex items-center space-x-1">
-                <i data-lucide="globe" class="w-3 h-3 text-cyan-accent"></i>
-                <span>Google Research</span>
-              </span>
-            </label>
-
-            <label class="flex items-center space-x-1.5 cursor-pointer text-slate-300 hover:text-cyan-accent transition-colors select-none" title="AI Prompt Architect improves prompt quality and lets you review & edit before launching">
-              <input type="checkbox" id="review-prompt-toggle" checked class="w-3.5 h-3.5 rounded border-obsidian-700 bg-obsidian-950 text-cyan-accent focus:ring-cyan-accent accent-[#00f0ff] cursor-pointer">
-              <span class="flex items-center space-x-1">
-                <i data-lucide="sparkles" class="w-3 h-3 text-cyan-accent"></i>
-                <span>Review AI Prompt</span>
-              </span>
-            </label>
-          </div>
-
-          <!-- Action Buttons -->
-          <div class="flex items-center space-x-3 w-full sm:w-auto">
-            <button 
-              type="button" 
-              id="template-swap-btn" 
-              class="hidden sm:inline-flex px-4 py-3 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-violet-500/40 hover:border-violet-400 text-violet-300 hover:text-white font-tech font-bold text-xs tracking-wider uppercase transition-all items-center space-x-2 cursor-pointer shadow-sm"
-              title="Autonomous Template Subject-Replacement & 2.5D Pop-Out Compositing Engine"
-            >
-              <i data-lucide="layers" class="w-3.5 h-3.5 text-violet-400"></i>
-              <span>2.5D Template Swap</span>
-            </button>
-
-            <button 
-              type="button" 
-              id="instant-demo-btn" 
-              class="hidden sm:inline-flex px-4 py-3 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-700 hover:border-cyan-accent/50 text-slate-300 hover:text-cyan-accent font-tech font-bold text-xs tracking-wider uppercase transition-all items-center space-x-2"
-              title="Preview with sample campaign data and Flux visual"
-            >
-              <i data-lucide="play" class="w-3.5 h-3.5 text-cyan-accent"></i>
-              <span>Instant Demo</span>
-            </button>
-
-            <button 
-              type="button" 
-              id="generate-btn" 
-              class="w-full sm:w-auto px-7 py-3 rounded-xl bg-gradient-to-r from-cyan-accent via-cyan-400 to-violet-accent hover:from-cyan-300 hover:to-violet-400 text-obsidian-950 font-tech font-bold text-sm tracking-wider uppercase shadow-cyan-glow hover:shadow-dual-glow active:scale-[0.98] transition-all flex items-center justify-center space-x-2.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <i data-lucide="zap" id="generate-icon" class="w-4 h-4 text-obsidian-950 fill-obsidian-950"></i>
-              <span id="generate-btn-text">Generate Campaign</span>
-              <!-- Spinner Icon (Hidden by default) -->
-              <svg id="generate-spinner" class="animate-spin -ml-1 mr-2 h-4 w-4 text-obsidian-950 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- Realtime Status Banner for generation steps -->
-        <div id="status-bar" class="hidden px-4 py-2.5 rounded-xl bg-obsidian-950/80 border border-cyan-accent/30 text-cyan-accent text-xs font-mono flex items-center justify-between">
-          <div class="flex items-center space-x-3">
-            <span class="relative flex h-2 w-2">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-accent opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-2 w-2 bg-cyan-accent"></span>
-            </span>
-            <span id="status-message">Synthesizing campaign assets...</span>
-          </div>
-          <span id="status-timer" class="text-slate-500 font-mono">0.0s</span>
-        </div>
-
-        <!-- Inline Error Banner -->
-        <div id="error-banner" class="hidden px-4 py-3 rounded-xl bg-rose-950/40 border border-rose-800/80 text-rose-300 text-xs font-mono flex items-start space-x-3">
-          <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-400 mt-0.5 flex-shrink-0"></i>
-          <div class="space-y-1">
-            <p class="font-semibold" id="error-title">Generation Error</p>
-            <p class="text-slate-300 text-[11px]" id="error-details">Please check your API key and network connection.</p>
-          </div>
-        </div>
       </section>
 
-      
-<!-- ============================================================ -->
+      <!-- ============================================================ -->
       <!-- STAGE 3: VISUAL ASSETS, REFERENCE TEMPLATES & SAMPLE IMAGES -->
       <!-- ============================================================ -->
       <section id="visual-assets-section" class="bg-obsidian-900/80 backdrop-blur-md border border-obsidian-800 rounded-2xl p-6 shadow-xl space-y-5">
@@ -1087,6 +929,188 @@
           </div>
           <div class="flex justify-center bg-obsidian-900/60 p-2 rounded-lg">
             <img id="quick-swap-result-img" class="max-h-96 rounded shadow-2xl object-contain border border-obsidian-800" src="" alt="2.5D Pop-out Result">
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- STAGE 4: CAMPAIGN PROMPT & AI LAUNCH STUDIO -->
+      <!-- ========================================== -->
+      <section class="bg-obsidian-900/80 backdrop-blur-md border border-obsidian-800 rounded-2xl p-6 shadow-xl space-y-5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gradient-to-r from-violet-950 to-cyan-950 text-violet-300 border border-violet-500/40 uppercase">STAGE 4</span>
+              <h2 class="text-lg font-tech font-bold text-white flex items-center space-x-2">
+                <i data-lucide="sparkles" class="w-5 h-5 text-cyan-accent"></i>
+                <span>CAMPAIGN PROMPT &amp; AI LAUNCH STUDIO</span>
+              </h2>
+            </div>
+            <p class="text-xs text-slate-400 font-mono mt-1">Review your campaign prompt, enhance with AI prompt architect, and launch high-resolution bilingual production</p>
+          </div>
+
+          <!-- Quick Actions & Presets -->
+          <div class="flex flex-wrap items-center gap-2">
+            <button 
+              type="button" 
+              id="enhance-prompt-btn" 
+              class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-accent/20 via-cyan-400/20 to-violet-accent/20 hover:from-cyan-accent hover:to-violet-accent text-cyan-accent hover:text-obsidian-950 border border-cyan-accent/40 font-tech font-bold text-xs tracking-wider uppercase transition-all flex items-center space-x-1.5 shadow-sm active:scale-95 group cursor-pointer"
+              title="Transform simple or conversational requests into Fortune-500 launch briefs with auto-brand detection"
+            >
+              <i data-lucide="sparkles" class="w-3.5 h-3.5 group-hover:rotate-12 transition-transform text-cyan-accent group-hover:text-obsidian-950"></i>
+              <span id="enhance-prompt-text">✨ Enhance Prompt</span>
+              <svg id="enhance-spinner" class="animate-spin -ml-1 mr-1 h-3.5 w-3.5 text-obsidian-950 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </button>
+
+            <span class="text-[11px] font-mono text-slate-600 hidden sm:inline">|</span>
+            <span class="text-[11px] font-mono text-slate-400">Presets:</span>
+            <div class="flex flex-wrap gap-1.5" id="preset-chips">
+              <button type="button" data-prompt="Predictive maintenance IoT platform launch with zero-downtime edge analytics and vibration AI sensor arrays" class="preset-chip text-[11px] font-mono bg-obsidian-800 hover:bg-cyan-accent/20 hover:text-cyan-accent text-slate-300 border border-obsidian-700 px-2.5 py-1 rounded-lg transition-all">
+                Predictive Maintenance
+              </button>
+              <button type="button" data-prompt="Tesla Model 3, deep blue, driving on a winding coastal road at sunset. Create a cinematic landscape ad with the headline Accelerate the future." class="preset-chip text-[11px] font-mono bg-obsidian-800 hover:bg-cyan-accent/20 hover:text-cyan-accent text-slate-300 border border-obsidian-700 px-2.5 py-1 rounded-lg transition-all">
+                Tesla Coastal Ad
+              </button>
+              <button type="button" data-prompt="Autonomous robotic fleet orchestration for smart gigafactories" class="preset-chip text-[11px] font-mono bg-obsidian-800 hover:bg-violet-accent/20 hover:text-violet-accent text-slate-300 border border-obsidian-700 px-2.5 py-1 rounded-lg transition-all">
+                Robotics Fleet
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Prompt Textarea -->
+        <div class="relative">
+          <textarea 
+            id="prompt-input" 
+            autocomplete="off"
+            rows="4" 
+            placeholder="Describe your campaign concept... e.g. Research Tesla and write a product launch hook, social media post, and a visual image description"
+            class="w-full bg-obsidian-950 border border-obsidian-700 focus:border-cyan-accent focus:ring-1 focus:ring-cyan-accent rounded-xl p-4 text-sm font-sans text-slate-100 placeholder-slate-600 outline-none transition-all resize-none shadow-inner"
+          ></textarea>
+          
+          <div class="absolute bottom-3 right-3 text-[11px] font-mono text-slate-400 flex items-center space-x-2 bg-obsidian-900/90 px-2 py-0.5 rounded border border-obsidian-800">
+            <span id="char-count">0</span>
+            <span>chars</span>
+          </div>
+        </div>
+
+        <!-- Prompt Enhancement Notification Pill -->
+        <div id="enhance-badge" class="hidden px-3.5 py-2 rounded-xl bg-cyan-950/40 border border-cyan-500/40 text-cyan-300 text-xs font-mono flex items-center justify-between transition-all">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-cyan-400"></i>
+            <span id="enhance-badge-msg">✨ Upgraded to Fortune-500 Executive Launch Brief</span>
+          </div>
+          <span id="enhance-brand-tag" class="px-2 py-0.5 rounded text-[10px] bg-cyan-accent/20 text-cyan-accent border border-cyan-accent/30 font-bold">BRAND: TESLA</span>
+        </div>
+
+        <!-- Advanced Tone & Target Modifiers (Optional) -->
+        <div class="flex flex-wrap items-center justify-between gap-4 pt-1 text-xs font-mono">
+          <div class="flex flex-wrap items-center gap-4">
+            <div class="flex items-center space-x-2">
+              <span class="text-slate-400">Brand:</span>
+              <input id="brand-input" type="text" autocomplete="off" value="" placeholder="Auto (guideline / prompt)" class="w-40 bg-obsidian-950 border border-obsidian-800 text-slate-300 rounded-lg px-2.5 py-1 focus:outline-none focus:border-cyan-accent text-xs">
+            </div>
+
+            <div class="flex items-center space-x-2">
+              <span class="text-slate-400">Tone:</span>
+              <select id="tone-select" class="bg-obsidian-950 border border-obsidian-800 text-slate-300 rounded-lg px-2.5 py-1 focus:outline-none focus:border-cyan-accent text-xs">
+                <option value="confident, premium and benefit-driven">Premium &amp; Benefit-Driven</option>
+                <option value="warm, friendly and conversational for consumers">Friendly Consumer (B2C)</option>
+                <option value="authoritative and cutting-edge industrial technology">Authoritative B2B Enterprise</option>
+                <option value="visionary executive thought-leadership">Executive Thought Leadership</option>
+                <option value="deeply technical and data-driven for engineers">Technical / Engineering First</option>
+                <option value="high-energy disruptive product launch">Product Launch Hype</option>
+              </select>
+            </div>
+
+            <div class="flex items-center space-x-2">
+              <span class="text-slate-400">Visual Style:</span>
+              <select id="theme-select" class="bg-obsidian-950 border border-obsidian-800 text-slate-300 rounded-lg px-2.5 py-1 focus:outline-none focus:border-cyan-accent text-xs">
+                <option value="Cinematic lifestyle photography: golden-hour coastal road, ocean sunset, natural reflections, low front three-quarter tracking shot, 35mm lens, hero product fully visible, quiet upper left and lower right for copy" selected>Cinematic Lifestyle (Reference Ad)</option>
+                <option value="Apple Minimalist Studio: genuine physical hardware hero shot on dark honed graphite monolith, seamless obsidian infinity sweep, overhead strip softbox casting crisp specular reflection, Hasselblad 100mm macro lens, pure luxury isolation, no humans, no anime, no illustration">Apple Minimalist Hero (Luxury Tech)</option>
+                <option value="Teenage Engineering Industrial: genuine physical hardware photograph, CNC-milled black anodized aluminum housing, exposed ribbed heatsink fins, tactile hardware details, architectural concrete workbench, diffused natural studio lighting, Sony 90mm macro lens, no humans, no anime">Teenage Engineering (Tactile Industrial)</option>
+                <option value="Dyson / Deep Tech Physics: genuine physical high-tech hardware photograph, dark frosted optical chassis with exposed neural co-processor glow, volumetric cyan laser telemetry streams, Phase One 150MP, no humans, no anime">Dyson Deep Tech (Optical &amp; Physics)</option>
+                <option value="dark futuristic automated factory floor with neon cyan robotics and laser telemetry, crisp edge separation, tangible physical machinery, no humans, no anime">Cyber-Physical Smart Factory</option>
+                <option value="rugged industrial edge compute hardware module, brushed dark aluminum heatsink fins, glowing optical fiber channels, dark architectural slate, no humans, no anime">Edge Computing Hardware</option>
+              </select>
+            </div>
+
+            <label class="flex items-center space-x-1.5 cursor-pointer text-slate-300 hover:text-cyan-accent transition-colors select-none">
+              <input type="checkbox" id="search-toggle" checked class="w-3.5 h-3.5 rounded border-obsidian-700 bg-obsidian-950 text-cyan-accent focus:ring-cyan-accent accent-[#00f0ff] cursor-pointer">
+              <span class="flex items-center space-x-1">
+                <i data-lucide="globe" class="w-3 h-3 text-cyan-accent"></i>
+                <span>Google Research</span>
+              </span>
+            </label>
+
+            <label class="flex items-center space-x-1.5 cursor-pointer text-slate-300 hover:text-cyan-accent transition-colors select-none" title="AI Prompt Architect improves prompt quality and lets you review & edit before launching">
+              <input type="checkbox" id="review-prompt-toggle" checked class="w-3.5 h-3.5 rounded border-obsidian-700 bg-obsidian-950 text-cyan-accent focus:ring-cyan-accent accent-[#00f0ff] cursor-pointer">
+              <span class="flex items-center space-x-1">
+                <i data-lucide="sparkles" class="w-3 h-3 text-cyan-accent"></i>
+                <span>Review AI Prompt</span>
+              </span>
+            </label>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="flex items-center space-x-3 w-full sm:w-auto">
+            <button 
+              type="button" 
+              id="template-swap-btn" 
+              class="hidden sm:inline-flex px-4 py-3 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-violet-500/40 hover:border-violet-400 text-violet-300 hover:text-white font-tech font-bold text-xs tracking-wider uppercase transition-all items-center space-x-2 cursor-pointer shadow-sm"
+              title="Autonomous Template Subject-Replacement & 2.5D Pop-Out Compositing Engine"
+            >
+              <i data-lucide="layers" class="w-3.5 h-3.5 text-violet-400"></i>
+              <span>2.5D Template Swap</span>
+            </button>
+
+            <button 
+              type="button" 
+              id="instant-demo-btn" 
+              class="hidden sm:inline-flex px-4 py-3 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-700 hover:border-cyan-accent/50 text-slate-300 hover:text-cyan-accent font-tech font-bold text-xs tracking-wider uppercase transition-all items-center space-x-2"
+              title="Preview with sample campaign data and Flux visual"
+            >
+              <i data-lucide="play" class="w-3.5 h-3.5 text-cyan-accent"></i>
+              <span>Instant Demo</span>
+            </button>
+
+            <button 
+              type="button" 
+              id="generate-btn" 
+              class="w-full sm:w-auto px-7 py-3 rounded-xl bg-gradient-to-r from-cyan-accent via-cyan-400 to-violet-accent hover:from-cyan-300 hover:to-violet-400 text-obsidian-950 font-tech font-bold text-sm tracking-wider uppercase shadow-cyan-glow hover:shadow-dual-glow active:scale-[0.98] transition-all flex items-center justify-center space-x-2.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <i data-lucide="zap" id="generate-icon" class="w-4 h-4 text-obsidian-950 fill-obsidian-950"></i>
+              <span id="generate-btn-text">Generate Campaign</span>
+              <!-- Spinner Icon (Hidden by default) -->
+              <svg id="generate-spinner" class="animate-spin -ml-1 mr-2 h-4 w-4 text-obsidian-950 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Realtime Status Banner for generation steps -->
+        <div id="status-bar" class="hidden px-4 py-2.5 rounded-xl bg-obsidian-950/80 border border-cyan-accent/30 text-cyan-accent text-xs font-mono flex items-center justify-between">
+          <div class="flex items-center space-x-3">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-accent opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-cyan-accent"></span>
+            </span>
+            <span id="status-message">Synthesizing campaign assets...</span>
+          </div>
+          <span id="status-timer" class="text-slate-500 font-mono">0.0s</span>
+        </div>
+
+        <!-- Inline Error Banner -->
+        <div id="error-banner" class="hidden px-4 py-3 rounded-xl bg-rose-950/40 border border-rose-800/80 text-rose-300 text-xs font-mono flex items-start space-x-3">
+          <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-400 mt-0.5 flex-shrink-0"></i>
+          <div class="space-y-1">
+            <p class="font-semibold" id="error-title">Generation Error</p>
+            <p class="text-slate-300 text-[11px]" id="error-details">Please check your API key and network connection.</p>
           </div>
         </div>
       </section>
@@ -2826,6 +2850,22 @@
       return GENERIC_FILENAME_NAME_RE.test(s.replace(/_/g, ' '));
     }
 
+    // Auto-extract candidate person name from uploaded photo filename if meaningful
+    function extractPersonNameFromFilename(filename) {
+      if (!filename) return '';
+      let base = filename.replace(/\.[^/.]+$/, '');
+      if (isGenericFilenameName(base)) return '';
+      base = base.replace(/[_\-+.]+/g, ' ');
+      base = base.replace(/\b(?:photo(?:\s+of)?|portrait(?:\s+of)?|headshot(?:\s+of)?|avatar(?:\s+of)?|image(?:\s+of)?|raw|new|member|team)\b/gi, '');
+      base = base.trim().replace(/\s+/g, ' ');
+      if (base.length < 2 || (base.match(/\d/g) || []).length >= 3) return '';
+      if (/^(?:template|reference|logo|guideline|banner|card)$/i.test(base)) return '';
+      return base.split(' ')
+        .filter(Boolean)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
+    }
+
     // Clears filename-derived names from the person fields, then recovers the real
     // name/role from the prompt ("welcoming new team member Mohamed Redha, AI Engineer").
     function sanitizePersonNameFields() {
@@ -3073,12 +3113,23 @@
         if (slot === 'subject') {
           activeSubjectAsset = assetObj;
           currentUploadedImageUrl = data.file_url;
-          // Never derive the person's name from the photo filename; use what the user typed or the prompt.
-          sanitizePersonNameFields();
-          const knownName = (personNameInput && personNameInput.value.trim()) || '';
+          
+          // Auto-extract candidate person name from uploaded photo filename if meaningful
+          const originalName = (file && file.name) || data.filename || '';
+          const candidateName = extractPersonNameFromFilename(originalName);
+          if (candidateName) {
+            if (personNameInput) personNameInput.value = candidateName;
+            const ptName = document.getElementById('pt-member-name');
+            if (ptName) ptName.value = candidateName;
+            currentPersonName = candidateName;
+          } else {
+            sanitizePersonNameFields();
+          }
+          
+          const knownName = (personNameInput && personNameInput.value.trim()) || currentPersonName || '';
           showToast(knownName
-            ? `Subject photo ready for ${knownName} (${data.width}×${data.height})`
-            : `Subject photo ready (${data.width}×${data.height}). Type the member's name or include it in the prompt.`, true);
+            ? `Subject photo loaded for ${knownName} (${data.width}×${data.height})`
+            : `Subject photo loaded (${data.width}×${data.height}). You can type the member name in the personalization field.`, true);
         } else if (slot === 'template') {
           activeTemplateAsset = assetObj;
           showToast(`Template graphic ready: ${data.filename} (${data.width}×${data.height})`, true);
@@ -4257,8 +4308,10 @@
           currentPersonName = values['pt-story-theme'] || 'Engineering Excellence';
           currentPersonTitle = values['pt-story-msg'] || 'Pioneering Trusted Intelligence';
         }
-        if (personNameInput) personNameInput.value = currentPersonName;
-        if (personTitleInput) personTitleInput.value = currentPersonTitle;
+        if (typeId === 'team_welcome') {
+          if (personNameInput && currentPersonName) personNameInput.value = currentPersonName;
+          if (personTitleInput && currentPersonTitle) personTitleInput.value = currentPersonTitle;
+        }
       }
 
       container.querySelectorAll('.pt-guided-input').forEach(inp => {
@@ -4321,12 +4374,26 @@
                   brand_name: brandName,
                   post_type: typeId,
                   lang: 'en',
-                  quick_fields: values
+                  quick_fields: {
+                    ...values,
+                    'pt-member-name': values['pt-member-name'] || document.getElementById('person-name-input')?.value.trim() || currentPersonName || '',
+                    'pt-member-role': values['pt-member-role'] || document.getElementById('person-title-input')?.value.trim() || currentPersonTitle || '',
+                    'person_name': values['pt-member-name'] || document.getElementById('person-name-input')?.value.trim() || currentPersonName || '',
+                    'person_title': values['pt-member-role'] || document.getElementById('person-title-input')?.value.trim() || currentPersonTitle || ''
+                  }
                 })
               });
               if (resp.ok) {
                 const sData = await resp.json();
                 if (sData.prompt_en && promptInput) {
+                  promptInput.value = sData.prompt_en;
+                  if (charCount) charCount.textContent = promptInput.value.length;
+                }
+              }
+            } catch (e) {
+              // Graceful fallback to clientPrompt
+            }
+          }
                   promptInput.value = sData.prompt_en;
                   if (charCount) charCount.textContent = promptInput.value.length;
                 }

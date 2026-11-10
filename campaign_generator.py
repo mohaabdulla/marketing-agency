@@ -192,7 +192,7 @@ Your task is to take a raw user request for a commercial campaign and elevate it
 
 Campaign Post Type & Objective Awareness:
 - If the post type is "team_welcome" (Welcoming a new team member/executive):
-  * The prompt MUST preserve the exact person name and corporate title with pristine clarity (e.g. "featuring Alisha Faisal, Marketing Manager"). NEVER append connective prepositions like "as" to the name.
+  * The prompt MUST preserve the exact person name and corporate title provided by the user with pristine clarity (e.g. "featuring [Person Name], [Role]"). NEVER invent, hallucinate, or substitute an arbitrary name (such as Alisha, John, or Sarah) when a specific person name is given, and never append connective prepositions like "as" to the name.
   * Visual direction: Commercial executive portraiture on an 85mm lens, softbox studio lighting, clean minimalist background with generous negative space for brand typography.
   * Strategic angle: Warm, prestigious corporate onboarding celebrating their arrival and leadership impact.
 - If the post type is "product_launch":
@@ -2027,6 +2027,13 @@ class LexnisCampaignStudio:
                 if k in enhanced and isinstance(enhanced[k], str):
                     enhanced[k] = clean_social_text(enhanced[k])
 
+            # In team welcome campaigns, guarantee the user-specified person name is preserved, never swapped
+            if is_welcome and person_name and person_name.strip():
+                clean_pname = person_name.strip()
+                if clean_pname.lower() not in enhanced.get("enhanced_prompt", "").lower():
+                    enhanced["enhanced_prompt"] = fallback_enhanced["enhanced_prompt"]
+                    enhanced["product_name"] = f"{clean_pname} ({person_title or 'Leadership Team'})"
+
             return enhanced
         except Exception:
             return {k: clean_social_text(v) if isinstance(v, str) else v for k, v in fallback_enhanced.items()}
@@ -2820,6 +2827,18 @@ class LexnisCampaignStudio:
                 f"حملة إطلاق تجارية رئيسية لشركة {brand_profile.get('brand_name_ar', b_name)}: "
                 f"إطلاق {prod} لتقديم {feat} في قطاع {industry}. "
                 f"تواصل معنا اليوم للبدء. تصوير منتج احترافي بإضاءة استوديو متقدمة."
+            )
+        elif "welcome" in p_lower:
+            m_name = qf.get("pt-member-name") or qf.get("person_name") or "our new team member"
+            m_role = qf.get("pt-member-role") or qf.get("person_title") or "Leadership Team"
+            m_dept = f" in the {qf['pt-member-dept']}" if qf.get("pt-member-dept") else ""
+            prompt_en = (
+                f"A high-end commercial campaign portrait for {b_name} welcoming new team member {m_name}, {m_role}{m_dept}, to the team. "
+                f"Shot on an 85mm lens with softbox studio lighting, clean background, and generous negative space for brand typography."
+            )
+            prompt_ar = (
+                f"حملة ترحيب رسمية لشركة {brand_profile.get('brand_name_ar', b_name)}: نرحب بانضمام {m_name}، {m_role}{m_dept}، إلى فريق العمل. "
+                f"تصوير بورتريه تنفيذي احترافي بإضاءة استوديو ناعمة ومساحة سلبية مخصصة للنصوص وهوية العلامة."
             )
         else:
             cta_part = f"Explore more at {web}" if has_web and web else "Discover more and partner with us"
