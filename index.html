@@ -134,6 +134,7 @@
                 <input 
                   type="text" 
                   id="brandNameInput" 
+                  autocomplete="off"
                   placeholder="Auto-detected from Guideline PDF, or enter Company Name..." 
                   value=""
                   class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-obsidian-900 border border-obsidian-700 text-white placeholder-slate-500 text-sm font-mono focus:border-cyan-500 focus:outline-none transition-all shadow-inner"
@@ -151,6 +152,7 @@
                   <input 
                     type="url" 
                     id="company-url-input" 
+                    autocomplete="off"
                     placeholder="Optional: https://yourcompany.com (leave blank if guideline-only)" 
                     value=""
                     class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-obsidian-900 border border-obsidian-700 text-white placeholder-slate-500 text-sm font-mono focus:border-cyan-500 focus:outline-none transition-all shadow-inner"
@@ -560,6 +562,7 @@
         <div class="relative">
           <textarea 
             id="prompt-input" 
+            autocomplete="off"
             rows="4" 
             placeholder="Describe your campaign concept... e.g. Research Tesla and write a product launch hook, social media post, and a visual image description"
             class="w-full bg-obsidian-950 border border-obsidian-700 focus:border-cyan-accent focus:ring-1 focus:ring-cyan-accent rounded-xl p-4 text-sm font-sans text-slate-100 placeholder-slate-600 outline-none transition-all resize-none shadow-inner"
@@ -585,7 +588,7 @@
           <div class="flex flex-wrap items-center gap-4">
             <div class="flex items-center space-x-2">
               <span class="text-slate-400">Brand:</span>
-              <input id="brand-input" type="text" value="" placeholder="Auto (guideline / prompt)" class="w-40 bg-obsidian-950 border border-obsidian-800 text-slate-300 rounded-lg px-2.5 py-1 focus:outline-none focus:border-cyan-accent text-xs">
+              <input id="brand-input" type="text" autocomplete="off" value="" placeholder="Auto (guideline / prompt)" class="w-40 bg-obsidian-950 border border-obsidian-800 text-slate-300 rounded-lg px-2.5 py-1 focus:outline-none focus:border-cyan-accent text-xs">
             </div>
 
             <div class="flex items-center space-x-2">
@@ -963,11 +966,11 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
             <div class="flex items-center space-x-2">
               <span class="text-slate-400 w-24 shrink-0">Person Name:</span>
-              <input id="person-name-input" type="text" placeholder="Auto-extracted from prompt, or type name e.g. Mohamed Redha" class="w-full bg-obsidian-900 border border-obsidian-700 text-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-accent">
+              <input id="person-name-input" type="text" autocomplete="off" placeholder="Auto-extracted from prompt, or type name e.g. Mohamed Redha" class="w-full bg-obsidian-900 border border-obsidian-700 text-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-accent">
             </div>
             <div class="flex items-center space-x-2">
               <span class="text-slate-400 w-24 shrink-0">Role / Title:</span>
-              <input id="person-title-input" type="text" placeholder="e.g. VP of Product" class="w-full bg-obsidian-900 border border-obsidian-700 text-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-accent">
+              <input id="person-title-input" type="text" autocomplete="off" placeholder="e.g. VP of Product" class="w-full bg-obsidian-900 border border-obsidian-700 text-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-accent">
             </div>
           </div>
         </div>
@@ -2426,6 +2429,15 @@
       const isMultiple = fileList.length > 1 || activeGuidelineFiles.length > 0;
       showToast(`Analyzing ${fileList.length} brand file${fileList.length > 1 ? 's' : ''}...`);
 
+      // While a guideline is being read, a leftover "Lexnis Technologies" must never be sent
+      // (e.g. Generate clicked mid-upload). The guideline's own brand fills the field back in;
+      // the old value returns only if the upload yields no brand profile.
+      const stashedBrandFields = [document.getElementById('brandNameInput'), brandInput]
+        .filter(f => f && /lexnis/i.test(f.value))
+        .map(f => [f, f.value]);
+      stashedBrandFields.forEach(([f]) => { f.value = ''; });
+      let guidelineBrandApplied = false;
+
       try {
         if (isPythonBackendActive && backendApiBase) {
           const fd = new FormData();
@@ -2477,6 +2489,7 @@
             const prof = data.profile || data.brand_dna;
             if (prof && Object.keys(prof).length > 0) {
               applyBrandDnaToUI(prof);
+              guidelineBrandApplied = true;
               const nameToShow = prof.brand_name || prof.company_name || 'Brand';
               // A prompt written for the old default brand must follow the uploaded guideline's brand.
               if (promptInput && !isGenericBrandName(nameToShow) && !/lexnis/i.test(nameToShow) && /lexnis(?:\s+technologies)?/i.test(promptInput.value)) {
@@ -2527,6 +2540,10 @@
         showToast(`Added ${fileList.length} brand file${fileList.length > 1 ? 's' : ''}!`, true);
       } catch (err) {
         showToast(`Could not load guidelines: ${err.message}`, false);
+      } finally {
+        if (!guidelineBrandApplied) {
+          stashedBrandFields.forEach(([f, v]) => { if (!f.value.trim()) f.value = v; });
+        }
       }
     }
 
@@ -4167,6 +4184,7 @@
           <input 
             type="text" 
             id="${f.id}" 
+            autocomplete="off"
             placeholder="${f.placeholder}" 
             value="${val}"
             class="pt-guided-input w-full bg-obsidian-950 border border-obsidian-700 focus:border-cyan-accent text-slate-200 text-xs font-mono rounded-lg px-3 py-1.5 outline-none transition-colors"
@@ -4364,6 +4382,13 @@
 
       // Purge any filename-derived name restored by the browser (e.g. "WhatsApp Image 2026 ...").
       sanitizePersonNameFields();
+
+      // Browsers can restore old form values on a soft reload: drop a leftover "Lexnis Technologies"
+      // default that no guideline profile or website backs.
+      const restoredWebsite = (document.getElementById('company-url-input')?.value || '').trim();
+      [document.getElementById('brandNameInput'), brandInput].forEach(f => {
+        if (f && !window.brandProfile && !restoredWebsite && /^lexnis(?:\s+technologies)?$/i.test(f.value.trim())) f.value = '';
+      });
 
       // Setup textarea character counter
       promptInput.addEventListener('input', () => {

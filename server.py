@@ -342,28 +342,9 @@ def generate_campaign_endpoint(req: GenerateRequest):
                 elif str(p) not in all_up_paths:
                     all_up_paths.append(str(p))
 
-        # Only supplement from UPLOADS_DIR if in welcome mode or user explicitly requested swap
-        prompt_lower = (req.prompt or "").lower()
-        is_welcome_mode = (req.post_type == "team_welcome")
-        needs_swap = is_welcome_mode or any(k in prompt_lower for k in ["template swap", "2.5d swap", "replace face", "swap portrait", "swap subject", "sekawan"])
-        if is_welcome_mode and len(all_up_paths) < 2 and UPLOADS_DIR.exists():
-            recent_uploads = sorted(UPLOADS_DIR.glob("*.*"), key=lambda f: f.stat().st_mtime, reverse=True)
-            for f in recent_uploads:
-                if f.name.lower().startswith("logo_") or "logo" in f.stem.lower():
-                    continue
-                if f.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"} and str(f) not in all_up_paths:
-                    all_up_paths.append(str(f))
-                if len(all_up_paths) >= 2:
-                    break
-
-        # Auto-pair single subject portrait with template_reference.jpg
-        if (is_welcome_mode or needs_swap) and len(all_up_paths) == 1:
-            ref_t = BASE_DIR / "test_assets" / "template_reference.jpg"
-            if not ref_t.exists():
-                ref_t = BASE_DIR / "static" / "assets" / "template_reference.jpg"
-            if ref_t.exists() and str(ref_t) not in all_up_paths:
-                all_up_paths.insert(0, str(ref_t))
-
+        # Only the photos sent with THIS request can be the person on the card. Older files in
+        # output/uploads are never added (that put a previously uploaded person on the card), and
+        # generate_campaign pairs a single portrait with the bundled template frame itself.
         up_img_path = all_up_paths[0] if all_up_paths else None
 
         # Resolve custom logo if provided
@@ -496,12 +477,16 @@ async def analyze_brand_endpoint(
     file: Optional[UploadFile] = File(None),
     files: Optional[List[UploadFile]] = File(None),
     website: Optional[str] = Form(""),
-    brand_name_input: Optional[str] = Form("")
+    brand_name_input: Optional[str] = Form(""),
+    guidelines: Optional[str] = Form(""),
+    guideline_text: Optional[str] = Form(""),
 ):
     """
     Guideline-Driven Brand Analysis:
     Extracts structured company intelligence, full text, and explicit brand hex codes
     from uploaded guidelines (PDF or image) even when website is empty.
+    Guideline text may also be posted directly as `guidelines` or `guideline_text`; it is
+    combined with the text of any uploaded PDF (first 15 pages / 25,000 characters).
     """
     try:
         studio = LexnisCampaignStudio()
@@ -519,7 +504,7 @@ async def analyze_brand_endpoint(
 
         pdf_bytes = None
         image_bytes = None
-        guideline_raw_text = ""
+        guideline_raw_text = (guidelines or guideline_text or "").strip()
         filename = ""
         saved_logo_url = None
         saved_logo_path = None

@@ -137,6 +137,25 @@ IG_CAPTION_LIMIT = 2200
 RENDERS_DIR = BASE_DIR / "output" / "renders"
 UPLOADS_DIR = BASE_DIR / "output" / "uploads"
 
+
+def _layout_code_fingerprint() -> str:
+    """
+    Hash of the code that lays out cards (visual_engine.py + campaign_generator.py), taken when this
+    process loads it. Every cached card render is keyed on it, so a card drawn by older layout code
+    (e.g. the clipped-headline welcome card) is never served again for the same photo after the
+    code changes; it is re-rendered instead.
+    """
+    h = hashlib.sha1()
+    for name in ("visual_engine.py", "campaign_generator.py"):
+        try:
+            h.update((BASE_DIR / name).read_bytes())
+        except OSError:
+            h.update(name.encode())
+    return h.hexdigest()[:10]
+
+
+LAYOUT_CODE_VERSION = _layout_code_fingerprint()
+
 BROWSER_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
     "Accept-Language": "en-US,en;q=0.9",
@@ -528,7 +547,7 @@ def detect_featured_person(prompt: str, post_type: Optional[str] = None) -> Tupl
             team_str = (m_hire.group(2) or "").strip()
             if not team_str:
                 team_str = "Core Engineering & Innovation Lab · Hybrid"
-            return smart_title(clean_role), team_str
+            return smart_title(clean_role, role=True), team_str
         return "Senior Systems Engineer", "Engineering & Innovation Lab · Hybrid"
 
     if (post_type and any(k in post_type.lower() for k in ['product', 'launch', 'announcement'])) or any(k in p.lower() for k in ['launching', 'introducing', 'predictive maintenance', 'visionai', 'sensor']):
@@ -578,11 +597,11 @@ def detect_featured_person(prompt: str, post_type: Optional[str] = None) -> Tupl
                 if any(w in raw_title.lower() for w in ['confident', 'sleek', 'modern', 'futuristic', 'professional', 'approachable', 'sharp']):
                     role_m = re.search(r'\b(marketing manager|product manager|chief of business development department|chief of business development|cto|ceo|vp|director|engineer|leader|head of [a-z]+|designer|developer|specialist)\b', raw_title, re.IGNORECASE)
                     if role_m:
-                        raw_title = smart_title(role_m.group(0))
+                        raw_title = smart_title(role_m.group(0), role=True)
                     else:
                         raw_title = "Marketing Manager" if "lexnis" in p.lower() else "Team Member"
                 else:
-                    raw_title = smart_title(raw_title)
+                    raw_title = smart_title(raw_title, role=True)
             else:
                 if (post_type and 'welcome' in post_type.lower()) or 'welcome' in p.lower():
                     raw_title = raw_title or "Team Member"
@@ -592,12 +611,37 @@ def detect_featured_person(prompt: str, post_type: Optional[str] = None) -> Tupl
     return None, None
 
 
-def smart_title(text: str) -> str:
-    """Title-case words that are entirely lowercase, keeping acronyms and brand casing (AI, VisionAI, iPhone)."""
-    return " ".join(
-        w if any(c.isupper() for c in w) else (w[:1].upper() + w[1:])
-        for w in (text or "").split()
-    )
+_TITLE_ACRONYMS = {
+    "ai": "AI", "ml": "ML", "ai/ml": "AI/ML", "ux": "UX", "ui": "UI", "ui/ux": "UI/UX", "ux/ui": "UX/UI",
+    "hr": "HR", "qa": "QA", "vp": "VP", "svp": "SVP", "evp": "EVP", "avp": "AVP", "ceo": "CEO", "cto": "CTO",
+    "cfo": "CFO", "coo": "COO", "cio": "CIO", "cmo": "CMO", "cpo": "CPO", "ciso": "CISO", "seo": "SEO",
+    "pr": "PR", "bi": "BI", "nlp": "NLP", "sre": "SRE", "api": "API", "crm": "CRM", "erp": "ERP", "gis": "GIS",
+    "iot": "IoT", "devops": "DevOps", "mlops": "MLOps", "ios": "iOS", "r&d": "R&D", "esg": "ESG",
+}
+_TITLE_SMALL_WORDS = {"of", "and", "the", "for", "in", "at", "to", "on", "with", "a", "an", "&"}
+
+
+def smart_title(text: str, role: bool = False) -> str:
+    """
+    Title-case a role or product name: "ai engineer" -> "AI Engineer", "head of design" -> "Head of Design".
+    Known acronyms get their canonical casing (also from "Ai"); other words keep any casing the writer
+    used (VisionAI, iPhone); small words stay lowercase after the first word. role=True also maps the
+    ambiguous "it" -> "IT" ("head of it" -> "Head of IT"), which a product name must not get.
+    """
+    out = []
+    for i, w in enumerate((text or "").split()):
+        low = w.lower()
+        if low in _TITLE_ACRONYMS and not w.isupper():
+            out.append(_TITLE_ACRONYMS[low])
+        elif role and low == "it":
+            out.append("IT")
+        elif any(c.isupper() for c in w):
+            out.append(w)
+        elif i > 0 and low in _TITLE_SMALL_WORDS:
+            out.append(low)
+        else:
+            out.append(w[:1].upper() + w[1:])
+    return " ".join(out)
 
 
 _GENERIC_FILENAME_NAME_RE = re.compile(
@@ -648,7 +692,50 @@ def resolve_featured_person(
             name = det_name
         if not title and det_title:
             title = det_title
+    # A typed "ai engineer" reads "AI Engineer" on the nameplate; deliberate casing is kept.
+    title = smart_title(title, role=True) if title else title
     return (name or None), (title or None)
+
+
+_WELCOME_PHRASE_RE = re.compile(
+    r"(?i)\b(?:welcome[sd]?|join(?:s|ed|ing)?|meet|hello|say\s+hi|new\s+(?:team\s*mate|team\s+member|member|colleague|hire|face))\b"
+    r"|أهل|اهلا|مرحب|نرحب|انضم|ترحيب"
+)
+
+
+def is_welcome_phrase(text: Optional[str]) -> bool:
+    """True when a headline reads as a welcome ("WELCOME TO TAB", "MEET OUR NEW AI ENGINEER", Arabic ahlan / marhaban)."""
+    return bool(text and _WELCOME_PHRASE_RE.search(text))
+
+
+def select_template_and_subject(uploaded, is_welcome_mode: bool, ref_subject, classify):
+    """
+    Decide which image is the card's template and which one is the person (subject).
+    - One uploaded photo on a Team Welcome card: it is the subject (the bundled reference frame
+      becomes the template). Other post types let the classifier decide template vs portrait.
+    - Two or more: classify among the uploaded images only, and the subject is always one of
+      them, so a classifier guess can never replace the photo the user uploaded.
+    - Nothing uploaded on a Team Welcome card: the bundled sample subject (demo).
+    Returns (template or None, subject or None).
+    """
+    imgs = [Path(p) for p in (uploaded or [])]
+    if len(imgs) == 1:
+        if is_welcome_mode:
+            return None, imgs[0]  # a Team Welcome upload is always the new team member's photo
+        return classify(imgs)     # e.g. a lone blue template graphic for a "template swap" prompt
+    if len(imgs) >= 2:
+        t_file, s_file = classify(imgs)
+
+        def _key(p) -> str:
+            return str(Path(p).resolve()).lower() if p else ""
+
+        uploaded_keys = {_key(p) for p in imgs}
+        if _key(s_file) not in uploaded_keys:
+            s_file = next((p for p in imgs if _key(p) != _key(t_file)), imgs[0])
+        return t_file, s_file
+    if is_welcome_mode and ref_subject is not None and Path(ref_subject).exists():
+        return None, Path(ref_subject)
+    return None, None
 
 
 GENERIC_BRAND_NAMES = {"", "brand", "our brand", "company", "enterprise", "unknown", "your brand"}
@@ -670,12 +757,24 @@ _GUIDELINE_DOC_WORDS = {
     "deck", "presentation", "rev", "revised", "overview", "introduction", "playbook", "handbook", "system",
     "guidance", "rules", "assets", "master", "complete", "table", "contents", "introduction", "chapter",
     "section", "page", "welcome", "about", "prepared", "by", "to", "in", "on", "with", "is", "are", "this",
+    "these", "those", "your", "its", "using", "use", "how", "general", "following", "copyright", "rights",
+    "reserved", "inc", "ltd", "llc", "plc", "wll", "gmbh",
 }
 
 # Well-known house brands normalised to their canonical name.
 _KNOWN_GUIDELINE_BRANDS = [
     (re.compile(r"\blexnis\b", re.IGNORECASE), "Lexnis Technologies"),
 ]
+
+# Website / e-mail domains a brand book cites that never belong to the brand itself.
+_GENERIC_DOMAIN_LABELS = {
+    "www", "google", "googleapis", "gstatic", "adobe", "figma", "canva", "unsplash", "pexels", "shutterstock",
+    "istockphoto", "gettyimages", "freepik", "w3", "example", "whatsapp", "gmail", "outlook", "hotmail", "yahoo",
+    "icloud", "live", "microsoft", "apple", "github", "behance", "dribbble", "pantone", "instagram", "linkedin",
+    "facebook", "twitter", "youtube", "tiktok", "fonts", "fontshare", "myfonts", "fontawesome", "wikipedia",
+    "creativecommons", "x",
+}
+_BRAND_DOMAIN_RE = re.compile(r"(?i)\b([a-z0-9][a-z0-9-]{1,39})\.(?:com|io|ai|co|org|net|bh|sa|ae)\b")
 
 
 def _clean_brand_candidate(raw: str) -> str:
@@ -705,13 +804,56 @@ def _clean_brand_candidate(raw: str) -> str:
     return cand
 
 
+GUIDELINE_PDF_MAX_PAGES = 15        # pages of a guideline PDF read for brand extraction
+GUIDELINE_TEXT_MAX_CHARS = 25000    # characters of PDF text kept for brand extraction
+
+
+def guideline_brand_colors(text: str, keep_neutrals: bool = False) -> List[str]:
+    """
+    Colours written in a guideline document, most frequent first (ties keep document order).
+    Reads hex codes (#FF6B00) and RGB triples ("RGB 255 107 0", "rgb(255,107,0)", "R255 G107 B0").
+    Pure black / white / greys (#000000, #111111 .. #EEEEEE, #FFFFFF) are dropped unless keep_neutrals.
+    """
+    text = text or ""
+    counts: Dict[str, int] = {}
+    order: List[str] = []
+
+    def push(r: int, g: int, b: int) -> None:
+        if max(r, g, b) > 255:
+            return
+        hx = f"#{r:02X}{g:02X}{b:02X}"
+        if hx not in counts:
+            counts[hx] = 0
+            order.append(hx)
+        counts[hx] += 1
+
+    for m in re.finditer(r"#([0-9A-Fa-f]{6})\b", text):
+        h = m.group(1)
+        push(int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+    for pat in (
+        r"(?i)\brgb\s*[:(]?\s*(\d{1,3})\s*[,/ ]\s*(\d{1,3})\s*[,/ ]\s*(\d{1,3})\b",
+        r"\bR\s*[:=]?\s*(\d{1,3})\s*[,/ ]?\s*G\s*[:=]?\s*(\d{1,3})\s*[,/ ]?\s*B\s*[:=]?\s*(\d{1,3})\b",
+    ):
+        for m in re.finditer(pat, text):
+            push(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+
+    def neutral(hx: str) -> bool:
+        r, g, b = int(hx[1:3], 16), int(hx[3:5], 16), int(hx[5:7], 16)
+        return max(r, g, b) - min(r, g, b) < 14
+
+    cols = [h for h in order if keep_neutrals or not neutral(h)]
+    return sorted(cols, key=lambda h: (-counts[h], order.index(h)))
+
+
 def detect_brand_name_from_guideline(text: str, filename: str = "") -> str:
     """
     Detect which company a brand-guideline document belongs to.
-    Candidates come from title phrases ("X Brand Guidelines"), running headers ("Tab · Version 3.0"),
-    copyright lines, the cleaned filename and known house brands, and are ranked by how often
-    they occur in the document. Returns "" when nothing credible is found (never a year,
-    never a generic filename such as "Brand guidelines document (3)").
+    Candidates come from title phrases ("X Brand Guidelines", "Acme Solar Guidelines"), running
+    headers ("Tab · Version 3.0"), copyright lines, ownership phrases, the cleaned filename and
+    known house brands. A candidate that matches a website / e-mail domain in the document
+    ("www.acmesolar.com" -> "Acme Solar") gets a strong boost, and all are ranked by how often they
+    occur. Returns "" when nothing credible is found (never a year, never a generic filename such
+    as "Brand guidelines document (3)").
     """
     text = text or ""
     scores: Dict[str, float] = {}
@@ -732,11 +874,15 @@ def detect_brand_name_from_guideline(text: str, filename: str = "") -> str:
         add(m.group(1), 3)
     for m in re.finditer(rf"([^\n]{{2,40}}?)\s+(?i:{doc_kw})", text):
         add(m.group(1), 3)
+    # Capitalised name directly before a bare "Guidelines" title ("Acme Solar Guidelines").
+    for m in re.finditer(r"([A-Z][A-Za-z0-9&]*(?:[ ][A-Z][A-Za-z0-9&]*){0,3})\s+(?:Guidelines?|GUIDELINES?)\b", text):
+        add(m.group(1), 3)
     # Running headers such as "Tab · Version 3.0" or "TAB / A CLEARER WAY TO WORK"
     for m in re.finditer(r"^\s*([A-Z][A-Za-z0-9&]*(?:[ ][A-Z][A-Za-z0-9&]*){0,2})\s*[·•|/—–]\s*(?i:version|edition|v\d|brand|visual|a\b|the\b)", text, re.MULTILINE):
         add(m.group(1), 3)
-    for m in re.finditer(r"©\s*(?:\d{4}\s*)?([A-Z][^\n.,©]{1,40})", text):
-        add(m.group(1), 2)
+    # Copyright lines: "© 2026 Acme Solar", "(c) Acme Solar Ltd.", "Copyright 2024-2026 Acme Solar. All rights reserved"
+    for m in re.finditer(r"(?:©|\([cC]\)|(?i:\bcopyright\b))\s*©?\s*(?:(?:19|20)\d\d(?:\s*[-–]\s*(?:19|20)?\d\d)?\s*)?([A-Z][^\n.,©|]{1,40})", text):
+        add(re.split(r"(?i)\ball\s+rights\b", m.group(1))[0], 2)
     # Ownership phrases near the start of the document ("Prepared for Noor Solar", "Welcome to Tab").
     head = text[:5000]
     for m in re.finditer(r"(?i:prepared\s+for|(?:brand\s+)?guidelines\s+for|identity\s+for|welcome\s+to)\s+([A-Z][A-Za-z0-9&]*(?:[ ][A-Z][A-Za-z0-9&]*){0,3})", head):
@@ -749,6 +895,43 @@ def detect_brand_name_from_guideline(text: str, filename: str = "") -> str:
     if filename:
         stem = re.sub(r"\(\d+\)", " ", Path(filename).stem)
         add(re.sub(r"[_\-]+", " ", stem), 2)
+
+    # Website / e-mail domains ("www.acmesolar.com", "hello@acmesolar.com"): confirm the candidate
+    # the domain spells, or contribute the domain label itself when no candidate matches.
+    domain_labels: List[str] = []
+    for m in _BRAND_DOMAIN_RE.finditer(text):
+        lab = m.group(1).lower()
+        if lab not in _GENERIC_DOMAIN_LABELS and lab not in domain_labels:
+            domain_labels.append(lab)
+    for lab in domain_labels[:3]:
+        compact = lab.replace("-", "")
+        matched = False
+        for key in list(scores):
+            ck = re.sub(r"[^a-z0-9]", "", key)
+            if len(ck) >= 3 and (ck == compact or compact.startswith(ck) or ck.startswith(compact)):
+                scores[key] += 4
+                matched = True
+        if not matched:
+            # Prefer the document's own spelling of the domain ("Acme Solar" for acmesolar.com).
+            spelled = ""
+            for run in re.finditer(r"[A-Z][A-Za-z0-9&]*(?:[ -][A-Z][A-Za-z0-9&]*){0,3}", text):
+                words = re.split(r"[ -]", run.group(0))
+                for i in range(len(words)):
+                    for j in range(i + 1, len(words) + 1):
+                        if "".join(words[i:j]).lower() == compact:
+                            spelled = " ".join(words[i:j])
+                            break
+                    if spelled:
+                        break
+                if spelled:
+                    break
+            if spelled:
+                add(spelled, 2)
+                key = _clean_brand_candidate(spelled).lower()
+                if key in scores:
+                    scores[key] += 4
+            else:
+                add(" ".join(p.capitalize() for p in lab.split("-") if p), 2)
 
     if not scores:
         return ""
@@ -2290,7 +2473,7 @@ class LexnisCampaignStudio:
             try:
                 import fitz  # PyMuPDF
                 doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-                for p_idx in range(min(len(doc), 10)):
+                for p_idx in range(min(len(doc), GUIDELINE_PDF_MAX_PAGES)):
                     page = doc[p_idx]
                     raw_txt = page.get_text() or ""
                     txt_str = str(raw_txt).strip()
@@ -2304,7 +2487,7 @@ class LexnisCampaignStudio:
                         except Exception:
                             pass
                 if extracted_pages:
-                    combined_pdf_text = "\n\n".join(extracted_pages)
+                    combined_pdf_text = "\n\n".join(extracted_pages)[:GUIDELINE_TEXT_MAX_CHARS]
                     guideline_raw_text = f"{combined_pdf_text}\n\n{guideline_raw_text}".strip()
             except Exception:
                 pass
@@ -2316,12 +2499,13 @@ class LexnisCampaignStudio:
             except Exception:
                 pass
 
-        # 1. Color Extraction: Explicit Hex Codes + Visual K-Means
-        explicit_hex_codes = [f"#{c.upper()}" for c in dict.fromkeys(re.findall(r'#([0-9A-Fa-f]{6})\b', guideline_raw_text))]
-        accent_hex_candidates = [
-            h for h in explicit_hex_codes 
-            if h.upper() not in ("#FFFFFF", "#000000", "#111111", "#222222", "#333333", "#CCCCCC", "#EEEEEE", "#F8FAFC")
-        ]
+        # 1. Color Extraction: colours written in the document (hex codes and RGB triples), most
+        #    frequent first, with pure black / white / greys dropped; then visual K-Means of the pages.
+        accent_hex_candidates = guideline_brand_colors(guideline_raw_text)
+        primary_labelled = {
+            f"#{m.group(1).upper()}"
+            for m in re.finditer(r'(?i)\bprimary\b[^#\n]{0,30}#([0-9A-Fa-f]{6})\b', guideline_raw_text)
+        }
 
         visual_hex_codes = []
         for rim in rendered_images:
@@ -2337,18 +2521,27 @@ class LexnisCampaignStudio:
             except Exception:
                 pass
 
-        all_palette = accent_hex_candidates + [c for c in visual_hex_codes if c not in accent_hex_candidates]
-
         # 2. Brand Name Resolution
         detected_name = ""
         u_name = (user_brand_name_input or "").strip()
+        if not u_name:
+            detected_name = detect_brand_name_from_guideline(guideline_raw_text, filename)
+
+        # Gemini reads the document only when the heuristics miss the company name or the
+        # palette; its answers are validated against the document text before use.
+        llm_facts: Dict[str, Any] = {}
+        if (not u_name and not detected_name) or not accent_hex_candidates:
+            llm_facts = self._llm_guideline_brand_facts(guideline_raw_text)
+            if not accent_hex_candidates:
+                accent_hex_candidates = list(llm_facts.get("colors") or [])
+
+        all_palette = accent_hex_candidates + [c for c in visual_hex_codes if c not in accent_hex_candidates]
+
         if u_name:
             detected_name = u_name
         else:
-            detected_name = detect_brand_name_from_guideline(guideline_raw_text, filename)
-
             if not detected_name:
-                detected_name = self._llm_guideline_company_name(guideline_raw_text)
+                detected_name = llm_facts.get("brand_name", "")
 
             if not detected_name and website and website.strip():
                 try:
@@ -2392,12 +2585,16 @@ class LexnisCampaignStudio:
             industry = "Food & Beverage Innovation"
         elif is_lexnis:
             industry = "Industrial AI & Enterprise Intelligence Infrastructure"
+        elif llm_facts.get("industry"):
+            industry = llm_facts["industry"]
 
         brand_tone = "Bold, engineering-led, authoritative and trustworthy"
         if "sustainable" in guideline_raw_text.lower():
             brand_tone = "Sustainable, forward-looking, high-efficiency excellence"
         elif "fintech" in industry.lower():
             brand_tone = "Frictionless, secure, customer-centric and progressive"
+        elif llm_facts.get("tone"):
+            brand_tone = llm_facts["tone"]
 
         core_offerings = []
         for line in guideline_raw_text.splitlines():
@@ -2460,10 +2657,17 @@ class LexnisCampaignStudio:
                     dark_cands.append(c)
                 elif sat >= 0.25 and lum < 0.85:
                     accent_cands.append(c)
+            # A colour the document labels "Primary" leads the accents.
+            accent_cands.sort(key=lambda c: 0 if c in primary_labelled else 1)
             # Accents are saturated mid-tones; the background is a genuinely dark swatch,
             # never the accent itself (e.g. indigo #4F46E5 must not become the canvas colour).
             pri_acc = accent_cands[0] if accent_cands else (all_palette[0] if all_palette else "#2563EB")
-            sec_acc = accent_cands[1] if len(accent_cands) > 1 else "#38BDF8"
+            if len(accent_cands) > 1:
+                sec_acc = accent_cands[1]
+            else:
+                # Single-accent brand: a lighter tint of its own accent, never an unrelated default hue.
+                pr, pg, pb = hex_to_rgb(pri_acc)
+                sec_acc = rgb_to_hex((int(round(pr + (255 - pr) * 0.4)), int(round(pg + (255 - pg) * 0.4)), int(round(pb + (255 - pb) * 0.4)))).upper()
             bg_dark = dark_cands[0] if dark_cands else "#0F172A"
             bg_sec = "#1E293B"
             color_palette = [bg_dark, bg_sec, pri_acc, sec_acc, "#FFFFFF"]
@@ -2506,30 +2710,54 @@ class LexnisCampaignStudio:
             "source": "uploaded_guidelines"
         }
 
-    def _llm_guideline_company_name(self, guideline_text: str) -> str:
+    def _llm_guideline_brand_facts(self, guideline_text: str) -> Dict[str, Any]:
         """
-        Last-resort company-name lookup with Gemini when the heuristics find nothing.
-        Only runs with a configured Gemini key, and only accepts a name that literally
-        appears in the document (a hallucinated name can never become the brand).
+        Gemini read of a brand-guideline document (first 8,000 chars), used only when the
+        heuristics miss the company name or the palette. Returns
+        {"brand_name": str, "colors": ["#RRGGBB", ...], "industry": str, "tone": str}.
+        Answers are validated against the document: the name must appear in it, and each colour
+        must be written in it as a hex code or an R,G,B triple, so a hallucination never brands a card.
         """
+        out: Dict[str, Any] = {"brand_name": "", "colors": [], "industry": "", "tone": ""}
         text = (guideline_text or "").strip()
         if not self.gemini_key or len(text) < 200:
-            return ""
+            return out
         try:
             data, _ = self._chat_json(
-                "You read brand-guideline documents. Identify the company or brand the document belongs to. "
-                "Return JSON: {\"company_name\": \"<exact name as written in the document, or empty>\"}. "
-                "Never return generic words such as 'Brand Guidelines', 'Style Guide' or 'Table of Contents'.",
-                text[:6000],
+                "You read brand-guideline documents. Identify the company the document belongs to and its brand palette. "
+                "Return JSON: {\"brand_name\": \"<exact company name as written in the document, or empty>\", "
+                "\"colors\": [\"#RRGGBB\", ...] (brand colours written in the document, primary first, max 5), "
+                "\"industry\": \"<short industry>\", \"tone\": \"<short brand voice>\"}. "
+                "Never return generic words such as 'Brand Guidelines', 'Style Guide' or 'Table of Contents' as the name.",
+                text[:8000],
                 temperature=0.0,
-                fallback_schema={"company_name": ""},
+                fallback_schema={"brand_name": "", "colors": [], "industry": "", "tone": ""},
             )
-            cand = _clean_brand_candidate(str(data.get("company_name") or ""))
-            if cand and len(cand) <= 40 and re.search(rf"(?<![A-Za-z0-9]){re.escape(cand)}(?![A-Za-z0-9])", text, re.IGNORECASE):
-                return cand
         except Exception:
-            pass
-        return ""
+            return out
+        if not isinstance(data, dict):
+            return out
+
+        cand = _clean_brand_candidate(str(data.get("brand_name") or data.get("company_name") or ""))
+        if cand and len(cand) <= 40 and re.search(rf"(?<![A-Za-z0-9]){re.escape(cand)}(?![A-Za-z0-9])", text, re.IGNORECASE):
+            out["brand_name"] = cand
+
+        # Colours count when written in the document (hex / RGB), or converted from the CMYK / Pantone
+        # specs the document gives (this path only runs when no hex or RGB colour was found).
+        documented = set(guideline_brand_colors(text, keep_neutrals=True))
+        has_print_specs = bool(re.search(r"(?i)\b(?:cmyk|pantone|pms)\b", text))
+        raw_colors = data.get("colors") if isinstance(data.get("colors"), list) else []
+        for raw in raw_colors[:8]:
+            m = re.fullmatch(r"#?([0-9A-Fa-f]{6})", str(raw).strip())
+            hx = f"#{m.group(1).upper()}" if m else ""
+            if hx and (hx in documented or has_print_specs) and hx not in out["colors"]:
+                out["colors"].append(hx)
+
+        for key in ("industry", "tone"):
+            val = " ".join(str(data.get(key) or "").split())
+            if 2 < len(val) <= 80:
+                out[key] = val
+        return out
 
     def extract_brand_dna_from_guidelines(self, guidelines_text: str, default_brand: str = "Lexnis Technologies") -> Dict[str, Any]:
         """Backward-compatible wrapper that delegates to extract_brand_profile_from_guideline."""
@@ -3000,7 +3228,7 @@ class LexnisCampaignStudio:
 
         self.last_vision_meta = vision_meta
 
-        tag = hashlib.sha1(f"ad-v5-vision-aligned|{clean_hl}|{brand}|{typeset_tagline}".encode()).hexdigest()[:8]
+        tag = hashlib.sha1(f"ad-v5-vision-aligned|{LAYOUT_CODE_VERSION}|{clean_hl}|{brand}|{typeset_tagline}".encode()).hexdigest()[:8]
         post_path = out_dir / f"{key}_post_{tag}.jpg"
         if not post_path.exists():
             compose_post(Image.open(clean_path), headline=clean_hl, brand=brand, tagline=typeset_tagline).save(
@@ -3014,7 +3242,7 @@ class LexnisCampaignStudio:
             clean_ar_hl = "ريادة تتخطى الآفاق"
             clean_ar_tl = "حيث تلتقي الرؤية بالتميز المطلق."
 
-        ar_tag = hashlib.sha1(f"ad-v5-ar|{clean_ar_hl}|{brand}|{clean_ar_tl}".encode()).hexdigest()[:8]
+        ar_tag = hashlib.sha1(f"ad-v5-ar|{LAYOUT_CODE_VERSION}|{clean_ar_hl}|{brand}|{clean_ar_tl}".encode()).hexdigest()[:8]
         arabic_post_path = out_dir / f"{key}_post_ar_{ar_tag}.jpg"
         if not arabic_post_path.exists():
             try:
@@ -3522,44 +3750,23 @@ class LexnisCampaignStudio:
             "visual_analysis": "",
         }
 
-        # Check for template + subject replacement (e.g. girl with white background into blue template)
-        candidate_images = []
-        if uploaded_image_paths:
-            for p in uploaded_image_paths:
-                p_obj = Path(p)
-                if p_obj.exists() and not p_obj.name.lower().startswith("logo_") and "logo" not in p_obj.stem.lower():
-                    candidate_images.append(p_obj)
-        if uploaded_image_path:
-            p_obj = Path(uploaded_image_path)
-            if p_obj.exists() and not p_obj.name.lower().startswith("logo_") and "logo" not in p_obj.stem.lower() and p_obj not in candidate_images:
+        # Template + subject replacement. The photos uploaded with THIS request are the only source
+        # for the person on the card (older files in output/uploads are never pulled in: that put a
+        # previously uploaded person on the card instead of the photo just uploaded).
+        candidate_images: List[Path] = []
+        seen_images = set()
+        for p in list(uploaded_image_paths or []) + ([uploaded_image_path] if uploaded_image_path else []):
+            p_obj = Path(p)
+            if not p_obj.exists() or p_obj.name.lower().startswith("logo_") or "logo" in p_obj.stem.lower():
+                continue
+            key = str(p_obj.resolve()).lower()
+            if key not in seen_images:
+                seen_images.add(key)
                 candidate_images.append(p_obj)
 
         prompt_lower = (effective_prompt + " " + (guidelines or "")).lower()
         is_welcome_mode = (post_type == "team_welcome")
         needs_swap = is_welcome_mode or any(k in prompt_lower for k in ["template swap", "2.5d swap", "replace face", "swap portrait", "swap subject", "sekawan"])
-
-        # Only search uploads cache if in welcome mode or user explicitly provided assets
-        if (candidate_images or is_welcome_mode) and len(candidate_images) < 2:
-            uploads_dir = RENDERS_DIR.parent / "output" / "uploads"
-            if not uploads_dir.exists():
-                uploads_dir = RENDERS_DIR.parent / "uploads"
-            if uploads_dir.exists() and is_welcome_mode:
-                for f in sorted(uploads_dir.glob("*.*"), key=lambda x: x.stat().st_mtime, reverse=True):
-                    if f.name.lower().startswith("logo_") or "logo" in f.stem.lower():
-                        continue
-                    if f.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"} and f not in candidate_images:
-                        candidate_images.append(f)
-                    if len(candidate_images) >= 2:
-                        break
-
-        # Also check test_assets if welcome mode or prompt explicitly requests a swap
-        if len(candidate_images) < 2 and is_welcome_mode:
-            test_assets_dir = RENDERS_DIR.parent / "test_assets"
-            if test_assets_dir.exists():
-                for fname in ["template_reference.jpg", "raw_subject.jpg"]:
-                    p = test_assets_dir / fname
-                    if p.exists() and p not in candidate_images:
-                        candidate_images.append(p)
 
         from visual_engine import (
             classify_template_and_subject,
@@ -3572,16 +3779,15 @@ class LexnisCampaignStudio:
             BrandTheme,
             ARABIC_TITLES_MAP
         )
-        t_file, s_file = classify_template_and_subject(candidate_images) if len(candidate_images) >= 2 else (None, None)
-        if len(candidate_images) == 1 and not s_file:
-            s_file = candidate_images[0]
-
-        ref_template = RENDERS_DIR.parent / "test_assets" / "template_reference.jpg"
+        # Bundled reference frame / sample subject live in the project root (RENDERS_DIR.parent is output/).
+        ref_template = BASE_DIR / "test_assets" / "template_reference.jpg"
         if not ref_template.exists():
-            ref_template = RENDERS_DIR.parent / "static" / "assets" / "template_reference.jpg"
-        ref_subject = RENDERS_DIR.parent / "test_assets" / "raw_subject.jpg"
+            ref_template = BASE_DIR / "static" / "assets" / "template_reference.jpg"
+        ref_subject = BASE_DIR / "test_assets" / "raw_subject.jpg"
         if not ref_subject.exists():
-            ref_subject = RENDERS_DIR.parent / "static" / "assets" / "raw_subject.jpg"
+            ref_subject = BASE_DIR / "static" / "assets" / "raw_subject.jpg"
+
+        t_file, s_file = select_template_and_subject(candidate_images, is_welcome_mode, ref_subject, classify_template_and_subject)
 
         if s_file and not t_file and ref_template.exists() and (is_welcome_mode or needs_swap or candidate_images):
             t_file = ref_template
@@ -3728,7 +3934,10 @@ class LexnisCampaignStudio:
                 # LLM headlines such as "LEXNIS TECHNOLOGIES WELCOMING NEW TEAM MEMBER!" are too long
                 # for the 2.5D card; keep the welcome headline short and scannable.
                 from visual_engine import is_unsafe_welcome_headline
-                hl_en = team_welcome_headline(clean_bname, "en") if is_unsafe_welcome_headline(headline) else headline
+                # A Team Welcome card always says welcome: keep the AI headline only when it is short and
+                # reads as a welcome ("MEET OUR NEW AI ENGINEER"), never a bare brand name or slogan.
+                hl_en = headline if (not is_unsafe_welcome_headline(headline) and is_welcome_phrase(headline)) \
+                    else team_welcome_headline(clean_bname, "en")
                 hl_ar = team_welcome_headline(clean_bname, "ar")
                 foot_en = "We are so excited to have you on our team!"
                 foot_ar = "نحن سعداء جداً بانضمامك إلى فريقنا!"
@@ -3749,7 +3958,7 @@ class LexnisCampaignStudio:
             )
 
             logo_key = Path(str(logo_to_use)).name if logo_to_use else "default_logo"
-            swap_key = hashlib.sha1(f"swap_v5_1080x1350|{post_type}|{t_file.name}|{s_file.name}|{logo_key}|{hl_en}|{person_name}|{person_title}|{brand}|{tag_to_use}|{company_url}|{swap_theme.primary_hex}|{swap_theme.is_lexnis}|recolor_{recolor_to_brand}".encode()).hexdigest()[:16]
+            swap_key = hashlib.sha1(f"swap_v6_1080x1350|{LAYOUT_CODE_VERSION}|{post_type}|{t_file.name}|{s_file.name}|{logo_key}|{hl_en}|{person_name}|{person_title}|{brand}|{tag_to_use}|{company_url}|{swap_theme.primary_hex}|{swap_theme.is_lexnis}|recolor_{recolor_to_brand}".encode()).hexdigest()[:16]
             clean_path = RENDERS_DIR / f"{swap_key}_clean.jpg"
             post_path = RENDERS_DIR / f"{swap_key}_post.jpg"
             post_ar_path = RENDERS_DIR / f"{swap_key}_post_ar.jpg"
@@ -3778,9 +3987,13 @@ class LexnisCampaignStudio:
 
             # Arabic localized copy & design tokens
             ar_hl = arabic_pack.get("visual_headline") or hl_ar
-            if (post_type or "team_welcome") == "team_welcome" and len(ar_hl) > 26:
-                ar_hl = hl_ar
             ar_tl = arabic_pack.get("visual_tagline") or foot_ar
+            if (post_type or "team_welcome") == "team_welcome":
+                # Mirror the English card: a welcome headline and the welcome footer, never a
+                # transcreated slogan.
+                if len(ar_hl) > 26 or not is_welcome_phrase(ar_hl):
+                    ar_hl = hl_ar
+                ar_tl = foot_ar
 
             if not post_ar_path.exists():
                 swap_ar_img = composite_template_swap(
@@ -3811,7 +4024,7 @@ class LexnisCampaignStudio:
             has_uploaded_asset = True
         elif s_file and not t_file and (use_uploaded_image is not False):
             step(f"Rendering executive brand artboard for {person_name or brand}...")
-            art_key = hashlib.sha1(f"exec_art|{s_file.name}|{person_name}|{person_title}|{brand}".encode()).hexdigest()[:16]
+            art_key = hashlib.sha1(f"exec_art|{LAYOUT_CODE_VERSION}|{s_file.name}|{person_name}|{person_title}|{brand}".encode()).hexdigest()[:16]
             clean_path = RENDERS_DIR / f"{art_key}_clean.jpg"
             post_path = RENDERS_DIR / f"{art_key}_post.jpg"
             if not clean_path.exists():
@@ -4221,7 +4434,7 @@ class LexnisCampaignStudio:
 
             logo_key = Path(str(logo_to_use)).name if logo_to_use else "default_logo"
             base_key = Path(str(base_bg)).name if base_bg else "no_bg"
-            t_key = hashlib.sha1(f"agency_card_v4|{post_type}|{card_data_en.get('card_title')}|{brand}|{brand_theme.clean_slug}|{brand_theme.is_lexnis}|{brand_theme.domain}|{logo_key}|{base_key}".encode()).hexdigest()[:16]
+            t_key = hashlib.sha1(f"agency_card_v4|{LAYOUT_CODE_VERSION}|{post_type}|{card_data_en.get('card_title')}|{brand}|{brand_theme.clean_slug}|{brand_theme.is_lexnis}|{brand_theme.domain}|{logo_key}|{base_key}".encode()).hexdigest()[:16]
             clean_path = RENDERS_DIR / f"{t_key}_clean.jpg"
             post_path = RENDERS_DIR / f"{t_key}_post.jpg"
             post_ar_path = RENDERS_DIR / f"{t_key}_post_ar.jpg"
@@ -4274,7 +4487,7 @@ class LexnisCampaignStudio:
         if (t_file and s_file) or (post_ar_path and Path(str(post_ar_path)).exists()):
             arabic_post_path = post_ar_path
         elif clean_path and clean_path.exists() and not (t_file and s_file):
-            ar_tag = hashlib.sha1(f"ad-v5-ar|{ar_hl}|{brand}|{ar_tl}".encode()).hexdigest()[:8]
+            ar_tag = hashlib.sha1(f"ad-v5-ar|{LAYOUT_CODE_VERSION}|{ar_hl}|{brand}|{ar_tl}".encode()).hexdigest()[:8]
             arabic_post_path = RENDERS_DIR / f"{clean_path.stem.split('_')[0]}_post_ar_{ar_tag}.jpg"
             if not arabic_post_path.exists():
                 try:

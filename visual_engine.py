@@ -1132,7 +1132,15 @@ def _draw_headline_line(draw: ImageDraw.ImageDraw, x0: float, y0: float, line: s
 
 
 WELCOME_HEADLINE_MAX_CHARS = 26
-_GENERIC_WELCOME_BRANDS = {"", "brand", "our brand", "company", "enterprise", "unknown", "your brand", "our company"}
+WELCOME_BRAND_MAX_CHARS = 14     # "WELCOME TO {BRAND}" only for brand names up to 14 characters
+# Team Welcome geometry at 1080x1350 (scaled with the canvas height):
+WELCOME_HEADLINE_TOP = 148       # headline ink starts here
+WELCOME_HEADLINE_MAX_W = 900     # headline ink stays inside x = 90..990
+WELCOME_HEAD_GAP = 24            # clear background between headline bottom and the top of the head
+WELCOME_MIN_HEAD_TOP = 222       # head top = max(headline_bottom + 24, 222)
+WELCOME_FRAME_TOP = 340          # white frame top -> head pops ~118px above it
+_GENERIC_WELCOME_BRANDS = {"", "brand", "our brand", "company", "enterprise", "unknown", "your brand", "our company",
+                           "lexnis technologies"}
 
 
 def is_unsafe_welcome_headline(headline: Optional[str]) -> bool:
@@ -1142,11 +1150,11 @@ def is_unsafe_welcome_headline(headline: Optional[str]) -> bool:
 
 
 def short_welcome_headline(brand_name: Optional[str] = "", is_ar: bool = False) -> str:
-    """Short, scannable Team Welcome headline: 'WELCOME TO TAB' for short brand names, else 'WELCOME TO THE TEAM'."""
+    """Short, scannable Team Welcome headline: 'WELCOME TO TAB' for brand names up to 14 chars, else 'WELCOME TO THE TEAM'."""
     if is_ar:
         return "أهلاً بك في فريقنا"
     b = (brand_name or "").strip()
-    if b and len(b) <= 12 and b.lower() not in _GENERIC_WELCOME_BRANDS:
+    if b and len(b) <= WELCOME_BRAND_MAX_CHARS and b.lower() not in _GENERIC_WELCOME_BRANDS:
         return f"WELCOME TO {b.upper()}"
     return "WELCOME TO THE TEAM"
 
@@ -1342,6 +1350,38 @@ def _accent_readable_on_white(rgb: Tuple[int, int, int], min_ratio: float = 4.5)
         rr, gg, bb = colorsys.hls_to_rgb(h, l, s)
         out = (int(round(rr * 255)), int(round(gg * 255)), int(round(bb * 255)))
     return out
+
+
+def render_welcome_template_swap(
+    subject_image,
+    name: str = "",
+    role: str = "",
+    headline: Optional[str] = None,
+    brand_name: str = "",
+    brand_profile: Optional[dict] = None,
+    brand_theme=None,
+    lang: str = "en",
+    logo_image=None,
+    brand_tag: Optional[str] = None,
+    footer_text: Optional[str] = None,
+    template_image=None,
+    target_size: Tuple[int, int] = (1080, 1350),
+) -> Image.Image:
+    """
+    Team Welcome 2.5D card: entry point over composite_template_swap(post_type="team_welcome"),
+    which owns the headline sanitising, brand theming and subject placement.
+    Layout at 1080x1350: headline ink from y=148 (<= 900px wide), head top =
+    max(headline_bottom + 24, 222), frame top 340, nameplate 955..1145.
+    Layout metrics are returned in result.info["popout_layout"].
+    """
+    if template_image is None:
+        template_image = Image.new("RGB", target_size, (0, 0, 0))  # replaced by the branded canvas
+    return composite_template_swap(
+        template_image, subject_image, target_size=target_size,
+        person_name=name, person_title=role, brand_name=brand_name, brand_tag=brand_tag,
+        recolor_gradient=True, language=lang, headline_text=headline, footer_text=footer_text,
+        logo_image=logo_image, post_type="team_welcome", brand_theme=brand_theme, brand_profile=brand_profile,
+    )
 
 
 def composite_template_swap(
@@ -1562,12 +1602,17 @@ def composite_template_swap(
         # Strict Master Artboard Geometry for 1080x1350 (4:5)
         fw = int(round(720 * (W / 1080.0)))
         border_px = max(8, int(round(12 * (W / 1080.0))))
-        nh = int(round(210 * (H / 1350.0)))
-        ih = int(round(638 * (H / 1350.0)))
+        if is_welcome_layout:
+            # Team Welcome: frame top 340 (dedicated headline band above a ~118px head pop-out),
+            # photo window down to y=955, nameplate y=955..1145.
+            fy_ref, ih_ref, nh_ref = WELCOME_FRAME_TOP, 603, 190
+        else:
+            fy_ref, ih_ref, nh_ref = 370, 638, 210
+        nh = int(round(nh_ref * (H / 1350.0)))
+        ih = int(round(ih_ref * (H / 1350.0)))
         fh = border_px + ih + nh
         fx = (W - fw) // 2
-        # Team Welcome: frame top at 335 leaves a dedicated headline band above a 117px head pop-out.
-        fy = int(round((335 if is_welcome_layout else 370) * (H / 1350.0)))
+        fy = int(round(fy_ref * (H / 1350.0)))
         nx = fx
         ny = fy + fh - nh
         nw = fw
@@ -1688,28 +1733,37 @@ def composite_template_swap(
         clean_plate[iy:iy + ih, ix:ix + iw] = studio_win
 
         # 4. Layer 2: Auto-fit display headline that sits fully ABOVE the pop-out head.
-        #    - Width never exceeds the 72px safe margins (x = 72..1008 at 1080 wide).
+        #    - Width stays inside the safe margins (x = 90..990 Team Welcome, 80..1000 otherwise, at 1080 wide).
         #    - One line when it reads well, two balanced lines otherwise.
         #    - The head top is placed below the headline, so no letter is ever occluded.
         pil_plate = Image.fromarray(cv2.cvtColor(clean_plate, cv2.COLOR_BGR2RGB))
         draw_hl = ImageDraw.Draw(pil_plate)
         k = H / 1350.0
-        safe_x = int(round(80 * (W / 1080.0)))   # headline ink stays inside x = 80..1000 at 1080 wide
-        hl_max_w = W - 2 * safe_x
         zone_top = int(round(136 * k))
+        latest_head_top = fy - int(round(72 * k))   # the head always pops >= 72px above the frame
         if is_welcome_layout:
-            # Dedicated headline band (~148..205) -> 18px clear gap -> head pops 117px above the frame top.
+            # Headline band: ink starts at y=148, 46 -> 28px until it fits 900px (x = 90..990).
+            # Head top = max(headline_bottom + 24, 222): the head can never cover a letter.
             # Never trust a long / LLM-sentence headline here.
             if is_unsafe_welcome_headline(orig_headline_text):
                 headline_text = short_welcome_headline("" if is_generic_brand else theme.brand_name, is_ar)
-            hl_gap, pop_px, min_pop_px = 18, 117, 72
-            sizes = (46, 32, 28)
+            safe_x = int(round((W - WELCOME_HEADLINE_MAX_W * (W / 1080.0)) / 2.0))
+            hl_gap = int(round(WELCOME_HEAD_GAP * k))
+            hl_top = int(round(WELCOME_HEADLINE_TOP * k))
+            min_head_top = int(round(WELCOME_MIN_HEAD_TOP * k))
+            # Arabic (tall Cairo ascenders/descenders) may push the head down while it still pops >= 100px.
+            pref_head_top = (fy - int(round(100 * k))) if is_ar else min_head_top
+            fit_pref_h = pref_head_top - hl_gap - hl_top
+            fit_max_h = latest_head_top - hl_gap - hl_top
+            sizes = (46, 28, 28)
         else:
-            hl_gap, pop_px, min_pop_px = 16, 92, 48
+            safe_x = int(round(80 * (W / 1080.0)))   # headline ink stays inside x = 80..1000 at 1080 wide
+            hl_gap = int(round(16 * k))
+            preferred_head_top = fy - int(round(92 * k))
+            fit_pref_h = preferred_head_top - hl_gap - zone_top
+            fit_max_h = latest_head_top - hl_gap - zone_top
             sizes = (96, 48, 34) if is_ar else (120, 56, 36)
-        hl_gap = int(round(hl_gap * k))
-        preferred_head_top = fy - int(round(pop_px * k))
-        latest_head_top = fy - int(round(min_pop_px * k))
+        hl_max_w = W - 2 * safe_x
         start_size, min_single, min_double = (int(round(s * k)) for s in sizes)
         if is_ar:
             hl_text_final = headline_text or preset["headline_ar"]
@@ -1719,12 +1773,17 @@ def composite_template_swap(
             hl_font_path = FONTS_DIR / "Poppins-Bold.ttf"
         hl_fit = fit_popout_headline(
             draw_hl, hl_text_final, hl_font_path,
-            max_w=hl_max_w, preferred_h=preferred_head_top - hl_gap - zone_top,
-            max_h=latest_head_top - hl_gap - zone_top,
+            max_w=hl_max_w, preferred_h=fit_pref_h, max_h=fit_max_h,
             start_size=start_size, min_single=min_single, min_double=min_double, is_ar=is_ar,
         )
-        head_top_y = max(preferred_head_top, zone_top + hl_fit["block_h"] + hl_gap)
-        hl_block_top = head_top_y - hl_gap - hl_fit["block_h"]
+        if is_welcome_layout:
+            hl_block_top = hl_top
+            head_top_y = max(min_head_top, hl_top + hl_fit["block_h"] + hl_gap)
+        else:
+            head_top_y = max(preferred_head_top, zone_top + hl_fit["block_h"] + hl_gap)
+            hl_block_top = head_top_y - hl_gap - hl_fit["block_h"]
+        headline_bottom = hl_block_top + hl_fit["block_h"]
+        plate_before_headline = np.asarray(pil_plate).copy()
         headline_boxes = []
         for i, (line, box) in enumerate(zip(hl_fit["lines"], hl_fit["boxes"])):
             line_w = box[2] - box[0]
@@ -1732,6 +1791,12 @@ def composite_template_swap(
             y0 = hl_block_top - hl_fit["ink_top"] + i * hl_fit["pitch"]
             _draw_headline_line(draw_hl, x0, y0, line, hl_fit["font"], hl_fit["tracking"], is_ar, (255, 255, 255))
             headline_boxes.append((x0 + box[0], y0 + box[1], x0 + box[2], y0 + box[3]))
+
+        # Pixel-measured headline extent (every pixel the headline actually changed).
+        hl_changed = np.any(np.asarray(pil_plate) != plate_before_headline, axis=2)
+        hl_rows, hl_cols = np.where(hl_changed.any(axis=1))[0], np.where(hl_changed.any(axis=0))[0]
+        headline_px = (int(hl_cols[0]), int(hl_rows[0]), int(hl_cols[-1]), int(hl_rows[-1])) if hl_rows.size else None
+        del plate_before_headline, hl_changed
 
         clean_plate = cv2.cvtColor(np.array(pil_plate), cv2.COLOR_RGB2BGR)
 
@@ -1763,6 +1828,9 @@ def composite_template_swap(
         head_region = (y_grid < fy) & (x_grid >= fx) & (x_grid < fx + fw)
         allowed_mask = (body_region | head_region).astype(np.float32)
         eff_alpha = w_alpha * allowed_mask
+        # Pixel-measured top of the subject (any visible alpha, including faint hair wisps).
+        subj_rows = np.where((eff_alpha > 0.03).any(axis=1))[0]
+        subject_px_top = int(subj_rows[0]) if subj_rows.size else None
 
         composite = clean_plate.copy().astype(np.float32)
         for c in range(3):
@@ -1806,6 +1874,10 @@ def composite_template_swap(
                 if (bbox_n[2] - bbox_n[0]) <= max_np_w:
                     break
                 font_name_size -= 2
+            if is_welcome_layout:
+                # Centre name + role block vertically in the nameplate.
+                np_block_h = (bbox_n[3] - bbox_n[1]) + int(round(40 * (H / 1350.0)))
+                y_name = int(round((nh - np_block_h) / 2.0 - bbox_n[1]))
 
             nw_px = bbox_n[2] - bbox_n[0]
             x_right = nw - margin_r
@@ -1853,6 +1925,10 @@ def composite_template_swap(
                 if (bbox_n[2] - bbox_n[0]) <= max_np_w:
                     break
                 font_name_size -= 2
+            if is_welcome_layout:
+                # Centre name + role block vertically in the nameplate.
+                np_block_h = (bbox_n[3] - bbox_n[1]) + int(round(40 * (H / 1350.0)))
+                y_name = int(round((nh - np_block_h) / 2.0 - bbox_n[1]))
 
             draw_np.text((margin_l, y_name), clean_name, font=font_bold, fill=dark_navy)
             bbox_n = draw_np.textbbox((margin_l, y_name), clean_name, font=font_bold)
@@ -1973,7 +2049,11 @@ def composite_template_swap(
             "headline_boxes": headline_boxes,
             "headline_font_size": hl_fit["size"],
             "headline_lines": len(hl_fit["lines"]),
-            "head_top": head_top_y,
+            "headline_bottom": headline_bottom,
+            "head_top": head_top_y,          # paste_y: top of the 2.5D head
+            "head_gap": head_top_y - headline_bottom,
+            "headline_px": headline_px,      # measured (x0, y0, x1, y1) of headline pixels
+            "subject_px_top": subject_px_top,  # measured first row with any subject alpha
             "pop_out": fy - head_top_y,
             "frame": (fx, fy, fw, fh),
             "inner_window": (ix, iy, iw, ih),
@@ -3926,14 +4006,15 @@ def classify_template_and_subject(image_paths):
     if len(img_data) == 0:
         return None, None
 
-    # Reference template fallback
-    ref_template = Path("test_assets/template_reference.jpg")
+    # Reference template fallback (anchored on the project root, not the process working directory)
+    project_root = Path(__file__).resolve().parent
+    ref_template = project_root / "test_assets" / "template_reference.jpg"
     if not ref_template.exists():
-        ref_template = Path("static/assets/template_reference.jpg")
+        ref_template = project_root / "static" / "assets" / "template_reference.jpg"
 
-    ref_subject = Path("test_assets/raw_subject.jpg")
+    ref_subject = project_root / "test_assets" / "raw_subject.jpg"
     if not ref_subject.exists():
-        ref_subject = Path("static/assets/raw_subject.jpg")
+        ref_subject = project_root / "static" / "assets" / "raw_subject.jpg"
 
     if len(img_data) == 1:
         item = img_data[0]
