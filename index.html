@@ -273,6 +273,23 @@
 
       
 <!-- ========================================== -->
+            <details class="rounded-xl border border-emerald-500/30 bg-obsidian-950 p-3 space-y-3">
+              <summary class="cursor-pointer text-sm font-bold text-emerald-200">Client Brand Kits</summary>
+              <label class="block text-xs text-slate-300">Active client
+                <select id="agency-brand-select" class="w-full bg-obsidian-900 border border-obsidian-700 rounded p-2"><option value="">Current campaign brand</option></select>
+              </label>
+              <div class="grid grid-cols-2 gap-2 text-xs text-slate-300">
+                <label>Brand name<input id="agency-brand-name" class="w-full bg-obsidian-900 rounded p-2" maxlength="100"></label>
+                <label>Arabic brand name<input id="agency-brand-name-ar" class="w-full bg-obsidian-900 rounded p-2" dir="rtl" maxlength="100"></label>
+                <label>Primary colour<input id="agency-brand-primary" type="color" value="#131724" class="w-full"></label>
+                <label>Accent colour<input id="agency-brand-accent" type="color" value="#53B849" class="w-full"></label>
+                <label>Logo path<input id="agency-brand-logo" class="w-full bg-obsidian-900 rounded p-2" placeholder="/static/assets/logo.png"></label>
+                <label>Brand hashtag<input id="agency-brand-hashtag" class="w-full bg-obsidian-900 rounded p-2" placeholder="#YourBrand"></label>
+                <label class="col-span-2">Tagline<input id="agency-brand-tagline" class="w-full bg-obsidian-900 rounded p-2" maxlength="200"></label>
+              </div>
+              <div class="flex gap-3 text-xs"><button id="agency-brand-new" type="button">New client</button><button id="agency-brand-save" type="button" class="text-emerald-300 font-bold">Save Brand Kit</button><button id="agency-brand-delete" type="button" class="text-rose-300">Delete selected kit</button></div>
+            </details>
+
       <!-- STAGE 1 (PART B): BRAND GUIDELINES & DIRECTIVES -->
       <!-- ========================================== -->
       <section id="guidelines-card" class="bg-obsidian-900/80 backdrop-blur-md border border-obsidian-800 rounded-2xl p-6 shadow-xl space-y-4">
@@ -1201,6 +1218,7 @@
               <span>Image availability depends on the selected provider and quota. Cloudflare has a free daily allowance; local models need GPU hardware; Hugging Face hosting may require credits.</span></div>
 
             <p id="campaign-warnings" role="status" class="text-xs text-amber-300 leading-relaxed"></p>
+
 
             <div id="carousel-preview" class="hidden space-y-3"></div>
 
@@ -2279,6 +2297,119 @@
     let currentEnglishImageUrl = '';
     let currentArabicImageUrl = '';
     let currentCarouselData = null;
+    let agencyBrands = [];
+    let selectedAgencyBrandId = '';
+
+    async function loadAgencyBrands() {
+      try {
+        const response = await fetch(`${backendApiBase}/api/brands`);
+        if (!response.ok) return;
+        agencyBrands = (await response.json()).brands || [];
+        const select = document.getElementById('agency-brand-select');
+        select.replaceChildren(new Option('Current campaign brand', ''));
+        agencyBrands.forEach(brand => select.appendChild(new Option(brand.brand_name, brand.id)));
+        select.value = selectedAgencyBrandId;
+      } catch (_) { /* The rest of the workspace remains usable offline. */ }
+    }
+
+    function selectAgencyBrand(id) {
+      selectedAgencyBrandId = id;
+      const brand = agencyBrands.find(b => b.id === id);
+      if (!brand) return;
+      for (const [suffix, key] of Object.entries({name:'brand_name','name-ar':'brand_name_ar',primary:'primary_hex',accent:'accent_hex',logo:'logo_path',hashtag:'hashtag',tagline:'tagline'})) {
+        document.getElementById('agency-brand-'+suffix).value = brand[key] || '';
+      }
+      brandInput.value = brand.brand_name;
+      const nameField = document.getElementById('brandNameInput');
+      if (nameField) nameField.value = brand.brand_name;
+      currentBrandDna = {brand_name:brand.brand_name, brand_name_ar:brand.brand_name_ar, brand_tag:brand.hashtag,
+                        tagline:brand.tagline, brand_colors:{primary:brand.primary_hex, accent:brand.accent_hex}};
+      currentGuidelines = '';
+      currentCompanyUrl = '';
+      if (companyUrlInput) companyUrlInput.value = '';
+      window.brandProfile = {...currentBrandDna};
+      activeLogoAsset = brand.logo_path ? {url:brand.logo_path, name:brand.brand_name+' logo'} : null;
+    }
+
+    document.getElementById('agency-brand-select').addEventListener('change', event => selectAgencyBrand(event.target.value));
+    [brandInput, document.getElementById('brandNameInput')].filter(Boolean).forEach(field => field.addEventListener('input', () => {
+      const selected = agencyBrands.find(b => b.id === selectedAgencyBrandId);
+      if (selected && field.value.trim() !== selected.brand_name) {
+        selectedAgencyBrandId = '';
+        document.getElementById('agency-brand-select').value = '';
+      }
+    }));
+    document.getElementById('agency-brand-new').addEventListener('click', () => {
+      selectedAgencyBrandId = '';
+      document.getElementById('agency-brand-select').value = '';
+      for (const name of ['name','name-ar','logo','hashtag','tagline']) document.getElementById('agency-brand-'+name).value = '';
+    });
+    document.getElementById('agency-brand-save').addEventListener('click', async () => {
+      const brand = {};
+      for (const [suffix, key] of Object.entries({name:'brand_name','name-ar':'brand_name_ar',primary:'primary_hex',accent:'accent_hex',logo:'logo_path',hashtag:'hashtag',tagline:'tagline'})) brand[key] = document.getElementById('agency-brand-'+suffix).value.trim();
+      try {
+        const response = await fetch(`${backendApiBase}/api/brands${selectedAgencyBrandId ? '/'+selectedAgencyBrandId : ''}`, {method:selectedAgencyBrandId ? 'PUT' : 'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(brand)});
+        const data = await response.json();
+        if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Check the brand fields');
+        selectedAgencyBrandId = data.brand.id;
+        await loadAgencyBrands(); selectAgencyBrand(selectedAgencyBrandId);
+        showToast('Brand kit saved');
+      } catch (error) { showToast(error.message, false); }
+    });
+    document.getElementById('agency-brand-delete').addEventListener('click', async () => {
+      if (!selectedAgencyBrandId) return;
+      try {
+        const response = await fetch(`${backendApiBase}/api/brands/${selectedAgencyBrandId}`, {method:'DELETE'});
+        if (!response.ok) throw new Error('Could not delete brand kit');
+        selectedAgencyBrandId = ''; await loadAgencyBrands(); showToast('Brand kit deleted');
+      } catch (error) { showToast(error.message, false); }
+    });
+
+    function renderAgencyPanels(container, data, language) {
+      const kit = data.agency_kits?.[language] || data;
+      if (!kit.copywriting) return;
+      const formats = document.createElement('div');
+      formats.className = 'grid grid-cols-1 sm:grid-cols-2 gap-3';
+      for (const [key,label,ratio] of [['story_url','Story 9:16','9 / 16'],['landscape_url','Banner 1.91:1','1200 / 628']]) {
+        if (!kit[key]) continue;
+        const card = document.createElement('div'); card.className = 'rounded-xl border border-emerald-500/30 p-3 space-y-2';
+        const title = document.createElement('p'); title.textContent = label; title.className = 'text-xs text-emerald-200';
+        const image = document.createElement('img'); image.src = resolveBackendUrl(kit[key]); image.alt = label; image.className = 'w-full object-contain rounded'; image.style.aspectRatio = ratio;
+        const download = document.createElement('button'); download.type = 'button'; download.textContent = 'Download '+label; download.className = 'text-xs text-emerald-300';
+        download.addEventListener('click', () => downloadAssetByUrl(resolveBackendUrl(kit[key]), key));
+        card.append(title,image,download); formats.appendChild(card);
+      }
+      container.appendChild(formats);
+      if (kit.animation_mp4_url) {
+        const video = document.createElement('video'); video.src = resolveBackendUrl(kit.animation_mp4_url);
+        video.autoplay = true; video.loop = true; video.muted = true; video.playsInline = true; video.controls = true;
+        video.className = 'w-full max-h-96 rounded-xl'; video.setAttribute('aria-label','Social motion MP4 preview');
+        const download = document.createElement('button'); download.type='button'; download.textContent='Download MP4'; download.className='text-xs text-emerald-300';
+        download.addEventListener('click',()=>downloadAssetByUrl(resolveBackendUrl(kit.animation_mp4_url),'motion'));
+        container.append(video,download);
+      }
+      const panel = document.createElement('div'); panel.className = 'rounded-xl border border-emerald-500/30 bg-obsidian-950 p-4 space-y-3';
+      const heading=document.createElement('h3');heading.textContent='Copywriting & Strategy';heading.className='text-sm font-bold text-emerald-200';
+      const tabs = document.createElement('div'); tabs.className='flex flex-wrap gap-3';
+      const text = document.createElement('pre'); text.className = 'whitespace-pre-wrap text-sm text-slate-200 font-sans'; text.dir=language==='ar'?'rtl':'ltr';
+      let active = 'linkedin_post';
+      for (const [key,label] of [['linkedin_post','LinkedIn Copy'],['instagram_caption','Instagram Caption'],['x_post','X Post']]) {
+        const button=document.createElement('button'); button.type='button'; button.textContent=label; button.className='text-xs text-emerald-300';
+        button.addEventListener('click',()=>{active=key; text.textContent=kit.copywriting[key] || '';}); tabs.appendChild(button);
+      }
+      const copy=document.createElement('button'); copy.type='button'; copy.textContent='Copy Text'; copy.className='text-xs font-bold text-emerald-300';
+      const copyValue=async value=>{try {await navigator.clipboard.writeText(value);showToast('Copied');} catch {showToast('Select the text to copy it',false);}};
+      copy.addEventListener('click',()=>copyValue(kit.copywriting[active] || ''));
+      text.textContent=kit.copywriting.linkedin_post || '';
+      const tags=document.createElement('div'); tags.className='flex flex-wrap gap-2';
+      (kit.copywriting.hashtags || []).forEach(tag=>{const pill=document.createElement('button');pill.type='button';pill.textContent=tag;pill.className='rounded-full bg-emerald-500/20 px-2 py-1 text-xs text-emerald-200';pill.addEventListener('click',()=>copyValue(tag));tags.appendChild(pill);});
+      const advice=document.createElement('p');advice.className='text-xs text-slate-400';advice.textContent=kit.copywriting.posting_recommendation || '';
+      panel.append(heading,tabs,text,copy,tags,advice);container.appendChild(panel);
+      if (kit.bundle_zip_url) {
+        const bundle=document.createElement('button');bundle.type='button';bundle.className='w-full rounded-xl bg-emerald-500 py-3 font-bold text-obsidian-950';bundle.textContent='Download Full Agency Kit (.ZIP)';
+        bundle.addEventListener('click',()=>downloadAssetByUrl(resolveBackendUrl(kit.bundle_zip_url),'agency-kit'));container.appendChild(bundle);
+      }
+    }
 
     function renderCarouselPreview(containerId, data, language = 'en') {
       const container = document.getElementById(containerId);
@@ -2329,7 +2460,7 @@
       const both = document.createElement('button');
       both.type = 'button';
       both.className = 'w-full py-2.5 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-xs font-bold';
-      both.textContent = pair.length === 3 ? 'Download Complete Kit (.zip)' : 'Download Both';
+      both.textContent = data.copywriting ? 'Download Feed Kit (.zip)' : pair.length === 3 ? 'Download Complete Kit (.zip)' : 'Download Both';
       both.addEventListener('click', async () => {
         both.disabled = true;
         try {
@@ -2347,6 +2478,7 @@
         finally { both.disabled = false; }
       });
       container.append(controls, grid, both);
+      renderAgencyPanels(container, data, language);
     }
 
     function acceptCarouselData(data) {
@@ -3663,6 +3795,11 @@
 
     function applyBrandDnaToUI(dna) {
       if (!dna) return;
+      const selected = agencyBrands.find(b => b.id === selectedAgencyBrandId);
+      if (selected && (dna.brand_name || dna.company_name) && (dna.brand_name || dna.company_name) !== selected.brand_name) {
+        selectedAgencyBrandId = '';
+        document.getElementById('agency-brand-select').value = '';
+      }
       currentBrandDna = dna;
       window.brandProfile = dna;
       const compName = dna.brand_name || dna.company_name;
@@ -3990,7 +4127,7 @@
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         const slug = (brandInput.value.trim() || 'campaign').toLowerCase().replace(/[^a-z0-9]+/g, '-');
-        const extension = new URL(url, location.href).pathname.toLowerCase().endsWith('.gif') ? 'gif' : 'jpg';
+        const extension = new URL(url, location.href).pathname.match(/\.(gif|mp4|zip|jpg|png)$/i)?.[1] || 'jpg';
         a.download = `${slug}-${suffix}-${currentSeed}.${extension}`;
         document.body.appendChild(a);
         a.click();
@@ -4125,6 +4262,7 @@
             updateModelSetup();
             backendApiBase = base;
             isPythonBackendActive = true;
+            loadAgencyBrands();
             const statusBadge = document.getElementById('engine-status-text');
             if (statusBadge) {
               statusBadge.textContent = 'AGENCY ENGINE (ONLINE)';
@@ -5343,6 +5481,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               prompt: userPrompt,
+              brand_id: selectedAgencyBrandId || null,
               brand: effectiveBrand,
               brand_profile_json: JSON.stringify(brandProfileForRequest(effectiveBrand)),
               tone: tone,

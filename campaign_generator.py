@@ -156,6 +156,15 @@ def _layout_code_fingerprint() -> str:
 
 LAYOUT_CODE_VERSION = _layout_code_fingerprint()
 
+
+def _brand_theme_fingerprint(theme) -> str:
+    """Brand-kit edits must invalidate cached artwork without a server restart."""
+    digest = hashlib.sha1(json.dumps(asdict(theme), sort_keys=True).encode("utf-8"))
+    logo = theme.logo_path or (BASE_DIR / "static/assets/brand_logo.png" if theme.is_lexnis else None)
+    if logo and Path(logo).is_file():
+        digest.update(Path(logo).read_bytes())
+    return digest.hexdigest()[:12]
+
 BROWSER_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
     "Accept-Language": "en-US,en;q=0.9",
@@ -1547,6 +1556,23 @@ def generate_companion_image(req_data: dict, brand_theme, output_path: str) -> s
     return str(output)
 
 
+def generate_campaign_copy(req_data: dict, brand_theme=None) -> dict:
+    from agency_suite import generate_campaign_copy as build_copy
+    return build_copy(req_data, brand_theme)
+
+
+def render_omnichannel_variants(primary_card_path: str, req_data: dict, brand_theme=None) -> dict:
+    from agency_suite import render_omnichannel_variants as render_variants
+    return render_variants(primary_card_path, req_data, brand_theme)
+
+
+def _save_social_animation(frames, output):
+    frames[0].save(output, format="GIF", save_all=True, append_images=frames[1:],
+                   duration=60, loop=0, disposal=1, optimize=False)
+    from agency_suite import export_animation_mp4
+    export_animation_mp4(output)
+
+
 def generate_social_gif(topic: str, post_type: str, output_gif_path: str, *, base_image=None, brand_theme=None, language="en") -> str:
     """Animate the employee welcome card, or the topic companion for other posts.
 
@@ -1579,11 +1605,10 @@ def generate_social_gif(topic: str, post_type: str, output_gif_path: str, *, bas
     if is_welcome:
         rgb_frames = welcome_animation_frames(base, animation_layers, brand_theme, language)
         palette = base.convert("RGB").quantize(colors=256, method=Image.Quantize.MEDIANCUT)
-        frames = [frame.quantize(palette=palette, dither=Image.Dither.NONE) for frame in rgb_frames]
+        frames = [frame.quantize(palette=palette, dither=Image.Dither.FLOYDSTEINBERG) for frame in rgb_frames]
         output = Path(output_gif_path)
         output.parent.mkdir(parents=True, exist_ok=True)
-        frames[0].save(output, format="GIF", save_all=True, append_images=frames[1:],
-                       duration=120, loop=0, disposal=1, optimize=False)
+        _save_social_animation(frames, output)
         return str(output)
     # Replace the static companion's counter with the loop's kit position.
     counter = ImageDraw.Draw(base)
@@ -1592,10 +1617,15 @@ def generate_social_gif(topic: str, post_type: str, output_gif_path: str, *, bas
     accent = brand_theme.primary_accent
     palette = base.convert("RGB").quantize(colors=256, method=Image.Quantize.MEDIANCUT)
     frames = []
-    for index in range(36):
-        phase = math.tau * index / 36
+    plane = base.crop((40, 210, 1040, 1010)).resize((1008, 808), Image.Resampling.LANCZOS)
+    for index in range(72):
+        phase = math.tau * index / 72
         pulse = (1 - math.cos(phase)) / 2
         frame = base.copy()
+        # Gently move the complete visual plane, keeping the brand header and
+        # caption fixed. The enlarged crop prevents uncovered edges.
+        px, py = 4 + round(math.sin(phase)*3), 4 + round(math.cos(phase)*3)
+        frame.paste(plane.crop((px, py, px+1000, py+800)), (40, 210))
         # Localised, soft brand glow behind floating architecture nodes.
         glow = Image.new("RGBA", (350, 290))
         gd = ImageDraw.Draw(glow)
@@ -1615,12 +1645,13 @@ def generate_social_gif(topic: str, post_type: str, output_gif_path: str, *, bas
         border = Image.new("RGBA", frame.size)
         ImageDraw.Draw(border).rounded_rectangle((72, 1040, 1008, 1240), radius=24,
                                                  outline=accent + (int(55 + pulse*110),), width=2)
+        sheen_x = 90 + int((math.sin(phase)*.5+.5)*810)
+        ImageDraw.Draw(border).line((sheen_x, 1041, sheen_x+90, 1041), fill=(210, 255, 231, 150), width=2)
         frame.alpha_composite(border)
-        frames.append(frame.convert("RGB").quantize(palette=palette, dither=Image.Dither.NONE))
+        frames.append(frame.convert("RGB").quantize(palette=palette, dither=Image.Dither.FLOYDSTEINBERG))
     output = Path(output_gif_path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    frames[0].save(output, format="GIF", save_all=True, append_images=frames[1:],
-                   duration=120, loop=0, disposal=1, optimize=False)
+    _save_social_animation(frames, output)
     return str(output)
 
 
@@ -4233,7 +4264,7 @@ class LexnisCampaignStudio:
             )
 
             logo_key = Path(str(logo_to_use)).name if logo_to_use else "default_logo"
-            swap_key = hashlib.sha1(f"swap_v6_1080x1350|{LAYOUT_CODE_VERSION}|{post_type}|{t_file.name}|{s_file.name}|{logo_key}|{hl_en}|{person_name}|{person_title}|{brand}|{tag_to_use}|{company_url}|{swap_theme.primary_hex}|{swap_theme.is_lexnis}|recolor_{recolor_to_brand}".encode()).hexdigest()[:16]
+            swap_key = hashlib.sha1(f"swap_v6_1080x1350|{LAYOUT_CODE_VERSION}|{_brand_theme_fingerprint(swap_theme)}|{post_type}|{t_file.name}|{s_file.name}|{logo_key}|{hl_en}|{person_name}|{person_title}|{brand}|{tag_to_use}|{company_url}|{swap_theme.primary_hex}|{swap_theme.is_lexnis}|recolor_{recolor_to_brand}".encode()).hexdigest()[:16]
             clean_path = RENDERS_DIR / f"{swap_key}_clean.jpg"
             post_path = RENDERS_DIR / f"{swap_key}_post.jpg"
             post_ar_path = RENDERS_DIR / f"{swap_key}_post_ar.jpg"
@@ -4712,7 +4743,7 @@ class LexnisCampaignStudio:
 
             logo_key = Path(str(logo_to_use)).name if logo_to_use else "default_logo"
             base_key = Path(str(base_bg)).name if base_bg else "no_bg"
-            t_key = hashlib.sha1(f"agency_card_v4|{LAYOUT_CODE_VERSION}|{post_type}|{card_data_en.get('card_title')}|{brand}|{brand_theme.clean_slug}|{brand_theme.is_lexnis}|{brand_theme.domain}|{logo_key}|{base_key}".encode()).hexdigest()[:16]
+            t_key = hashlib.sha1(f"agency_card_v4|{LAYOUT_CODE_VERSION}|{_brand_theme_fingerprint(brand_theme)}|{post_type}|{card_data_en.get('card_title')}|{brand}|{brand_theme.clean_slug}|{brand_theme.is_lexnis}|{brand_theme.domain}|{logo_key}|{base_key}".encode()).hexdigest()[:16]
             clean_path = RENDERS_DIR / f"{t_key}_clean.jpg"
             post_path = RENDERS_DIR / f"{t_key}_post.jpg"
             post_ar_path = RENDERS_DIR / f"{t_key}_post_ar.jpg"
@@ -4977,6 +5008,10 @@ class LexnisCampaignStudio:
                 target = out / f"{slug}_{key}{Path(source).suffix}"
                 shutil.copyfile(source, target)
                 files[key] = str(target)
+                if Path(source).suffix == ".gif" and Path(source).with_suffix(".mp4").is_file():
+                    video_target = target.with_suffix(".mp4")
+                    shutil.copyfile(Path(source).with_suffix(".mp4"), video_target)
+                    files[key + "_mp4"] = str(video_target)
 
         if asset.clean_image_path and Path(asset.clean_image_path).exists() and asset.clean_image_path != asset.image_path:
             clean_file = out / f"{slug}_clean.jpg"

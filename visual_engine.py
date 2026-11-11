@@ -256,8 +256,8 @@ def welcome_animation_frames(card: Image.Image, layers: dict, brand_theme, langu
         ("role", 1.32, .60, 32*direction, 0),
         ("footer", 1.56, .60, 0, 18),
     ]
-    for index in range(36):
-        time = index * .12
+    for index in range(72):
+        time = index * .06
         frame = background.copy()
         for name, start, duration, dx, dy in stages:
             progress = max(0., min(1., (time-start) / duration))
@@ -2679,14 +2679,14 @@ def composite_template_swap(
 
         # 1. Canvas substrate
         if use_lexnis:
-            c1_hex = "#131724"
-            c2_hex = "#023024"
+            c1_hex = rgb_to_hex(theme.bg_dark_start)
+            c2_hex = rgb_to_hex(theme.bg_dark_end)
             if brand_colors and isinstance(brand_colors, dict):
                 c1_hex = brand_colors.get("gradient_start") or brand_colors.get("primary") or c1_hex
                 c2_hex = brand_colors.get("gradient_end") or brand_colors.get("secondary") or c2_hex
             glow_hex = "#1E3A34"
             bg_bgr = render_depth_gradient(W, H, c1_hex, c2_hex)
-            bg_field = generate_chevron_field(W, H, opacity=0.12)
+            bg_field = generate_chevron_field(W, H, opacity=0.12, stroke_color=theme.primary_accent)
             bg_pil = Image.fromarray(cv2.cvtColor(bg_bgr, cv2.COLOR_BGR2RGB))
             bg_pil.paste(bg_field, (0, 0), bg_field)
         else:
@@ -2922,7 +2922,7 @@ def composite_template_swap(
         dark_navy = (15, 23, 42)      # #0F172A slate-900 for executive contrast
         role_color = (51, 65, 85)     # #334155 slate-700
         tech_green = (83, 184, 73)    # #53B849
-        if not use_lexnis:
+        if not use_lexnis or tuple(theme.primary_accent) != (83, 184, 73):
             # Brand accent for status pill, darkened only as far as needed to read on white.
             tech_green = _accent_readable_on_white(tuple(theme.primary_accent))
             if calculate_contrast_ratio(tuple(theme.bg_dark_start), (255, 255, 255)) >= 10.0:
@@ -3925,6 +3925,22 @@ def resolve_brand_theme(
         else:
             hashtag_en = f"#{clean_slug}"
             hashtag_ar = f"#{clean_slug}"
+
+    if isinstance(brand_profile, dict) and brand_profile.get("source") == "client_brand_kit":
+        colours = brand_profile.get("brand_colors") or {}
+        if is_lexnis:
+            kit_primary = hex_to_rgb(colours.get("primary") or "#131724")
+            kit_accent = hex_to_rgb(colours.get("accent") or "#53B849")
+            if kit_primary != (19, 23, 36) or kit_accent != (83, 184, 73):
+                bg_dark_start = kit_primary
+                bg_dark_end = tuple(round(a*.85+b*.15) for a,b in zip(kit_primary, kit_accent))
+                primary_accent = kit_accent
+                hue, _, saturation = colorsys.rgb_to_hls(*(v/255 for v in kit_accent))
+                secondary_accent = hsl_to_rgb(hue, .74, min(saturation, .85))
+                primary_hex, secondary_hex = rgb_to_hex(primary_accent), rgb_to_hex(secondary_accent)
+        custom_tag = str(brand_profile.get("brand_tag") or "").strip()
+        if custom_tag:
+            hashtag_en = custom_tag if custom_tag.startswith("#") else "#" + custom_tag
 
     resolved_logo = None
     if uploaded_logo_path and Path(uploaded_logo_path).exists():

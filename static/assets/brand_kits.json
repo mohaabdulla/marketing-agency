@@ -1,0 +1,5 @@
+[
+  {"id":"lexnis-technologies","brand_name":"Lexnis Technologies","brand_name_ar":"لكسنس تكنولوجيز","primary_hex":"#131724","accent_hex":"#53B849","logo_path":"/static/assets/brand_logo.png","tagline":"Engineering what comes next.","hashtag":"#LexnisTeam"},
+  {"id":"noor-solar","brand_name":"Noor Solar","brand_name_ar":"نور للطاقة الشمسية","primary_hex":"#102B35","accent_hex":"#F5A623","logo_path":"","tagline":"A brighter energy future.","hashtag":"#NoorSolar"},
+  {"id":"client-template","brand_name":"Your Client","brand_name_ar":"","primary_hex":"#17243B","accent_hex":"#48D7B4","logo_path":"","tagline":"Your next chapter starts here.","hashtag":"#YourClient"}
+]

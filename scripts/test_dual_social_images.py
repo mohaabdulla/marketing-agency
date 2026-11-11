@@ -76,7 +76,7 @@ class DualSocialImagesTests(unittest.TestCase):
             with self.subTest(kind=kind, lang=lang), Image.open(kit["animation"]) as gif:
                 self.assertEqual(gif.format, "GIF")
                 self.assertTrue(gif.is_animated)
-                self.assertTrue(18 <= gif.n_frames <= 36)
+                self.assertTrue(18 <= gif.n_frames <= 72)
                 self.assertEqual(gif.info["loop"], 0)
                 durations, crops = [], []
                 first = np.array(gif.convert("RGB")).copy()
@@ -91,7 +91,7 @@ class DualSocialImagesTests(unittest.TestCase):
                     if gif.info["duration"] > hold_duration:
                         held_frame, hold_duration = frame.copy(), gif.info["duration"]
                     crops.append(frame[475:765, 555:905].astype(float))
-                self.assertTrue(all(d % 120 == 0 for d in durations))
+                self.assertTrue(all(d % 60 == 0 for d in durations))
                 self.assertEqual(sum(durations), 4320)
                 if kind == "welcome":
                     self.assertGreaterEqual(hold_duration, 600)
