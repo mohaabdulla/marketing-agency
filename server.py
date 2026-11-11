@@ -50,7 +50,9 @@ app.add_middleware(
 )
 
 BASE_DIR = Path(__file__).resolve().parent
-AGENCY_BUNDLES_DIR = BASE_DIR / "static/assets"
+# Per-campaign bundles are generated output: they live with the other renders (git-ignored),
+# not in the tracked static assets folder, which every generated campaign used to add a ZIP to.
+AGENCY_BUNDLES_DIR = RENDERS_DIR
 RENDERS_DIR.mkdir(parents=True, exist_ok=True)
 UPLOADS_DIR = BASE_DIR / "output" / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -95,9 +97,19 @@ def render_path(url: str) -> str:
         p = BASE_DIR / "static/assets" / Path(path).name
         if p.is_file():
             return str(p)
-    elif url and Path(url).exists():
+    elif url and _inside_project(url):
         return str(Path(url))
     return ""
+
+
+def _inside_project(path: str) -> bool:
+    """True for an existing file inside this project. The server listens on the network, so a
+    client-supplied path must never reach files elsewhere on the machine."""
+    try:
+        resolved = Path(path).resolve()
+        return resolved.is_file() and resolved.is_relative_to(BASE_DIR)
+    except (OSError, ValueError):
+        return False
 
 
 def _is_generic_brand(name: Optional[str]) -> bool:
@@ -152,6 +164,14 @@ def enrich_agency_kit(data, request, theme):
     from agency_suite import bundle_campaign
     request = {"brand_name_ar": (data.get("brand_dna") or {}).get("brand_name_ar", ""),
                "tagline": (data.get("brand_dna") or {}).get("tagline", ""), **request}
+    # The channel copy is adapted from the campaign that was actually written, in each language.
+    # Placeholder copy produced when the text model was unreachable is not treated as written copy.
+    copy_was_written = not any("unavailable" in str(note).lower() for note in data.get("critique_notes") or [])
+    if copy_was_written and data.get("hook") and data.get("caption"):
+        request.setdefault("copy_pack", {key: data.get(key) for key in ("hook", "caption", "highlights", "cta", "hashtags")})
+    arabic = data.get("arabic")
+    if copy_was_written and isinstance(arabic, dict) and arabic.get("hook") and not str(arabic["hook"]).startswith("ارتقِ بمعايير الريادة"):
+        request.setdefault("copy_pack_ar", arabic)
     requested_language = request.get("language", "en")
     if requested_language == "ar" and data.get("arabic_image_url"):
         for field in ("image_url", "companion_image_url", "animation_url", "carousel_urls"):
@@ -533,14 +553,14 @@ def generate_campaign_endpoint(req: GenerateRequest):
 
         # Resolve custom logo if provided
         logo_to_use = None
-        if req.logo_path and Path(req.logo_path).exists():
+        if req.logo_path and _inside_project(req.logo_path):
             logo_to_use = req.logo_path
         elif req.logo_url:
             p = render_path(req.logo_url)
             if p and Path(p).exists():
                 logo_to_use = str(p)
-            elif Path(req.logo_url.lstrip("/\\")).exists():
-                logo_to_use = str(Path(req.logo_url.lstrip("/\\")))
+            elif _inside_project(str(BASE_DIR / req.logo_url.lstrip("/\\"))):
+                logo_to_use = str(BASE_DIR / req.logo_url.lstrip("/\\"))
             else:
                 logo_to_use = req.logo_url
         elif uploaded_logo_path:
@@ -614,7 +634,12 @@ def generate_campaign_endpoint(req: GenerateRequest):
         data["person_title"] = getattr(asset, "person_title", req.person_title or "")
         agency_theme = resolve_brand_theme(brand_profile=asset.brand_dna or bp or None, uploaded_logo_path=logo_to_use,
                                            brand_name=asset.brand, post_type=asset.post_type)
-        return enrich_agency_kit(data, dict(topic=req.prompt, post_type=asset.post_type, person_name=asset.person_name,
+        card_en, card_ar = (asset.card_copy or {}).get("en") or {}, (asset.card_copy or {}).get("ar") or {}
+        card_fields = {key: value for key, value in dict(
+            cta_button=str(card_en.get("cta_text") or "").split("•")[0].strip(),
+            cta_button_ar=str(card_ar.get("cta_text") or "").split("•")[0].strip(),
+            headline_ar=str(card_ar.get("card_title") or "").replace("\n", " ").strip()).items() if value}
+        return enrich_agency_kit(data, dict(**card_fields, topic=req.prompt, post_type=asset.post_type, person_name=asset.person_name,
                                           role_title=asset.person_title if "welcome" in asset.post_type else asset.person_name or asset.brief.get("product_name", ""),
                                           language=req.language, headline=asset.image_headline, key_points=req.key_points,
                                           key_points_ar=req.key_points_ar), agency_theme)

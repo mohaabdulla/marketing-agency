@@ -19,6 +19,34 @@ def theme_for(data, theme=None):
                                post_type=data.get("post_type", "general"))
 
 
+def _written_copy(pack):
+    """Normalise a written campaign pack; None unless it has a real hook and caption."""
+    if not isinstance(pack, dict):
+        return None
+    hook = " ".join(str(pack.get("hook") or "").split())
+    caption = str(pack.get("caption") or "").strip()
+    if not hook or len(caption) < 40:
+        return None
+    highlights = pack.get("highlights") or []
+    if isinstance(highlights, str):
+        highlights = [h for h in re.split(r"[\n•]+", highlights) if h.strip()]
+    hashtags = pack.get("hashtags") or []
+    if isinstance(hashtags, str):
+        hashtags = hashtags.split()
+    hashtags = [t if t.startswith("#") else "#" + t for t in (str(t).strip() for t in hashtags) if t.strip("#")]
+    return dict(hook=hook, caption=caption, cta=" ".join(str(pack.get("cta") or "").split()),
+                highlights=[" ".join(str(h).split()).strip(" •-") for h in highlights if str(h).strip()], hashtags=hashtags)
+
+
+def _fit_x_post(hook, cta, tags, limit=280):
+    """The fullest combination of hook, call to action and tags that fits one X post."""
+    for parts in ((hook, cta, " ".join(tags)), (hook, cta, " ".join(tags[:1])), (hook, cta), (hook, " ".join(tags[:1])), (hook,)):
+        text = " ".join(p for p in parts if p)
+        if len(text) <= limit:
+            return text
+    return hook[:limit - 1].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
+
+
 def generate_campaign_copy(req_data, brand_theme=None):
     theme = theme_for(req_data, brand_theme)
     ar = req_data.get("language") == "ar"
@@ -84,12 +112,26 @@ def generate_campaign_copy(req_data, brand_theme=None):
     configured_tag = theme.hashtag_ar if ar else theme.hashtag_en
     tags = list(dict.fromkeys([brand_tag, *([configured_tag] if configured_tag else []), *industry]))[:10]
     hook = hooks[kind]
+    written = _written_copy(req_data.get("copy_pack_ar" if ar else "copy_pack"))
+    if written:
+        # The campaign's own copy, adapted per channel. The template lines above are only the
+        # fallback for kits built without a written campaign (e.g. a card-only template swap).
+        hook, body, cta = written["hook"], written["caption"], written["cta"] or cta
+        if not supplied:
+            points = written["highlights"][:3] or points
+        tags = list(dict.fromkeys([brand_tag, *written["hashtags"], *([configured_tag] if configured_tag else [])]))[:10]
+        linkedin = "\n\n".join(part for part in (hook, body, "\n".join(f"• {p}" for p in points), cta, " ".join(tags[:5])) if part)
+        instagram = "\n\n".join(part for part in (hook, body, cta, " ".join(tags)) if part)
+        x = _fit_x_post(hook, cta, tags[:2])
+        return dict(language="ar" if ar else "en", hook=hook, linkedin_post=linkedin, instagram_caption=instagram, x_post=x,
+                    hashtags=tags, cta=cta, copy_source="campaign", posting_recommendation=recommendation,
+                    strategy_source="https://www.linkedin.com/business/marketing/blog/linkedin-ads/whats-the-best-time-to-post-on-linkedin")
     instagram = f"{hook}\n\n{body}\n\n{cta}\n\n" + "\n".join(tags)
     x = f"{hook} {subject}. {cta} {brand_tag}"
     if len(x) >= 280:
         x = x[:276].rstrip() + "…"
     return dict(language="ar" if ar else "en", hook=hook, linkedin_post=f"{hook}\n\n{body}\n\n" + "\n".join(f"• {p}" for p in points) + f"\n\n{culture}\n\n{cta}",
-                instagram_caption=instagram, x_post=x, hashtags=tags, cta=cta,
+                instagram_caption=instagram, x_post=x, hashtags=tags, cta=cta, copy_source="template",
                 posting_recommendation=recommendation,
                 strategy_source="https://www.linkedin.com/business/marketing/blog/linkedin-ads/whats-the-best-time-to-post-on-linkedin")
 
@@ -127,8 +169,21 @@ def render_omnichannel_variants(primary_card_path, req_data, brand_theme=None):
     header = Image.new("RGBA", (1080, 180))
     draw_brand_header(header, theme, is_ar=lang == "ar", custom_logo=req_data.get("logo_image"))
     story.alpha_composite(header, (0, 72))
-    # Remove the repeated header and kit badge, preserving the whole employee/card.
-    story.paste(card.crop((0, 130, 1080, 1305)), (0, 330))
+    # Remove the repeated header and kit badge, preserving the whole employee/card. The card is
+    # feathered into a blurred, darkened extension of its own background so the taller story
+    # format reads as one artboard instead of a card pasted on a different backdrop.
+    body = card.crop((0, 130, 1080, 1305))
+    from PIL import ImageFilter, ImageEnhance
+    backdrop = ImageOps.fit(body, (1080, 1920)).filter(ImageFilter.GaussianBlur(90))
+    story = Image.blend(story, ImageEnhance.Brightness(backdrop).enhance(0.8).convert("RGBA"), 0.85)
+    story.alpha_composite(header, (0, 72))
+    fade = Image.new("L", body.size, 255)
+    fd = ImageDraw.Draw(fade)
+    for row in range(70):
+        level = round(255 * row / 70)
+        fd.line((0, row, 1080, row), fill=level)
+        fd.line((0, body.height - 1 - row, 1080, body.height - 1 - row), fill=level)
+    story.paste(body, (0, 330), fade)
     sd = ImageDraw.Draw(story)
     sd.rounded_rectangle((170, 1740, 910, 1820), radius=40, fill=theme.primary_accent)
     _companion_text(sd, "اسحب للأعلى / الرابط في النبذة" if lang == "ar" else "SWIPE UP / LINK IN BIO",
@@ -145,7 +200,8 @@ def render_omnichannel_variants(primary_card_path, req_data, brand_theme=None):
     bd.rounded_rectangle((60, 490, 630, 560), radius=20, fill=theme.primary_accent)
     kind = str(req_data.get("post_type", "general"))
     default_cta = ("قدّم طلبك" if lang == "ar" else "APPLY NOW") if "hiring" in kind else ("اطلب عرضاً توضيحياً" if lang == "ar" else "REQUEST A DEMO") if "launch" in kind else ("سعداء بانضمامك" if lang == "ar" else "WELCOME ABOARD") if "welcome" in kind else ("تواصل معنا" if lang == "ar" else "LET'S BUILD TOGETHER")
-    cta = req_data.get("cta_ar" if lang == "ar" else "cta") or default_cta
+    # Same button as the primary card when the campaign wrote one.
+    cta = req_data.get("cta_button_ar" if lang == "ar" else "cta_button") or req_data.get("cta_ar" if lang == "ar" else "cta") or default_cta
     _companion_text(bd, cta, (84, 502, 522, 45), size=25, lang=lang, weight="semibold", fill=theme.bg_dark_start)
     if "welcome" in str(req_data.get("post_type", "")):
         visual = card.crop((180, 220, 900, 1118))

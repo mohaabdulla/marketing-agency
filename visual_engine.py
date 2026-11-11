@@ -108,7 +108,8 @@ def render_companion_showcase(scene: dict, brand_theme, lang="en", role_title=""
         "welcome": ("PEOPLE / OUR NEXT CHAPTER", "فريقنا / الفصل القادم"),
         "general": ("IDEAS / INTO OPERATION", "من الأفكار إلى التنفيذ"),
     }
-    _companion_text(pd, titles[kind][is_ar], (130, 24, 725, 30), size=19, lang=lang, boxes=panel_boxes)
+    window_title = scene.get("window_title_ar" if is_ar else "window_title") or titles[kind][is_ar]
+    _companion_text(pd, window_title, (130, 24, 725, 30), size=19, lang=lang, boxes=panel_boxes)
     headline = person_name if kind == "welcome" and person_name else scene["panel_title_ar" if is_ar else "panel_title"]
     _companion_text(pd, headline, (42, 104, 816, 55), size=36, lang=lang, weight="bold", boxes=panel_boxes)
     _companion_text(pd, role_title or scene["panel_subtitle_ar" if is_ar else "panel_subtitle"], (42, 170, 816, 34), size=20, lang=lang, fill=(160, 188, 179), boxes=panel_boxes)
@@ -133,7 +134,8 @@ def render_companion_showcase(scene: dict, brand_theme, lang="en", role_title=""
         pd.line(points, fill=accent, width=3)
         for px, py in points:
             pd.ellipse((px-4, py-4, px+4, py+4), fill=(223, 255, 239))
-        _companion_text(pd, "PERCEPTION → INFERENCE → ACTION", (65, 488, 350, 27), size=14, fill=(160, 188, 179), boxes=panel_boxes)
+        trail = scene.get("trail_label_ar" if is_ar else "trail_label") or "PERCEPTION → INFERENCE → ACTION"
+        _companion_text(pd, trail, (65, 488, 350, 27), size=14, lang=lang if scene.get("trail_label_ar") else "en", fill=(160, 188, 179), boxes=panel_boxes)
     for i in range(7):
         angle = i * math.pi / 7
         pts = []
@@ -143,11 +145,15 @@ def render_companion_showcase(scene: dict, brand_theme, lang="en", role_title=""
             pts.append((660 + x * math.cos(.4) - y * math.sin(.4), 390 + x * math.sin(.4) + y * math.cos(.4)))
         pd.line(pts, fill=accent + (160,), width=1)
     pd.ellipse((645, 375, 675, 405), fill=accent + (240,))
-    _companion_text(pd, "NEURAL CORE / 03", (512, 500, 315, 25), size=15, fill=(160, 188, 179), boxes=panel_boxes)
+    _companion_text(pd, scene.get("core_label") or "NEURAL CORE / 03", (512, 500, 315, 25), size=15, fill=(160, 188, 179), boxes=panel_boxes)
     metrics = scene["metrics_ar" if is_ar else "metrics"]
     for i, metric in enumerate(metrics):
         x = 40 + i*280
         pd.rounded_rectangle((x, 582, x+260, 688), radius=14, fill=(255, 255, 255, 9), outline=accent + (65,))
+        if not metric[1]:
+            # A lone label is centred in its tile rather than left hanging above an empty line.
+            _companion_text(pd, metric[0], (x+18, 615, 224, 40), size=24, lang=lang, weight="bold", boxes=panel_boxes)
+            continue
         _companion_text(pd, metric[0], (x+18, 600, 224, 35), size=26, lang=lang, weight="bold", boxes=panel_boxes)
         _companion_text(pd, metric[1], (x+18, 648, 224, 22), size=15, lang=lang, fill=(160, 188, 179), boxes=panel_boxes)
     src = np.float32([[0, 0], [900, 0], [900, 740], [0, 740]])
@@ -4404,7 +4410,7 @@ def render_agency_card(
             else:
                 eyebrow_text = "انضم إلى فريقنا  •  فرص مهنية" if is_ar else "WE'RE HIRING  •  JOIN OUR TEAM"
     elif is_launch:
-        eyebrow_text = "إطلاق منتج جديد  •  حلول الذكاء الاصطناعي" if is_ar else "PRODUCT LAUNCH  •  NEW RELEASE"
+        eyebrow_text = ("إطلاق منتج جديد  •  حلول الذكاء الاصطناعي" if brand_theme.is_lexnis else "إطلاق منتج جديد  •  إصدار جديد") if is_ar else "PRODUCT LAUNCH  •  NEW RELEASE"
     elif is_edu:
         eyebrow_text = "رؤى تقنية  •  بنية الذكاء الاصطناعي" if is_ar else "INDUSTRY INSIGHT  •  AI ARCHITECTURE"
     elif is_promo:
@@ -4545,7 +4551,8 @@ def render_agency_card(
         if rl_lower in ARABIC_TITLES_MAP:
             clean_title = ARABIC_TITLES_MAP[rl_lower]
         elif not re.search(r"[\u0600-\u06FF]", clean_title):
-            clean_title = "مهندس أول تعلم الآلة وأنظمة الرؤية الحاسوبية"
+            # Another brand's untranslated role keeps its real title, not a different job's name.
+            clean_title = "مهندس أول تعلم الآلة وأنظمة الرؤية الحاسوبية" if brand_theme.is_lexnis else clean_title
 
     # Row 3: Subtitle
     clean_subt = card_data.get("card_subtitle")
@@ -4889,7 +4896,18 @@ def render_agency_card(
         draw.text((sx, cur_sub_y), disp_sline, font=f_sub, fill=soft_white)
         cur_sub_y += subcopy_stride
 
-    if is_hiring or is_launch:
+    # Focus areas come from the campaign. `None` (not supplied) falls back to the house lines for
+    # the agency's own brand only; an empty list, or another brand without any, hides the row.
+    badges = card_data.get("focus_areas")
+    if badges is None and (is_hiring or is_launch):
+        if is_launch:
+            if brand_theme.is_lexnis:
+                badges = ["استدلال طرفي", "رؤية حاسوبية ثلاثية الأبعاد", "تشغيل محلي آمن"] if is_ar else ["Edge AI & TensorRT", "3D Computer Vision", "Secure On-Premise"]
+        elif brand_theme.is_lexnis and re.search(r"\bai\b|vision|machine learning|ذكاء|رؤية|تعلم", str(raw_title), re.I):
+            badges = ["ذكاء طرفي و TensorRT", "رؤية حاسوبية ثلاثية الأبعاد", "VLMs و RAG", "حزمة BHD معفاة من الضرائب"] if is_ar else ["Edge AI & TensorRT", "3D Computer Vision", "VLMs & RAG", "Tax-Free BHD Package"]
+        else:
+            badges = ["تعاون الفريق", "تطوير مهني", "أثر حقيقي"] if is_ar else ["Team Collaboration", "Professional Growth", "Real Impact"]
+    if badges:
         # Reserve the gap before the CTA for useful, localised role/product details.
         focus_y = max(1045, int(cur_sub_y + 12))
         cta_y = max(cta_y, focus_y + 112)
@@ -4899,14 +4917,6 @@ def render_agency_card(
         label_box = draw.textbbox((0, 0), label_disp, font=f_focus)
         label_x = 1008 - (label_box[2] - label_box[0]) if is_ar else 72
         draw.text((label_x - label_box[0], focus_y - label_box[1]), label_disp, font=f_focus, fill=brand_theme.primary_accent)
-        badges = card_data.get("focus_areas")
-        if not badges:
-            if is_launch:
-                badges = ["استدلال طرفي", "رؤية حاسوبية ثلاثية الأبعاد", "تشغيل محلي آمن"] if is_ar else ["Edge AI & TensorRT", "3D Computer Vision", "Secure On-Premise"]
-            elif re.search(r"ai|vision|machine learning|ذكاء|رؤية|تعلم", str(raw_title), re.I):
-                badges = ["ذكاء طرفي و TensorRT", "رؤية حاسوبية ثلاثية الأبعاد", "VLMs و RAG", "حزمة BHD معفاة من الضرائب"] if is_ar else ["Edge AI & TensorRT", "3D Computer Vision", "VLMs & RAG", "Tax-Free BHD Package"]
-            else:
-                badges = ["تعاون الفريق", "أنظمة قابلة للتوسع", "أثر هندسي"] if is_ar else ["Team Collaboration", "Scalable Systems", "Engineering Impact"]
         badges = [str(b) for b in badges[:4]]
         # Fit a single row to the artboard, including Arabic's wider glyphs.
         badge_size = 21

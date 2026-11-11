@@ -307,7 +307,7 @@ Return ONLY a JSON object with: rivals (list), strategic_wedge (str), conquest_p
 
 
 AGENT1_COPYWRITER_PROMPT = """You are Agent 1: Senior Copywriter and Creative Strategist at an award-winning creative agency.
-Draft an initial Instagram product launch campaign for the brand "{brand}" based on the creative brief and competitive intelligence battlecard below.
+Draft a social media campaign post for the brand "{brand}" based on the creative brief and competitive intelligence below. The ORIGINAL REQUEST decides what kind of post this is (product launch, hiring, announcement, insight, brand story); write that kind of post, not a product launch by default.
 
 Tone: {tone}
 Visual direction: {theme}
@@ -316,11 +316,13 @@ Rules:
 - Plain text only. NO markdown: no **bold**, no #headings, no bullet asterisks.
 - The hook must stop the scroll in under 125 characters.
 - Caption: 3-4 short paragraphs (1-3 sentences each), scannable, written to ONE person ("you").
-- WEAPONIZE THE STRATEGIC EDGE: Subtle, high-status counter-positioning that exposes rivals' legacy limitations (e.g. expensive hardware, bloated geofencing, slow onboarding) and highlights our brand's radical breakthrough. Never sound petty or mention competitors by name in cheap attacks; make our superiority mathematically and intuitively obvious.
+- DIFFERENTIATE WITH CLASS: Lead with what the audience gains and what makes this brand distinct. Never name, mock or disparage competitors, utilities, regulators, governments, employers or the reader; no fear-mongering and no insults about the status quo.
+- HONESTY: Use only facts stated in the request, brief or research. Never invent numbers, prices, dates, awards, certifications, client names, locations, salaries or guarantees. Avoid absolute claims ("absolute", "total", "guaranteed", "#1", "elite") unless the brief supports them.
+- VOICE: Confident, warm and specific. Plain words over jargon. Write for the audience named in the brief, in their market.
 - Use 0-3 tasteful emojis max, never at the start of every line.
-- Highlights: 3 short benefit lines (max 12 words each), outcome first, underscoring our unfair advantage.
+- Highlights: 3 short benefit lines (max 12 words each), outcome first.
 - Hashtags: 8-12 relevant hashtags.
-- Image Headline: 2-4 word luxury product title (e.g. '{brand} // INNOVATION' or 'FLAGSHIP // ARCHITECTURE').
+- Image Headline: the product, role or topic name in 2-4 words (e.g. the product name for a launch, the job title for a hiring post).
 - visual_concept: Detailed description of physical subject, materials, setting, and lighting strictly faithful to the user's requested environment and scene.
 - agent1_rationale: 1-2 sentence explanation of your chosen creative angle, target audience hook, and competitive wedge.
 
@@ -332,7 +334,7 @@ Return strictly valid RFC 8259 JSON:
   "highlights": ["highlight 1", "highlight 2", "highlight 3"],
   "cta": "one clear call to action line",
   "hashtags": ["#tag1", "#tag2"],
-  "image_headline": "2-4 word luxury title",
+  "image_headline": "product, role or topic name in 2-4 words",
   "visual_concept": "detailed description of the physical hardware, interface, and workspace/studio setting"
 }}"""
 
@@ -341,10 +343,22 @@ COPYWRITER_PROMPT = AGENT1_COPYWRITER_PROMPT
 
 AGENT2_DIRECTOR_CRITIC_PROMPT = """You are an executive creative director and marketing auditor reviewing a campaign draft.
 Return valid JSON with hook, caption, highlights (list), cta, hashtags (list),
-image_headline (product name), alt_text, visual_prompt, critique_notes (list),
-and agent_dialogue (list of objects with agent and message).
-Audit the copy for executive authority and competitive edge. Ensure our counter-positioning against the rivals' flaws is distinct, unassailable, and memorable. Make sure the hook and caption stop the scroll by highlighting our brand's unique superiority.
-Use only facts from the supplied research/brief. Remove unsupported specifications and statistics.
+image_headline (product, role or topic name), alt_text, visual_prompt, critique_notes (list),
+agent_dialogue (list of objects with agent and message), and these short ON-CARD fields that are typeset on the graphic:
+- card_headline: the big two-line headline: ONE continuous phrase broken across exactly two lines, written as "LINE ONE / LINE TWO" (a slash between the lines), 2-4 words per line, max 22 characters per line. It states the benefit or invitation in plain words (no "dominance", "command", "elite"). It must NOT contain the brand name or repeat image_headline.
+- card_subtitle: one factual line (max 12 words) saying what the product, role or topic actually is.
+- card_chips: exactly 3 labels, max 3 words and 22 characters each, factual attributes taken from the request or brief (for hiring: location, employment type or team only if they were stated).
+- focus_areas: exactly 3 labels, max 3 words each (hiring: the skills or responsibilities; launch: who it is for or where it is used; otherwise the themes of the post).
+- card_overline: a category label, max 4 words (e.g. the product category or the department).
+- cta_button: the button label, 2-4 words (e.g. "Book a consultation").
+The post type comes from the ORIGINAL REQUEST (launch, hiring, announcement, insight, brand story). Keep the copy in that post type.
+Audit the copy for clarity, credibility and a distinct point of view. The hook and caption must stop the scroll through relevance and a clear benefit, never through attacks.
+PROFESSIONAL STANDARDS (rewrite anything that breaks them):
+- Never name, mock or disparage competitors, utilities, regulators, governments, employers or the reader. No fear-mongering.
+- Use only facts from the supplied request, research and brief. Remove unsupported specifications, statistics, prices, dates, awards, client names, locations and guarantees, from the caption AND from every on-card field.
+- No absolute claims ("absolute", "total", "guaranteed", "#1", "elite", "unmatched") unless the brief supports them.
+- No invented scale or status claims ("multi-million", "tier-one", "elite", "world-class", "pioneer") and no put-downs of other workplaces or products; describe the offer in the request's own terms.
+- Match the market and audience in the brief; plain, confident, warm language.
 Preserve the user's exact brand, product, setting, and visual direction.
 Create a photographic visual_prompt with natural materials, believable lighting, and a clear hero subject adhering strictly to the user's requested environment, lighting, lens, and backdrop (e.g. minimalist workspace, enterprise hardware, software interfaces, or studio portraiture).
 CRITICAL: If client brand guidelines or uploaded visual assets describe a person or executive (e.g. Arab female executive in black abaya, corporate team member portrait), YOU MUST integrate this person as the primary hero subject in the visual_prompt!
@@ -369,6 +383,8 @@ Rules:
 - visual_headline: 2 to 4 powerful, punchy Arabic words fitting the visual scene (e.g. "آفاق بلا حدود").
 - visual_tagline: A resonant subline under 8 words.
 - alt_text: High-quality Arabic accessibility description.
+- When the English package contains card_headline, card_subtitle, card_chips, focus_areas, card_overline or cta_button, transcreate each one into Arabic with the same length limits: card_headline stays exactly two short lines written as "line one / line two" (2-4 words each); card_chips and focus_areas stay exactly 3 short labels each. Keep product names and brand names in their original spelling.
+- Never add facts, numbers or claims that are not in the English package. Never disparage competitors or institutions.
 
 Return strictly valid RFC 8259 JSON:
 {
@@ -380,7 +396,13 @@ Return strictly valid RFC 8259 JSON:
   "image_headline": "Arabic visual headline",
   "visual_headline": "Arabic visual headline",
   "visual_tagline": "Arabic visual tagline",
-  "alt_text": "Arabic accessibility description"
+  "alt_text": "Arabic accessibility description",
+  "card_headline": "سطر أول / سطر ثان",
+  "card_subtitle": "Arabic factual subtitle",
+  "card_chips": ["label 1", "label 2", "label 3"],
+  "focus_areas": ["label 1", "label 2", "label 3"],
+  "card_overline": "Arabic category label",
+  "cta_button": "Arabic button label"
 }"""
 
 
@@ -439,6 +461,7 @@ class CampaignAsset:
     arabic_companion_image_url: str = ""
     animation_path: str = ""
     animation_url: str = ""
+    card_copy: Dict[str, Any] = field(default_factory=dict)
     arabic_animation_path: str = ""
     arabic_animation_url: str = ""
     carousel_urls: List[str] = field(default_factory=list)
@@ -563,10 +586,8 @@ def detect_featured_person(prompt: str, post_type: Optional[str] = None) -> Tupl
         if m_hire:
             clean_role = m_hire.group(1).strip()
             clean_role = re.sub(r'^(?:a|an)\s+', '', clean_role, flags=re.IGNORECASE).strip()
-            team_str = (m_hire.group(2) or "").strip()
-            if not team_str:
-                team_str = "Core Engineering & Innovation Lab · Hybrid"
-            return smart_title(clean_role, role=True), team_str
+            # Only a team/location the request actually states; never an invented one.
+            return smart_title(clean_role, role=True), (m_hire.group(2) or "").strip()
         return "Senior Systems Engineer", "Engineering & Innovation Lab · Hybrid"
 
     if (post_type and any(k in post_type.lower() for k in ['product', 'launch', 'announcement'])) or any(k in p.lower() for k in ['launching', 'introducing', 'predictive maintenance', 'visionai', 'sensor']):
@@ -575,7 +596,8 @@ def detect_featured_person(prompt: str, post_type: Optional[str] = None) -> Tupl
             prod_name = m_launch.group(1).strip()
             cat_str = (m_launch.group(2) or "FLAGSHIP RELEASE  //  ENTERPRISE INNOVATION").strip()
             return smart_title(prod_name), cat_str
-        return "Flagship Innovation Platform", "FLAGSHIP RELEASE  //  ENTERPRISE INNOVATION"
+        # No product named in the request: the creative brief supplies it later.
+        return None, None
 
     if post_type and 'milestone' in post_type.lower():
         return "Global Enterprise Milestone", "Excellence & Growth Award"
@@ -965,45 +987,293 @@ def detect_brand_name_from_guideline(text: str, filename: str = "") -> str:
     return display[best]
 
 
+def _mentions(text: str, words) -> bool:
+    """Whole-word match, so "ai" never fires on "Bahrain" or "edge" on "knowledge"."""
+    return bool(re.search(r"(?<![a-z])(?:" + "|".join(re.escape(w) for w in words) + r")(?![a-z])", (text or "").lower()))
+
+
 def generate_hiring_mission_hook(role: str, prompt: str, is_ar: bool = False) -> str:
     """
-    Generates an inspiring, punchy 2-5 word recruitment mission hook (NEVER the job title).
-    Enforces true Senior Agency Art Director copy hierarchy with zero redundancy.
-    Always provides a balanced 2-line structure with 2-3 words per line for visual parity.
+    Two balanced lines inviting candidates in (never the job title). The line is chosen from
+    what the role and request actually mention; an unrelated role gets a neutral invitation.
     """
-    r_lower = (role or "").lower()
-    p_lower = (prompt or "").lower()
-    if any(w in r_lower or w in p_lower for w in ["vision", "camera", "image", "perception"]):
+    text = f"{role or ''} {prompt or ''}"
+    if _mentions(text, ["vision", "camera", "image", "perception"]):
         return "نبني الجيل القادم من\nأنظمة الرؤية الذكية." if is_ar else "BUILD AUTONOMOUS\nVISION SYSTEMS."
-    elif any(w in r_lower or w in p_lower for w in ["machine learning", "ml", "ai", "deep learning", "neural"]):
+    elif _mentions(text, ["machine learning", "ml", "ai", "deep learning", "neural"]):
         return "نبني الجيل القادم من\nحلول الذكاء الاصطناعي." if is_ar else "ARCHITECT THE\nNEXT ERA OF AI."
-    elif any(w in r_lower or w in p_lower for w in ["cyber", "security", "defense", "infosec"]):
+    elif _mentions(text, ["cyber", "cybersecurity", "security", "infosec"]):
         return "قُد الدفاع السيبراني\nللمنظومات المتقدمة." if is_ar else "DEFEND THE NEXT\nDIGITAL FRONTIER."
-    elif any(w in r_lower or w in p_lower for w in ["software", "backend", "full stack", "fullstack", "platform", "cloud", "devops"]):
+    elif _mentions(text, ["software", "backend", "full stack", "fullstack", "platform", "cloud", "devops"]):
         return "ابنِ البنية الرقمية\nلمنظومات المستقبل." if is_ar else "SCALE NEXT-GEN\nENTERPRISE PLATFORMS."
-    elif any(w in r_lower or w in p_lower for w in ["product", "design", "ux", "ui"]):
-        return "صمم تجارب رقمية\nتصنع الريادة العالمية." if is_ar else "DESIGN THE FUTURE\nOF INTELLIGENT APPS."
-    else:
-        return "هندسة وتطوير أنظمة\nالمستقبل الذكي." if is_ar else "ARCHITECT THE\nNEXT ERA OF AI."
+    elif _mentions(text, ["designer", "design", "ux", "ui"]):
+        return "صمم تجارب رقمية\nتصنع الفارق." if is_ar else "DESIGN EXPERIENCES\nPEOPLE LOVE."
+    elif _mentions(text, ["sales", "business development", "account manager", "account executive"]):
+        return "اصنع شراكات\nتدوم وتنمو." if is_ar else "BUILD PARTNERSHIPS\nTHAT LAST."
+    elif _mentions(text, ["marketing", "brand", "content", "social media"]):
+        return "احكِ القصة\nالتي تُلهم الجمهور." if is_ar else "TELL THE STORY\nPEOPLE REMEMBER."
+    return "انضم إلى فريق\nيصنع المستقبل." if is_ar else "JOIN THE TEAM\nSHAPING WHAT'S NEXT."
 
 
 def generate_launch_mission_hook(product: str, prompt: str, is_ar: bool = False) -> str:
     """
-    Generates an inspiring, punchy 2-line product launch hook (NEVER repeating the product name).
-    Always provides a balanced 2-line structure with 2-4 words per line for visual parity.
+    Two balanced lines for a launch (never the product name, never an invented metric).
+    A product outside the listed fields gets a neutral introduction.
     """
-    p_lower = (prompt or "").lower()
-    prod_lower = (product or "").lower()
-    if any(w in p_lower or w in prod_lower for w in ["failure", "predict", "defect", "assembly", "maintenance", "sensor", "vibration", "factory"]):
+    text = f"{product or ''} {prompt or ''}"
+    if _mentions(text, ["failure", "failures", "predictive", "defect", "defects", "assembly", "maintenance", "vibration", "factory"]):
         return "سيادة صناعية استباقية\nترصد الأعطال قبل وقوعها." if is_ar else "PREDICT ASSEMBLY\nFAILURES AT THE EDGE."
-    elif any(w in p_lower or w in prod_lower for w in ["vision", "inspection", "camera", "visual", "optical"]):
-        return "رؤية حاسوبية فائقة\nتسبق احتمالات الخطأ." if is_ar else "ZERO-LATENCY INDUSTRIAL\nVISION INTELLIGENCE."
-    elif any(w in p_lower or w in prod_lower for w in ["security", "cyber", "defense", "zero trust"]):
-        return "حماية سيادية مطلقة\nللبيئات المؤسسية الحساسة." if is_ar else "SOVEREIGN DEFENSE\nFOR CRITICAL INFRASTRUCTURE."
-    elif any(w in p_lower or w in prod_lower for w in ["data", "cloud", "platform", "edge"]):
-        return "معالجة بيانات فورية\nبأقل من 8 ميلي ثانية." if is_ar else "SUB-8MS REAL-TIME\nEDGE COMPUTING."
-    else:
-        return "سيادة صناعية استباقية\nترصد الأعطال قبل وقوعها." if is_ar else "PREDICT ASSEMBLY\nFAILURES AT THE EDGE."
+    elif _mentions(text, ["vision", "inspection", "camera", "optical"]):
+        return "رؤية حاسوبية فائقة\nتسبق احتمالات الخطأ." if is_ar else "INDUSTRIAL VISION\nINTELLIGENCE."
+    elif _mentions(text, ["cyber", "cybersecurity", "zero trust"]):
+        return "حماية متقدمة\nللبيئات المؤسسية الحساسة." if is_ar else "DEFENSE FOR\nCRITICAL INFRASTRUCTURE."
+    elif _mentions(text, ["edge", "real-time", "realtime"]):
+        return "ذكاء فوري\nحيث تحدث البيانات." if is_ar else "REAL-TIME INTELLIGENCE\nAT THE EDGE."
+    return "تعرّف على\nالجديد لدينا." if is_ar else "MEET WHAT'S\nNEXT."
+
+
+# ---------- On-card creative: taken from the campaign copy, never invented ----------
+
+_LABEL_TRAILING = {"a", "an", "the", "and", "or", "of", "for", "to", "in", "on", "with", "at", "by", "from", "your", "our",
+                   "that", "into", "across", "against", "through", "&", "في", "من", "على", "إلى", "مع", "عن", "و"}
+
+NEUTRAL_CARD = {
+    "hiring": {"en": dict(headline="JOIN THE TEAM\nSHAPING WHAT'S NEXT.", overline="OPEN POSITION", cta="APPLY NOW",
+                          subcopy="Bring your experience to a team that values great work.",
+                          chips=["Now Hiring", "Open Position", "Join Our Team"]),
+               "ar": dict(headline="انضم إلى فريق\nيصنع المستقبل.", overline="وظيفة شاغرة", cta="قدّم الآن",
+                          subcopy="انضم بخبرتك إلى فريق يقدّر العمل المتقن.",
+                          chips=["نوظف الآن", "وظيفة شاغرة", "انضم إلى فريقنا"])},
+    "launch": {"en": dict(headline="MEET WHAT'S\nNEXT.", overline="NEW RELEASE", cta="LEARN MORE",
+                          eyebrow="PRODUCT LAUNCH  •  NEW RELEASE", subcopy="Discover what's new and how it fits your needs.",
+                          chips=["New Release", "Now Introducing", "Learn More"]),
+               "ar": dict(headline="تعرّف على\nالجديد لدينا.", overline="إصدار جديد", cta="اعرف المزيد",
+                          eyebrow="إطلاق منتج جديد  •  إصدار جديد", subcopy="اكتشف الجديد وكيف يلبي احتياجاتك.",
+                          chips=["إصدار جديد", "نقدّم لكم", "اعرف المزيد"])},
+    "edu": {"en": dict(headline="A CLOSER LOOK\nAT WHAT MATTERS.", overline="KEY TAKEAWAY", cta="READ MORE",
+                       eyebrow="INSIGHT  •  POINT OF VIEW", subcopy="A practical perspective from our team.",
+                       chips=["Insight", "Point of View", "Key Takeaway"]),
+            "ar": dict(headline="نظرة أقرب\nإلى ما يهم.", overline="الخلاصة", cta="اقرأ المزيد",
+                       eyebrow="رؤى  •  وجهة نظر", subcopy="رؤية عملية من فريقنا.",
+                       chips=["رؤى", "وجهة نظر", "الخلاصة"])},
+    "promo": {"en": dict(headline="SAVE THE DATE.\nJOIN US.", overline="UPCOMING EVENT", cta="REGISTER NOW",
+                         eyebrow="ANNOUNCEMENT  •  EVENT", subcopy="We would love to see you there.",
+                         chips=["Upcoming Event", "Join Us", "Save the Date"]),
+              "ar": dict(headline="احفظ الموعد.\nوكن معنا.", overline="فعالية قادمة", cta="سجّل الآن",
+                         eyebrow="إعلان  •  فعالية", subcopy="يسعدنا حضوركم.",
+                         chips=["فعالية قادمة", "انضم إلينا", "احفظ الموعد"])},
+    "general": {"en": dict(headline="IDEAS INTO\nIMPACT.", overline="IN FOCUS", cta="LEARN MORE",
+                           eyebrow="IN FOCUS  •  OUR PERSPECTIVE", subcopy="A closer look at the work behind the story.",
+                           chips=["Our Perspective", "In Focus", "Learn More"]),
+                "ar": dict(headline="من الأفكار\nإلى الأثر.", overline="تحت الضوء", cta="اعرف المزيد",
+                           eyebrow="تحت الضوء  •  رؤيتنا", subcopy="نظرة أقرب إلى العمل خلف القصة.",
+                           chips=["رؤيتنا", "تحت الضوء", "اعرف المزيد"])},
+}
+
+
+def short_label(text: Any, max_chars: int = 24, max_words: int = 4) -> str:
+    """Shorten a benefit line to a chip-sized label on a word boundary."""
+    words = re.sub(r"[.!?،؛:;]+$", "", " ".join(str(text or "").split())).split()
+    kept: List[str] = []
+    for word in words[:max_words]:
+        if len(" ".join(kept + [word])) > max_chars:
+            break
+        kept.append(word)
+    while kept and kept[-1].lower().strip(",") in _LABEL_TRAILING:
+        kept.pop()
+    return " ".join(kept).strip(" ,–—-")
+
+
+def clean_label_list(value: Any, limit: int = 3, max_chars: int = 24, max_words: int = 4) -> List[str]:
+    if isinstance(value, str):
+        value = re.split(r"[\n,•|]+", value)
+    labels: List[str] = []
+    for item in value or []:
+        label = short_label(item, max_chars, max_words)
+        if label and label.lower() not in [l.lower() for l in labels]:
+            labels.append(label)
+    return labels[:limit]
+
+
+def two_line_headline(text: Any, max_chars: int = 24, upper: bool = True) -> str:
+    """Return 'LINE ONE\\nLINE TWO' when the text fits two short lines, else ''."""
+    raw = re.sub(r"\s+/\s+", "\n", str(text or "").replace("\\n", "\n")).strip().strip('"')
+    lines = [" ".join(l.split()) for l in raw.split("\n") if l.strip()]
+    if len(lines) == 1:
+        words = lines[0].split()
+        if len(words) < 2:
+            return ""
+        best = min(range(1, len(words)), key=lambda i: abs(len(" ".join(words[:i])) - len(" ".join(words[i:]))))
+        lines = [" ".join(words[:best]), " ".join(words[best:])]
+    if len(lines) != 2 or any(len(l) > max_chars for l in lines):
+        return ""
+    return "\n".join(l.upper() if upper else l for l in lines)
+
+
+def fit_sentence(text: Any, limit: int = 100) -> str:
+    """Whole sentences that fit the limit; otherwise a clean word-boundary cut."""
+    text = " ".join(str(text or "").split())
+    if len(text) <= limit:
+        return text
+    kept = ""
+    for sentence in re.split(r"(?<=[.!?؟])\s+", text):
+        if len((kept + " " + sentence).strip()) > limit:
+            break
+        kept = (kept + " " + sentence).strip()
+    if kept:
+        return kept
+    return text[:limit].rsplit(" ", 1)[0].rstrip(" ,;:–—-") + "…"
+
+
+_FIGURE = re.compile(r"\d+(?:[.,]\d+)*")
+_ARABIC_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+
+
+def unsupported_figures(text: Any, evidence: str) -> List[str]:
+    """Figures in `text` that the evidence (request, research, guidelines) never states."""
+    known = set(_FIGURE.findall((evidence or "").translate(_ARABIC_DIGITS)))
+    body = re.sub(r"\b24\s*/\s*7\b", "", str(text or "").translate(_ARABIC_DIGITS))
+    return [n for n in _FIGURE.findall(body) if n not in known]
+
+
+def strip_unsupported_figures(text: Any, evidence: str) -> Tuple[str, List[str]]:
+    """
+    Remove whole sentences that state a figure the evidence does not contain (invented
+    percentages, timeframes, prices). Returns (clean_text, removed_sentences). Paragraph breaks
+    are kept; a paragraph left empty is dropped.
+    """
+    removed: List[str] = []
+    paragraphs = []
+    for paragraph in re.split(r"\n\s*\n", str(text or "")):
+        kept = []
+        for sentence in re.split(r"(?<=[.!?؟])\s+", paragraph.strip()):
+            if sentence and unsupported_figures(sentence, evidence):
+                removed.append(sentence.strip())
+            elif sentence:
+                kept.append(sentence)
+        if kept:
+            paragraphs.append(" ".join(kept))
+    return "\n\n".join(paragraphs), removed
+
+
+_WORK_PATTERN = re.compile(r"full[- ]?time|part[- ]?time|hybrid|remote|on[- ]?site|contract|دوام|هجين|عن بعد|حضوري", re.I)
+
+
+def is_supported_label(text: Any, evidence: str) -> bool:
+    """
+    False when a short on-card label states something the request, brief and research never
+    said: a figure, or (for jobs) an employment pattern. `evidence` is that source text, with
+    any Arabic counterpart; an empty evidence string disables the check.
+    """
+    text = str(text or "")
+    if not evidence:
+        return True
+    evidence_low = evidence.lower()
+    digits = lambda value: value.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789"))
+    known = set(re.findall(r"\d+(?:[.,]\d+)?", digits(evidence_low)))
+    if any(number not in known for number in re.findall(r"\d+(?:[.,]\d+)?", digits(text))):
+        return False
+    if re.search(r"[؀-ۿ]", text):
+        # An Arabic work-pattern label is only as true as its English source, which is checked too.
+        return not _WORK_PATTERN.search(text) or bool(_WORK_PATTERN.search(evidence_low))
+    pattern = _WORK_PATTERN.search(text)
+    return not pattern or re.sub(r"[- ]", "", pattern.group(0).lower()) in re.sub(r"[- ]", "", evidence_low)
+
+
+def build_card_creative(pack: Optional[Dict[str, Any]], kind: str, lang: str = "en", brand: str = "",
+                        derive: bool = True, evidence: str = "", title: str = "") -> Dict[str, Any]:
+    """
+    Short on-card text for one language, taken from the written campaign (the creative
+    director's card_* fields, else, with `derive`, the hook and highlights). Labels carrying
+    figures or work patterns absent from `evidence` are dropped. Missing pieces stay empty so
+    the caller can decide between a neutral default and a brand's house lines.
+    """
+    pack = pack or {}
+    is_ar = lang == "ar"
+    limit = 30 if is_ar else 27          # the renderer scales the type down to fit this width
+    brand_words = [w for w in re.split(r"\s+", (brand or "").lower()) if len(w) > 2]
+
+    def no_brand(line: str) -> bool:
+        return bool(line) and not any(w in line.lower() for w in brand_words)
+
+    def supported(values: List[str]) -> List[str]:
+        return [v for v in values if is_supported_label(v, evidence)]
+
+    headline = two_line_headline(pack.get("card_headline"), limit, upper=not is_ar)
+    if not headline and pack.get("card_headline"):
+        # Two lines that ran long: re-balance the same words before giving up on them.
+        headline = two_line_headline(" ".join(re.sub(r"\s+/\s+", " ", str(pack["card_headline"]).replace("\\n", " ")).split()), limit, upper=not is_ar)
+    if not no_brand(headline) or not is_supported_label(headline, evidence):
+        headline = ""
+    if not headline and derive:
+        hook = re.sub(r"[.!]+$", "", str(pack.get("hook") or "").strip())
+        candidate = two_line_headline(hook, limit, upper=not is_ar) if len(hook) <= 2 * limit else ""
+        headline = (candidate + ".") if candidate and no_brand(candidate) and is_supported_label(candidate, evidence) else ""
+    focus = supported(clean_label_list(pack.get("focus_areas"), limit=4, max_chars=26))
+    chips = supported(clean_label_list(pack.get("card_chips"), limit=4))
+    if len(chips) < 3 and derive:
+        # Top up from the focus areas (already label-sized), then benefit lines short enough to
+        # survive whole, before falling back to neutral chips.
+        whole = [h for h in clean_label_list(pack.get("highlights")) if any(h.lower() == re.sub(r"[.!?]+$", "", " ".join(str(x).split())).lower() for x in (pack.get("highlights") or []))]
+        for extra in focus + supported(whole):
+            if len(chips) < 3 and extra.lower() not in [c.lower() for c in chips]:
+                chips.append(extra)
+    focus = [f for f in focus if f.lower() not in [c.lower() for c in chips[:3]]][:3]
+    subtitle = fit_sentence(pack.get("card_subtitle"), 96)
+    overline = short_label(pack.get("card_overline"), 34, 5)
+    # A category label that only repeats the brand or the title adds nothing above the title.
+    if overline and (not no_brand(overline) or (title and (overline.lower() in title.lower() or title.lower() in overline.lower()))):
+        overline = ""
+    button = short_label(pack.get("cta_button"), 28, 5)
+    return {
+        "headline": headline,
+        "subtitle": subtitle if is_supported_label(subtitle, evidence) else "",
+        "chips": chips[:3] if len(chips) >= 3 else [],
+        "focus_areas": focus if len(focus) >= 2 else [],
+        "overline": overline,
+        "cta_button": button if is_ar else button.upper(),
+    }
+
+
+def apply_card_creative(card: Dict[str, Any], creative: Dict[str, Any], kind: str, lang: str, keep_house_lines: bool) -> Dict[str, Any]:
+    """
+    Put the campaign's own words on the card. `keep_house_lines` (the agency's own brand with
+    no written copy available) leaves the existing house defaults in place; every other brand
+    gets neutral wording instead, so one client's product lines never appear on another's card.
+    """
+    card = dict(card)
+    neutral = NEUTRAL_CARD[kind][lang]
+    for field, key in (("hero_hook", "headline"), ("chips", "chips"), ("card_overline", "overline")):
+        if creative.get(key):
+            card[field] = creative[key] if lang == "ar" or key != "overline" else creative[key].upper()
+        elif not keep_house_lines:
+            card[field] = neutral[key]
+    if kind != "hiring":
+        if creative.get("subtitle"):
+            card["card_subtitle"] = creative["subtitle"]
+        elif not keep_house_lines:
+            card["card_subtitle"] = card.get("_factual_subtitle") or ""
+        if creative.get("cta_button"):
+            card["cta_text"] = creative["cta_button"]
+        elif not keep_house_lines and not card.get("cta_url"):
+            card["cta_text"] = neutral["cta"]
+    if creative.get("focus_areas"):
+        card["focus_areas"] = creative["focus_areas"]
+    elif not keep_house_lines:
+        card["focus_areas"] = []          # an empty list hides the row instead of inventing topics
+    if not keep_house_lines:
+        if neutral.get("eyebrow"):
+            card["eyebrow_text"] = neutral["eyebrow"]
+        if not card.get("subcopy"):
+            card["subcopy"] = neutral["subcopy"]
+    card.pop("_factual_subtitle", None)
+    return card
+
+
+def request_location(prompt: str) -> str:
+    """A place the request itself names ("... in Manama"), or ''."""
+    m = re.search(r"\b(?:based in|located in|in)\s+((?:[A-Z][A-Za-z'-]+)(?:,?\s+[A-Z][A-Za-z'-]+){0,2})", prompt or "")
+    return m.group(1).strip(" ,") if m else ""
 
 
 def detect_brand_and_product(prompt: str, current_brand: str = "") -> Tuple[str, str]:
@@ -1437,8 +1707,24 @@ def _draw_arabic_aware(draw, xy, text: str, size: int, fill, *, bold: bool = Tru
     return draw.text(xy, prepare_bidi_text(text), font=font, fill=fill, **kwargs)
 
 
-def build_companion_scene_prompt(topic: str, post_type: str, brand_name: str, role_title: str = "") -> dict:
-    """Photography direction and bilingual editorial copy for the same campaign topic."""
+def _sentence_case(text: str) -> str:
+    """'POWER YOUR VILLA.\\nOWN YOUR ENERGY.' -> 'Power your villa. Own your energy.'"""
+    lines = [" ".join(l.split()) for l in str(text or "").split("\n") if l.strip()]
+    out = ""
+    for line in lines:
+        if line.isupper():
+            # A line that continues the previous one stays lower-case.
+            line = line.lower() if out and not re.search(r"[.!?؟]$", out) else line.capitalize()
+        out = f"{out} {line}".strip()
+    return out
+
+
+def build_companion_scene_prompt(topic: str, post_type: str, brand_name: str, role_title: str = "", creative: Optional[dict] = None) -> dict:
+    """Photography direction and bilingual editorial copy for the same campaign topic.
+
+    `creative` ({"en": card, "ar": card}, the text typeset on the primary card) keeps the
+    companion on the same message as the primary instead of generic showcase wording.
+    """
     kind = str(post_type or "general").lower()
     kind = "welcome" if "welcome" in kind else "launch" if "launch" in kind else "hiring" if "hir" in kind else "general"
     brand = brand_name or "Our Team"
@@ -1513,6 +1799,50 @@ def build_companion_scene_prompt(topic: str, post_type: str, brand_name: str, ro
             benchmarks=[("IN DEVELOPMENT", 130), ("READY TO LAUNCH", 292)],
             metrics=[("IDEA", "THE BEGINNING"), ("CRAFT", "THE DETAILS"), ("LAUNCH", "THE NEXT CHAPTER")],
             metrics_ar=[("فكرة", "البداية"), ("إتقان", "التفاصيل"), ("إطلاق", "الفصل القادم")])
+    # The agency's own AI vocabulary only belongs on AI topics; everything else gets plain labels.
+    scene["technical"] = bool(lexnis or ai_topic)
+    if not scene["technical"]:
+        scene.update(core_label=short, trail_label="IDEA → BUILD → IMPACT", trail_label_ar="فكرة ← تنفيذ ← أثر")
+        if kind == "hiring":
+            scene.update(panel_title="Your next chapter starts here", panel_title_ar="فصلك المهني القادم يبدأ هنا",
+                         panel_subtitle_ar="انضم إلى فريق يقدّر العمل المتقن",
+                         signal_label="GROW WITH US", signal_label_ar="انمُ معنا",
+                         window_title="CAREERS / JOIN THE TEAM", window_title_ar="الوظائف / انضم إلى الفريق",
+                         trail_label="LEARN → BUILD → GROW", trail_label_ar="تعلّم ← ابنِ ← انمُ",
+                         hook="Build what comes next.", hook_ar="ابنِ ما يصنع المستقبل.")
+        elif kind == "launch":
+            scene.update(window_title="NEW RELEASE / OVERVIEW", window_title_ar="إصدار جديد / نظرة عامة",
+                         signal_label="FROM IDEA TO LAUNCH", signal_label_ar="من الفكرة إلى الإطلاق")
+        elif kind == "welcome" and not role_title:
+            scene.update(caption=f"Growing the {brand} team together.", caption_ar=f"فريق {brand_ar} ينمو معاً.")
+        if kind == "general":
+            scene["scene_prompt"] = scene["scene_prompt"].replace("contemporary technology workspace", "contemporary workplace").replace("restrained emerald accents", "restrained brand accent lighting")
+    for lang_key, suffix in (("en", ""), ("ar", "_ar")):
+        card = (creative or {}).get(lang_key) or {}
+        if not card or kind == "welcome":
+            continue
+        title = str(card.get("card_title") or "").replace("\n", " ").strip()
+        hook_line = _sentence_case(card.get("hero_hook") or "")
+        subtitle = str(card.get("card_subtitle") or "").strip()
+        subcopy = str(card.get("subcopy") or "").strip()
+        chips = [str(c[0] if isinstance(c, (list, tuple)) else c) for c in (card.get("chips") or [])][:3]
+        focus = [str(f) for f in (card.get("focus_areas") or [])][:3]
+        if title and kind != "hiring":
+            scene["panel_title" + suffix] = title
+        if kind == "hiring" and title:
+            scene["panel_subtitle" + suffix] = title          # the role sits under the invitation
+        elif subtitle:
+            scene["panel_subtitle" + suffix] = subtitle
+        elif subcopy:
+            scene["panel_subtitle" + suffix] = fit_sentence(subcopy, 70)
+        if hook_line:
+            scene["hook" + suffix] = hook_line
+        if subtitle:
+            # The factual line, so the caption bar does not say the headline twice.
+            scene["caption" + suffix] = fit_sentence(subtitle, 84)
+        if len(chips) == 3:
+            scene["metrics" + suffix] = [(chip, "") for chip in chips]
+        scene["from_campaign"] = True
     scene.update(post_type=kind, topic=topic, brand_name=brand,
                  eyebrow="A CLOSER LOOK / " + short, eyebrow_ar=f"نظرة أقرب / {brand_ar}")
     scene["scene_prompt"] += " No typography, no letters, no watermarks. Leave upper header and lower caption areas clear."
@@ -1525,7 +1855,8 @@ def generate_companion_image(req_data: dict, brand_theme, output_path: str) -> s
                                apply_editorial_grade, render_companion_showcase, finish_companion_image)
     if not isinstance(brand_theme, BrandTheme):
         brand_theme = resolve_brand_theme(brand_profile=brand_theme or {}, brand_name=req_data.get("brand_name", "Lexnis Technologies"), post_type=req_data.get("post_type", "general"))
-    scene = build_companion_scene_prompt(req_data.get("topic", req_data.get("prompt", "")), req_data.get("post_type", "general"), brand_theme.brand_name, req_data.get("role_title", ""))
+    scene = build_companion_scene_prompt(req_data.get("topic", req_data.get("prompt", "")), req_data.get("post_type", "general"), brand_theme.brand_name, req_data.get("role_title", ""),
+                                         creative=req_data.get("creative"))
     lang = "ar" if req_data.get("language", "en") in ("ar", "arabic") else "en"
     mode = req_data.get("use_local_sdxl")
     model = preferred_local_model() if mode is not False else None
@@ -1546,6 +1877,8 @@ def generate_companion_image(req_data: dict, brand_theme, output_path: str) -> s
         if lang == "ar":
             person = transliterate_to_arabic(person) if person else ""
             role = ARABIC_TITLES_MAP.get(role.lower(), role)
+        if scene.get("from_campaign") and scene["post_type"] != "welcome":
+            role = ""          # the panel subtitle already carries the campaign's own line
         image = render_companion_showcase(scene, brand_theme, lang, role, person)
     image = finish_companion_image(image, scene, brand_theme, lang, req_data.get("logo_image"), total_slides=req_data.get("total_slides", 2))
     output = Path(output_path)
@@ -3714,6 +4047,11 @@ class LexnisCampaignStudio:
         ar_highlights = ar_data.get("highlights") or fallback_arabic["highlights"]
         if isinstance(ar_highlights, str):
             ar_highlights = [h.strip() for h in re.split(r"[\n,]+", ar_highlights) if h.strip()]
+        # The Arabic may only carry figures that the (already checked) English copy carries.
+        english_evidence = json.dumps(en_campaign, ensure_ascii=False)
+        ar_caption = strip_unsupported_figures(ar_caption, english_evidence)[0] or ar_caption
+        ar_highlights = [h for h in ar_highlights if not unsupported_figures(h, english_evidence)] or ar_highlights
+        ar_data["caption"], ar_data["highlights"] = ar_caption, ar_highlights
         ar_cta = ar_data.get("cta") or fallback_arabic["cta"]
         ar_hashtags = ar_data.get("hashtags") or fallback_arabic["hashtags"]
         if isinstance(ar_hashtags, list):
@@ -4019,6 +4357,20 @@ class LexnisCampaignStudio:
         if isinstance(raw_highlights, str):
             raw_highlights = [h.strip() for h in re.split(r"[\n,]+", raw_highlights) if h.strip()]
         highlights = [clean_social_text(h) for h in raw_highlights if str(h).strip()][:5]
+
+        # Claims check: a figure may be published only if the request, the retrieved research or
+        # the client's guidelines state it. Sentences with any other figure are removed and
+        # reported, so an invented "45% in 90 days" never reaches a client's feed.
+        claim_evidence = " ".join([effective_prompt, research or "", guidelines or ""])
+        claim_notes: List[str] = []
+        caption, removed_claims = strip_unsupported_figures(caption, claim_evidence)
+        supported_highlights = [h for h in highlights if not unsupported_figures(h, claim_evidence)]
+        removed_claims += [h for h in highlights if h not in supported_highlights]
+        highlights = supported_highlights
+        for sentence in removed_claims:
+            claim_notes.append(f"Removed an unverified figure from the copy: \"{fit_sentence(sentence, 140)}\". State it in the request or guidelines to keep it.")
+        if unsupported_figures(hook, claim_evidence):
+            claim_notes.append(f"The hook contains a figure that is not in the request or research; verify it before publishing: \"{fit_sentence(hook, 140)}\".")
         cta = clean_social_text(post.get("cta", ""))
         hashtags = " ".join(normalize_hashtags(post.get("hashtags", [])))
         headline = clean_product_headline(post.get("image_headline", ""), prompt=effective_prompt, brand=brand)
@@ -4042,6 +4394,7 @@ class LexnisCampaignStudio:
         warnings = list(dict.fromkeys(self.generation_warnings))
         if not research:
             warnings.append("No web evidence retrieved. Review product claims before publishing.")
+        warnings.extend(claim_notes)
 
         en_pack = {
             "hook": hook,
@@ -4053,6 +4406,11 @@ class LexnisCampaignStudio:
             "visual_tagline": hook[:110],
             "visual_analysis": "",
         }
+        # Short on-card text written by the creative director; the transcreator localises it too.
+        for card_key in ("card_headline", "card_subtitle", "card_chips", "focus_areas", "card_overline", "cta_button"):
+            if post.get(card_key):
+                en_pack[card_key] = post[card_key]
+        pair_creative: Dict[str, Any] = {}
 
         # Template + subject replacement. The photos uploaded with THIS request are the only source
         # for the person on the card (older files in output/uploads are never pulled in: that put a
@@ -4415,7 +4773,7 @@ class LexnisCampaignStudio:
                     if m_hire:
                         raw_role = m_hire.group(1).strip()
                 if not raw_role:
-                    raw_role = "Senior Machine Learning &\nVision Systems Engineer"
+                    raw_role = "Senior Machine Learning &\nVision Systems Engineer" if brand_theme.is_lexnis else (headline or "Open Position")
 
                 role_en = raw_role
                 if brand:
@@ -4428,8 +4786,10 @@ class LexnisCampaignStudio:
                     m_hire = re.search(r'(?:we are hiring|hiring|open role:?|seeking|looking for)\s+([A-Za-z0-9 &/-]+?)(?:\s+(?:for our|for the|for|in|at)\s+([^.\n]+?))?(?:\.|\n|$)', effective_prompt, re.IGNORECASE)
                     if m_hire and m_hire.group(2):
                         raw_team = m_hire.group(2).strip()
+                hire_city = request_location(effective_prompt)
                 if not raw_team:
-                    raw_team = "Manama, Bahrain  •  Full-Time  •  On-Site" if brand_theme.is_lexnis else "Global HQ  •  Full-Time  •  Hybrid"
+                    # Another brand's office and working pattern are never assumed.
+                    raw_team = "Manama, Bahrain  •  Full-Time  •  On-Site" if brand_theme.is_lexnis else hire_city
                 team_en = raw_team
 
                 raw_hook = headline or ""
@@ -4441,9 +4801,8 @@ class LexnisCampaignStudio:
                     if not hook_en or hook_en.upper() in {"LEXNIS", "LEXNIS TECHNOLOGIES", "CAREERS & OPEN POSITIONS"}:
                         hook_en = generate_hiring_mission_hook(role_en, effective_prompt, is_ar=False)
 
-                default_hire_subcopy_en = "Stop maintaining someone else's API. Build foundational vision systems from scratch in Manama." if brand_theme.is_lexnis else f"Stop maintaining legacy tools. Build foundational systems from scratch with {brand_theme.brand_name}."
-                subcopy_en = hook or caption or default_hire_subcopy_en
-                subcopy_en = subcopy_en.split("\n")[0][:140]
+                default_hire_subcopy_en = "Stop maintaining someone else's API. Build foundational vision systems from scratch in Manama." if brand_theme.is_lexnis else NEUTRAL_CARD["hiring"]["en"]["subcopy"]
+                subcopy_en = fit_sentence((hook or caption or default_hire_subcopy_en).split("\n")[0], 100)
 
                 role_lower = role_en.lower().strip()
                 role_ar = ARABIC_TITLES_MAP.get(role_lower)
@@ -4453,10 +4812,11 @@ class LexnisCampaignStudio:
                             role_ar = v
                             break
                 if not role_ar:
-                    role_ar = arabic_pack.get("role_title") or arabic_pack.get("visual_headline") or "مهندس أول تعلم الآلة وأنظمة الرؤية الحاسوبية"
+                    # An untranslated role keeps its real (Latin) title rather than a different job's name.
+                    role_ar = arabic_pack.get("role_title") or arabic_pack.get("visual_headline") or ("مهندس أول تعلم الآلة وأنظمة الرؤية الحاسوبية" if brand_theme.is_lexnis else role_en)
                 role_ar = re.sub(r"^\s*لكسنس\s*", "", role_ar).strip()
 
-                team_ar = arabic_pack.get("team_location") or ("المنامة، البحرين  •  دوام كامل  •  حضوري" if brand_theme.is_lexnis else "المقر الرئيسي  •  دوام كامل  •  هجين")
+                team_ar = arabic_pack.get("team_location") or ("المنامة، البحرين  •  دوام كامل  •  حضوري" if brand_theme.is_lexnis else "")
 
                 raw_ar_hook = arabic_pack.get("visual_headline") or ""
                 if not raw_ar_hook or (role_ar and (role_ar in raw_ar_hook or raw_ar_hook in role_ar)) or "لكسنس" in raw_ar_hook or "وظائف" in raw_ar_hook or "\n" not in raw_ar_hook:
@@ -4466,13 +4826,17 @@ class LexnisCampaignStudio:
                     if not hook_ar or "\n" not in hook_ar:
                         hook_ar = generate_hiring_mission_hook(role_en, effective_prompt, is_ar=True)
 
-                default_hire_subcopy_ar = "انتقل بنماذجك من التجربة إلى حافة الإنجاز الفوري. ابنِ أنظمة ذكية وتأسيسية من قلب المنامة." if brand_theme.is_lexnis else f"انتقل بنماذجك من التجربة إلى واقع الإنتاج الفعلي. ساهم في بناء الجيل القادم من الأنظمة مع {brand_theme.brand_name}."
+                default_hire_subcopy_ar = "انتقل بنماذجك من التجربة إلى حافة الإنجاز الفوري. ابنِ أنظمة ذكية وتأسيسية من قلب المنامة." if brand_theme.is_lexnis else NEUTRAL_CARD["hiring"]["ar"]["subcopy"]
                 subcopy_ar = arabic_pack.get("visual_tagline") or default_hire_subcopy_ar
 
-                loc_chip_en = "Manama, Bahrain" if brand_theme.is_lexnis else "Global HQ"
-                loc_chip_ar = "المنامة، البحرين" if brand_theme.is_lexnis else "المقر الرئيسي"
-                chips_en = [loc_chip_en, "Full-Time / Hybrid", f"{brand_theme.clean_slug} Core Lab"]
-                chips_ar = [loc_chip_ar, "دوام كامل • هجين", f"مختبر {brand_theme.clean_slug}"]
+                if brand_theme.is_lexnis:
+                    chips_en = ["Manama, Bahrain", "Full-Time / Hybrid", f"{brand_theme.clean_slug} Core Lab"]
+                    chips_ar = ["المنامة، البحرين", "دوام كامل • هجين", f"مختبر {brand_theme.clean_slug}"]
+                else:
+                    # Location only when the request states one; no invented office or work pattern.
+                    chips_en = ([hire_city] if hire_city else []) + NEUTRAL_CARD["hiring"]["en"]["chips"]
+                    chips_ar = NEUTRAL_CARD["hiring"]["ar"]["chips"]
+                    chips_en = chips_en[:3]
 
                 if brand_theme.domain:
                     cta_u_en = f"{brand_theme.domain}/careers"
@@ -4494,6 +4858,8 @@ class LexnisCampaignStudio:
                     "cta_text": cta_t_en,
                     "cta_url": cta_u_en
                 }
+                if hire_city and not brand_theme.is_lexnis:
+                    card_data_en["city"] = hire_city.upper()
                 card_data_ar = {
                     "card_title": role_ar,
                     "team_location": team_ar,
@@ -4511,7 +4877,12 @@ class LexnisCampaignStudio:
                     if m_prod:
                         raw_prod = m_prod.group(1).strip()
                 if not raw_prod:
-                    raw_prod = f"{brand_theme.clean_slug} VisionAI™" if brand_theme.is_lexnis else f"{brand_theme.clean_slug} Core Platform"
+                    # The creative brief names the product when the request's wording did not match.
+                    brief_prod = str(brief.get("product_name") or "").strip()
+                    if brief_prod and brief_prod.lower() != (brand or "").lower() and len(brief_prod) <= 48:
+                        raw_prod = brief_prod
+                if not raw_prod:
+                    raw_prod = f"{brand_theme.clean_slug} VisionAI™" if brand_theme.is_lexnis else "New Release"
 
                 clean_prod = raw_prod
                 if brand:
@@ -4519,19 +4890,26 @@ class LexnisCampaignStudio:
                 clean_prod = re.sub(r"^\s*lexnis(?:\s+technologies)?\s*", "", clean_prod, flags=re.IGNORECASE).strip()
                 clean_prod = re.sub(r"^(?:a|an)\s+", "", clean_prod, flags=re.IGNORECASE).strip()
                 if not clean_prod:
-                    clean_prod = "VisionAI™" if brand_theme.is_lexnis else "Core Platform"
+                    clean_prod = "VisionAI™" if brand_theme.is_lexnis else "New Release"
 
-                prod_en = f"{brand_theme.clean_slug} {clean_prod}" if not clean_prod.startswith(brand_theme.clean_slug) else clean_prod
-                prod_ar = f"نظام {prod_en}"
+                if brand_theme.is_lexnis:
+                    prod_en = f"{brand_theme.clean_slug} {clean_prod}" if not clean_prod.startswith(brand_theme.clean_slug) else clean_prod
+                    prod_ar = f"نظام {prod_en}"
+                else:
+                    # A client's product keeps its own name; the brand is already in the header.
+                    prod_en = prod_ar = clean_prod
 
                 raw_overline = person_title or ""
                 if not raw_overline or raw_overline in ("Next-Gen Autonomous Systems", "Marketing Manager", "Alisha Faisal", "Autonomous Enterprise Solutions"):
-                    raw_overline = "FLAGSHIP RELEASE  //  INDUSTRIAL EDGE AI"
+                    raw_overline = "FLAGSHIP RELEASE  //  INDUSTRIAL EDGE AI" if brand_theme.is_lexnis else NEUTRAL_CARD["launch"]["en"]["overline"]
                 overline_en = raw_overline
-                overline_ar = "الإصدار الرئيسي  //  الذكاء الاصطناعي الصناعي"
+                overline_ar = "الإصدار الرئيسي  //  الذكاء الاصطناعي الصناعي" if brand_theme.is_lexnis else NEUTRAL_CARD["launch"]["ar"]["overline"]
 
                 subtitle_en = "Autonomous Real-Time Visual Inspection & Defect Prediction Engine"
                 subtitle_ar = "محرك الفحص البصري الذاتي والتنبؤ الفوري بالأعطال الصناعية"
+                if not brand_theme.is_lexnis:
+                    subtitle_en = fit_sentence(brief.get("one_liner") or "", 96)
+                    subtitle_ar = ""
 
                 raw_hook = headline or ""
                 if not raw_hook or (clean_prod.lower() in raw_hook.lower()) or raw_hook.upper() in {"LEXNIS", "LEXNIS TECHNOLOGIES", "PRODUCT LAUNCH", "NEW LAUNCH"}:
@@ -4545,11 +4923,14 @@ class LexnisCampaignStudio:
                 default_launch_subcopy_en = "Detect micro-defects on the assembly line in under 8ms—before they become costly recalls."
                 default_launch_subcopy_ar = "اكشف أدق عيوب التصنيع على خط الإنتاج في أقل من 8 ملي ثانية قبل تحولها إلى توقفات مكلفة."
 
+                if not brand_theme.is_lexnis:
+                    default_launch_subcopy_en = NEUTRAL_CARD["launch"]["en"]["subcopy"]
+                    default_launch_subcopy_ar = NEUTRAL_CARD["launch"]["ar"]["subcopy"]
                 subcopy_en = hook or caption or default_launch_subcopy_en
                 sub_lower = subcopy_en.lower()
-                if any(w in sub_lower for w in ["breakthrough", "yesterday", "recording past", "unprecedented", "reviewing", "failures"]):
+                if brand_theme.is_lexnis and any(w in sub_lower for w in ["breakthrough", "yesterday", "recording past", "unprecedented", "reviewing", "failures"]):
                     subcopy_en = default_launch_subcopy_en
-                subcopy_en = subcopy_en.split("\n")[0][:140]
+                subcopy_en = fit_sentence(subcopy_en.split("\n")[0], 100)
 
                 raw_ar_hook = arabic_pack.get("visual_headline") or ""
                 if not raw_ar_hook or "لكسنس" in raw_ar_hook or (clean_prod.lower() in raw_ar_hook.lower()) or "\n" not in raw_ar_hook:
@@ -4560,11 +4941,16 @@ class LexnisCampaignStudio:
                         hook_ar = generate_launch_mission_hook(prod_en, effective_prompt, is_ar=True)
 
                 subcopy_ar = arabic_pack.get("visual_tagline") or default_launch_subcopy_ar
-                if any(w in subcopy_ar for w in ["لا يعرف المستحيل", "إنجازات اليوم", "تسجيل الأعطال", "استبق", "الأعطال بعد حدوثها"]):
+                if brand_theme.is_lexnis and any(w in subcopy_ar for w in ["لا يعرف المستحيل", "إنجازات اليوم", "تسجيل الأعطال", "استبق", "الأعطال بعد حدوثها"]):
                     subcopy_ar = default_launch_subcopy_ar
 
-                chips_en = ["< 8ms Edge Latency", "99.4% Defect Accuracy", "100% On-Premise"]
-                chips_ar = ["استجابة فورية أقل من 8ms", "دقة كشف 99.4%", "تشغيل محلي آمن 100%"]
+                if brand_theme.is_lexnis:
+                    chips_en = ["< 8ms Edge Latency", "99.4% Defect Accuracy", "100% On-Premise"]
+                    chips_ar = ["استجابة فورية أقل من 8ms", "دقة كشف 99.4%", "تشغيل محلي آمن 100%"]
+                else:
+                    # Performance figures are only ever printed when the campaign copy supplies them.
+                    chips_en = NEUTRAL_CARD["launch"]["en"]["chips"]
+                    chips_ar = NEUTRAL_CARD["launch"]["ar"]["chips"]
 
                 if brand_theme.domain:
                     cta_u_en = f"{brand_theme.domain}/visionai" if brand_theme.is_lexnis else f"{brand_theme.domain}/launch"
@@ -4581,6 +4967,7 @@ class LexnisCampaignStudio:
                     "card_title": prod_en,
                     "card_overline": overline_en,
                     "card_subtitle": subtitle_en,
+                    "_factual_subtitle": subtitle_en,
                     "chips": chips_en,
                     "hero_hook": hook_en,
                     "subcopy": subcopy_en,
@@ -4719,6 +5106,34 @@ class LexnisCampaignStudio:
                     "cta_url": cta_u_ar
                 }
 
+            # The card speaks in the campaign's own words. House lines written for the agency's own
+            # AI products stay available only to that brand, and only when no copy was written.
+            card_kind = "hiring" if is_hiring else "launch" if is_launch else "edu" if is_edu else "promo" if is_promo else "general"
+            keep_house_lines = bool(brand_theme.is_lexnis)
+            # Figures and work patterns may only appear on the card if the request, brief or research state them.
+            creative_en = build_card_creative({**en_pack, "hook": hook}, card_kind, "en", brand, derive=not keep_house_lines,
+                                              evidence=claim_evidence, title=str(card_data_en.get("card_title") or ""))
+            creative_ar = build_card_creative(arabic_pack, card_kind, "ar", brand, derive=not keep_house_lines,
+                                              evidence=claim_evidence, title=str(card_data_ar.get("card_title") or ""))
+            if not keep_house_lines and card_kind in ("edu", "promo", "general"):
+                topic_en = headline if headline and headline.upper() != (brand or "").upper() else fit_sentence(brief.get("product_name") or brand_theme.brand_name, 40)
+                topic_ar = arabic_pack.get("visual_headline") or topic_en
+                for card, lang_key, topic, sub in ((card_data_en, "en", topic_en, fit_sentence(hook, 100)),
+                                                   (card_data_ar, "ar", topic_ar, fit_sentence(arabic_pack.get("visual_tagline") or arabic_pack.get("hook") or "", 100))):
+                    neutral = NEUTRAL_CARD[card_kind][lang_key]
+                    card.update(card_title=topic, card_overline=neutral["overline"], hero_hook=neutral["headline"],
+                                chips=neutral["chips"], subcopy=sub or neutral["subcopy"], cta_text=neutral["cta"],
+                                cta_url=brand_theme.domain or "",
+                                _factual_subtitle=fit_sentence(brief.get("one_liner") or "", 96) if lang_key == "en" else "")
+            card_data_en = apply_card_creative(card_data_en, creative_en, card_kind, "en", keep_house_lines)
+            card_data_ar = apply_card_creative(card_data_ar, creative_ar, card_kind, "ar", keep_house_lines)
+            if not keep_house_lines:
+                for card in (card_data_en, card_data_ar):
+                    # A client's site is linked as given; no invented /careers or /launch pages.
+                    if card.get("cta_url"):
+                        card["cta_url"] = brand_theme.domain or ""
+            pair_creative = {"en": card_data_en, "ar": card_data_ar}
+
             # Hard Guardrail Sanitizer for non-Lexnis brands
             if not brand_theme.is_lexnis:
                 def _sanitize_card(cd: Dict[str, Any]) -> Dict[str, Any]:
@@ -4743,7 +5158,9 @@ class LexnisCampaignStudio:
 
             logo_key = Path(str(logo_to_use)).name if logo_to_use else "default_logo"
             base_key = Path(str(base_bg)).name if base_bg else "no_bg"
-            t_key = hashlib.sha1(f"agency_card_v4|{LAYOUT_CODE_VERSION}|{_brand_theme_fingerprint(brand_theme)}|{post_type}|{card_data_en.get('card_title')}|{brand}|{brand_theme.clean_slug}|{brand_theme.is_lexnis}|{brand_theme.domain}|{logo_key}|{base_key}".encode()).hexdigest()[:16]
+            # Every word on the card is part of the key: new copy must never reuse an old render.
+            card_fingerprint = json.dumps([card_data_en, card_data_ar], sort_keys=True, ensure_ascii=False, default=str)
+            t_key = hashlib.sha1(f"agency_card_v4|{LAYOUT_CODE_VERSION}|{_brand_theme_fingerprint(brand_theme)}|{post_type}|{card_fingerprint}|{brand}|{brand_theme.clean_slug}|{brand_theme.is_lexnis}|{brand_theme.domain}|{logo_key}|{base_key}".encode()).hexdigest()[:16]
             clean_path = RENDERS_DIR / f"{t_key}_clean.jpg"
             post_path = RENDERS_DIR / f"{t_key}_post.jpg"
             post_ar_path = RENDERS_DIR / f"{t_key}_post_ar.jpg"
@@ -4870,7 +5287,8 @@ class LexnisCampaignStudio:
                 pair_theme.hashtag_ar = "#فريق_لكسنس" if pair_theme.is_lexnis else f"#فريق_{pair_theme.clean_slug}"
             pair_request = dict(topic=effective_prompt, post_type=post_type or "general", brand_name=brand,
                                 role_title=person_title if "welcome" in str(post_type) else person_name or brief.get("product_name", ""),
-                                person_name=person_name or "", seed=seed, use_local_sdxl=use_local_sdxl)
+                                person_name=person_name or "", seed=seed, use_local_sdxl=use_local_sdxl,
+                                creative=pair_creative)
             for lang, old_path in (("en", primary_post), ("ar", primary_arabic)):
                 if not old_path:
                     continue
@@ -4891,6 +5309,7 @@ class LexnisCampaignStudio:
 
         raw_response = json.dumps({"brief": brief, "post": post, "arabic": arabic_pack, "dialogue": dialogue, "critique": critique_notes}, indent=2, ensure_ascii=False)
         return CampaignAsset(
+            card_copy=pair_creative,
             prompt=prompt,
             hook=hook,
             caption=caption,
