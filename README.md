@@ -3,6 +3,54 @@
 Product research → creative brief → copywriting → creative review → photographic asset → separately typeset advertising copy.
 
 
+## Agency planning core
+
+The sidebar now includes **Dashboard**, **Clients & Brands**, **Research**, **Strategy** and
+**Campaigns**, alongside the existing Image/GIF, Video and System Status workspaces.
+The global Client → Project → Campaign → Locale selector keeps new planning records scoped.
+
+A second iteration (2026-11-12) adds **Content Studio**, **Assets & Approvals**,
+**Calendar & Publishing**, **Analytics & Experiments**, **Reports & Learnings** and
+**Operations**: concept matrices, copy variants with deterministic checks, scripts and
+storyboards that create real Video Studio projects, a checksummed asset library with usage
+rights and version-specific approvals, local publication packages, CSV metric import,
+computed experiment statistics, data-grounded reports and internal pricing scenarios. See
+AGENCY_WORKFLOW.md, PUBLISHING.md and ANALYTICS.md. Nothing is posted externally and no model
+is called by these workspaces. Verify with `python scripts/verify_agency_production.py` and
+`python scripts/verify_agency_production_browser.py`.
+
+The first iteration delivered the local foundation through campaign briefs (roadmap phases 0–4):
+SQLite persistence/migrations/backups, brand and brief versions, glossary, claims/evidence,
+research imports and controlled snapshots, audiences/positioning/strategy, channel and
+deliverable plans, claim checks and explicit saved-brief handoff to Image Studio.
+Manual planning needs no paid AI API. Added workspaces now include **SEO & Landing Pages**, **Email & CRM**, **Audio & Subtitles**, **Paid Media Planning**, **Creators & UGC**, and **Privacy & Retention**. These provide actual HTML audits, RTL static-page ZIPs, recorded consent and suppression, deterministic recipient segments, email test exports, private FFmpeg audio renders, timed subtitle downloads, budget/UTM scenarios, creator/organic plans and client data export/erasure review. See [Acquisition and audio](ACQUISITION_AND_AUDIO.md).
+
+Run all agency backend checks and three real browser scenarios:
+
+~~~powershell
+python scripts/verify_agency.py --browser
+~~~
+
+Add `--media` to also run the existing media regression runner and agency integration suite. Results/logs are written under `output/agency-verification`. Optional CPU text and Whisper adapters do not imply installed or verified model inference. TTS synthesis, authenticated multi-user review, live platform/SMTP/analytics connectors and autonomous agents remain unavailable; see the precise phase boundary in [the implementation report](AGENCY_IMPLEMENTATION_REPORT.md).
+
+Use the existing application environment:
+
+~~~powershell
+python -m pip install -r requirements-agency.txt
+python -m uvicorn server:app --host 127.0.0.1 --port 8000
+~~~
+
+Restart an existing server to load the new routes. Agency data is deliberately **loopback-only**
+for one local operator; there is no multi-user login/RBAC. The additive database defaults to
+`output/agency`; existing brand JSON, image renders and video projects remain in place.
+
+- [Workflow and supported scope](AGENCY_WORKFLOW.md)
+- [Detailed completion report, phases, file manifest and test evidence](AGENCY_IMPLEMENTATION_REPORT.md)
+- [Architecture](ARCHITECTURE.md) ? [Backup/restore](BACKUP_RESTORE.md)
+- [Optional local AI setup](LOCAL_AI.md) ? [Model licenses](MODEL_LICENSES.md)
+- [Security](SECURITY.md) ? [Privacy](PRIVACY.md)
+- [Publishing boundary](PUBLISHING.md) ? [Analytics status](ANALYTICS.md)
+
 ## Video Studio
 
 The sidebar now separates **Image & GIF Studio**, **Video Studio**, and **System Status**.

@@ -38,7 +38,11 @@ with (LOGS/"server.log").open("w", encoding="utf-8") as log:
             started = time.monotonic()
             with (LOGS/(target.stem+".log")).open("w", encoding="utf-8") as output:
                 try:
-                    result = subprocess.run([sys.executable,"-u",str(worker),target.name],cwd=ROOT,env=environment,
+                    # Video tests set their isolated storage BEFORE importing their modules.
+                    # The legacy worker imports server first, which otherwise contaminates that isolation.
+                    command = [sys.executable,"-u",str(target)] if target.name in {
+                        "test_video_studio.py","test_video_studio_browser.py"} else [sys.executable,"-u",str(worker),target.name]
+                    result = subprocess.run(command,cwd=ROOT,env=environment,
                                             stdout=output,stderr=output,timeout=600,
                                             creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0))
                     status = "passed" if result.returncode == 0 else "failed"

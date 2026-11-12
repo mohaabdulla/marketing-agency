@@ -1,0 +1,5 @@
+# Agency domain uses SQLite from Python and the application's existing FastAPI/Pydantic stack.
+requests>=2.32,<3
+beautifulsoup4>=4.12,<5
+tzdata>=2025.1
+python-multipart>=0.0.20,<1

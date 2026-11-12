@@ -1,0 +1,4493 @@
+# LEXNIS Campaign Studio: End-to-End AI Marketing Agency Research and Master Implementation Blueprint
+
+**Research date:** November 12, 2026  
+**Scope:** traditional and AI-powered agency operations from client discovery through strategy, creative production, publishing, optimization, reporting, governance, and commercial operations, with a strict **local-first / free-core / no paid API or subscription dependency** requirement.
+
+## Executive synthesis and agency operating model
+
+A modern marketing agency is not fundamentally an “image generator” or a “social-post generator.” It is an operating system that turns a business problem into research, strategy, creative decisions, media, distribution, measurement, learning, and another iteration. Industry briefing frameworks from the AMA, 4As, and Media Federation of Australia all place the business problem, objectives, measurable success, audience, budget, constraints, responsibilities, approvals, channels, creative requirements, and reporting expectations *before* execution. The AAMA's current campaign-planning framework similarly proceeds from business context and objectives through audience, positioning, strategy, channels, creative, budget, calendar, measurement, experimentation, governance, pre-launch review, and post-campaign learning. citeturn398763search0turn398763search1turn398763search8turn398763search7
+
+This distinction matters for LEXNIS. The current product is already becoming a capable **creative-production application**, but an actual AI agency platform needs to become a **campaign operating environment** in which research, strategic decisions, claims, briefs, content, assets, approvals, publication records, metrics, experiments, and lessons are connected objects rather than isolated generations.
+
+### The real agency lifecycle
+
+The best target workflow for LEXNIS is:
+
+| Agency stage | What professional agencies actually need to produce | What AI should do | What should remain human-controlled |
+|---|---|---|---|
+| Discovery | Business problem, objectives, product/service details, commercial constraints, stakeholders, markets, budget, deadlines | Organize intake, find missing information, summarize documents | Final scope, objectives, commercial commitments |
+| Onboarding | Access checklist, assets, brand materials, historical campaigns, contacts, approvals, reporting cadence | Detect missing assets/access, build onboarding checklist | Credential authorization, contracts, responsibilities |
+| Research | Market, category, competitors, customers, search behavior, trends, media context | Crawl/import permitted evidence, cluster findings, summarize, compare | Decide what evidence is credible and strategically relevant |
+| Audience | Segments, personas, JTBD, motivations, barriers, decision criteria, journeys | Synthesize evidence into hypotheses and segment profiles | Validate that personas reflect evidence rather than stereotypes |
+| Positioning | Frame of reference, differentiation, benefit, proof, message hierarchy, offer | Generate candidate positioning territories | Select positioning and approve factual claims |
+| Strategy | Goals, KPIs, channel roles, funnel/customer journey, budget/resource allocation | Scenario generation, channel recommendations, forecasting assumptions | Strategic trade-offs and financial decisions |
+| Campaign planning | Brief, deliverables, calendar, channel matrix, testing plan, approvals | Draft campaign plans and dependency maps | Scope and final commitments |
+| Concepts | Creative territories, hooks, themes, visual directions | Generate broad concept matrices | Select ideas worth producing |
+| Copy | Headlines, body copy, captions, CTAs, long-form articles, ads, emails | Draft, adapt, shorten, repurpose, translate | Claims, tone, compliance and final approval |
+| Scripts | Hook/body/CTA, dialogue, narration, shot requirements | Draft scripts and multiple hooks | Creative judgment and factual approval |
+| Storyboards | Scenes, shots, camera, duration, transition, audio, text overlays | Convert scripts into structured shot lists | Shot selection and production feasibility |
+| Images/design | Hero assets, products, ads, carousels, banners, thumbnails | Generate/edit/resize/version | Brand and product fidelity |
+| GIF/motion | Short loops, promos, animated typography | Automate templates and frame production | Visual approval |
+| Video | Generated clips, edited footage, promos, social videos | Local generation, assembly, captions, adaptation | Creative and legal review |
+| Audio | VO, captions, transcription, cleanup, music, effects | ASR, supported TTS, normalization | Voice consent, music/license approval |
+| Localization | Arabic/English copy, typography, directionality, cultural adaptation | Translation drafts and locale transformations | Native-language QA and cultural judgment |
+| Web/SEO | Landing pages, technical SEO, schema, content briefs | Audits, metadata, structured-data generation, internal-link suggestions | Final claims and site changes |
+| Email/CRM | Segments, nurture flows, campaigns, templates | Draft sequences and automations | Consent and send authorization |
+| Organic social | Calendar, platform adaptations, community content | Repurposing and scheduling preparation | Public posting where required |
+| Paid media | Ads, variants, audiences, placements, budgets | Generate variants and plans; analyze results | Spend authorization and platform compliance |
+| Influencer/UGC | Briefs, creator lists, contracts, disclosure requirements | Research and briefing assistance | Creator contracting and disclosure approval |
+| Publishing | Calendar, platform metadata, approvals, upload | API orchestration where available | External publishing permission |
+| Analytics | Events, conversions, channel metrics, creative performance | Aggregate, normalize, detect anomalies | KPI interpretation |
+| Experimentation | Hypothesis, control, variants, success metric, guardrails | Suggest experiments, analyze results | Experiment approval |
+| Reporting | Narrative, charts, insights, next actions | Automated report drafts | Recommendations and client conversation |
+| Operations | Scope, tasks, utilization, profitability, documentation | Estimates, checklists, work routing | Pricing, staffing, client commitments |
+| Knowledge | Reusable findings, winning hooks, claims, brand rules | Retrieve and summarize prior work | Govern what becomes institutional knowledge |
+
+That order reflects current professional briefing and campaign-planning practice: the brief is supposed to function as a shared reference point containing objectives, audience, success criteria, budgets, constraints, localization, creative direction, reporting, checkpoints and sign-off, rather than being generated after creative work begins. citeturn398763search0turn398763search1turn398763search8
+
+### What changes when the agency becomes AI-powered
+
+The highest-value use of AI is not simply “generate more content.” It is compressing the time between evidence and iteration. An AI-native agency can maintain a structured knowledge base of the client, retrieve approved claims and historical results, draft strategic options, generate creative matrices, convert concepts into scripts and storyboards, produce variants, localize them, run deterministic QA, assemble campaign packages, interpret performance, and feed the result back into future planning. The dangerous implementation is the opposite: letting a model invent market facts, customer personas, product claims, or performance conclusions without evidence. Google's guidance on generative content explicitly warns that generated material can contain inaccuracies and recommends human fact-checking; mass-generated pages that add little user value may also violate scaled-content-abuse policies. citeturn519302search2
+
+For LEXNIS, I would therefore build **evidence-backed generation**. Every strategically important generated statement should be able to point to one of four states: `verified source`, `client supplied`, `approved internal assumption`, or `unverified hypothesis`. A claim used in advertising should have an associated evidence record and approval status. This would be much more valuable than simply adding another LLM chat window.
+
+### Strategy, campaigns and creative should become structured data
+
+The AAMA's 2026 planning structure is unusually close to what LEXNIS should model: business context, objectives, success criteria, audience, journey, positioning, message, offer, strategy, channel/media plan, creative/content, budget/resources, calendar, measurement, testing, governance, launch review and post-campaign recommendations. citeturn398763search7
+
+A campaign should consequently be a persistent object containing:
+
+**Business problem → objective → KPI → audience → desired behavior → insight → positioning → message pillars → reasons to believe → claims/evidence → offer → CTA → channel roles → creative concepts → deliverables → calendar → experiments → approvals → published instances → performance → learnings.**
+
+That lineage is one of the largest missing layers between a generative creative tool and an actual agency system.
+
+### Creative production should work from a concept matrix
+
+For each campaign, LEXNIS should generate a concept matrix rather than one “best” piece of content. A useful matrix crosses elements such as audience segment, problem, benefit, awareness stage, emotional/rational angle, hook type, offer, channel, format and CTA. One campaign could therefore deliberately test, for example, an authority hook versus curiosity hook, a product-detail visual versus lifestyle visual, and a direct CTA versus educational CTA while retaining a common positioning strategy.
+
+For short-form video, platform guidance reinforces the importance of platform-native composition rather than blindly resizing a generic commercial. TikTok's own guidance emphasizes mobile-first vertical creative, sound, people, sufficient image quality, variant testing and a hook/body/close structure. citeturn285096search4
+
+### Localization has to be more than translation
+
+LEXNIS already has useful Arabic rendering foundations, but a bilingual agency system should distinguish:
+
+`source language` → `translation` → `transcreation` → `locale` → `dialect/register` → `approved terminology` → `RTL/LTR rendering QA`.
+
+For Arabic/English work, maintain a per-client glossary containing product names, terms that must remain English, official Arabic translations, prohibited alternatives, preferred numerals, currency/date conventions, brand phrases and tone. Mixed Arabic/English strings should be tested separately because correct translation does not guarantee correct visual directionality. FTC disclosure guidance also illustrates why localization extends to compliance: disclosures accompanying endorsements should be in the same language as the endorsement itself. citeturn811637search0turn811637search1
+
+### SEO and “AI search” should remain evidence-based SEO
+
+As of November 2026, Google's own guidance explicitly says that the fundamentals of SEO remain applicable to AI Overviews and AI Mode; there is no special schema or special AI text file required to appear in those experiences. Google recommends useful, reliable, non-commodity content, crawlability, internal linking, textual accessibility, good page experience, accurate structured data and relevant high-quality images/video. Its newer guidance specifically cautions against “AEO/GEO hacks,” unnecessary `llms.txt` tactics for Google visibility, and low-value mass generation. citeturn519302search0turn519302search1turn519302search3
+
+This means LEXNIS should certainly have an **AI Search / Generative Search visibility workspace**, but it should be built on technical SEO, original evidence, expertise, content quality, internal structure, entities, useful media and measurement—not on an invented “GEO score.” Search Console now also exposes controls and reporting for participation in Google's generative search features, giving an optional external measurement integration when the client connects it. citeturn519302search4
+
+### External publishing is fundamentally different from local generation
+
+You can make image generation, editing, video editing, reports, landing-page export and campaign planning fully local. Publishing to third-party platforms inherently requires internet access, user accounts, OAuth/API credentials and compliance with changing platform policies. TikTok Direct Post requires the `video.publish` scope and explicit user authorization; unaudited applications have posting restrictions. LinkedIn posting similarly requires OAuth permissions, with some organization/marketing access restricted. YouTube uploads require OAuth authorization and are quota-governed. citeturn285096search4turn285096search5turn285096search7turn285096search6
+
+Therefore the right product architecture is:
+
+**Core:** completely functional without social APIs.
+
+**Optional connectors:** Instagram/Meta, TikTok, LinkedIn, YouTube and others when the user supplies their own approved credentials.
+
+**Fallback:** export a publication-ready package containing the media, caption, alt text, hashtags, title, disclosure, thumbnail and posting checklist when an API connector is unavailable.
+
+That preserves the zero-paid-core requirement without pretending that LEXNIS can independently control external platforms.
+
+## Free/local technology stack and current AI capability
+
+The central technical principle should be **“free core, optional connectors.”** The core agency must remain operational without Gemini, OpenAI, Claude, paid image/video APIs, proprietary analytics, SaaS CRMs, scheduling subscriptions, or hosted automation. External services can exist only as explicitly configured adapters.
+
+### Recommended local-first stack
+
+| Capability | Recommended core | License / condition | Cost reality | LEXNIS role |
+|---|---|---|---|---|
+| Text/reasoning | Qwen3 class models through llama.cpp or another local inference adapter | Qwen3-8B Apache-2.0; llama.cpp MIT | Local compute | Research synthesis, copy, scripts, strategy drafts |
+| Image generation | Existing engine + FLUX.1-schnell; evaluate Qwen-Image-2512 | Both cited models Apache-2.0 | GPU/RAM/disk | Campaign images |
+| Image editing | Add a separately validated local image-edit model | Per-model license | Local compute | Inpaint, change products/backgrounds/text |
+| Workflow image/video graph | Optional external ComfyUI process | GPL-3.0 application | Free software; license review before tight embedding | Advanced node workflows |
+| GIF/motion graphics | Pillow + FFmpeg + existing renderer | Open-source components | CPU | Existing capability |
+| Deterministic video | FFmpeg/FFprobe + current editor | Free/open source, codec/build terms still matter | CPU/GPU encoding | Existing Video Studio |
+| Local T2V | CogVideoX-2B as practical low-memory test candidate | Apache-2.0 | GPU/RAM/disk | Optional AI generation |
+| Higher-end T2V/I2V | Wan2.2 TI2V-5B | Apache-2.0 | ≥24 GB VRAM documented for official single-GPU 720p workflow | High-hardware option |
+| Advanced synchronized A/V video | LTX-2.5 | Community license; not unconditional Apache weights | High-end local compute; commercial threshold in model license | Optional only |
+| Speech recognition | Whisper | MIT code and weights | Local compute | Transcription/captions |
+| TTS | Kokoro where its supported languages/voices satisfy requirements | Apache-2.0 | Local compute | Optional voiceover |
+| Arabic TTS | Separate audited voice/model registry | Voice/model-specific | Varies | Do not claim support until verified |
+| Video/audio processing | FFmpeg | Open-source; build/license depends on configuration | Local compute | Editing/export |
+| Analytics | Matomo self-hosted | GPLv3 | Own server/storage | Site analytics |
+| Marketing automation | Mautic | GPLv3 | Own server/mail infrastructure | Leads/nurture |
+| Newsletter management | listmonk | AGPLv3 | Own server/Postgres/SMTP | Email campaigns |
+| Workflow automation | Activepieces core | MIT | Own infrastructure | Automation/orchestration |
+| Social scheduling | Optional Postiz self-host | AGPL-3.0 | Own infrastructure + platform credentials | Publishing connector |
+| CRM | Native lightweight CRM first; optional self-host Twenty integration | Twenty includes AGPL and commercial-licensed portions | Review license/configuration | Optional |
+| Local inference runtime | llama.cpp | MIT | Local hardware | Local LLM server |
+
+FLUX.1-schnell is a 12-billion-parameter text-to-image model whose model card states Apache-2.0 and permits commercial use, while Qwen-Image-2512 is also published under Apache-2.0. Qwen3-8B is Apache-2.0, supports 100+ languages/dialects according to its model card, and can provide a reasonable multilingual local-text foundation; llama.cpp's code is MIT-licensed and is designed for local inference across a broad range of hardware. citeturn337474search0turn337474search2turn337474search4turn237589search1turn237589search21
+
+Do not couple the core application directly to ComfyUI simply because it is popular. ComfyUI is GPL-3.0, so distribution and modification decisions should be reviewed carefully; an optional independently deployed process with an API boundary is a cleaner technical and licensing separation than copying its code into LEXNIS. citeturn237589search5turn237589search19
+
+### Video model reality in late 2026
+
+The biggest danger in “free AI video” roadmaps is pretending that model weights solve the hardware problem.
+
+CogVideoX-2B remains useful precisely because its official model card documents Diffusers configurations starting around 4 GB of VRAM with aggressive memory optimization, although that does not mean an arbitrary 8 GB laptop will deliver fast or reliable production inference. The model is Apache-2.0. citeturn337474search5
+
+Wan2.2 TI2V-5B is substantially stronger as a modern text-and-image-to-video option and is Apache-2.0, but the official repository's documented single-GPU 720p workflow requires **at least 24 GB VRAM**; its model repository is roughly 34 GB before working-space requirements. It supports text-to-video and image-to-video, with its official TI2V workflow supporting 720p at 24 FPS. citeturn213605search0turn213605search1turn213605search3
+
+LTX has progressed to LTX-2.5 in 2026 and now advertises multi-shot generation and synchronized audio/video, but there is an important licensing distinction: the **code** is Apache-2.0 while current **model weights** use the LTX-2.x Community License. The LTX-2.5 model page states commercial/production use is free below a specified annual-revenue threshold, while larger commercial entities need a commercial agreement. That makes it an attractive optional adapter, but not a safe unconditional “free forever for every user” core dependency. citeturn486678search0turn486678search4turn486678search8
+
+This is exactly why LEXNIS needs a **model registry with licenses and capability gates**, not a hardcoded “AI Video: available” toggle.
+
+### Audio, transcription and captions
+
+Whisper's code and model weights are MIT-licensed, making it an excellent local foundation for speech-to-text, subtitle creation, transcript search and caption timing. citeturn213605search4turn213605search5
+
+Kokoro-82M is an Apache-2.0 open-weight TTS model and is unusually lightweight, but language/voice support must be evaluated at the specific version and voice level; LEXNIS should never label “Arabic TTS supported” merely because a TTS engine is multilingual. citeturn213605search6turn213605search7
+
+The audio workspace should consequently support these tiers:
+
+| Tier | Feature | Core status |
+|---|---|---|
+| Deterministic | Extract audio, mix, fade, normalize loudness, trim, noise filters | Core |
+| Speech recognition | Whisper transcription and timestamped subtitles | Core optional model |
+| Caption design | SRT/VTT/ASS + burnt captions + bilingual caption styles | Core |
+| Voiceover | Local TTS for validated voices | Optional |
+| Arabic voiceover | Only models/voices individually tested and licensed | Optional |
+| Voice cloning | Explicit consent, source-voice provenance and strict policy | Future optional |
+| Music | User-owned, CC0/public-domain or license-recorded library | Core asset management |
+| AI music | Only after model license/commercial-use audit | Future optional |
+
+### Self-hosted agency infrastructure
+
+Mautic is GPLv3 and explicitly supports fully self-hosted marketing automation; listmonk is an AGPLv3 self-hosted newsletter/list manager using PostgreSQL; Matomo's core analytics is GPLv3 and self-hostable. citeturn337366search0turn337366search1turn337366search2turn337366search4
+
+Activepieces is particularly suitable for LEXNIS's zero-paid-core philosophy because its core is MIT-licensed, while its enterprise features are separately commercial. That makes it a cleaner default automation integration than assuming all self-hostable automation products are truly unrestricted open source. citeturn337366search5
+
+n8n can still be an optional integration, but it identifies itself as “fair-code,” so LEXNIS should not describe it as an unconditional open-source core dependency. citeturn337366search6
+
+Postiz is a viable optional self-hosted social scheduler and is AGPL-3.0, but social publishing remains subject to each connected platform's account, OAuth, API, application-review and rate-limit rules. citeturn237589search0turn237589search2turn285096search4turn285096search5
+
+### Email is free to compose, not magically free to deliver
+
+LEXNIS can locally create email templates, manage segments, run consent logic and integrate Mautic/listmonk without a SaaS subscription, but reliable mass delivery still requires SMTP infrastructure, domain/DNS configuration, reputation management and compliance. Self-hosting an SMTP server is technically possible but it does not make deliverability trivial.
+
+For U.S.-directed commercial email, CAN-SPAM requires accurate headers, non-deceptive subject lines, advertising identification where applicable, a postal address, a functioning opt-out and prompt honoring of opt-outs; the FTC states opt-out requests must be honored within 10 business days. citeturn811637search2
+
+Therefore LEXNIS should own **campaign authoring, segmentation, consent records and send preparation**, while treating the actual SMTP transport as an independently configured infrastructure component.
+
+### Paid media can be automated, but spend cannot be made “free”
+
+An agency platform can make creative variants, media briefs, audience plans, UTM structures, budget scenarios and import/export files locally. It cannot make Google/Meta/TikTok/LinkedIn advertising free. Media spend is inherently external expenditure, and agency pricing benchmarks themselves distinguish agency/media-management fees from the ad budget. citeturn398763search3turn398763search5
+
+The product should therefore clearly label paid-ad functionality as:
+
+**Planning and creative: free/local.**  
+**Platform connection: optional external account.**  
+**Actual media delivery: requires platform spend.**
+
+### Pricing and commercial operations
+
+Current agency pricing data reinforces why LEXNIS should include more than content generation. Promethean Research's 2026 report says agencies commonly mix pricing methods—time/materials, fixed bid, retainers, value-based and performance structures—and no more than about 8% in its survey relied exclusively on a single model; 29% of surveyed agencies charged $175–199/hour. Clutch's 2026 data, based on a different marketplace sample and methodology, produces much wider and often lower bands, which demonstrates that pricing varies heavily by service, geography, positioning and source methodology. citeturn398763search4turn398763search2turn398763search3
+
+LEXNIS therefore should not attempt to prescribe a universal agency price. It should provide a **pricing calculator** that supports fixed projects, retainers, estimated hours, internal cost rate, target margin, recurring deliverables, media-management percentage, pass-through costs, optional performance fees, discounts and scope-change estimates.
+
+## LEXNIS repository audit and capability gap
+
+I was able to access and inspect the uploaded archive at `/mnt/data/marketing-agency-main (1).zip`. I extracted and reviewed the actual repository rather than relying only on the previous summary.
+
+A major finding is that the attached version is **more advanced than the earlier description**: a substantial Video Studio implementation is already present. You should therefore **not give Codex another prompt that tells it to build Video Studio from zero**. The next implementation should extend the new foundation into a complete agency platform.
+
+### What is verified in the current repository
+
+The archive contains the previously identified core files:
+
+`server.py`  
+`index.html`  
+`campaign_generator.py`  
+`visual_engine.py`  
+`agency_suite.py`  
+`brand_kits.py`  
+`layout_analyzer.py`
+
+It also contains a complete new video subsystem:
+
+`video_api.py`  
+`video_assets.py`  
+`video_editor.py`  
+`video_engine.py`  
+`video_ffmpeg.py`  
+`video_jobs.py`  
+`video_models.py`  
+`video_projects.py`  
+`video_security.py`  
+`video_storage.py`  
+`gpu_resources.py`
+
+and frontend modules:
+
+`static/js/workspace-navigation.js`  
+`static/js/video-api.js`  
+`static/js/video-studio.js`  
+`static/js/video-editor.js`  
+`static/css/video-studio.css`
+
+The main FastAPI application registers the video router in `server.py`, and `video_api.py` exposes health, capabilities, models, assets, upload/import, media/download/thumbnail access, project CRUD, export, generation, audio extraction and asynchronous job/cancellation APIs.
+
+The repository's own `VIDEO_VERIFICATION.md` documents an unusually useful distinction between tested and untested capabilities. According to that record:
+
+| Capability | Verified repository status |
+|---|---|
+| FFmpeg upload/metadata | Tested |
+| Byte-range video seeking | Tested |
+| Trim/merge | Tested |
+| Crossfade | Tested |
+| Arabic/English title rendering | Tested |
+| Logo overlay | Tested |
+| Audio mix/extraction | Tested |
+| MP4 | Tested |
+| WebM | Tested |
+| CPU zoom animation | Tested |
+| Video project CRUD/duplicate | Tested |
+| Security/path/request limits | Tested |
+| Cancellation | Tested |
+| Error redaction | Tested |
+| Desktop browser workspace | Tested |
+| 390px mobile UI | Tested |
+| Timeline trim/split/reorder | Tested |
+| Save/reopen project | Tested |
+| Real FFmpeg MP4 browser export | Tested |
+| Image→Video Studio transfer | Tested |
+| Existing agency regressions | 15 script suites reported passing |
+| Real CogVideoX inference | **Not tested** |
+| Real Wan inference | **Not tested** |
+| GPU OOM recovery under actual model load | **Not tested** |
+| Actual AI-video quality/latency | **Not tested** |
+| Whisper transcription | **Not implemented** |
+| TTS | **Not implemented** |
+| Optical-flow slow motion | **Not implemented** |
+| Live composite preview | **Not implemented** |
+| Advanced depth parallax | **Not implemented** |
+| Arbitrary uploaded fonts | **Not implemented** |
+| Free-position main-track editing | **Not implemented** |
+
+That honesty should be preserved. Codex must not “upgrade” the documentation by calling mocked model orchestration real AI inference.
+
+The current video registry also confirms that the product is already trying to be license- and hardware-aware. It registers CogVideoX-2B as Apache-2.0 with conservative local hardware gates and a separate Wan image-to-video model with significantly larger memory requirements. This general registry pattern should now be expanded to **all** local AI capabilities—text, vision, image editing, TTS, speech recognition and eventually embedding/reranking models.
+
+### Current-versus-ideal agency capability matrix
+
+| Domain | Current LEXNIS state from repository inspection | Ideal agency capability | Gap | Priority |
+|---|---|---|---|---|
+| Main navigation | Image/GIF, Video Studio, System Status sidebar exists | Full agency workspace navigation | Extend, do not replace | Critical |
+| Client accounts | No mature agency CRM/project layer found | Clients, contacts, brands, stakeholders, status | Large | Critical |
+| Onboarding | Some website/brand intake | Formal intake, access checklist, objectives, constraints, approvals | Large | Critical |
+| Brand kits | Existing | Versioned brand system with tokens, approved terms, forbidden claims, visual rules | Medium | Critical |
+| Website analysis | Existing brand/site analysis | Evidence-backed research snapshots and citations | Medium | Critical |
+| Market research | Some external/search-related capability | Research workspace with sources/findings/evidence | Large | Critical |
+| Competitor research | Partial/unstructured | Competitor profiles, messaging, channels, creative observations, snapshots | Large | High |
+| Personas | Mostly generated copy context | Evidence-linked segments/personas/JTBD | Large | High |
+| Customer journey | Limited | Journey stages, friction, questions, content needs | Large | High |
+| Positioning | Copy implicitly contains positioning | Persistent positioning/message architecture | Large | Critical |
+| Claims | Some supported-claim filtering | Claim/evidence registry, expiry, approval and channel constraints | Medium-large | Critical |
+| Strategy | Partial campaign generation | Objectives/KPIs/channel roles/budget/risks/strategy doc | Large | Critical |
+| Creative brief | Existing pipeline references creative brief | Persistent, versioned, approval-aware creative brief | Medium | Critical |
+| Campaign planning | Campaign generation exists | Calendar, deliverables, dependencies, owners, experiments, budgets | Large | Critical |
+| Copywriting | Strong existing area | Add model routing, source grounding, variant lineage, evaluations | Medium | High |
+| Social copy | LinkedIn/Instagram/X already represented | Add broader channel spec engine | Medium | High |
+| Long-form | Limited | Blog/articles/SEO pages/lead magnets | Large | High |
+| Scripts | Some copy could produce scripts | Formal script editor with scenes, VO, duration, CTA | Large | High |
+| Storyboards | Missing as first-class object | Script→shots→references→generation→timeline | Large | High |
+| Image generation | Strong local foundation | Add image edit/inpaint/outpaint/reference controls/version comparisons | Medium | High |
+| Product fidelity | Some photographic workflow | Product/identity reference validation and regression QA | Medium | High |
+| Graphic design | Separate typesetting already valuable | Template system, compositions, reusable components, brand QA | Medium | High |
+| GIF | Existing | Timeline/easing/templates and campaign variants | Small-medium | Medium |
+| Deterministic video editing | Newly substantial | Add richer timeline and proxy/live preview | Medium | High |
+| AI text-to-video | Adapter exists, real run not verified | Verified local models by hardware tier | Verification gap | High |
+| AI image-to-video | Adapter exists, real run not verified | Verified model by tier | Verification gap | High |
+| Video storyboard integration | Missing | Storyboard shot → generate/import → timeline | Large | High |
+| Transcription | Missing | Whisper-based transcription | Large | High |
+| Captions | Manual/text overlays possible | Timed bilingual captions and styles | Large | High |
+| TTS/voiceover | Missing | Local TTS registry + consent/provenance | Large | Medium-high |
+| Audio mastering | Basic mix/extract | Loudness normalization, ducking, denoise, waveform | Medium | Medium-high |
+| Music management | Missing | Licensed local library and rights metadata | Large | Medium |
+| Arabic | Existing bidi/font handling is promising | Translation memory, glossary, locale/dialect, RTL visual QA | Medium | Critical |
+| Asset management | Video assets + generated outputs | Unified DAM across every campaign and media type | Large | Critical |
+| Versions | Some file/project versions indirectly | Explicit asset/version lineage | Large | Critical |
+| Rights/licenses | Video third-party notices exist | Per-asset rights and AI-model provenance | Large | Critical |
+| Approvals | No complete review workflow | Review links, comments, version approval, lock/final | Large | Critical |
+| Content calendar | Missing | Campaign/channel calendar | Large | High |
+| Publishing | Missing as comprehensive layer | Export packages + optional API adapters | Large | High |
+| SEO | Very limited | Technical/content SEO workspace | Large | High |
+| Landing pages | Missing | Static local page builder/export | Large | High |
+| Email | Missing | Template/segment/campaign plus Mautic/listmonk integration | Large | High |
+| CRM | Missing | Simple native CRM + optional external adapter | Large | Medium-high |
+| Paid-ad planning | Missing | Campaign/ad group/creative/budget/UTM/export | Large | High |
+| Paid-ad execution | Missing | Optional platform connectors; explicit spend approval | Intentional external | Optional |
+| Organic planning | Partial posts | Calendar, pillars, series, repurposing | Medium-large | High |
+| Influencer/UGC | Missing | Creator briefs, rights, disclosure tracker | Large | Medium |
+| Analytics | No unified campaign analytics | Matomo/import/API adapters + normalized metrics | Large | Critical |
+| Experiments | Missing | Hypothesis/variant/metric/result objects | Large | Critical |
+| Reporting | Campaign exports but no agency intelligence suite | Dashboards, PDF/HTML reports, insights and actions | Large | Critical |
+| Knowledge base | Implicit files | Searchable approved institutional memory | Large | High |
+| Automation | Individual background jobs | Workflow/rules engine or Activepieces adapter | Large | Medium-high |
+| Operations | Missing | Tasks, scope, time/cost, profitability | Large | Medium |
+| Pricing | Missing | Project/retainer/value/performance proposal calculator | Large | Medium |
+| Authentication | Needs full audit | Users/RBAC/session protection | Potentially large | Critical before multi-user |
+| Audit logging | Video logs/jobs only | Security and approval audit trail | Large | Critical |
+| Secrets | `.env` integrations exist | Credential vault/reference abstraction | Medium | Critical |
+| Multi-tenancy | No mature client isolation identified | Org/client/project boundaries | Large | Critical if SaaS/LAN multi-user |
+| Backup/restore | Not a major product layer | Structured backup/export/restore | Large | High |
+| AI provenance | Partial model info | Full model/prompt/seed/license/version lineage | Medium | Critical |
+
+### The most important product shift
+
+Do **not** turn the left sidebar into fifty disconnected AI tools.
+
+Turn it into a workflow:
+
+```text
+Dashboard
+Clients & Brands
+Research
+Strategy
+Campaigns
+Content Studio
+    Copy
+    Scripts
+    Storyboards
+    Image & GIF
+    Video
+    Audio & Voice
+Assets
+Calendar & Publishing
+SEO & Web
+Email & CRM
+Analytics & Experiments
+Approvals
+Reports
+Operations
+System & Settings
+```
+
+The existing **Image & GIF Studio** and **Video Studio** should remain working workspaces. They should become entry points within the broader Content Studio while retaining their current IDs/routes/state where necessary to avoid regressions.
+
+The value is that a user can start from a Campaign, click **Create Assets**, generate a script, convert it to a storyboard, send a frame to Image Studio, send an approved image into Video Studio, transcribe the result, add Arabic/English captions, submit the version for approval, schedule it, publish/export it, collect metrics, and see that performance appear against the original campaign hypothesis.
+
+That closed loop is the difference between “AI creative tools” and an “AI marketing agency.”
+
+## Target product architecture, data model, security and UI
+
+### Architecture: modular monolith first
+
+The current FastAPI + vanilla-JS/Tailwind structure is perfectly capable of supporting the next phase if the code is split by domain. I would **not** introduce microservices or rebuild the frontend in React merely because the project is getting larger.
+
+The existing `index.html` and some Python modules are already large. The right move is a **modular monolith with worker boundaries**:
+
+```text
+FastAPI application
+│
+├── Existing campaign/image API
+├── Existing video API
+├── Clients & brands API
+├── Research API
+├── Strategy API
+├── Campaign API
+├── Content API
+├── Assets / DAM API
+├── Approvals API
+├── SEO / web API
+├── Email / CRM API
+├── Publishing API
+├── Analytics / experiments API
+├── Reports API
+├── Operations API
+└── System / model registry API
+
+Shared services
+│
+├── persistence
+├── authorization
+├── jobs
+├── asset storage
+├── model registry
+├── local LLM
+├── provenance
+├── brand QA
+├── compliance
+├── localization
+├── metrics
+└── audit logging
+
+Isolated workers
+│
+├── local image worker
+├── local video worker
+├── local LLM worker/server
+├── transcription worker
+├── TTS worker
+├── crawling/audit worker
+└── render/export worker
+```
+
+Use the existing GPU lock/resource-management idea across all accelerator workloads. Image, video and LLM models should not independently assume ownership of the GPU.
+
+### Core persistence model
+
+I would introduce these entities, adapting them to whatever persistence patterns Codex finds in the real repository:
+
+| Entity | Important fields / relationships |
+|---|---|
+| Organization | ID, name, locale, settings |
+| User | ID, role, organization |
+| Client | ID, organization, name, industry, markets, status |
+| Stakeholder | Client, name, role, contact, approval authority |
+| BrandKit | Client, version, colors, typography, tone, locale rules |
+| BrandAsset | Logo/product/reference/font/license |
+| BrandRule | Required/prohibited visual/copy rule |
+| GlossaryTerm | Source term, Arabic, English, preferred form, prohibited forms |
+| AccessRequirement | Platform/service/access owner/status |
+| Project | Client, scope, objective, dates, owner |
+| ResearchSource | URL/file/manual source, timestamp, credibility, snapshot |
+| ResearchFinding | Source-backed finding, confidence, tags |
+| Competitor | Client/project competitor profile |
+| AudienceSegment | Evidence, needs, motivations, barriers |
+| Persona | Segment projection, explicitly hypothesis/evidence status |
+| JourneyStage | Stage, need, friction, content opportunity |
+| Positioning | Category, audience, benefit, difference, proof |
+| MessagePillar | Message, support, channels |
+| Claim | Exact claim, status, evidence, expiry, restrictions |
+| Evidence | File/source, quotation/summary, date |
+| Offer | Description, terms, validity |
+| Campaign | Objective, KPI, status, dates |
+| ChannelPlan | Channel, role, audience, budget, KPI |
+| CreativeBrief | Campaign, version, approvers |
+| CreativeConcept | Territory, insight, hook, rationale |
+| ContentItem | Campaign, channel, format, status |
+| CopyVariant | Content item, language, version, model provenance |
+| Script | Scenes, VO, on-screen text, estimated duration |
+| Storyboard | Script, version |
+| StoryboardShot | Shot number, duration, framing, camera, prompt, reference assets |
+| MediaAsset | Generic unified asset |
+| AssetVersion | Parent asset, version, hash |
+| AssetRelation | Source/generated-from/derivative-of relationship |
+| GenerationRecord | Model, revision, prompt, seed, settings |
+| LicenseRecord | License, owner, restrictions, expiration |
+| VideoProject | Existing video project association |
+| AudioAsset | Voice/music/SFX metadata |
+| SubtitleTrack | Language, timing, style |
+| ApprovalRequest | Target version, reviewer, deadline, state |
+| ReviewComment | Timestamp/region/shot/timecode comment |
+| CalendarEntry | Campaign/content/date/channel |
+| PublishTarget | Connected account reference |
+| PublishJob | Target, payload, state, platform ID |
+| LandingPage | Campaign, version, HTML/CSS export |
+| SEOAudit | URL/project findings |
+| Topic | Search/content topic |
+| ContentBrief | SEO article/page brief |
+| Contact | CRM person |
+| Segment | Contact rules |
+| ConsentRecord | Purpose, source, timestamp, withdrawal |
+| EmailCampaign | Segment, template, subject, status |
+| Experiment | Hypothesis, metric, guardrails |
+| Variant | Experiment treatment |
+| MetricDefinition | Formula/source/unit |
+| MetricSnapshot | Time/channel/content values |
+| Report | Period, narrative, data snapshot |
+| Task | Owner/status/dependency |
+| ScopeItem | Contracted deliverable |
+| CostEntry | Labor/tool/media/pass-through |
+| PricingScenario | Fee model/markup/margin |
+| ComplianceCheck | Rule/result/evidence |
+| AuditEvent | Actor/action/resource/time |
+| Job | Background task/progress/resource use |
+
+The most important data relationship is:
+
+```text
+ResearchFinding
+       ↓
+Positioning / Claim / Audience insight
+       ↓
+CreativeBrief
+       ↓
+CreativeConcept
+       ↓
+ContentItem / Script / Storyboard
+       ↓
+AssetVersion
+       ↓
+Approval
+       ↓
+PublishJob
+       ↓
+MetricSnapshot
+       ↓
+Experiment Result / Learning
+```
+
+That gives LEXNIS **traceability**.
+
+### Model registry
+
+Expand the existing video model registry into a general registry such as:
+
+```text
+model_id
+provider = local
+task
+repo/source
+revision
+license_name
+license_url_or_notice_reference
+commercial_use
+commercial_restrictions
+redistribution_rules
+languages
+minimum_ram
+recommended_ram
+minimum_vram
+recommended_vram
+minimum_disk
+precision
+supported_os
+supported_accelerators
+installed
+verified
+verification_date
+verification_hardware
+verification_result
+capabilities
+known_limitations
+```
+
+Never equate:
+
+`installed == tested == commercially permitted == good enough`.
+
+Those are four different properties.
+
+### UI structure
+
+The existing left sidebar should evolve rather than be removed.
+
+**Desktop concept:**
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ LEXNIS                                                      │
+├───────────────┬─────────────────────────────────────────────┤
+│ Dashboard     │                                             │
+│ Clients       │        CURRENT WORKSPACE                    │
+│ Research      │                                             │
+│ Strategy      │                                             │
+│ Campaigns     │                                             │
+│               │                                             │
+│ Content       │                                             │
+│  • Copy       │                                             │
+│  • Scripts    │                                             │
+│  • Storyboard │                                             │
+│  • Image/GIF  │                                             │
+│  • Video      │                                             │
+│  • Audio      │                                             │
+│               │                                             │
+│ Assets        │                                             │
+│ Calendar      │                                             │
+│ SEO & Web     │                                             │
+│ Email & CRM   │                                             │
+│ Analytics     │                                             │
+│ Approvals     │                                             │
+│ Reports       │                                             │
+│ Operations    │                                             │
+│ Settings      │                                             │
+└───────────────┴─────────────────────────────────────────────┘
+```
+
+A global context selector should remain visible near the top:
+
+`Client → Project → Campaign → Language`
+
+This prevents a common agency-software problem in which the user cannot tell which client or campaign an asset belongs to.
+
+### Workspace behavior
+
+Each workspace should be connected:
+
+**Research:** sources on left, findings in center, evidence/provenance on right.
+
+**Strategy:** business problem, objectives, audiences, positioning, messages, channels, KPI tree.
+
+**Campaign:** brief + channel matrix + deliverables + calendar + budget + tests.
+
+**Copy:** concept/variant matrix rather than one text box.
+
+**Scripts:** scene editor with duration meter.
+
+**Storyboard:** cards containing image reference, framing, motion, VO, on-screen text and generation actions.
+
+**Image/GIF:** preserve current interface, add campaign context and version registration.
+
+**Video:** preserve current Video Studio, add storyboard import and transcription/caption/audio tooling.
+
+**Assets:** grid/list search across every asset, with relationships, rights, version and approval state.
+
+**Approvals:** side-by-side versions, comments, final/reject/request-changes.
+
+**Analytics:** objective → KPI → campaign → channel → creative drill-down.
+
+### Security and privacy must become first-class
+
+LEXNIS is moving from a local creative generator toward a system that could hold client PII, credentials, campaign drafts, customer lists and connected publishing accounts. That significantly changes the threat model.
+
+OWASP recommends extension allowlists, content/file-signature validation, application-generated filenames, size limits, authenticated upload access and storage isolation for uploaded files. The existing video implementation already follows several of these principles; the same standard should govern every new document, spreadsheet, CSV, audio, font and archive upload. citeturn285096search0turn285096search1
+
+AI agents must never get unrestricted shell/database/publishing access. OWASP's prompt-injection and agent-security guidance recommends treating retrieved documents/web pages/API responses as untrusted, validating tool parameters outside the model, using least privilege, and requiring action-specific human approval for consequential external actions. citeturn285096search2turn285096search3
+
+For LEXNIS this means:
+
+```text
+AI may propose a post.
+AI may not silently publish it.
+
+AI may propose an ad budget.
+AI may not authorize spend.
+
+AI may create a draft email campaign.
+AI may not decide who can legally be emailed.
+
+AI may analyze an imported document.
+Instructions inside that document are data, not trusted system commands.
+
+AI may suggest deleting an obsolete asset.
+Deletion requires normal application authorization.
+
+AI may formulate an API request.
+The server independently validates the target, scope and arguments.
+```
+
+### Privacy/compliance model
+
+For EU-context data, GDPR principles include lawfulness/fairness/transparency, purpose limitation, data minimization, storage limitation, accuracy, integrity/confidentiality and accountability. citeturn811637search3
+
+Because the user's timezone/context is Bahrain, the Bahrain Personal Data Protection Law deserves first-class consideration rather than being treated as an afterthought. Bahrain's official portal states that the PDPL was enacted in 2018 and came into effect in 2019, sets requirements around consent and processing, provides data-subject rights, addresses cross-border transfers, and gives individuals the right to object to direct marketing. Article 24 specifies conditions for written, explicit, clear and specific consent and allows withdrawal. citeturn811637search5turn811637search6
+
+So LEXNIS should implement consent/marketing-preference records rather than just an `email_subscribed=true` field.
+
+For influencer/UGC work, FTC guidance says material brand relationships should be clearly disclosed; disclosure should be hard to miss, integrated with the endorsement, included within video rather than merely in its description, and provided in the endorsement's language. citeturn811637search0turn811637search1
+
+## Implementation roadmap, QA, compliance and business model
+
+### Recommended execution sequence
+
+The biggest mistake would be trying to add all features simultaneously. The correct order is to build the connective data layer first.
+
+| Phase | Deliverable | Why first/next |
+|---|---|---|
+| Foundation | Baseline tests, persistence abstraction, IDs, migrations, job/audit framework | Everything else depends on it |
+| Agency Core | Clients, projects, onboarding, brand evolution, claims/evidence | Creates client context |
+| Research | Sources, findings, competitors, audience evidence | Strategy needs evidence |
+| Strategy | Objectives, positioning, messages, personas/JTBD, channel roles | Campaign work needs strategy |
+| Campaigns | Brief, deliverables, calendar, KPI/budget/test plan | Organizes production |
+| Local AI text | Local model provider and grounded generation | Removes paid core dependency |
+| Creative expansion | Scripts, storyboards, concept matrices, better image editing | Extends existing strength |
+| Audio/video | Whisper, subtitles, TTS registry, storyboard→Video Studio | Completes multimedia production |
+| DAM & approvals | Unified asset model, versions, rights, comments, approvals | Makes team/client workflows realistic |
+| SEO/Web | Audit, briefs, landing-page builder, structured-data tools | Adds acquisition capability |
+| Email/CRM | Contacts, consent, templates, Mautic/listmonk adapters | Adds lifecycle marketing |
+| Publishing | Calendar, export packages, optional platform connectors | External execution |
+| Analytics | Matomo/importers, KPI normalization | Measurement |
+| Experiments | Hypothesis/variants/results | Optimization loop |
+| Reporting | Client dashboards/reports/recommendations | Completes delivery loop |
+| Operations | Scope/pricing/tasks/cost/margin | Makes it an agency business system |
+| Advanced agents | Bounded workflow automation | Add only after security/approval framework |
+
+### Definition of “free”
+
+LEXNIS should display a capability badge system:
+
+| Badge | Meaning |
+|---|---|
+| **Local Core** | No network or subscription required after dependencies/models are installed |
+| **Local Model** | Free/open-weight model, compute required |
+| **External Free Account** | No LEXNIS fee, but third-party account/internet required |
+| **External Spend** | Media/creator/domain/SMTP/infrastructure spend inherently required |
+| **License Conditional** | Model/software has commercial/redistribution restrictions |
+| **Hardware Restricted** | Requires specified RAM/VRAM/disk |
+| **Experimental** | Implemented but not sufficiently verified |
+| **Unavailable** | Feature requirements not met |
+
+This protects the product from misleading users.
+
+### Evaluation system
+
+LEXNIS should test creative intelligence, not merely endpoint success.
+
+For copy:
+
+```text
+factual-support score
+claim-compliance score
+brand-tone score
+language quality
+CTA clarity
+platform-length correctness
+duplicate/similarity score
+Arabic terminology correctness
+forbidden-language detector
+human approval score
+```
+
+For images:
+
+```text
+dimensions
+brand colors
+logo integrity
+product/reference similarity
+text readability
+safe-area rules
+face/hand anomaly review flag
+visual duplication
+platform crop previews
+generation provenance
+```
+
+For video:
+
+```text
+codec/container validity
+resolution/FPS
+audio sync
+peak/loudness
+black-frame detection
+caption safe area
+subtitle timing
+RTL rendering
+text clipping
+logo safe zone
+scene duration
+source rights
+model provenance
+```
+
+For landing pages:
+
+```text
+HTML validation
+responsive layouts
+broken links
+title/meta
+canonical
+robots behavior
+structured data
+image alt text
+heading hierarchy
+page performance
+accessibility basics
+conversion event presence
+```
+
+For campaigns:
+
+```text
+objective has KPI
+KPI has measurement source
+claim has evidence
+content maps to message
+content maps to audience
+every deliverable has channel/format
+tracking conventions present
+required disclosures present
+approval complete
+publish target valid
+```
+
+### Acceptance criteria for the full platform
+
+The complete vision should not be considered implemented until a clean local installation can demonstrate this end-to-end scenario:
+
+```text
+Create client
+→ onboard brand
+→ import website/documents
+→ register evidence
+→ produce research findings
+→ define audience
+→ approve positioning
+→ build campaign brief
+→ create channel plan
+→ generate concepts
+→ create English + Arabic copy
+→ generate script
+→ convert to storyboard
+→ generate or import images
+→ animate/edit video
+→ transcribe and caption it
+→ attach licenses/provenance
+→ request approval
+→ approve a version
+→ create calendar entry
+→ export or publish via an explicitly configured connector
+→ ingest/import campaign results
+→ compare experiment variants
+→ generate a cited performance report
+→ save learnings for the next campaign
+```
+
+Each arrow should operate using real persisted objects, not frontend-only dummy state.
+
+### Commercial model recommendation
+
+Even though the application itself is being designed around zero paid core dependencies, the agency using it should still track its own commercial model. Current industry data shows fixed-fee, time-and-materials, retainers, value-based and performance-linked pricing all coexist. citeturn398763search4
+
+LEXNIS should therefore support internal pricing scenarios rather than billing users itself:
+
+```text
+Project fee
+Monthly retainer
+Hourly / time-and-materials
+Deliverable package
+Media management percentage
+Performance bonus
+Value-based fee
+Pass-through expense
+Creator/influencer cost
+Print/production cost
+Advertising spend
+Hosting/domain/mail infrastructure
+Contingency
+Discount
+Target gross margin
+```
+
+The important distinction is **software subscription cost** versus **real-world marketing cost**. LEXNIS can eliminate many SaaS/API charges; it cannot eliminate media inventory, physical production, domains, electricity, hardware, creators or other third-party economic resources.
+
+## Copy-paste-ready Codex master implementation prompt
+
+The prompt below is intentionally much larger than a normal coding prompt. It is designed to make Codex treat the repository as a long-term product rather than bolt unrelated generators onto it.
+
+```text
+MASTER CODEX IMPLEMENTATION TASK
+
+PROJECT:
+LEXNIS Campaign Studio
+
+MISSION:
+Transform the existing LEXNIS Campaign Studio repository into a complete local-first AI Marketing Agency operating platform while preserving every existing working Image/GIF and Video Studio workflow.
+
+This is not a request for a mockup, high-level architecture document, fake dashboard, placeholder buttons, or a collection of disconnected AI forms.
+
+You must inspect the ACTUAL repository first and then implement the improvements incrementally and truthfully.
+
+The application should eventually support the agency lifecycle from:
+
+client discovery
+→ onboarding
+→ market / competitor research
+→ audience understanding
+→ strategy
+→ positioning
+→ campaign planning
+→ creative brief
+→ concepts
+→ copy
+→ scripts
+→ storyboards
+→ images
+→ GIF
+→ graphic design
+→ video
+→ audio / voice / captions
+→ localization
+→ organic social
+→ SEO
+→ landing pages
+→ email / CRM
+→ paid-media planning
+→ influencer / UGC planning
+→ approvals
+→ asset management
+→ calendar
+→ publishing/export
+→ analytics
+→ experimentation
+→ reporting
+→ reusable learnings
+→ agency operations / pricing
+
+The PRIMARY PRODUCT CONSTRAINT is:
+
+NO PAID SERVICE, API, SaaS SUBSCRIPTION, OR PER-GENERATION CLOUD SERVICE MAY BE REQUIRED FOR CORE FUNCTIONALITY.
+
+Core capabilities must be local/free/self-hosted wherever technically possible.
+
+External services are permitted ONLY as optional integrations and must NEVER be necessary for the application to boot or for the core workflow to function.
+
+Examples of optional integrations:
+- social platform APIs
+- Google Search Console
+- Google Analytics
+- advertising platforms
+- external SMTP
+- optional proprietary AI APIs already supported by the repository
+- hosted automation systems
+
+When an optional connector is not configured, the product must provide an offline/local alternative such as export packages, CSV files, static HTML, downloadable media, or manual workflows.
+
+DO NOT silently call a paid provider when a local provider fails.
+
+DO NOT automatically download multi-gigabyte model weights on normal application startup.
+
+DO NOT label a feature "free" merely because a model can be downloaded if its commercial license is conditional.
+
+DO NOT claim an AI model is verified unless you actually ran it successfully on the current hardware.
+
+DO NOT create fake buttons that do nothing.
+
+DO NOT use mocked data in production UI to make unfinished functionality appear complete.
+
+Mocks are allowed only in automated tests.
+
+======================================================================
+REPOSITORY-FIRST RULE
+======================================================================
+
+Before modifying anything:
+
+1. Inspect the actual repository recursively.
+2. Read:
+   - README.md
+   - .env.example
+   - server.py
+   - index.html
+   - campaign_generator.py
+   - visual_engine.py
+   - agency_suite.py
+   - brand_kits.py
+   - layout_analyzer.py
+   - package.json
+   - package-lock.json if present
+   - requirements.txt
+   - requirements-local.txt
+   - every video_* module
+   - gpu_resources.py
+   - VIDEO_STUDIO.md
+   - VIDEO_VERIFICATION.md
+   - VIDEO_THIRD_PARTY_NOTICES.md
+   - static/js/*
+   - static/css/*
+   - scripts/*
+   - tests/*
+   - any database/storage modules
+   - all relevant documentation
+
+3. Determine the REAL current state.
+
+4. Do not assume this prompt is more accurate than the repository.
+
+5. Build an architecture map before editing.
+
+6. Record:
+   - current API routes
+   - current persisted data
+   - current storage directories
+   - background-job architecture
+   - image model architecture
+   - video model architecture
+   - frontend workspace switching
+   - current tests
+   - known pre-existing failures
+   - model/license metadata already implemented
+   - GPU-lock/resource mechanisms
+   - existing security protections
+   - current optional paid integrations
+
+7. Run the existing test suites BEFORE making changes.
+
+8. Save the baseline results.
+
+9. When final testing is complete, distinguish:
+   - new regressions
+   - pre-existing failures
+   - environment-dependent failures
+   - tests skipped because hardware/models are unavailable
+
+Never "fix" a regression test by deleting or weakening it unless the old expectation is demonstrably obsolete and the change is documented.
+
+======================================================================
+IMPORTANT CURRENT-REPOSITORY CONTEXT TO VERIFY
+======================================================================
+
+The attached November 2026 repository was previously inspected and appeared to contain:
+
+- FastAPI backend
+- vanilla JavaScript
+- Tailwind styling
+- Image & GIF workspace
+- Video Studio
+- System Status workspace
+- local image inference
+- campaign generation
+- brand kits
+- bilingual Arabic/English rendering
+- FFmpeg media processing
+
+It also appeared to contain:
+
+video_api.py
+video_assets.py
+video_editor.py
+video_engine.py
+video_ffmpeg.py
+video_jobs.py
+video_models.py
+video_projects.py
+video_security.py
+video_storage.py
+gpu_resources.py
+
+and:
+
+static/js/workspace-navigation.js
+static/js/video-api.js
+static/js/video-studio.js
+static/js/video-editor.js
+static/css/video-studio.css
+
+The repository appeared to already have a real CPU/FFmpeg Video Studio with project persistence, video upload, trim, split, reorder, transitions, titles, overlays, audio, MP4/WebM export and image animation.
+
+It also appeared to contain optional CogVideoX/Wan adapters but to explicitly state that REAL local AI-video inference had NOT been executed on the development machine.
+
+VERIFY ALL OF THIS YOURSELF.
+
+If the current repository differs, treat the current repository as source of truth.
+
+CRITICAL:
+Do NOT rebuild or replace working Video Studio functionality from scratch.
+
+Extend it.
+
+Preserve truthful verification records.
+
+======================================================================
+PRODUCT PRINCIPLE
+======================================================================
+
+LEXNIS must become an AGENCY OPERATING SYSTEM, not a collection of generators.
+
+The central data lineage should become:
+
+CLIENT
+→ BRAND
+→ RESEARCH
+→ EVIDENCE
+→ AUDIENCE
+→ POSITIONING
+→ STRATEGY
+→ CAMPAIGN
+→ CREATIVE BRIEF
+→ CREATIVE CONCEPT
+→ CONTENT
+→ ASSET
+→ VERSION
+→ APPROVAL
+→ PUBLISH / EXPORT
+→ METRIC
+→ EXPERIMENT
+→ LEARNING
+
+Every major generated item should know:
+- which client it belongs to
+- which project it belongs to
+- which campaign it belongs to
+- which brief generated it
+- which strategy/message it supports
+- which language/locale it uses
+- which source assets it came from
+- which model created it
+- which model revision was used
+- which prompt/settings were used
+- whether it is approved
+- whether it has been published
+- whether usage rights are known
+
+======================================================================
+NAVIGATION AND APPLICATION SHELL
+======================================================================
+
+Extend the existing left sidebar.
+
+Do NOT remove Image & GIF Studio.
+Do NOT remove Video Studio.
+Do NOT break existing workspace IDs/event handlers.
+
+Target top-level navigation:
+
+Dashboard
+
+Clients & Brands
+
+Research
+
+Strategy
+
+Campaigns
+
+Content Studio
+  Copy
+  Scripts
+  Storyboards
+  Image & GIF
+  Video
+  Audio & Voice
+
+Assets
+
+Calendar & Publishing
+
+SEO & Web
+
+Email & CRM
+
+Analytics & Experiments
+
+Approvals
+
+Reports
+
+Operations
+
+System & Settings
+
+If a nested-navigation approach fits the current vanilla-JS architecture poorly, use equivalent workspace tabs, but preserve clear hierarchy.
+
+The sidebar must:
+- remain collapsible
+- remain responsive
+- work at mobile widths
+- be keyboard accessible
+- restore focus properly
+- persist appropriate navigation state
+- not introduce horizontal scrolling
+- indicate active workspace
+- support tooltips in collapsed state
+- have no fake destinations
+- clearly mark optional/unavailable features
+
+Add a GLOBAL CONTEXT SELECTOR near the main page header:
+
+Client
+Project
+Campaign
+Language / Locale
+
+When no client/campaign exists:
+show a clear empty state.
+
+Never silently attach generated work to the wrong client.
+
+======================================================================
+DATA/PERSISTENCE FOUNDATION
+======================================================================
+
+First determine the repository's existing persistence approach.
+
+Do not blindly introduce PostgreSQL if a lightweight persistence layer already exists and the application is designed for a single local operator.
+
+However, the architecture must support future migration.
+
+Create explicit repositories/services for persisted domain data rather than scattering JSON filesystem operations across API handlers.
+
+Use migrations/versioned schemas.
+
+If SQLite is appropriate for local use:
+- enable foreign keys
+- use transactions
+- set safe connection patterns
+- implement backups
+- document concurrency limits
+
+If the existing project already uses a DB:
+extend it instead.
+
+Design domain entities for at least:
+
+Organization
+User
+Client
+Stakeholder
+Project
+BrandKit
+BrandAsset
+BrandRule
+GlossaryTerm
+AccessRequirement
+ResearchSource
+ResearchFinding
+Competitor
+AudienceSegment
+Persona
+JourneyStage
+Positioning
+MessagePillar
+Claim
+Evidence
+Offer
+Campaign
+ChannelPlan
+CreativeBrief
+CreativeConcept
+ContentItem
+CopyVariant
+Script
+Storyboard
+StoryboardShot
+MediaAsset
+AssetVersion
+AssetRelation
+GenerationRecord
+LicenseRecord
+VideoProject association
+AudioAsset
+SubtitleTrack
+ApprovalRequest
+ReviewComment
+CalendarEntry
+PublishTarget
+PublishJob
+LandingPage
+SEOAudit
+Topic
+ContentBrief
+Contact
+Segment
+ConsentRecord
+EmailCampaign
+Experiment
+Variant
+MetricDefinition
+MetricSnapshot
+Report
+Task
+ScopeItem
+CostEntry
+PricingScenario
+ComplianceCheck
+AuditEvent
+BackgroundJob
+
+Do not implement fields mechanically if the existing application already has equivalent types.
+
+Create migrations/adapters that preserve existing data.
+
+Never delete existing campaign/video assets during migration.
+
+Use UUID or equivalent opaque application IDs for externally addressable entities.
+
+Do not expose arbitrary server paths.
+
+======================================================================
+CLIENTS & BRANDS WORKSPACE
+======================================================================
+
+Implement a professional client workspace.
+
+Client fields:
+- name
+- legal/display name
+- industry
+- website
+- description
+- primary markets
+- supported languages
+- timezone
+- status
+- internal owner
+- notes
+
+Stakeholders:
+- name
+- role
+- email/contact
+- approval role
+- decision authority
+- preferred communication
+- notes
+
+Onboarding:
+- intake questionnaire
+- objectives
+- products/services
+- target markets
+- known competitors
+- prior marketing
+- current challenges
+- existing channels
+- brand assets
+- analytics access
+- social account access
+- advertising access
+- website/CMS access
+- Search Console access
+- email platform access
+- required legal approvals
+- deadline
+- budget range
+- reporting cadence
+
+Never store passwords as plain text.
+
+Access checklist entries should store:
+- service
+- owner
+- state
+- instructions
+- credential reference
+not the credential itself unless an encrypted secret store is implemented.
+
+Brand kit expansion:
+- primary/secondary colors
+- typography
+- logos
+- logo variations
+- logo clear-space rules
+- voice
+- personality
+- desired language
+- prohibited language
+- product vocabulary
+- messaging pillars
+- visual style
+- photography style
+- icon style
+- CTA style
+- legal disclosures
+- Arabic rules
+- English rules
+- mixed RTL/LTR rules
+- approved claims
+- forbidden claims
+- product references
+- target platform notes
+
+Support brand versions.
+
+Do not overwrite historical brand rules used by already approved assets.
+
+======================================================================
+CLAIMS AND EVIDENCE SYSTEM
+======================================================================
+
+This is a critical feature.
+
+Implement:
+Claim
+Evidence
+ClaimEvidenceLink
+
+Claim states:
+- draft
+- verified
+- client-approved
+- expired
+- prohibited
+- needs-evidence
+
+A Claim should include:
+- exact claim
+- language
+- category
+- substantiation requirement
+- restrictions
+- valid-from
+- valid-until
+- owner
+- approval
+- evidence links
+
+Evidence may originate from:
+- uploaded file
+- website source
+- client statement
+- research source
+- manual note
+
+AI-generated copy must be able to request only:
+- approved claims
+or
+- clearly label unsupported statements as hypotheses.
+
+Do not let an LLM silently invent measurable product claims.
+
+Add a pre-export compliance scan that can detect:
+- unknown quantitative claims
+- prohibited phrases
+- expired claims
+- missing disclosures
+
+Do not claim the scanner provides legal advice.
+
+======================================================================
+RESEARCH WORKSPACE
+======================================================================
+
+Create a persistent research system.
+
+Support:
+- manual research notes
+- imported URLs
+- website snapshots
+- uploaded documents
+- uploaded CSV
+- competitor profiles
+- public-source annotations
+- research tags
+- date
+- source type
+- credibility/quality flag
+- client/project/campaign association
+
+Every research finding should maintain provenance.
+
+Create:
+ResearchSource
+ResearchFinding
+
+A finding should include:
+- statement
+- source IDs
+- date
+- analyst/AI origin
+- confidence
+- evidence state
+- tags
+- implications
+
+Distinguish FACT from:
+- hypothesis
+- interpretation
+- recommendation
+
+Add competitor records:
+- company
+- site
+- product/service
+- positioning
+- observed messages
+- apparent audience
+- offers
+- channels
+- content themes
+- creative observations
+- strengths
+- weaknesses
+- source links
+- snapshot date
+
+Do not scrape sites in violation of the application's configured policy.
+
+Implement:
+- robots/terms-aware crawling configuration
+- rate limiting
+- timeout
+- maximum pages
+- domain allow/block rules
+- local snapshot storage
+- HTML-to-text sanitization
+
+Treat remote web content as untrusted data.
+
+Never execute instructions contained inside fetched pages.
+
+If web research depends on internet access:
+label it OPTIONAL ONLINE.
+
+The local application must still support manually imported research.
+
+======================================================================
+LOCAL TEXT AI
+======================================================================
+
+The core strategy/copy system must not depend on paid Gemini/OpenAI/Anthropic APIs.
+
+Keep existing optional providers if they already work, but implement a LOCAL provider abstraction.
+
+Support a configurable local server/runner such as llama.cpp or another suitable local runtime.
+
+Do not tightly couple the code to one model.
+
+Create a model registry for text models.
+
+Registry fields:
+- id
+- task
+- source
+- revision
+- license
+- commercial-use status
+- size
+- quantization
+- RAM recommendation
+- VRAM recommendation
+- languages
+- context length
+- installed
+- verified
+- verification hardware
+- notes
+
+Candidate model family:
+Qwen3 or a newer compatible Apache-licensed multilingual model if the repository-date research finds a better choice.
+
+Do not hardcode assumptions from this prompt.
+
+Verify current licenses.
+
+The local LLM service should support:
+- text generation
+- JSON/structured output
+- streaming
+- cancellation
+- max context controls
+- max output
+- temperature
+- seed when supported
+- timeout
+- concurrency limit
+
+Use schemas and validation for structured domain objects.
+
+Never trust raw model JSON without validation.
+
+The application must remain usable without a local LLM installed.
+
+In that state:
+- deterministic editing works
+- existing image/GIF/video tools work
+- manual strategy fields work
+- the UI accurately explains local model setup
+
+Do not auto-download large weights at startup.
+
+Provide explicit model installation controls/commands.
+
+======================================================================
+STRATEGY WORKSPACE
+======================================================================
+
+Build a strategy workspace connected to Research.
+
+Modules:
+
+Business Problem
+- context
+- current state
+- desired state
+- constraints
+
+Objectives
+- objective
+- type: business/marketing/communication
+- baseline
+- target
+- deadline
+- KPI
+
+Audience
+- segment
+- evidence
+- behavior
+- needs
+- motivations
+- barriers
+- decision criteria
+- awareness
+- language
+- market
+
+JTBD / Persona
+- job
+- context
+- trigger
+- desired outcome
+- barriers
+- alternatives
+- evidence
+
+Customer Journey
+- stage
+- questions
+- pain points
+- desired action
+- content need
+- measurement
+
+Positioning
+- target
+- category/frame of reference
+- problem
+- primary benefit
+- differentiation
+- reason to believe
+- proof
+- alternative positioning drafts
+
+Messaging
+- core proposition
+- message pillars
+- supporting messages
+- proof
+- objections
+- CTA
+- prohibited language
+
+Offer
+- description
+- incentive
+- eligibility
+- deadline
+- restrictions
+- proof
+- CTA
+
+Strategy document
+- objective
+- audience priority
+- communication task
+- strategic idea
+- channels
+- role by channel
+- exclusions
+- risks
+- assumptions
+
+AI can generate suggestions, but each suggestion must show:
+- inputs
+- source/evidence links where appropriate
+- assumption status
+
+======================================================================
+CAMPAIGNS WORKSPACE
+======================================================================
+
+A Campaign should become the operational center.
+
+Campaign fields:
+- client
+- project
+- name
+- status
+- objective
+- primary KPI
+- secondary KPIs
+- target audience
+- positioning
+- messages
+- offer
+- start/end
+- owner
+- budget
+- markets
+- languages
+- notes
+
+Campaign statuses:
+- draft
+- strategy
+- creative
+- review
+- approved
+- scheduled
+- live
+- optimization
+- completed
+- archived
+
+Implement a structured Creative Brief containing:
+- business context
+- campaign objective
+- measurable success
+- audience
+- desired behavior/perception
+- insight
+- positioning
+- primary message
+- supporting messages
+- reasons to believe
+- offer
+- CTA
+- tone
+- visual direction
+- mandatory elements
+- prohibited elements
+- channels
+- deliverables
+- localization
+- timing
+- budget
+- reviewers
+- approval checkpoints
+
+Creative Briefs must be versioned.
+
+Implement deliverable planning:
+- format
+- platform
+- dimensions
+- language
+- due date
+- owner
+- approval state
+- associated content
+
+Implement a Channel Plan:
+- channel
+- role
+- audience
+- objective
+- content types
+- cadence
+- KPI
+- optional budget
+
+Implement campaign calendar linkage.
+
+======================================================================
+CREATIVE CONCEPT SYSTEM
+======================================================================
+
+Do not generate only one ad.
+
+Create CreativeConcept records.
+
+Fields:
+- name
+- strategic rationale
+- audience
+- insight
+- hook type
+- emotion
+- visual territory
+- headline concept
+- CTA
+- channel suitability
+- risk
+- references
+
+Build a concept-matrix generator.
+
+Allow deliberate variation across:
+- hook
+- benefit
+- pain point
+- awareness stage
+- emotional/rational
+- visual style
+- offer
+- CTA
+- channel
+- length
+
+Allow concepts to be approved/rejected before expensive asset generation.
+
+Track which assets belong to which concept.
+
+======================================================================
+COPY STUDIO
+======================================================================
+
+Extend existing copy functionality.
+
+Do NOT remove current copy APIs/output formats.
+
+Add:
+- campaign context
+- concept selection
+- audience selection
+- language
+- platform
+- objective
+- tone
+- desired length
+- approved claims
+- forbidden claims
+
+Formats:
+- short social post
+- LinkedIn
+- Instagram
+- X
+- TikTok caption
+- YouTube title
+- YouTube description
+- Facebook
+- ad headline
+- ad primary text
+- CTA
+- Google-style search ad copy template
+- email subject
+- preheader
+- email body
+- landing hero
+- landing sections
+- blog outline
+- article draft
+- product description
+- brochure copy
+- press-style announcement
+- SMS draft
+- WhatsApp-style marketing draft
+- internal sales copy
+
+Respect platform limitations via configuration rather than hardcoding assumptions everywhere.
+
+Build a channel-spec registry.
+
+Track variants.
+
+Every variant records:
+- source brief
+- concept
+- model
+- model revision
+- prompt template revision
+- language
+- timestamp
+- human edits
+- final approval
+
+Add comparison view.
+
+Add duplicate/similarity detection.
+
+Add brand-tone QA.
+
+Add claim/evidence QA.
+
+======================================================================
+ARABIC / ENGLISH LOCALIZATION
+======================================================================
+
+Localization must be first-class.
+
+Implement per-client terminology glossary.
+
+Fields:
+- source term
+- approved English
+- approved Arabic
+- transliteration
+- do-not-translate
+- prohibited forms
+- notes
+
+Allow locale/profile:
+- English international
+- Arabic MSA
+- Bahrain/GCC-oriented copy profile
+- other configured locales
+
+Do not automatically claim dialect fluency.
+
+Separate:
+translation
+from:
+transcreation.
+
+Support:
+- RTL layouts
+- mixed RTL/LTR strings
+- Arabic shaping
+- punctuation
+- numerals
+- dates
+- currency
+- hashtags
+- URLs
+- product names
+- bilingual layouts
+
+Create browser/render regression tests containing:
+- Arabic only
+- English only
+- Arabic + English
+- English product name inside Arabic
+- Arabic number/date/currency cases
+
+Run brand terminology checks before approval.
+
+======================================================================
+SCRIPT STUDIO
+======================================================================
+
+Create a first-class Script object.
+
+Support script types:
+- short-form social video
+- paid social video
+- product demo
+- explainer
+- testimonial structure
+- UGC brief
+- voiceover commercial
+- YouTube
+- presentation/brand video
+
+Script structure:
+- title
+- goal
+- target duration
+- audience
+- hook
+- scenes
+- narration
+- dialogue
+- on-screen text
+- visual instruction
+- B-roll
+- CTA
+- disclosure
+- music/SFX note
+
+Show estimated spoken duration.
+
+Allow multiple hooks.
+
+Allow:
+"Generate 5 alternative hooks"
+without regenerating the entire script.
+
+Support bilingual scripts.
+
+Do not treat translated runtime as automatically equivalent; recalculate speech estimate per language.
+
+======================================================================
+STORYBOARD STUDIO
+======================================================================
+
+Create Storyboard and StoryboardShot objects.
+
+Each shot:
+- sequence
+- duration
+- description
+- framing
+- camera angle
+- camera motion
+- subject
+- background
+- action
+- lighting
+- visual style
+- continuity notes
+- voiceover
+- dialogue
+- on-screen text
+- transition
+- image prompt
+- video prompt
+- reference assets
+- generated image
+- generated video
+- approval status
+
+Provide views:
+- cards
+- shot list
+- timing strip
+
+Actions:
+- generate reference image
+- choose existing Image Studio asset
+- send shot to Image Studio
+- animate image
+- send to Video Studio
+- generate video if model available
+- replace media
+- approve shot
+- export storyboard PDF/HTML
+
+Do not create fake AI-video actions if no supported model exists.
+
+Disabled actions should explain the exact missing requirement.
+
+Add:
+"Create Video Project From Storyboard"
+
+This should create a real Video Studio project:
+- shots in order
+- durations
+- images/videos
+- VO/audio references
+- text overlays where possible
+
+Do not overwrite original storyboard assets.
+
+======================================================================
+IMAGE & GIF STUDIO
+======================================================================
+
+PRESERVE EXISTING WORKFLOW.
+
+Do not break:
+- generation
+- brand rendering
+- Arabic rendering
+- exports
+- GIF
+- MP4-from-GIF
+- campaign bundle
+- current tests
+
+Add campaign integration rather than rewriting it.
+
+Add:
+- Register Asset
+- Add to Campaign
+- Attach to Concept
+- Attach to Storyboard Shot
+- Request Approval
+- Create Variant
+- Compare Versions
+
+Research and implement, when licenses/hardware are suitable:
+- image-to-image
+- inpainting
+- outpainting
+- object/background replacement
+- reference-image conditioning
+- product preservation
+- regional edits
+- image upscale
+- smart crop
+- optional background removal
+
+Candidates may include:
+- current existing local models
+- FLUX.1-schnell
+- Qwen-Image family
+- appropriate image-edit model
+
+VERIFY model licenses.
+
+Do not assume all FLUX variants share the same license.
+
+Do not use a noncommercial model as an unconditional commercial core.
+
+======================================================================
+GRAPHIC DESIGN SYSTEM
+======================================================================
+
+Add a reusable template system for:
+- social posts
+- carousel
+- story
+- reel cover
+- YouTube thumbnail
+- banner
+- LinkedIn graphic
+- X graphic
+- email hero
+- landing hero
+- ad creative
+- quote
+- statistic
+- testimonial
+- comparison
+- product feature
+- CTA
+- event announcement
+
+Templates should define:
+- canvas
+- safe areas
+- logo slots
+- text regions
+- image regions
+- background
+- typography
+- design tokens
+- allowed variants
+
+Do not generate text directly into AI imagery when the existing separate-typesetting pipeline provides better reliability.
+
+Prefer:
+AI visual
++
+deterministic typography/layout.
+
+Add overflow detection.
+
+Add mobile preview.
+
+Add platform crop preview.
+
+======================================================================
+GIF / MOTION GRAPHICS
+======================================================================
+
+Preserve existing GIF generation.
+
+Enhance with optional:
+- keyframes
+- easing
+- pan
+- zoom
+- opacity
+- text reveals
+- logo reveal
+- image sequence
+- scene duration
+- transitions
+- reusable motion presets
+
+Keep deterministic generation available on CPU.
+
+======================================================================
+VIDEO STUDIO
+======================================================================
+
+DO NOT REBUILD THE EXISTING VIDEO STUDIO.
+
+First inspect and document what actually works.
+
+Then extend incrementally.
+
+Desired additions:
+
+1. Proxy/preview system
+- lower-resolution editing proxies
+- avoid full re-render after every tiny edit
+- cache invalidation
+
+2. Timeline
+- free positioning where practical
+- explicit clip start time
+- multiple overlays
+- multiple audio layers
+- snap
+- timeline zoom
+- playhead
+- waveform
+- clip thumbnails
+
+3. Better transforms
+- keyframed position
+- scale
+- rotation
+- opacity
+- volume
+
+4. Speed
+- safe speed changes
+- optional optical-flow slow motion if a free local implementation is suitable
+
+5. Transitions
+- broader FFmpeg transition set
+- duration editing
+
+6. Captions
+- subtitle tracks
+- SRT
+- VTT
+- ASS
+- burn-in
+- editable timing
+- bilingual style
+- Arabic shaping/RTL
+
+7. Brand overlays
+- logo
+- safe zone
+- lower thirds
+- CTA cards
+- intro/outro
+
+8. Audio
+- waveform
+- normalization
+- ducking
+- fade
+- denoise
+- channel handling
+
+9. Storyboard import
+
+10. Render presets
+- platform outputs
+- portrait
+- square
+- landscape
+
+Do not break current FFmpeg tests.
+
+======================================================================
+LOCAL AI VIDEO
+======================================================================
+
+Keep AI video OPTIONAL.
+
+Maintain the ability to edit video with ZERO AI models installed.
+
+Create/update model registry with:
+- exact repo
+- revision
+- mode
+- license
+- commercial restriction
+- native resolution
+- FPS
+- frames/duration
+- VRAM
+- RAM
+- disk
+- precision
+- runtime dependency
+- installed
+- verified
+- last test
+- verification hardware
+
+Candidate tiers to research at implementation time:
+
+LOWER-HARDWARE T2V:
+CogVideoX-2B or newer better permissively licensed equivalent.
+
+HIGH-HARDWARE T2V/I2V:
+Wan2.2 TI2V-5B or newer Apache-compatible equivalent.
+
+OPTIONAL CONDITIONAL-LICENSE:
+LTX-2.5 or successor only if its current model license is compatible with the intended user.
+
+Do not treat Apache code as proof that model weights are Apache.
+
+For every model:
+verify the WEIGHT license.
+
+Real AI generation acceptance requires:
+- actual weights
+- actual inference
+- valid encoded output
+- measured peak VRAM
+- measured RAM
+- runtime
+- output dimensions
+- duration
+- cancellation behavior
+- cleanup
+- error handling
+
+If hardware cannot run it:
+mark unverified/unavailable.
+
+Do not fabricate success from mocks.
+
+Mocks belong only in routine automated tests.
+
+Maintain a separate opt-in real-model smoke test.
+
+======================================================================
+AUDIO & VOICE STUDIO
+======================================================================
+
+Create a dedicated Audio & Voice workspace.
+
+Core deterministic functionality:
+- upload audio
+- preview
+- trim
+- split
+- fade
+- normalize
+- volume
+- convert formats
+- extract from video
+- mix
+- background music
+- voice track
+- effects track
+- waveform
+
+Add local transcription using Whisper or another suitably licensed local model.
+
+Features:
+- language detection
+- user-selected language
+- timestamps
+- word/segment timing where model supports it
+- transcript editor
+- subtitle generation
+- SRT
+- VTT
+- ASS
+- send captions to Video Studio
+
+Add TTS behind model registry.
+
+Do not claim Arabic TTS until a specific model/voice has been:
+- installed
+- licensed
+- tested
+- reviewed for pronunciation
+
+Voice model records must include:
+- language
+- voice ID
+- model
+- license
+- commercial rights
+- provenance
+
+Voice cloning, if ever implemented:
+- optional
+- disabled by default
+- explicit consent record
+- identity/voice source provenance
+- clear generated-voice labeling
+- never silently clone uploaded voices
+
+Music:
+Implement local music/SFX library management.
+
+Store:
+- file
+- source
+- copyright owner
+- license
+- allowed use
+- attribution
+- expiry
+- client restrictions
+
+Do NOT select an AI music model as core until its commercial license has been audited.
+
+======================================================================
+UNIFIED DIGITAL ASSET MANAGEMENT
+======================================================================
+
+Create a single Assets workspace across:
+- images
+- GIFs
+- videos
+- audio
+- logos
+- product references
+- documents
+- templates
+- fonts
+- subtitles
+
+Asset metadata:
+- client
+- project
+- campaign
+- concept
+- creator
+- created time
+- type
+- dimensions
+- duration
+- codec
+- hash
+- language
+- tags
+- rights
+- expiration
+- approval state
+- source
+- model provenance
+
+AssetVersion:
+- immutable version ID
+- parent
+- checksum
+- notes
+- derived-from links
+
+Implement:
+- search
+- filters
+- thumbnails
+- version history
+- compare
+- relationships
+- download
+- campaign usage
+- archive
+
+Never delete an asset still referenced by a project without explicit dependency handling.
+
+Use a recycle/archive mechanism where reasonable.
+
+======================================================================
+LICENSE AND PROVENANCE REGISTRY
+======================================================================
+
+Implement LicenseRecord.
+
+Types:
+- generated
+- owned
+- client-provided
+- CC0
+- Creative Commons
+- stock
+- custom agreement
+- unknown
+
+Record:
+- source
+- owner
+- license
+- attribution
+- restrictions
+- allowed markets
+- allowed channels
+- expiration
+- evidence file
+
+Every local AI generation should store:
+- model ID
+- model revision
+- model license snapshot/reference
+- prompt
+- negative prompt if used
+- seed
+- generation parameters
+- source/reference asset IDs
+
+Do not log hidden secrets.
+
+======================================================================
+APPROVALS AND REVIEW
+======================================================================
+
+Create Approvals workspace.
+
+Support approval targets:
+- strategy
+- creative brief
+- copy
+- script
+- storyboard
+- image
+- GIF
+- video
+- email
+- landing page
+- report
+
+States:
+- draft
+- review requested
+- changes requested
+- approved
+- rejected
+- superseded
+
+Reviews must identify:
+- reviewer
+- time
+- version
+- comment
+
+For images:
+support general comments at minimum.
+
+For video:
+support timecode comments if feasible.
+
+Never silently mutate an approved version.
+
+Editing an approved asset should create a new version or return it to draft/review according to policy.
+
+Add approval history to Audit Log.
+
+======================================================================
+CALENDAR & PUBLISHING
+======================================================================
+
+Create campaign/content calendar.
+
+Views:
+- month
+- week
+- list
+- by campaign
+- by channel
+
+Calendar entry:
+- content
+- channel
+- target account
+- scheduled time
+- timezone
+- owner
+- approval state
+- publish status
+
+Publishing architecture:
+PublisherAdapter interface.
+
+Adapters are OPTIONAL.
+
+Possible:
+- TikTok
+- YouTube
+- LinkedIn
+- Meta/Instagram if current API eligibility permits
+- other platforms only after official documentation research
+
+Each adapter must:
+- use OAuth/credential references
+- request minimum scopes
+- expose capability detection
+- validate platform media requirements
+- show API/platform limitations
+- never assume approval
+- never print tokens
+- handle rate limits
+- persist platform post ID
+- capture errors
+
+Publishing is a high-impact external action.
+
+Require explicit user confirmation before posting.
+
+The exact action should show:
+- account
+- media
+- caption
+- scheduled/immediate time
+- privacy state
+- disclosures
+
+Do not permit the AI agent to bypass this approval.
+
+When no connector exists:
+Export Publication Package:
+- final media
+- caption.txt
+- title.txt
+- alt-text.txt
+- hashtags.txt
+- disclosure.txt
+- thumbnail
+- metadata.json
+- posting checklist
+
+This manual export must always work locally.
+
+======================================================================
+SEO & WEB WORKSPACE
+======================================================================
+
+Build a real SEO workspace.
+
+Do not make fake "SEO scores" with arbitrary numbers.
+
+Technical audit:
+- status
+- title
+- meta description
+- canonical
+- robots
+- indexability
+- sitemap references
+- headings
+- images/alt
+- internal links
+- external links
+- structured data
+- hreflang where applicable
+- viewport
+- basic page-size/performance indicators
+- duplicate title/description detection
+
+Crawl only within configured limits.
+
+Content SEO:
+- topic
+- search intent hypothesis
+- audience
+- primary question
+- related questions
+- content gap
+- page type
+- brief
+- recommended sections
+- internal links
+- proof/evidence needed
+- conversion CTA
+
+Do not scrape proprietary keyword databases.
+
+Allow:
+- manual keyword import
+- Search Console import when connected
+- CSV import
+- local topic clustering
+
+AI Search / Generative Search:
+Do NOT invent a separate ranking formula.
+
+Focus on:
+- useful non-commodity content
+- crawlability
+- internal links
+- text accessibility
+- accurate structured data
+- original expertise/evidence
+- images/video
+- source accuracy
+
+Do not claim llms.txt improves Google AI visibility.
+
+Allow llms.txt only as an optional compatibility artifact for systems that use it, not as an SEO ranking feature.
+
+Generate:
+- robots.txt draft
+- sitemap.xml
+- common schema.org JSON-LD templates
+- metadata
+- Open Graph
+- social preview
+
+Validate structured data syntax.
+
+======================================================================
+LANDING PAGE STUDIO
+======================================================================
+
+Implement a local landing-page builder.
+
+Initial scope:
+static pages, not a full CMS.
+
+Blocks:
+- nav
+- hero
+- proof
+- benefits
+- features
+- comparison
+- process
+- testimonials
+- stats
+- FAQ
+- CTA
+- footer
+- form
+
+Use brand tokens.
+
+Support Arabic RTL.
+
+Allow:
+- desktop preview
+- tablet
+- mobile
+
+Export:
+- static HTML
+- CSS
+- assets
+- metadata
+
+Avoid CDN dependencies where possible in exported offline packages.
+
+Support a local preview server.
+
+Add analytics event hooks that can target:
+- local/Matomo
+- optional GA4
+but do not require GA4.
+
+Forms:
+- local test mode
+- configurable endpoint
+- consent checkbox
+- privacy copy
+- honeypot/basic spam protection
+
+Do not pretend a static exported form can send email without backend infrastructure.
+
+======================================================================
+EMAIL & CRM
+======================================================================
+
+Implement a lightweight native Contact/Segment layer.
+
+Contact:
+- client/organization
+- email
+- name
+- locale
+- source
+- consent status
+- consent purpose
+- tags
+- suppression
+- unsubscribe
+
+Do not import contacts without user action.
+
+Segments:
+- deterministic filter rules
+- preview count
+- snapshot at campaign send
+
+Email builder:
+- subject
+- preheader
+- body
+- reusable sections
+- CTA
+- footer
+- unsubscribe placeholder
+- physical-address placeholder
+- plain-text alternative
+
+Render email-safe HTML.
+
+Add:
+- preview
+- link validation
+- image checks
+- test export
+- spam-risk heuristics clearly labeled as heuristics
+
+Do not claim deliverability scoring without evidence.
+
+Integrations:
+- Mautic optional
+- listmonk optional
+- SMTP optional
+
+If integrated with Mautic/listmonk:
+keep them as external self-hosted services rather than copying their code.
+
+Respect their licenses.
+
+LEXNIS must still be able to design/export email without them.
+
+Consent:
+- record source
+- timestamp
+- purpose
+- withdrawal
+- suppression
+
+Unsubscribe must override marketing-segment membership.
+
+======================================================================
+PAID MEDIA
+======================================================================
+
+Build Paid Media PLANNING without requiring paid APIs.
+
+Objects:
+- campaign
+- platform
+- objective
+- audience
+- ad group
+- creative
+- copy
+- landing page
+- budget scenario
+- KPI
+- UTM
+
+Support:
+- creative variant generation
+- ad copy
+- target-audience notes
+- placement requirements
+- export CSV/JSON/templates
+
+Make clear:
+AD SPEND IS EXTERNAL.
+
+Do not imply LEXNIS can run paid advertising without platform spend.
+
+Optional future platform APIs may:
+- create draft campaigns
+- upload creative
+- pull reporting
+
+But:
+- require user credentials
+- require explicit confirmation
+- never spend money automatically
+- never increase budgets automatically without authorization
+
+Budget-changing actions are high-impact.
+
+======================================================================
+ORGANIC CONTENT SYSTEM
+======================================================================
+
+Add content pillars.
+
+Fields:
+- pillar
+- purpose
+- audience
+- topics
+- formats
+- cadence
+
+Add series:
+- recurring concept
+- template
+- platform
+- schedule
+
+Repurposing:
+Long-form content
+→ post
+→ carousel
+→ video script
+→ short video
+→ email
+→ landing CTA
+
+Maintain lineage so the user sees the original source.
+
+======================================================================
+INFLUENCER / UGC
+======================================================================
+
+Create optional Influencer/UGC workspace.
+
+Creator record:
+- name
+- handle
+- platform
+- market
+- niche
+- contact
+- notes
+- status
+
+Do NOT scrape private data.
+
+Campaign brief:
+- deliverable
+- talking points
+- prohibited claims
+- usage rights
+- disclosure
+- due date
+- compensation
+- product provided
+- approval process
+
+Rights:
+- organic use
+- paid use
+- duration
+- geography
+- edit rights
+
+Disclosure:
+- required
+- language
+- placement guidance
+- approval
+
+Do not claim automated legal compliance.
+
+Flag missing disclosure/rights fields.
+
+======================================================================
+ANALYTICS
+======================================================================
+
+Build a normalized metric layer.
+
+Do not tie reports to a single analytics provider.
+
+MetricDefinition:
+- name
+- source
+- unit
+- formula
+- scope
+- direction
+
+MetricSnapshot:
+- timestamp
+- campaign
+- channel
+- content
+- value
+
+Support:
+- manual entry
+- CSV import
+- Matomo
+- optional Search Console
+- optional GA4
+- optional social connectors
+
+Matomo should be the recommended free self-hosted web-analytics integration.
+
+Never make analytics credentials visible to frontend JavaScript unless required by the provider design.
+
+GA4 Measurement Protocol secrets, if supported, must remain server-side.
+
+Dashboard:
+- objectives
+- KPIs
+- trend
+- campaign
+- channel
+- content
+- creative
+- experiment
+
+Make attribution limitations explicit.
+
+Do not invent cross-platform attribution.
+
+======================================================================
+EXPERIMENTATION
+======================================================================
+
+Create Experiment.
+
+Fields:
+- hypothesis
+- campaign
+- variable
+- control
+- variants
+- primary metric
+- guardrail metrics
+- start/end
+- status
+- decision rule
+- result
+- confidence/notes
+- conclusion
+
+Variables:
+- hook
+- image
+- CTA
+- headline
+- offer
+- audience
+- landing page
+- send time
+- subject
+
+The software may calculate standard statistical tests where assumptions are satisfied.
+
+Do not report "statistically significant" unless the calculation actually supports it.
+
+Record sample size.
+
+Do not let LLM narrative override computed values.
+
+======================================================================
+REPORTING
+======================================================================
+
+Build reusable reports.
+
+Report sections:
+- executive summary
+- objectives
+- KPI performance
+- channel performance
+- content performance
+- top creative
+- experiment results
+- budget/spend if provided
+- insights
+- recommendations
+- next actions
+- appendix/data sources
+
+Generate:
+- HTML
+- printable PDF if local PDF infrastructure exists
+- CSV data
+
+Charts must come from real stored metrics.
+
+AI may draft commentary from the metrics.
+
+The report should separate:
+FACT:
+"CTR increased from X to Y"
+
+INTERPRETATION:
+"This may indicate..."
+
+RECOMMENDATION:
+"Test..."
+
+Do not allow the model to invent metrics.
+
+======================================================================
+KNOWLEDGE BASE
+======================================================================
+
+Create structured reusable learnings.
+
+Learning:
+- client
+- campaign
+- date
+- category
+- finding
+- evidence
+- confidence
+- applicable audience/channel
+- tags
+
+Examples:
+- winning hook
+- weak CTA
+- strong visual
+- seasonality
+- common objection
+- successful offer
+- audience preference
+
+Only approved/validated learnings should automatically influence future strategy.
+
+Allow search.
+
+If vector search is added:
+use a local embedding model with license review.
+
+Keep keyword/full-text fallback.
+
+Do not require a hosted vector database.
+
+======================================================================
+OPERATIONS
+======================================================================
+
+Implement agency operations as a later phase.
+
+Tasks:
+- title
+- owner
+- campaign/project
+- status
+- due date
+- dependencies
+
+Scope:
+- deliverable
+- quantity
+- rounds of revision
+- due date
+- included/excluded
+
+Cost:
+- labor
+- media
+- creator
+- printing
+- infrastructure
+- external expense
+
+PricingScenario supports:
+- hourly
+- fixed project
+- retainer
+- deliverable package
+- percentage of media spend
+- performance component
+- value-based
+- hybrid
+
+Allow:
+- internal hourly cost
+- billable rate
+- expected hours
+- markup
+- target margin
+- discount
+- pass-through
+
+Do not hardcode "industry standard" pricing.
+
+Expose editable defaults.
+
+======================================================================
+AUTOMATION
+======================================================================
+
+Do not build a fully autonomous agent before approval/security exists.
+
+First implement deterministic workflow triggers:
+
+Examples:
+- when brief approved → create production tasks
+- when content approved → make calendar item available
+- when asset rejected → notify/reopen task
+- when campaign completes → create report task
+
+Later add an optional agent layer.
+
+Recommended external self-hosted automation adapter:
+Activepieces core or another permissively licensed solution after current license verification.
+
+Do not copy enterprise-only source.
+
+Keep automation adapter optional.
+
+If implementing internal workflow automation:
+use explicit action schemas.
+
+Never provide arbitrary shell execution.
+
+======================================================================
+AI AGENT SECURITY
+======================================================================
+
+Treat:
+- user uploads
+- websites
+- PDFs
+- documents
+- emails
+- API responses
+- retrieved research
+as UNTRUSTED CONTENT.
+
+External content can contain prompt injection.
+
+The model must not be able to grant itself permissions.
+
+Architecture:
+LLM proposes action
+→ application validates schema
+→ authorization service validates user
+→ policy service evaluates action
+→ approval required for high-risk action
+→ tool executes with minimum scope
+→ audit log
+
+High-risk:
+- publishing externally
+- sending email
+- changing ad spend
+- deleting assets
+- exporting sensitive contact data
+- altering credentials
+- bulk actions
+
+Bind approvals to:
+- actor
+- exact action
+- target
+- normalized arguments
+- expiration
+
+Do not allow a generic "approved=true" to authorize future arbitrary actions.
+
+======================================================================
+AUTHENTICATION / RBAC
+======================================================================
+
+Before exposing the system to multiple users or LAN/public networking, implement proper authentication if it is currently absent.
+
+Roles could include:
+- Admin
+- Strategist
+- Creator
+- Analyst
+- Reviewer
+- Client Reviewer
+
+Permissions should be resource/action based.
+
+Client reviewers:
+- see only assigned client/project
+- cannot access system settings
+- cannot see secrets
+- cannot run local model installs
+- cannot publish unless explicitly permitted
+
+Use secure sessions.
+
+CSRF-protect state-changing browser requests if using cookies.
+
+Rate-limit expensive operations.
+
+======================================================================
+UPLOAD SECURITY
+======================================================================
+
+Apply the hardened Video Studio approach across all uploads.
+
+For every upload:
+- extension allowlist
+- MIME validation
+- signature inspection where practical
+- random internal filename
+- maximum size
+- maximum dimensions/duration/rows/pages where applicable
+- path confinement
+- no arbitrary absolute paths
+- no user-defined executable filenames
+- no direct execution
+- quarantine/temp processing
+- safe error messages
+
+ZIP:
+- prevent zip slip
+- prevent excessive expansion
+- file count limit
+- uncompressed size limit
+
+CSV:
+- row/column/size limits
+- handle spreadsheet formula injection in exported files
+
+HTML:
+- sanitize when rendering untrusted HTML
+
+SVG:
+- treat as active content unless sanitized/rasterized
+
+Fonts:
+- process carefully
+- restrict supported formats
+- isolate
+
+======================================================================
+SECRETS
+======================================================================
+
+Audit current .env configuration.
+
+Create credential-reference abstraction.
+
+Never:
+- return secrets in APIs
+- write secrets to logs
+- embed secrets in generated reports
+- send secrets to AI context
+- commit secrets
+
+Document:
+- environment variables
+- rotation
+- backup handling
+
+Optional future:
+OS keychain or encrypted local secret vault.
+
+Do not invent encryption without sound key management.
+
+======================================================================
+PRIVACY
+======================================================================
+
+Implement:
+- data retention settings
+- archive/delete workflows
+- export client data
+- consent records
+- suppression lists
+- audit trail
+
+Minimize stored personal data.
+
+Do not send client/customer data to an external AI provider unless:
+- the provider is explicitly configured
+- the user chose it
+- UI makes external processing visible
+
+Prefer local processing.
+
+======================================================================
+COMPLIANCE ENGINE
+======================================================================
+
+Implement deterministic compliance CHECKLISTS, not legal conclusions.
+
+Profiles may include:
+- general advertising
+- influencer disclosure
+- email requirements
+- consent requirements
+- client-specific policy
+
+Examples:
+- missing influencer disclosure
+- missing unsubscribe
+- claim without evidence
+- expired offer
+- prohibited phrase
+- missing required client disclaimer
+- contact suppressed
+- asset rights unknown
+
+Call them:
+"checks"
+"flags"
+"review items"
+
+Do not say:
+"legally compliant"
+unless a qualified legal process supports that conclusion.
+
+======================================================================
+MODEL LICENSE REGISTRY
+======================================================================
+
+All AI models need license metadata.
+
+Required:
+- model
+- source
+- revision
+- license
+- commercial use
+- restrictions
+- redistribution
+- notes
+- reviewed date
+
+Do not infer license from:
+- library
+- code repository
+- model family name
+
+Check model WEIGHTS.
+
+Examples requiring careful distinction:
+- FLUX variants do not necessarily share identical licensing
+- current LTX code and model weights have different licenses
+- TTS engines and individual voices may have different licenses
+
+Provide a system page listing:
+Installed Models
+License
+Verified
+Hardware
+Tasks
+Disk
+Source
+
+======================================================================
+HARDWARE / SYSTEM STATUS
+======================================================================
+
+Expand existing System Status.
+
+Show:
+- CPU
+- RAM
+- GPU
+- VRAM
+- disk
+- FFmpeg
+- FFprobe
+- image runtime
+- video runtime
+- LLM runtime
+- Whisper runtime
+- TTS runtime
+
+Show model:
+- installed
+- available
+- verified
+- incompatible
+
+Never merely say:
+"Model Ready"
+because a folder exists.
+
+Support explicit:
+Verify Model
+
+Verification should run a minimal real inference where feasible.
+
+Store:
+- version
+- time
+- hardware
+- result
+
+======================================================================
+JOB SYSTEM
+======================================================================
+
+Unify background operations where reasonable.
+
+Jobs:
+- image generation
+- video generation
+- video render
+- transcription
+- TTS
+- research crawl
+- SEO crawl
+- report render
+- archive/export
+
+Job states:
+queued
+preparing
+running
+encoding
+completed
+failed
+cancelled
+
+Do not invent percentages.
+
+If exact progress is unknown:
+show indeterminate progress with stage.
+
+Support:
+- cancellation
+- timeouts
+- resource limit
+- cleanup
+- error redaction
+
+Bound concurrency.
+
+Do not block FastAPI event loop with heavy work.
+
+======================================================================
+GPU RESOURCE SCHEDULING
+======================================================================
+
+Extend existing GPU lock/resource handling.
+
+Heavy GPU workloads must coordinate.
+
+Tasks:
+- image
+- video
+- LLM GPU
+- transcription GPU
+- TTS GPU if applicable
+
+Do not load competing large models simultaneously by default.
+
+Expose:
+- current GPU owner
+- queued jobs
+- estimated requirements (not fabricated runtime)
+
+Release models/memory after job according to configured lifecycle.
+
+CPU fallback only when technically supported.
+
+Do not pretend CPU generation is practical when it is not.
+
+======================================================================
+FREE/OPTIONAL FEATURE BADGES
+======================================================================
+
+Add capability badges:
+
+LOCAL CORE
+LOCAL MODEL
+OPTIONAL ONLINE
+EXTERNAL ACCOUNT
+EXTERNAL SPEND
+LICENSE CONDITIONAL
+HARDWARE RESTRICTED
+EXPERIMENTAL
+UNAVAILABLE
+
+Display these where they matter.
+
+Examples:
+Video editing = LOCAL CORE
+Whisper = LOCAL MODEL
+TikTok publishing = EXTERNAL ACCOUNT
+Paid ads = EXTERNAL SPEND
+LTX depending on license = LICENSE CONDITIONAL
+Wan 24GB tier = HARDWARE RESTRICTED
+
+======================================================================
+THIRD-PARTY SELF-HOSTED INTEGRATIONS
+======================================================================
+
+Possible integrations:
+
+Matomo:
+recommended analytics option.
+
+Mautic:
+optional marketing automation.
+
+listmonk:
+optional mailing list/newsletter.
+
+Activepieces:
+optional automation.
+
+Postiz:
+optional social scheduling.
+
+Twenty:
+optional CRM only after license/configuration review.
+
+ComfyUI:
+optional external image/video workflow engine.
+
+IMPORTANT:
+Do not vendor/copy these applications into LEXNIS.
+
+Use API/process boundaries.
+
+Respect licenses.
+
+LEXNIS core should not require any of them.
+
+======================================================================
+OFFLINE MODE
+======================================================================
+
+Implement a clear offline/local mode.
+
+Offline functionality should include, depending on installed models:
+- client management
+- brand
+- strategy
+- campaign planning
+- local LLM
+- image
+- GIF
+- graphic design
+- video editing
+- local AI video where hardware supports it
+- audio
+- transcription
+- TTS where available
+- assets
+- approvals
+- calendar
+- landing-page export
+- email design
+- analytics import
+- reports
+- operations
+
+Unavailable offline:
+- current web research
+- platform posting
+- external analytics retrieval
+- ad APIs
+
+The UI must say why.
+
+======================================================================
+DASHBOARD
+======================================================================
+
+Create a useful dashboard, not vanity cards.
+
+Show:
+- active clients
+- active campaigns
+- items awaiting approval
+- upcoming content
+- failed jobs
+- system/model warnings
+- recent assets
+- experiments
+- campaign KPIs where data exists
+
+Do not display fake revenue or engagement.
+
+Empty state should invite the next real action.
+
+======================================================================
+SEARCH
+======================================================================
+
+Add global search if feasible.
+
+Search:
+- clients
+- campaigns
+- research
+- content
+- assets
+- claims
+- reports
+
+Use local full-text search first.
+
+Optional embeddings later.
+
+======================================================================
+IMPORT / EXPORT / BACKUP
+======================================================================
+
+Implement:
+- project export
+- campaign package export
+- client archive
+- backup
+- restore validation
+
+Export manifest:
+- schema version
+- objects
+- asset checksums
+- relationships
+- license metadata
+
+Never extract untrusted archives without path and expansion checks.
+
+======================================================================
+ACCESSIBILITY
+======================================================================
+
+Test:
+- keyboard navigation
+- labels
+- focus
+- contrast
+- reduced motion
+- mobile
+- RTL
+- screen-reader landmarks
+
+Do not rely on color alone for status.
+
+======================================================================
+PERFORMANCE
+======================================================================
+
+Do not make the frontend load every client asset at once.
+
+Use:
+- pagination
+- lazy thumbnails
+- proxy media
+- debounced search
+- caching
+- chunked/range media delivery
+
+Avoid monolithic JavaScript growth.
+
+Split workspace modules.
+
+Avoid adding all new logic to index.html.
+
+======================================================================
+CODE ORGANIZATION
+======================================================================
+
+Adapt to the repository instead of forcing this exact tree, but aim for domain separation such as:
+
+agency/
+  domain/
+  api/
+  services/
+  repositories/
+  models/
+  compliance/
+  providers/
+  jobs/
+
+or equivalent top-level modules if that fits existing style better.
+
+Potential modules:
+
+clients_api.py
+clients_service.py
+
+research_api.py
+research_service.py
+
+strategy_api.py
+strategy_service.py
+
+campaigns_api.py
+campaigns_service.py
+
+content_api.py
+copy_service.py
+script_service.py
+storyboard_service.py
+
+assets_api.py
+asset_service.py
+provenance.py
+licenses.py
+
+approvals_api.py
+approval_service.py
+
+seo_api.py
+seo_service.py
+crawler.py
+
+landing_pages_api.py
+landing_pages.py
+
+crm_api.py
+email_api.py
+
+publishing_api.py
+publishers/
+  base.py
+  tiktok.py
+  youtube.py
+  linkedin.py
+  meta.py
+
+analytics_api.py
+analytics_service.py
+analytics_adapters/
+
+experiments_api.py
+experiment_service.py
+
+reports_api.py
+report_service.py
+
+operations_api.py
+
+local_llm.py
+model_registry.py
+local_transcription.py
+local_tts.py
+
+audit.py
+auth.py
+permissions.py
+secrets.py
+
+Do not create empty abstraction files for appearance.
+
+Each module must justify itself.
+
+======================================================================
+FRONTEND ORGANIZATION
+======================================================================
+
+Do not turn index.html into an even larger monolith.
+
+Keep index.html as application shell where practical.
+
+Create workspace modules such as:
+
+static/js/app-context.js
+static/js/api-client.js
+static/js/clients-workspace.js
+static/js/research-workspace.js
+static/js/strategy-workspace.js
+static/js/campaigns-workspace.js
+static/js/copy-studio.js
+static/js/script-studio.js
+static/js/storyboard-studio.js
+static/js/assets-workspace.js
+static/js/approvals-workspace.js
+static/js/calendar-workspace.js
+static/js/seo-workspace.js
+static/js/landing-pages.js
+static/js/email-workspace.js
+static/js/analytics-workspace.js
+static/js/reports-workspace.js
+static/js/operations-workspace.js
+
+Reuse the existing:
+workspace-navigation.js
+video-api.js
+video-studio.js
+video-editor.js
+
+Do not duplicate their functions.
+
+Use the current Tailwind/design system.
+
+Preserve dark navy/cyan/violet identity.
+
+======================================================================
+API DESIGN
+======================================================================
+
+Use consistent REST-style routes adapted to current API conventions.
+
+Potential namespaces:
+
+/api/clients
+/api/projects
+/api/research
+/api/strategy
+/api/campaigns
+/api/content
+/api/assets
+/api/approvals
+/api/calendar
+/api/publishing
+/api/seo
+/api/web
+/api/email
+/api/crm
+/api/analytics
+/api/experiments
+/api/reports
+/api/operations
+/api/system/models
+/api/jobs
+
+Use validated request/response schemas.
+
+Pagination for list endpoints.
+
+Do not return filesystem paths.
+
+Use asset IDs.
+
+Use proper status codes.
+
+Error objects should be safe for users.
+
+Log internal trace IDs without exposing secrets.
+
+======================================================================
+TESTING STRATEGY
+======================================================================
+
+Do not consider frontend presence a completed feature.
+
+Every feature needs appropriate tests.
+
+UNIT:
+- models
+- validation
+- claim checks
+- translation glossary
+- strategy calculations
+- KPI formulas
+- pricing math
+- experiment statistics
+- license status
+
+API:
+- CRUD
+- authorization
+- pagination
+- invalid input
+- not-found
+- concurrency where relevant
+
+SECURITY:
+- path traversal
+- shell injection
+- upload spoofing
+- oversized upload
+- ZIP slip
+- CSV formula export
+- cross-client access
+- unauthorized actions
+- secret exposure
+- prompt-injection boundary tests
+- high-impact action approval
+
+BROWSER:
+- sidebar
+- workspaces
+- form persistence
+- client context
+- campaign creation
+- mobile
+- RTL
+- approvals
+- content → asset flows
+
+END TO END:
+A complete agency scenario:
+
+1. create client
+2. create brand
+3. create research source
+4. create finding
+5. create positioning
+6. create campaign
+7. create brief
+8. generate copy with local model or deterministic fallback/manual mode
+9. create script
+10. create storyboard
+11. use existing image workflow
+12. send image to video
+13. create/edit/export MP4
+14. transcribe if Whisper installed
+15. create subtitles
+16. approve asset
+17. schedule/export publishing package
+18. import analytics
+19. create experiment result
+20. generate report
+
+This scenario should use real persistence and real files.
+
+Expensive models may use mocks in ordinary CI.
+
+Maintain separate REAL MODEL smoke tests.
+
+======================================================================
+COPY QUALITY EVALUATION
+======================================================================
+
+Implement deterministic and optional model-assisted QA.
+
+Checks:
+- unsupported claims
+- prohibited language
+- missing CTA
+- platform length
+- duplicated copy
+- glossary violations
+- placeholder text
+- link format
+- disclosure
+- language mismatch
+
+Do not use an LLM's self-score as a source of truth.
+
+If model-assisted brand scoring exists:
+label it heuristic.
+
+======================================================================
+VISUAL QA
+======================================================================
+
+Automate:
+- dimensions
+- aspect ratio
+- transparent/empty output
+- text overflow
+- safe zones
+- logo presence
+- duplicate hash/perceptual similarity where useful
+
+Human review still required for:
+- product fidelity
+- anatomy
+- cultural appropriateness
+- design quality
+
+======================================================================
+VIDEO QA
+======================================================================
+
+Automate:
+- ffprobe validation
+- duration
+- resolution
+- FPS
+- codec
+- audio presence
+- audio/video duration mismatch
+- zero-byte/invalid
+- black frame sampling where feasible
+- caption file validity
+- subtitle overflow tests
+- RTL render snapshots
+
+======================================================================
+REPORT QA
+======================================================================
+
+All report numbers must originate from stored data.
+
+Add tests ensuring:
+AI narrative cannot change metric values.
+
+Keep metric JSON separate from narrative generation.
+
+======================================================================
+DOCUMENTATION
+======================================================================
+
+Update README comprehensively.
+
+Add:
+
+ARCHITECTURE.md
+AGENCY_WORKFLOW.md
+LOCAL_AI.md
+MODEL_LICENSES.md
+SECURITY.md
+PRIVACY.md
+PUBLISHING.md
+ANALYTICS.md
+BACKUP_RESTORE.md
+
+Preserve current video docs.
+
+Do not rewrite verification records to imply tests that did not happen.
+
+Document:
+- core vs optional
+- offline features
+- external accounts
+- spend-required features
+- model requirements
+- model licenses
+- tested hardware
+- setup
+- troubleshooting
+
+======================================================================
+PHASED IMPLEMENTATION
+======================================================================
+
+You are expected to work incrementally.
+
+PHASE 0 — BASELINE
+- inspect repository
+- architecture map
+- test baseline
+- identify pre-existing failures
+- backup/migration plan
+
+PHASE 1 — DOMAIN FOUNDATION
+- persistence
+- client
+- project
+- campaign context
+- unified IDs
+- audit
+- migrations
+
+PHASE 2 — CLIENT / BRAND / CLAIMS
+- clients
+- onboarding
+- expanded brand
+- glossary
+- claims
+- evidence
+
+PHASE 3 — RESEARCH / STRATEGY
+- research
+- competitors
+- audience
+- JTBD/personas
+- journey
+- positioning
+- messaging
+- offers
+
+PHASE 4 — CAMPAIGN SYSTEM
+- campaign
+- creative brief
+- channel plan
+- deliverables
+- calendar foundations
+
+PHASE 5 — LOCAL TEXT
+- model registry
+- local inference
+- structured outputs
+- cancellation/resource limits
+- copy integration
+
+PHASE 6 — CONTENT
+- concept matrix
+- copy studio
+- scripts
+- storyboard
+- Image/GIF integration
+
+PHASE 7 — VIDEO / AUDIO
+- extend existing video
+- Whisper
+- subtitles
+- audio workspace
+- TTS registry
+- storyboard-to-video
+
+PHASE 8 — DAM / APPROVALS
+- unified assets
+- versions
+- licenses
+- provenance
+- review
+- approval
+
+PHASE 9 — SEO / LANDING
+- crawler/audit
+- SEO briefs
+- landing-page builder
+- static export
+
+PHASE 10 — EMAIL / CRM
+- contacts
+- consent
+- segments
+- email builder
+- optional Mautic/listmonk
+
+PHASE 11 — PUBLISHING
+- calendar
+- export packages
+- optional platform adapters
+- explicit approval
+
+PHASE 12 — ANALYTICS / EXPERIMENTS
+- normalized metrics
+- Matomo
+- imports
+- experiments
+- dashboards
+
+PHASE 13 — REPORTING / KNOWLEDGE
+- reports
+- learnings
+- client history
+
+PHASE 14 — OPERATIONS
+- tasks
+- scope
+- costs
+- pricing
+- margin scenarios
+
+PHASE 15 — OPTIONAL AUTOMATION / AGENTS
+- workflow rules
+- optional Activepieces
+- secure agent tooling
+
+PHASE 16 — HARDENING
+- auth/RBAC
+- privacy
+- security
+- backup
+- performance
+- accessibility
+- complete regression suite
+
+Do not skip foundation merely to create flashy AI features.
+
+======================================================================
+PRIORITY IF THE WHOLE ROADMAP CANNOT FIT IN ONE CODEX RUN
+======================================================================
+
+If you cannot safely implement everything in one execution:
+
+DO NOT create placeholder implementations for the rest.
+
+Implement fully, in this order:
+
+1. Baseline and no-regression guarantees
+2. persistence/data foundation
+3. clients/brands
+4. claims/evidence
+5. research
+6. strategy
+7. campaigns/creative briefs
+8. local text provider
+9. scripts/storyboards
+10. unified assets
+11. approvals
+12. audio/transcription
+13. SEO/landing
+14. email/CRM
+15. calendar/publishing export
+16. analytics/experiments
+17. reporting
+18. operations
+19. optional connectors
+20. optional autonomous workflow
+
+At the end, list exactly which phases are complete.
+
+Do not pretend unfinished phases are implemented.
+
+======================================================================
+NO-FAKE-FEATURE POLICY
+======================================================================
+
+A feature is COMPLETE only if:
+
+- backend exists where required
+- frontend exists
+- frontend invokes backend
+- state persists where required
+- errors are handled
+- permissions are respected
+- tests exist
+- actual result is validated
+
+A static card/button saying:
+"Coming soon"
+is not implementation.
+
+It may be shown only if clearly disabled and identified as future/optional.
+
+A mocked AI result is not implementation.
+
+A generated animation is not the same as AI video.
+
+A local model folder is not proof of successful inference.
+
+An API connector class without OAuth/real request flow is not a working publishing integration.
+
+An analytics chart populated by fixture values is not analytics.
+
+A report containing sample metrics is not a real report.
+
+======================================================================
+NO-BREAK POLICY
+======================================================================
+
+Existing Image/GIF behavior is production functionality.
+
+Do not unnecessarily change:
+- current rendering
+- visual generation
+- campaign export
+- API formats
+- filenames
+- brand behavior
+- GIF generation
+
+Existing Video Studio is also production functionality if its tests pass.
+
+Extend through adapters and association records.
+
+If a breaking schema change is unavoidable:
+- migrate
+- maintain compatibility
+- document it
+- update tests deliberately
+
+======================================================================
+FINAL ACCEPTANCE TEST
+======================================================================
+
+A successful mature implementation should demonstrate:
+
+1. Start application with no paid API keys.
+2. Existing Image/GIF Studio works.
+3. Existing Video Studio works.
+4. Create Client.
+5. Create Brand.
+6. Add Arabic + English glossary.
+7. Add research.
+8. Convert research to findings.
+9. Create audience.
+10. Create positioning.
+11. Create approved claims.
+12. Create Campaign.
+13. Create Creative Brief.
+14. Generate multiple concepts using local model where installed.
+15. Generate copy variants.
+16. Create script.
+17. Create storyboard.
+18. Generate/use image.
+19. Register asset/provenance.
+20. Send storyboard/image to Video Studio.
+21. Export valid MP4.
+22. Transcribe with local ASR if installed.
+23. Add captions.
+24. Request approval.
+25. Approve exact asset version.
+26. Add calendar entry.
+27. Export publication package.
+28. Optional connected platform: publish only after explicit approval.
+29. Import or retrieve metrics.
+30. Create experiment.
+31. Generate data-grounded report.
+32. Save learning.
+33. Create next campaign using approved learnings.
+
+Nothing in steps 1–31 may require a paid AI subscription.
+
+External platform publishing/analytics retrieval may require user-owned platform accounts and internet.
+
+Paid advertising execution requires actual external ad spend and must be clearly labeled accordingly.
+
+======================================================================
+FINAL VERIFICATION
+======================================================================
+
+At completion:
+
+Run:
+- existing regression scripts
+- existing browser tests
+- existing video tests
+- all new unit/API/security/browser tests
+- static syntax checks
+- formatting/linting where project currently uses it
+- migration tests
+- export validation
+
+For video:
+validate outputs with FFprobe.
+
+For images:
+validate dimensions and files.
+
+For reports:
+validate generated file.
+
+For landing pages:
+serve locally and run browser checks.
+
+For AI:
+state which models were actually tested.
+
+Provide measured:
+- hardware
+- model
+- revision
+- RAM
+- VRAM where obtainable
+- generation success/failure
+- output
+
+Do not make estimated performance appear measured.
+
+======================================================================
+FINAL RESPONSE REQUIRED FROM CODEX
+======================================================================
+
+Return a detailed engineering completion report with:
+
+A. Repository architecture discovered
+
+B. Baseline test results
+
+C. Pre-existing failures
+
+D. Files created
+
+E. Files modified
+
+F. Database/schema changes
+
+G. Migration behavior
+
+H. Workspaces completed
+
+I. API endpoints added
+
+J. Local AI providers implemented
+
+K. Models actually installed
+
+L. Models actually verified
+
+M. Models not verified
+
+N. Model licenses
+
+O. Hardware constraints
+
+P. Security improvements
+
+Q. Privacy/compliance features
+
+R. Tests added
+
+S. Final test results
+
+T. Known limitations
+
+U. Optional external connectors
+
+V. External-cost features such as ad spend
+
+W. Exact commands to install/start/test
+
+X. Remaining phases
+
+Y. Screenshots or browser-test evidence where the environment supports it
+
+Z. Confirmation that existing Image/GIF and existing Video Studio regressions were checked
+
+Be precise.
+
+Do not say "fully implemented" unless it is actually implemented.
+
+Do not say "production ready" merely because tests pass.
+
+======================================================================
+PRODUCT SUCCESS DEFINITION
+======================================================================
+
+The final direction for LEXNIS is:
+
+A local-first,
+privacy-conscious,
+bilingual,
+evidence-backed,
+AI-assisted marketing agency operating system
+
+that can research,
+plan,
+write,
+design,
+generate,
+edit,
+organize,
+approve,
+publish/export,
+measure,
+experiment,
+report,
+and learn
+
+without requiring a paid AI API for its core operation,
+
+while maintaining clear boundaries around:
+- hardware requirements
+- third-party platform access
+- advertising spend
+- SMTP/delivery infrastructure
+- model licenses
+- asset rights
+- compliance
+- human approval.
+
+Preserve what already works.
+
+Build connections between workspaces rather than duplicating features.
+
+Prefer deterministic, testable systems for:
+- calculations
+- compliance rules
+- formatting
+- media processing
+- data persistence
+- permissions
+
+and use AI for:
+- synthesis
+- ideation
+- drafting
+- transformation
+- classification
+- media generation
+- summarization
+
+never as the final authority for:
+- factual evidence
+- legal compliance
+- permissions
+- external publication
+- financial spend
+- destructive actions.
+
+That is the target product.
+```

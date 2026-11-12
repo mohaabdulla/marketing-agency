@@ -16,6 +16,7 @@ sys.path.insert(0,str(ROOT))
 def main():
     with tempfile.TemporaryDirectory(prefix='lexnis-video-browser-') as tmp:
         os.environ['VIDEO_DATA_DIR']=str(Path(tmp)/'store')
+        os.environ['AGENCY_DATA_DIR']=str(Path(tmp)/'agency')
         from video_ffmpeg import ffmpeg
         source=Path(tmp)/'source.mp4'
         ffmpeg(['-f','lavfi','-i','testsrc2=size=320x180:rate=24','-t','2','-c:v','libx264','-pix_fmt','yuv420p',str(source)])
@@ -70,8 +71,11 @@ def main():
                     page.locator('#ve-title').click()
                     assert page.locator('.vs-lane[data-kind=title] .vs-clip').count()==1
                     page.locator('#ve-save').click();page.wait_for_function("document.querySelector('#ve-save-state').textContent === 'Saved'")
-                    page.locator('#ve-export').click()
-                    page.wait_for_function("document.querySelector('#vs-jobs').textContent.includes('completed')",timeout=60000)
+                    with page.expect_response(lambda response: response.url.endswith('/api/video/export') and response.request.method=='POST') as exported:
+                        page.locator('#ve-export').click()
+                    export_job=exported.value.json()['id']
+                    # "completed_clips" appears during encoding; wait for this exact job's terminal state.
+                    page.wait_for_selector(f'#vs-jobs [data-job="{export_job}"][data-state="completed"]',timeout=60000)
                     assets=requests.get(origin+'/api/video/assets',timeout=5).json()
                     assert any(a['name']=='export.mp4' and abs(a['duration']-1.5)<.2 for a in assets)
                     page.get_by_role('tab',name='Projects',exact=True).click();page.wait_for_selector('[data-open]')

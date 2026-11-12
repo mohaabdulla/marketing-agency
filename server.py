@@ -54,6 +54,11 @@ from video_security import VideoRequestLimits
 app.include_router(video_router)
 app.add_middleware(VideoRequestLimits)
 
+from agency.api import router as agency_router
+from agency.security import AgencyRequestLimits
+app.include_router(agency_router)
+app.add_middleware(AgencyRequestLimits)
+
 BASE_DIR = Path(__file__).resolve().parent
 # Per-campaign bundles are generated output: they live with the other renders (git-ignored),
 # not in the tracked static assets folder, which every generated campaign used to add a ZIP to.

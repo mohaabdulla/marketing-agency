@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="/static/tailwind.css?v=2.1">
   
   <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="/static/vendor/lucide.min.js"></script>
 
 
 
@@ -51,6 +51,7 @@
     }
   </style>
   <link rel="stylesheet" href="/static/css/video-studio.css">
+  <link rel="stylesheet" href="/static/css/agency.css">
 </head>
 
 <body class="bg-obsidian-950 text-slate-100 font-sans min-h-screen antialiased bg-grid-pattern relative selection:bg-cyan-accent selection:text-obsidian-950">
@@ -2149,6 +2150,24 @@
   </section>
   <section id="video-workspace" aria-label="Video Studio" hidden></section>
   <section id="settings-workspace" aria-label="System Status" hidden></section>
+  <section id="agency-dashboard-workspace" aria-label="Agency dashboard" hidden></section>
+  <section id="agency-clients-workspace" aria-label="Agency clients" hidden></section>
+  <section id="agency-research-workspace" aria-label="Agency research" hidden></section>
+  <section id="agency-strategy-workspace" aria-label="Agency strategy" hidden></section>
+  <section id="agency-campaigns-workspace" aria-label="Agency campaigns" hidden></section>
+  <section id="agency-content-workspace" aria-label="Content studio" hidden></section>
+  <section id="agency-assets-workspace" aria-label="Assets and approvals" hidden></section>
+  <section id="agency-publishing-workspace" aria-label="Calendar and publishing" hidden></section>
+  <section id="agency-analytics-workspace" aria-label="Analytics and experiments" hidden></section>
+  <section id="agency-reports-workspace" aria-label="Reports and learnings" hidden></section>
+  <section id="agency-operations-workspace" aria-label="Agency operations" hidden></section>
+  <section id="agency-web-workspace" aria-label="SEO and landing pages" hidden></section>
+  <section id="agency-crm-workspace" aria-label="Email and CRM" hidden></section>
+  <section id="agency-audio-workspace" aria-label="Audio and subtitles" hidden></section>
+  <section id="agency-privacy-workspace" aria-label="Privacy and retention" hidden></section>
+  <section id="agency-paid-workspace" aria-label="Paid media planning" hidden></section>
+  <section id="agency-creators-workspace" aria-label="Creators and UGC" hidden></section>
+
   <!-- APPLICATION LOGIC SCRIPT -->
   <script>
     // --- DOM Elements ---
@@ -6249,6 +6268,30 @@ Deployable directly into legacy PLC racks and air-gapped SCADA environments, Lex
         });
       }
     }
+  </script>
+  <script>
+    // Explicit saved-brief bridge: no automatic generation and no change to legacy API payloads.
+    window.addEventListener('lexnis:agency-image', event => {
+      const detail = event.detail;
+      const brand = detail.brand || {};
+      selectedAgencyBrandId = '';
+      document.getElementById('agency-brand-select').value = '';
+      currentBrandDna = {brand_name: brand.name || '', brand_name_ar: brand.brand_name_ar || '',
+        brand_colors:{primary:brand.primary_color || '#131724',accent:brand.accent_color || '#53B849'},
+        brand_tag:brand.hashtag || '',tagline:brand.tagline || ''};
+      currentGuidelines = '';
+      currentCompanyUrl = '';
+      if (companyUrlInput) companyUrlInput.value = '';
+      brandInput.value = brand.name || '';
+      const visibleBrand = document.getElementById('brandNameInput');
+      if (visibleBrand) visibleBrand.value = brand.name || '';
+      window.brandProfile = {...currentBrandDna};
+      activeLogoAsset = brand.logo_url ? {url:brand.logo_url,name:(brand.name || 'Client')+' logo'} : null;
+      promptInput.value = detail.prompt || '';
+      promptInput.dispatchEvent(new Event('input',{bubbles:true}));
+      window.agencyProductionContext = Object.freeze({...detail.context});
+      setLanguage(detail.language && detail.language.startsWith('ar') ? 'ar' : 'en');
+    });
   </script>
   <script type="module" src="/static/js/workspace-navigation.js"></script>
 </body>
