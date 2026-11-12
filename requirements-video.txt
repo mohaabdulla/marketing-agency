@@ -1,0 +1,11 @@
+# Isolated .venv-video only; do not install into .venv-image.
+diffusers==0.36.0
+transformers==4.57.3
+accelerate==1.12.0
+safetensors>=0.4.5,<1
+sentencepiece>=0.2,<1
+imageio>=2.36,<3
+imageio-ffmpeg>=0.5.1,<1
+Pillow>=10.4,<13
+huggingface-hub>=0.34,<1
+protobuf>=4.25,<7

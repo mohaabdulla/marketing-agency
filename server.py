@@ -43,11 +43,16 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=[x.strip() for x in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000").split(",") if x.strip()],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+from video_api import router as video_router
+from video_security import VideoRequestLimits
+app.include_router(video_router)
+app.add_middleware(VideoRequestLimits)
 
 BASE_DIR = Path(__file__).resolve().parent
 # Per-campaign bundles are generated output: they live with the other renders (git-ignored),

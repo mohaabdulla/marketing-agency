@@ -2,6 +2,25 @@
 
 Product research → creative brief → copywriting → creative review → photographic asset → separately typeset advertising copy.
 
+
+## Video Studio
+
+The sidebar now separates **Image & GIF Studio**, **Video Studio**, and **System Status**.
+Video Studio adds a local CPU editor, media library, projects, MP4/WebM exports, and
+clearly labeled image animation. Optional local AI adapters use an isolated `.venv-video`;
+no video API credits or automatic model downloads are required.
+
+```powershell
+python -m pip install -r requirements-video-editor.txt
+python scripts/setup_video_tools.py --install  # Windows, explicit FFmpeg/FFprobe download
+python -m uvicorn server:app --host 127.0.0.1 --port 8000
+```
+
+See [VIDEO_STUDIO.md](VIDEO_STUDIO.md) for editing, model licenses, hardware requirements,
+Linux instructions, opt-in AI setup, APIs, storage and limitations; see
+[VIDEO_VERIFICATION.md](VIDEO_VERIFICATION.md) for executed tests. Real AI video inference
+has **not** been verified on this machine; editing and CPU animation work without weights.
+
 ## Run
 
 ```powershell

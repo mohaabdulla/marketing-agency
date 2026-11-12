@@ -2,6 +2,7 @@
 import json
 import io
 from pathlib import Path
+from urllib.parse import urlsplit
 from playwright.sync_api import sync_playwright
 from PIL import Image
 
@@ -44,8 +45,11 @@ with sync_playwright() as playwright:
             request.fulfill(json={'status': 'success', 'files': {'caption': 'output/caption.txt'}})
         elif 'lucide' in url:
             request.fulfill(body='window.lucide={createIcons(){}};', content_type='application/javascript')
-        elif url.endswith('/static/tailwind.css'):
-            request.fulfill(body=(Path(__file__).resolve().parents[1] / 'static/tailwind.css').read_text(), content_type='text/css')
+        elif urlsplit(url).path.startswith('/static/'):
+            # Serve real versioned CSS and isolated workspace modules; keep all assertions below.
+            asset = Path(__file__).resolve().parents[1] / urlsplit(url).path.lstrip('/')
+            content_type = 'text/css' if asset.suffix == '.css' else 'application/javascript'
+            request.fulfill(body=asset.read_bytes(), content_type=content_type)
         else:
             request.fulfill(body='', content_type='text/plain')
 

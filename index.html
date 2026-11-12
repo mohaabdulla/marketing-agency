@@ -50,6 +50,7 @@
       box-shadow: 0 0 15px rgba(0, 240, 255, 0.15);
     }
   </style>
+  <link rel="stylesheet" href="/static/css/video-studio.css">
 </head>
 
 <body class="bg-obsidian-950 text-slate-100 font-sans min-h-screen antialiased bg-grid-pattern relative selection:bg-cyan-accent selection:text-obsidian-950">
@@ -58,6 +59,7 @@
   <div class="fixed top-0 left-1/4 w-96 h-96 bg-cyan-accent/10 rounded-full blur-[140px] pointer-events-none -z-10"></div>
   <div class="fixed bottom-10 right-1/4 w-[30rem] h-[30rem] bg-violet-accent/10 rounded-full blur-[160px] pointer-events-none -z-10"></div>
 
+  <section id="image-workspace" aria-label="Image and GIF Studio">
   <!-- Main Container -->
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
 
@@ -2144,6 +2146,9 @@
     </div>
   </div>
 
+  </section>
+  <section id="video-workspace" aria-label="Video Studio" hidden></section>
+  <section id="settings-workspace" aria-label="System Status" hidden></section>
   <!-- APPLICATION LOGIC SCRIPT -->
   <script>
     // --- DOM Elements ---
@@ -6245,5 +6250,6 @@ Deployable directly into legacy PLC racks and air-gapped SCADA environments, Lex
       }
     }
   </script>
+  <script type="module" src="/static/js/workspace-navigation.js"></script>
 </body>
 </html>

@@ -4,6 +4,7 @@ output/
 .env
 node_modules/
 .venv-image/
+.venv-video/
 .model-cache/
 
 tests/

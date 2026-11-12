@@ -346,7 +346,8 @@ def local_image(prompt, seed, width, height, require_ready=True, model=LOCAL_MOD
     (ROOT / 'output').mkdir(exist_ok=True)
     output_width, output_height = width, height
     width, height = local_render_dimensions(width, height, model)
-    with _local_lock, tempfile.TemporaryDirectory(prefix='lexnis-render-', dir=ROOT / 'output') as directory:
+    from gpu_resources import gpu_slot
+    with _local_lock, gpu_slot(), tempfile.TemporaryDirectory(prefix='lexnis-render-', dir=ROOT / 'output') as directory:
         output = Path(directory) / 'image.jpg'
         request = Path(directory) / 'request.json'
         request.write_text(json.dumps(dict(prompt=prompt, seed=seed, width=width, height=height, output=str(output),
@@ -483,7 +484,8 @@ def open_model_image(prompt, seed, model, width, height):
             raise RuntimeError("Install requirements-local.txt to use local image models.") from exc
         if not torch.cuda.is_available():
             raise RuntimeError("Local image inference requires a compatible CUDA GPU. Use a hosted provider instead.")
-        with _local_lock:
+        from gpu_resources import gpu_slot
+        with _local_lock, gpu_slot():
             if model_id not in _pipelines:
                 pipe = DiffusionPipeline.from_pretrained(
                     model_id, torch_dtype=torch.bfloat16,
