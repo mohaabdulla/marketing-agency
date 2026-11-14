@@ -36,6 +36,7 @@ class Clip(Strict):
     text: str = Field('', max_length=500)
     color: str = Field('#ffffff', pattern=r'^#[0-9a-fA-F]{6}$')
     font: Literal['sans', 'arabic', 'serif'] = 'sans'
+    font_family: str = Field('', max_length=80, pattern=r'^[A-Za-z0-9 -]*$')
     font_size: int = Field(48, ge=16, le=160)
 
     # Professional multi-track & semantic properties
@@ -72,6 +73,9 @@ class Project(Strict):
     name: str = Field('Untitled video', min_length=1, max_length=120)
     canvas: Canvas = Field(default_factory=Canvas)
     brand_id: str | None = Field(None, max_length=100)
+    guideline_id: str | None = Field(None, pattern=r'^[a-f0-9]{32}$')
+    guideline_version: int | None = Field(None, ge=1)
+    brand_rules: dict | None = None
     clips: list[Clip] = Field(default_factory=list, max_length=60)
 
     # Master/variant & compliance tracking

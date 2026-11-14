@@ -286,4 +286,21 @@ class Repository:
         return True
 
 
-repository = Repository()
+class ScopedRepository:
+    def __init__(self):
+        self.default = Repository()
+        self.instances = {}
+        self.lock = threading.Lock()
+
+    def __getattr__(self, name):
+        from public_access import guest, folder
+        key = guest()
+        if not key:
+            return getattr(self.default, name)
+        with self.lock:
+            if key not in self.instances:
+                self.instances[key] = Repository(folder('agency'))
+            return getattr(self.instances[key], name)
+
+
+repository = ScopedRepository()

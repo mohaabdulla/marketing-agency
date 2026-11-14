@@ -92,7 +92,8 @@ class TTSEngine:
     """Voiceover synthesis engine with commercial license gating and broadcast normalization."""
 
     def __init__(self, output_dir: Optional[Path] = None):
-        self.output_dir = output_dir or (Path(__file__).resolve().parents[1] / "output/agency/audio/tts")
+        from public_access import scoped
+        self.output_dir = output_dir or scoped(Path(__file__).resolve().parents[1] / "output/agency/audio/tts",'renders')
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def list_voices(self, language: Optional[str] = None, commercial_only: bool = True) -> List[Dict[str, Any]]:

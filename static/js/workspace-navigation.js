@@ -1,3 +1,5 @@
+import {storageKey} from './public-session.js';
+await import('./shared-guideline-picker.js');
 import {mountStudio, refreshStatus} from './video-studio.js';
 import {mountContext} from './app-context.js';
 import {mountAgency,mountAgencySystem} from './agency-workspaces.js';
@@ -25,13 +27,14 @@ const productionIcons=[
   icon('<path d="m3 7 2 2 4-4M3 17l2 2 4-4M13 6h8M13 12h8M13 18h8"/>')
 ];
 const destinations=[['agency-dashboard','Dashboard',agencyIcons[0]],['agency-command-center','Campaign Command Center',agencyIcons[4]],['agency-clients','Clients & Brands',agencyIcons[1]],['agency-research','Research',agencyIcons[2]],['agency-strategy','Strategy',agencyIcons[3]],['agency-campaigns','Campaigns',agencyIcons[4]],['agency-content','Content Studio',productionIcons[0]],['image','Image & GIF Studio',icons[0]],['video','Video Studio',icons[1]],['agency-audio','Audio & Subtitles',icons[1]],['agency-assets','Assets & Approvals',productionIcons[1]],['agency-publishing','Calendar & Publishing',productionIcons[2]],['agency-analytics','Analytics & Experiments',productionIcons[3]],['agency-reports','Reports & Learnings',productionIcons[4]],['agency-web','SEO & Landing Pages',agencyIcons[2]],['agency-crm','Email & CRM',agencyIcons[1]],['agency-paid','Paid Media Planning',productionIcons[3]],['agency-creators','Creators & UGC',agencyIcons[1]],['agency-operations','Operations',productionIcons[5]],['agency-privacy','Privacy & Retention',icons[2]],['settings','System Status',icons[2]]];
+if(window.publicTestMode){const i=destinations.findIndex(d=>d[0]==='settings');if(i>=0)destinations.splice(i,1);}
 const workspaceKeys=destinations.map(x=>x[0]);
 rail.innerHTML = `<div class="studio-brand"><b>L</b><span class="rail-label">LEXNIS</span></div>${destinations.map(([key,label,svg])=>`<button type="button" data-workspace="${key}" title="${label}">${svg}<span class="rail-label">${label}</span></button>`).join('')}<button type="button" class="rail-bottom" id="rail-collapse" title="Collapse navigation" aria-label="Collapse navigation">${icon('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18m7-13-3 4 3 4"/>')}<span class="rail-label">Collapse sidebar</span></button>`;
 const mobile = document.createElement('button'); mobile.className = 'studio-mobile-toggle'; mobile.type = 'button'; mobile.textContent = '☰ Workspaces'; mobile.setAttribute('aria-controls',rail.id); mobile.setAttribute('aria-expanded','false');
 const backdrop = document.createElement('div'); backdrop.className = 'studio-backdrop';
 document.body.prepend(backdrop,rail,mobile);
-const remember = (key, value) => { try {localStorage.setItem(key,value);} catch {} };
-const recalled = key => {try{return localStorage.getItem(key);}catch{return null;}};
+const remember = (key, value) => { try {localStorage.setItem(storageKey(key),value);} catch {} };
+const recalled = key => {try{return localStorage.getItem(storageKey(key));}catch{return null;}};
 document.body.classList.toggle('rail-collapsed', recalled('lexnis.railCollapsed') === 'true');
 let returnFocus;
 function drawer(open) {rail.inert=matchMedia('(max-width:640px)').matches&&!open;rail.classList.toggle('drawer-open',open);backdrop.classList.toggle('open',open);mobile.setAttribute('aria-expanded',String(open));if(open){returnFocus=document.activeElement;rail.querySelector('button').focus();}else if(returnFocus){returnFocus.focus();returnFocus=null;}}

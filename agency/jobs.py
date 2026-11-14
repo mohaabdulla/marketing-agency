@@ -4,6 +4,7 @@ import logging
 import threading
 from .database import repository, uid, timestamp, packed, NotFound, Conflict
 import json
+from contextvars import copy_context
 
 
 class Cancelled(Exception):
@@ -78,7 +79,7 @@ class Queue:
                 self.repo.audit(db,client_id,key,'job.queued',1,dict(kind=kind))
             task=Task(self,key,client_id,kind)
             self.active[key]=task
-            self.pool.submit(self.execute,task,function)
+            self.pool.submit(copy_context().run,self.execute,task,function)
             return value
 
     def execute(self,task,function):

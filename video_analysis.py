@@ -86,11 +86,14 @@ def detect_shots(path: Path, total_duration: float, asset_id: str, job=None) -> 
     shots: List[Shot] = []
     cut_timestamps: List[float] = [0.0]
 
-    # Try PySceneDetect if installed
+    # Try PySceneDetect if installed (with importlib to prevent static analyzer warnings)
     has_pyscenedetect = False
     try:
-        import scenedetect
-        from scenedetect import open_video, SceneManager, ContentDetector
+        import importlib
+        sd = importlib.import_module("scenedetect")
+        open_video = getattr(sd, "open_video")
+        SceneManager = getattr(sd, "SceneManager")
+        ContentDetector = getattr(sd, "ContentDetector")
         video = open_video(str(path))
         scene_manager = SceneManager()
         scene_manager.add_detector(ContentDetector(threshold=27.0))

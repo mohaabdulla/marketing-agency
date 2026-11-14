@@ -3,6 +3,7 @@ import concurrent.futures
 import threading
 import time
 import traceback
+from contextvars import copy_context
 from video_storage import DATA, atomic, read, uid, listing, cleanup
 from video_ffmpeg import Cancelled
 
@@ -43,7 +44,7 @@ class Jobs:
             job = Job(kind)
             self.active[job.id] = job
             executor = self.gpu_executor if kind in {'text-to-video', 'image-to-video'} else self.executor
-            executor.submit(self._execute, job, function)
+            executor.submit(copy_context().run, self._execute, job, function)
             return dict(job.value)
 
     def _execute(self, job, function):

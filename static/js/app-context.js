@@ -1,13 +1,14 @@
+import {storageKey} from './public-session.js';
 import {agencyApi,escapeHtml as e} from './agency-api.js';
 const EMPTY = {client_id:'',project_id:'',campaign_id:'',language:'en'};
 let state = {...EMPTY};
-try {state={...EMPTY,...JSON.parse(localStorage.getItem('lexnis.agency.context')||'{}')};}catch{}
+try {state={...EMPTY,...JSON.parse(localStorage.getItem(storageKey('lexnis.agency.context'))||'{}')};}catch{}
 for(const key of ['client_id','project_id','campaign_id'])if(!/^[a-f0-9]{32}$/.test(state[key]||''))state[key]='';
 if(!['en','ar','ar-BH'].includes(state.language))state.language='en';
 let header, clients=[], projects=[], campaigns=[], revision=0;
 export function context(){return {...state};}
 export function contextName(){return clients.find(c=>c.id===state.client_id)?.name || 'No client selected';}
-function persist(){try{localStorage.setItem('lexnis.agency.context',JSON.stringify(state));}catch{}}
+function persist(){try{localStorage.setItem(storageKey('lexnis.agency.context'),JSON.stringify(state));}catch{}}
 function notify(){
   persist();
   if(window.agencyProductionContext&&(window.agencyProductionContext.client_id!==state.client_id||window.agencyProductionContext.campaign_id!==state.campaign_id))window.agencyProductionContext=null;

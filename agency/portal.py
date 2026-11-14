@@ -29,6 +29,7 @@ def create_client_review_link(
     expires_at = (datetime.now(timezone.utc) + timedelta(days=expires_in_days)).isoformat()
 
     link_data = {
+        "workspace": __import__('public_access').guest(),
         "token": token,
         "client_id": client_id,
         "campaign_id": campaign_id,
@@ -52,7 +53,7 @@ def create_client_review_link(
 def get_review_portal_data(token: str) -> Dict[str, Any]:
     """Retrieve scoped review data. Strictly omits internal margins, prompts, or filesystem paths."""
     link = REVIEW_LINKS.get(token)
-    if not link:
+    if not link or link.get('workspace') != __import__('public_access').guest():
         raise NotFound("Review link not found or invalid.")
 
     # Check expiration
@@ -99,7 +100,7 @@ def submit_review_decision(
 ) -> Dict[str, Any]:
     """Submit approval or change request via review token."""
     link = REVIEW_LINKS.get(token)
-    if not link:
+    if not link or link.get('workspace') != __import__('public_access').guest():
         raise NotFound("Invalid review link")
 
     if decision not in {"APPROVED", "CHANGES_REQUESTED"}:

@@ -103,6 +103,9 @@ def annotate(asset, **metadata):
 
 
 def existing(url):
+    from public_access import guest, media_path
+    if guest():
+        return ingest(media_path(url), Path(url).name)
     parsed = urlsplit(url)
     if parsed.scheme or parsed.netloc or parsed.query or parsed.fragment:
         raise ValueError('Use an application media URL')

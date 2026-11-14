@@ -7,6 +7,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
 def allowed(scope):
+    from public_access import guest
+    if guest():
+        return True  # Outer guest middleware already enforces origin and isolates the repository.
     headers = dict(scope.get('headers',[]))
     peer = (scope.get('client') or ('',0))[0]
     testing = peer == 'testclient'

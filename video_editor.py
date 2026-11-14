@@ -50,7 +50,8 @@ def title_image(clip, path, width):
         'arabic': ['C:/Windows/Fonts/arial.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'],
         'serif': ['C:/Windows/Fonts/times.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf'],
     }[clip.font]
-    font_path = next((p for p in candidates if Path(p).is_file()), None)
+    from video_fonts import path as named_font
+    font_path = named_font(clip.font_family) or next((p for p in candidates if Path(p).is_file()), None)
     if not font_path:
         raise ValueError('Install DejaVu fonts or Arial for title rendering')
     font = ImageFont.truetype(font_path, size)

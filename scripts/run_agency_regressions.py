@@ -5,6 +5,7 @@ import socket
 import subprocess
 import sys
 import time
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,7 +15,10 @@ worker = ROOT/"scripts/agency_regression_worker.py"
 with socket.socket() as probe:
     probe.bind(("127.0.0.1", 0))
     port = probe.getsockname()[1]
-environment = {**os.environ, "PYTHONIOENCODING":"utf-8", "AGENCY_REGRESSION_PORT":str(port), "OMP_NUM_THREADS":"2"}
+temporary = tempfile.TemporaryDirectory(prefix='lexnis-media-regressions-')
+environment = {**os.environ, "PYTHONIOENCODING":"utf-8", "AGENCY_REGRESSION_PORT":str(port), "OMP_NUM_THREADS":"2",
+               "PUBLIC_TEST_MODE":"false","VIDEO_DATA_DIR":str(Path(temporary.name)/'video'),
+               "AGENCY_DATA_DIR":str(Path(temporary.name)/'agency')}
 results = []
 if "--retry-failed" in sys.argv and (LOGS/"results.json").is_file():
     results = [r for r in json.loads((LOGS/"results.json").read_text(encoding="utf-8")) if r["status"] == "passed"]

@@ -3,7 +3,8 @@ import json
 import threading
 from pathlib import Path
 
-STORE = Path(__file__).resolve().parent / "static/assets/brand_kits.json"
+from public_access import scoped
+STORE = scoped(Path(__file__).resolve().parent / "static/assets/brand_kits.json", 'brands.json')
 LOCK = threading.RLock()
 
 

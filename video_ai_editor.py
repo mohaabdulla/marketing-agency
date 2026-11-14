@@ -23,17 +23,9 @@ class VideoAIEditor:
     @classmethod
     def is_ai_available(cls) -> Tuple[bool, str]:
         """Check if local llama.cpp text engine is configured and reachable."""
-        url = os.getenv('LOCAL_TEXT_URL', '').rstrip('/')
-        if not url:
-            return False, 'Local text server is not configured (set LOCAL_TEXT_URL)'
-        try:
-            import requests
-            res = requests.get(f"{url}/health", timeout=1.5)
-            if res.ok or res.status_code == 404:  # Some llama.cpp endpoints return 404 on /health but are active
-                return True, 'Local llama.cpp inference ready'
-            return False, f"Local text server returned status {res.status_code}"
-        except Exception:
-            return False, 'Local text server is unreachable at LOCAL_TEXT_URL'
+        from video_brand_editing import ai_status
+        state = ai_status()
+        return state['available'], state['reason']
 
     @classmethod
     def auto_polish(cls, project: Any, context: Optional[VideoEditContext] = None) -> EditPlan:
@@ -166,7 +158,7 @@ class VideoAIEditor:
                     'audio_role': 'dialogue' if asset.get('has_audio') else 'ambient'
                 },
                 reason=f"Insert shot {idx + 1} with balanced {clip_dur:.1f}s pacing",
-                source='ai' if ai_ready else 'rule_engine'
+                source='rule_engine'
             ))
 
         # Add background music if available
@@ -182,7 +174,7 @@ class VideoAIEditor:
                     'track': 4
                 },
                 reason='Underlay background soundtrack',
-                source='ai' if ai_ready else 'rule_engine'
+                source='rule_engine'
             ))
 
         # Add opening title hook
@@ -200,7 +192,7 @@ class VideoAIEditor:
                     'y': 0.5
                 },
                 reason='Anchor viewers with primary campaign message',
-                source='ai' if ai_ready else 'rule_engine'
+                source='rule_engine'
             ))
 
         # Add CTA end card
@@ -212,12 +204,12 @@ class VideoAIEditor:
                 'logo_asset_id': context.logo_asset_id
             },
             reason='Deliver clear call to action in conclusion',
-            source='ai' if ai_ready else 'rule_engine'
+            source='rule_engine'
         ))
 
         return EditPlan(
             plan_version='1.0',
-            intent=f"AI First Cut ({target_dur:.0f}s)",
+            intent=f"Deterministic First Cut ({target_dur:.0f}s)",
             target_duration=target_dur,
             operations=ops,
             assumptions=[f"Assembled {len(video_assets)} shot(s) to match target duration of {target_dur:.0f}s."],
@@ -248,7 +240,7 @@ class VideoAIEditor:
                     target_id=c1.id,
                     parameters={'duration': new_dur},
                     reason=f"Shortened opening shot from {c1.duration:.1f}s to {new_dur:.1f}s",
-                    source='ai'
+                    source='rule_engine'
                 ))
             assumptions.append('Shortened the introductory clip duration.')
 
@@ -260,7 +252,7 @@ class VideoAIEditor:
                     target_id=c2.id,
                     parameters={'to_index': 0},
                     reason='Promoted shot 2 to opening position to prioritize product visibility',
-                    source='ai'
+                    source='rule_engine'
                 ))
             assumptions.append('Reordered shots to lead with hero footage.')
 
@@ -273,7 +265,7 @@ class VideoAIEditor:
                         target_id=c.id,
                         parameters={'font_size': new_size},
                         reason=f"Enlarged font size to {new_size}px for increased legibility",
-                        source='ai'
+                        source='rule_engine'
                     ))
             assumptions.append('Increased typography and subtitle font size.')
 
@@ -285,7 +277,7 @@ class VideoAIEditor:
                         target_id=c.id,
                         parameters={'volume': 0.4},
                         reason='Reduced background music volume to 40% under speech',
-                        source='ai'
+                        source='rule_engine'
                     ))
             assumptions.append('Attenuated music track volume.')
 
@@ -294,13 +286,13 @@ class VideoAIEditor:
                 operation_type='SET_CANVAS',
                 parameters={'width': 1080, 'height': 1080},
                 reason='Transformed canvas to 1:1 square aspect ratio',
-                source='ai'
+                source='rule_engine'
             ))
             ops.append(EditOperation(
                 operation_type='SET_SAFE_ZONE_PROFILE',
                 parameters={'profile': 'square-social'},
                 reason='Adopted square social safe zone margins',
-                source='ai'
+                source='rule_engine'
             ))
 
         elif any(w in inst for w in ['vertical', '9:16', 'reel', 'tiktok', 'story']):
@@ -308,13 +300,13 @@ class VideoAIEditor:
                 operation_type='SET_CANVAS',
                 parameters={'width': 1080, 'height': 1920},
                 reason='Adapted canvas to 9:16 vertical HD framing',
-                source='ai'
+                source='rule_engine'
             ))
             ops.append(EditOperation(
                 operation_type='SET_SAFE_ZONE_PROFILE',
                 parameters={'profile': 'vertical-social'},
                 reason='Configured vertical social safe margins (14% top, 20% bottom)',
-                source='ai'
+                source='rule_engine'
             ))
 
         else:
@@ -325,7 +317,7 @@ class VideoAIEditor:
                     target_id=primary_clips[0].id,
                     parameters={'transition': 0.3},
                     reason='Fine-tuned transition pacing in response to general refinement direction',
-                    source='ai'
+                    source='rule_engine'
                 ))
             assumptions.append(f"Applied editorial refinement based on direction: '{instruction}'.")
 

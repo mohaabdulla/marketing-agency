@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse, Response
 from starlette.concurrency import run_in_threadpool
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from video_storage import DATA, MAX_UPLOAD, read, listing, space, identifier, atomic
 from video_projects import Strict, Project, save, migrate_project
@@ -142,11 +142,18 @@ async def upload(file: UploadFile = File(...)):
 class ImportMedia(Strict):
     url: str = Field(..., max_length=1000)
 
+    @model_validator(mode='before')
+    @classmethod
+    def legacy_alias(cls, value):
+        if isinstance(value,dict) and 'source_url' in value and 'url' not in value:
+            value = dict(value)
+            value['url'] = value.pop('source_url')
+        return value
+
 
 @router.post('/import')
 def import_asset(body: ImportMedia):
-    path = guard(existing, body.url)
-    return guard(ingest, path, path.name)
+    return guard(existing, body.url)
 
 
 @router.get('/media/{asset_id}')
@@ -344,7 +351,7 @@ def caption_styles():
 @router.post('/projects/{project_id}/ai/first-cut')
 def ai_first_cut(project_id: str, body: AIFirstCutRequest):
     proj_data = migrate_project(guard(read, 'projects', project_id))
-    project = Project(**proj_data)
+    project = Project.model_validate({k:v for k,v in proj_data.items() if k in Project.model_fields})
 
     media_assets = [guard(read, 'assets', aid) for aid in body.media_asset_ids]
     # Collect cached analyses
@@ -365,19 +372,19 @@ def ai_first_cut(project_id: str, body: AIFirstCutRequest):
 
     # Commit as AI revision
     saved = save(
-        updated_project, project_id, actor='ai',
-        instruction=f"AI First Cut: {plan.intent}",
+        updated_project, project_id, actor='rule_engine',
+        instruction=f"Deterministic First Cut: {plan.intent}",
         reason='; '.join(op.reason for op in plan.operations if op.reason),
         operation_ids=[op.operation_id for op in plan.operations],
-        label='AI First Cut'
+        label='Deterministic First Cut'
     )
-    return {'project': saved, 'plan': plan.model_dump(mode='json'), 'warnings': warnings}
+    return {'project': saved, 'plan': plan.model_dump(mode='json'), 'warnings': warnings, 'engine':'rule_engine', 'ai_used':False}
 
 
 @router.post('/projects/{project_id}/ai/edit')
 def ai_edit_timeline(project_id: str, body: AIEditRequest):
     proj_data = migrate_project(guard(read, 'projects', project_id))
-    project = Project(**proj_data)
+    project = Project.model_validate({k:v for k,v in proj_data.items() if k in Project.model_fields})
 
     context = compile_video_edit_context(
         project=project,
@@ -386,8 +393,16 @@ def ai_edit_timeline(project_id: str, body: AIEditRequest):
         brief_data=body.brief_data
     )
 
-    plan = VideoAIEditor.revise(project, body.instruction, context)
-    updated_project, warnings = OperationExecutor.apply_plan(project, plan)
+    import video_brand_editing as branded
+    from brand_guidelines import Rules
+    if not branded.ai_status()['available']:
+        raise HTTPException(409,branded.ai_status()['reason'])
+    plan = guard(branded.local_plan,project,body.instruction,branded.effective_rules(project,body.brand_profile))
+    updated_project = guard(branded.checked,project,plan)
+    warnings = plan.warnings
+    result=branded.compliance(updated_project)
+    if not result['passed']:
+        raise HTTPException(409,dict(message='Brand checks need review; use the preview/apply workflow',findings=result['findings']))
 
     # Commit as AI patch revision
     saved = save(
@@ -403,7 +418,7 @@ def ai_edit_timeline(project_id: str, body: AIEditRequest):
 @router.post('/projects/{project_id}/auto-polish')
 def auto_polish_endpoint(project_id: str, body: AutoPolishRequest):
     proj_data = migrate_project(guard(read, 'projects', project_id))
-    project = Project(**proj_data)
+    project = Project.model_validate({k:v for k,v in proj_data.items() if k in Project.model_fields})
 
     context = compile_video_edit_context(
         project=project,
@@ -411,8 +426,10 @@ def auto_polish_endpoint(project_id: str, body: AutoPolishRequest):
         brief_data=body.brief_data
     )
 
-    plan = VideoAIEditor.auto_polish(project, context)
-    updated_project, warnings = OperationExecutor.apply_plan(project, plan)
+    import video_brand_editing as branded
+    plan = guard(branded.polish,project,'Apply the reviewed brand styling.',branded.effective_rules(project,body.brand_profile))
+    updated_project = guard(branded.checked,project,plan)
+    warnings = plan.warnings
 
     saved = save(
         updated_project, project_id, actor='rule_engine',
@@ -427,7 +444,7 @@ def auto_polish_endpoint(project_id: str, body: AutoPolishRequest):
 @router.get('/projects/{project_id}/compliance')
 def get_compliance_report(project_id: str):
     proj_data = migrate_project(guard(read, 'projects', project_id))
-    project = Project(**proj_data)
+    project = Project.model_validate({k:v for k,v in proj_data.items() if k in Project.model_fields})
     report = VideoComplianceEngine.audit_project(project)
     return report.model_dump(mode='json')
 
@@ -435,7 +452,7 @@ def get_compliance_report(project_id: str):
 @router.post('/projects/{project_id}/compliance/fix')
 def fix_compliance_endpoint(project_id: str):
     proj_data = migrate_project(guard(read, 'projects', project_id))
-    project = Project(**proj_data)
+    project = Project.model_validate({k:v for k,v in proj_data.items() if k in Project.model_fields})
     report = VideoComplianceEngine.audit_project(project)
 
     plan = VideoComplianceEngine.generate_compliance_repairs(report, project)
@@ -456,7 +473,7 @@ def fix_compliance_endpoint(project_id: str):
 @router.post('/projects/{project_id}/variants')
 def create_variant_endpoint(project_id: str, body: VariantRequest):
     proj_data = migrate_project(guard(read, 'projects', project_id))
-    project = Project(**proj_data)
+    project = Project.model_validate({k:v for k,v in proj_data.items() if k in Project.model_fields})
 
     variant_proj = create_platform_variant(
         master_project=project,

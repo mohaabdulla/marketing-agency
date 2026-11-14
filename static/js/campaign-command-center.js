@@ -1,3 +1,4 @@
+import {storageKey} from './public-session.js';
 /**
  * Campaign Command Center for LEXNIS Marketing Agency Operating System.
  * Connects briefs, concepts, copy, scripts, storyboards, production, approvals,
@@ -14,8 +15,8 @@ export async function mountCommandCenter(container) {
   `;
 
   // Fetch current client and campaign from app context / agency API
-  let clientId = localStorage.getItem('lexnis.clientId') || '';
-  let campaignId = localStorage.getItem('lexnis.campaignId') || '';
+  let clientId = localStorage.getItem(storageKey('lexnis.clientId')) || '';
+  let campaignId = localStorage.getItem(storageKey('lexnis.campaignId')) || '';
 
   try {
     // If no client or campaign selected, fetch default or first client
@@ -25,7 +26,7 @@ export async function mountCommandCenter(container) {
         const cdata = await clientsRes.json();
         if (cdata.items && cdata.items.length > 0) {
           clientId = cdata.items[0].id;
-          localStorage.setItem('lexnis.clientId', clientId);
+          localStorage.setItem(storageKey('lexnis.clientId'), clientId);
         }
       }
     }
@@ -36,7 +37,7 @@ export async function mountCommandCenter(container) {
         const campData = await campRes.json();
         if (campData.items && campData.items.length > 0) {
           campaignId = campData.items[0].id;
-          localStorage.setItem('lexnis.campaignId', campaignId);
+          localStorage.setItem(storageKey('lexnis.campaignId'), campaignId);
         }
       }
     }

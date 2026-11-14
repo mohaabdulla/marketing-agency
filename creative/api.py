@@ -14,6 +14,7 @@ from .presets import FORMAT_PRESETS, MOTION_PRESETS, build_preset_scene
 from .scene import SceneGraph
 from .exports import CreativeExporter
 from .qa import CreativeQAEngine
+from public_access import scoped, guest, media_path
 
 router = APIRouter(prefix="/api/creative", tags=["creative"])
 exporter = CreativeExporter()
@@ -67,6 +68,23 @@ def _resolve_scene(req: RenderRequest | QAAuditRequest) -> Scene:
     return project.scenes[0]
 
 
+def public_render_budget(scene, fps, animation=False, gif=False):
+    if not guest():
+        return
+    canvas=scene.canvas
+    width,height=canvas.width,canvas.height
+    frames=max(1,int(scene.duration*fps)) if animation else 1
+    budget=128000000 if gif else 900000000
+    if not 128<=width<=1920 or not 128<=height<=1920 or not 0<scene.duration<=30 or width*height*frames>budget:
+        raise HTTPException(400,'Render exceeds the safe pixel/frame budget; reduce resolution, duration or frame rate')
+    if len(scene.layers)>100 or any(abs(l.width)>4096 or abs(l.height)>4096 for l in scene.layers):
+        raise HTTPException(400,'Layer count or dimensions exceed rendering safety limits')
+    if sum(abs(l.width*l.height) for l in scene.layers)>16000000:
+        raise HTTPException(400,'Combined layer area exceeds the safe composition budget')
+    if any(l.text_data and (len(l.text_data.text)>2000 or l.text_data.font_size>200) for l in scene.layers):
+        raise HTTPException(400,'Text layer length or font size exceeds rendering safety limits')
+
+
 @router.get("/presets")
 def get_presets():
     """List supported canvas dimensions and deterministic motion presets."""
@@ -106,6 +124,7 @@ def load_project(project_id: str):
 def audit_project(req: QAAuditRequest):
     """Perform pre-flight creative QA audit."""
     scene = _resolve_scene(req)
+    public_render_budget(scene,1)
     report = qa_engine.audit_scene(scene)
     return {
         "scene_id": scene.scene_id,
@@ -119,7 +138,8 @@ def audit_project(req: QAAuditRequest):
 def render_still(req: RenderRequest):
     """Render a single high-resolution still frame at timestamp t."""
     scene = _resolve_scene(req)
-    out_dir = Path("output/creative_renders")
+    public_render_budget(scene,1)
+    out_dir = scoped(Path("output/creative_renders"), 'creative_renders')
     out_dir.mkdir(parents=True, exist_ok=True)
     ext = "jpg" if req.format.lower() in ("jpg", "jpeg") else "png"
     out_file = out_dir / f"{scene.scene_id}_t{int(req.t*1000)}.{ext}"
@@ -136,7 +156,8 @@ def render_still(req: RenderRequest):
 def render_gif(req: RenderRequest):
     """Render an animated GIF with palette optimization from the scene graph."""
     scene = _resolve_scene(req)
-    out_dir = Path("output/creative_renders")
+    public_render_budget(scene,max(5,min(req.fps,30)),True,True)
+    out_dir = scoped(Path("output/creative_renders"), 'creative_renders')
     out_dir.mkdir(parents=True, exist_ok=True)
     out_file = out_dir / f"{scene.scene_id}.gif"
 
@@ -153,7 +174,8 @@ def render_gif(req: RenderRequest):
 def render_mp4(req: RenderRequest):
     """Render a direct broadcast-quality MP4 via FFmpeg rawvideo pipe without intermediate GIF."""
     scene = _resolve_scene(req)
-    out_dir = Path("output/creative_renders")
+    public_render_budget(scene,max(10,min(req.fps,60)),True)
+    out_dir = scoped(Path("output/creative_renders"), 'creative_renders')
     out_dir.mkdir(parents=True, exist_ok=True)
     out_file = out_dir / f"{scene.scene_id}.mp4"
 
@@ -169,7 +191,7 @@ def render_mp4(req: RenderRequest):
 @router.post("/bridge-to-video")
 def bridge_to_video(req: BridgeToVideoRequest):
     """Ingest a rendered still, GIF, or direct MP4 into Video Studio's managed media library."""
-    file_path = Path(req.output_path)
+    file_path = media_path(req.output_path) if guest() else Path(req.output_path)
     if not file_path.is_file():
         raise HTTPException(404, f"File not found: {req.output_path}")
 

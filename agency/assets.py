@@ -55,6 +55,10 @@ def stored_path(stored_name, repo=repository):
 
 def resolve_source(media_url='', video_asset_id=''):
     """Only application-managed media: a generated/uploaded file URL or a Video Studio asset ID."""
+    from public_access import guest, media_path
+    if guest() and not video_asset_id:
+        path = media_path(media_url)
+        return path, path.name, media_url
     if video_asset_id:
         import video_assets
         from video_storage import identifier, read

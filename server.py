@@ -50,6 +50,7 @@ app.add_middleware(
 )
 
 from video_api import router as video_router
+import video_guideline_api
 from video_security import VideoRequestLimits
 app.include_router(video_router)
 app.add_middleware(VideoRequestLimits)
@@ -67,7 +68,8 @@ BASE_DIR = Path(__file__).resolve().parent
 # not in the tracked static assets folder, which every generated campaign used to add a ZIP to.
 AGENCY_BUNDLES_DIR = RENDERS_DIR
 RENDERS_DIR.mkdir(parents=True, exist_ok=True)
-UPLOADS_DIR = BASE_DIR / "output" / "uploads"
+from public_access import scoped, guest, media_path, PublicTestingMiddleware
+UPLOADS_DIR = scoped(BASE_DIR / "output" / "uploads", 'uploads')
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 TEST_ASSETS_DIR = BASE_DIR / "test_assets"
 TEST_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
@@ -76,6 +78,14 @@ app.mount("/renders", StaticFiles(directory=RENDERS_DIR), name="renders")
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 app.mount("/test_assets", StaticFiles(directory=TEST_ASSETS_DIR), name="test_assets")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+app.add_middleware(PublicTestingMiddleware)
+from guideline_api import router as guideline_router
+app.include_router(guideline_router)
+
+
+@app.get('/api/session')
+def session_status():
+    return dict(public_test_mode=False, guest=False)
 
 
 def render_url(path: str) -> str:
@@ -93,6 +103,11 @@ def render_url(path: str) -> str:
 
 def render_path(url: str) -> str:
     """Map a /renders/..., /uploads/..., or /test_assets/... URL from the UI back to the file on disk."""
+    if guest():
+        try:
+            return str(media_path(url))
+        except ValueError:
+            return ""
     path = urlsplit(url).path if url else ""
     if path.startswith("/renders/"):
         p = RENDERS_DIR / Path(path).name
@@ -120,6 +135,8 @@ def _inside_project(path: str) -> bool:
     client-supplied path must never reach files elsewhere on the machine."""
     try:
         resolved = Path(path).resolve()
+        if guest():
+            return resolved.is_file() and (resolved.is_relative_to(RENDERS_DIR.resolve()) or resolved.is_relative_to(UPLOADS_DIR.resolve()))
         return resolved.is_file() and resolved.is_relative_to(BASE_DIR)
     except (OSError, ValueError):
         return False
@@ -145,6 +162,8 @@ def resolve_request_brand(
     - A Lexnis-named profile is dropped when the resolved brand is not Lexnis.
     """
     bp: Dict[str, Any] = dict(brand_profile or {})
+    if guest() and bp.get('logo_path'):
+        bp['logo_path'] = str(media_path(bp['logo_path']))
     prompt = prompt or ""
     if not bp and guidelines and guidelines.strip():
         try:
@@ -874,7 +893,15 @@ async def upload_visual_endpoint(
     Saves the file to disk, calculates dimensions, and generates an optimized thumbnail.
     """
     try:
-        content_bytes = await file.read()
+        content_bytes = await file.read(16 * 1024**2 + 1)
+        if guest():
+            from public_access import validate_visual
+            try:
+                validate_visual(content_bytes,file.filename or "visual.jpg")
+            except Exception:
+                raise HTTPException(400,"Upload a valid raster image or self-contained safe SVG (16 MB maximum)")
+            if slot not in {"subject","template","logo","product","reference"}:
+                raise HTTPException(400,"Invalid visual slot")
         if not content_bytes:
             raise HTTPException(status_code=400, detail="Empty visual file uploaded.")
 
@@ -929,6 +956,8 @@ async def upload_visual_endpoint(
             "height": height,
             "slot": slot
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -942,6 +971,8 @@ async def upload_logo_endpoint(file: UploadFile = File(...)):
 @app.get("/api/sample-visuals")
 def sample_visuals_endpoint():
     """List pre-packaged high-fidelity sample visual assets & templates for 1-click loading."""
+    if guest():
+        return dict(status='success',samples=[])
     samples = [
         {
             "id": "sekawan-popout",
@@ -994,6 +1025,19 @@ async def upload_guidelines_endpoint(
 
     if not upload_list:
         raise HTTPException(status_code=400, detail="No files uploaded.")
+    if len(upload_list) > 8:
+        raise HTTPException(413, 'Upload at most eight guidelines')
+    if all(Path(f.filename or '').suffix.lower() in {'.pdf','.docx','.txt','.md','.markdown','.json'} for f in upload_list):
+        from guideline_api import guard as document_guard
+        from brand_guidelines import upload_documents
+        docs = []
+        for f in upload_list:
+            try:
+                docs.append((f.filename or '', await f.read(8 * 1024**2 + 1)))
+            finally:
+                await f.close()
+        from starlette.concurrency import run_in_threadpool
+        return await run_in_threadpool(document_guard,upload_documents,docs)
 
     IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tiff", ".svg"}
     studio = LexnisCampaignStudio()
@@ -1001,7 +1045,15 @@ async def upload_guidelines_endpoint(
     file_payloads = []
     for f in upload_list:
         fname = f.filename or "brand_asset"
-        content_bytes = await f.read()
+        content_bytes = await f.read(8 * 1024**2 + 1)
+        if len(content_bytes) > 8 * 1024**2:
+            raise HTTPException(413, 'Each guideline must be at most 8 MB')
+        if guest() and Path(fname).suffix.lower() in IMAGE_EXTENSIONS:
+            from public_access import validate_visual
+            try:
+                validate_visual(content_bytes,fname)
+            except Exception:
+                raise HTTPException(400,'Upload a valid self-contained guideline image')
         if content_bytes:
             file_payloads.append((fname, f.content_type or "", content_bytes))
 
@@ -1076,7 +1128,8 @@ async def upload_guidelines_endpoint(
     # Parallelize file extraction across multiple threads for instant uploads
     processed_files = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(file_payloads), 4)) as ex:
-        futures = [ex.submit(_process_file, p) for p in file_payloads]
+        from contextvars import copy_context
+        futures = [ex.submit(copy_context().run, _process_file, p) for p in file_payloads]
         for fut in futures:
             try:
                 res = fut.result()
@@ -1167,9 +1220,11 @@ async def analyze_layout_endpoint(
             p = render_path(image_url)
             if p and Path(p).exists():
                 img_bytes = Path(p).read_bytes()
-            elif (BASE_DIR / "test_assets" / "template_reference.jpg").exists() and "template" in image_url.lower():
+            elif not guest() and (BASE_DIR / "test_assets" / "template_reference.jpg").exists() and "template" in image_url.lower():
                 img_bytes = (BASE_DIR / "test_assets" / "template_reference.jpg").read_bytes()
 
+        if not img_bytes and guest():
+            raise HTTPException(400,'Upload a reference image from your workspace')
         if not img_bytes:
             default_tpl = BASE_DIR / "test_assets" / "template_reference.jpg"
             if default_tpl.exists():
@@ -1193,7 +1248,7 @@ async def analyze_layout_endpoint(
 
         latest_bp_path = RENDERS_DIR / "latest_blueprint.json"
         blueprint.save(latest_bp_path)
-        static_bp = BASE_DIR / "static" / "assets" / "learned_blueprint.json"
+        static_bp = RENDERS_DIR / "learned_blueprint.json" if guest() else BASE_DIR / "static" / "assets" / "learned_blueprint.json"
         blueprint.save(static_bp)
 
         return {
@@ -1258,7 +1313,7 @@ async def template_swap_endpoint(
             p = render_path(template_url)
             if p and Path(p).exists():
                 t_bytes = Path(p).read_bytes()
-            elif (BASE_DIR / "test_assets" / "template_reference.jpg").exists() and "template" in template_url.lower():
+            elif not guest() and (BASE_DIR / "test_assets" / "template_reference.jpg").exists() and "template" in template_url.lower():
                 t_bytes = (BASE_DIR / "test_assets" / "template_reference.jpg").read_bytes()
 
         if subject_file:
@@ -1267,9 +1322,11 @@ async def template_swap_endpoint(
             p = render_path(subject_url)
             if p and Path(p).exists():
                 s_bytes = Path(p).read_bytes()
-            elif (BASE_DIR / "test_assets" / "raw_subject.jpg").exists() and "subject" in subject_url.lower():
+            elif not guest() and (BASE_DIR / "test_assets" / "raw_subject.jpg").exists() and "subject" in subject_url.lower():
                 s_bytes = (BASE_DIR / "test_assets" / "raw_subject.jpg").read_bytes()
 
+        if guest() and (not t_bytes or not s_bytes):
+            raise HTTPException(400, 'Upload your own template and subject images')
         # Fallback to test_assets if none provided
         if not t_bytes and (BASE_DIR / "test_assets" / "template_reference.jpg").exists():
             t_bytes = (BASE_DIR / "test_assets" / "template_reference.jpg").read_bytes()
@@ -1286,7 +1343,7 @@ async def template_swap_endpoint(
             p = render_path(logo_url)
             if p and Path(p).exists():
                 logo_image_param = str(p)
-            elif Path(logo_url.lstrip("/\\")).exists():
+            elif not guest() and Path(logo_url.lstrip("/\\")).exists():
                 logo_image_param = str(Path(logo_url.lstrip("/\\")))
             else:
                 logo_image_param = logo_url
@@ -1352,7 +1409,7 @@ async def template_swap_endpoint(
             # Drop missing / long / LLM-sentence headlines ("LEXNIS TECHNOLOGIES WELCOMING NEW ...").
             headline_text = team_welcome_headline(brand_name, primary_lang)
 
-        bp_path = BASE_DIR / "static" / "assets" / "learned_blueprint.json"
+        bp_path = RENDERS_DIR / "learned_blueprint.json" if guest() else BASE_DIR / "static" / "assets" / "learned_blueprint.json"
         bp_param = str(bp_path) if bp_path.exists() else None
 
         # Render primary image (1080x1350 Instagram / LinkedIn Feed master)
@@ -1604,7 +1661,7 @@ def export_campaign_endpoint(req: ExportRequest):
             arabic=req.arabic or {},
             guidelines=req.guidelines or "",
         )
-        saved_files = studio.export_campaign(asset, output_dir=str(BASE_DIR / "output"))
+        saved_files = studio.export_campaign(asset, output_dir=str(RENDERS_DIR if guest() else BASE_DIR / "output"))
         return {
             "status": "success",
             "message": "Campaign assets successfully exported to disk",

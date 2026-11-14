@@ -1,3 +1,4 @@
+import {storageKey} from './public-session.js';
 import {agencyApi as api,agencyPost as post,escapeHtml as e,human} from './agency-api.js';
 import {context,contextName,setClient,setCampaign,refreshContext} from './app-context.js';
 import * as P from './agency-production.js';
@@ -84,7 +85,7 @@ class Page{
   }
   schema(){return this.kind==='clients'?schemas.client:schemas.records[this.kind];}
   resolve(field){return field.anyOf?.find(x=>x.type!=='null')||field;}
-  draftKey(item){return `lexnis.agency.draft.${this.client||'directory'}.${this.kind}.${item?.id||'new'}`;}
+  draftKey(item){return storageKey(`lexnis.agency.draft.${this.client||'directory'}.${this.kind}.${item?.id||'new'}`);}
   async choices(kind){const key=this.client+':'+kind;if(!this.options[key])this.options[key]=(await api(scoped(this.client,'/records?summary=true&kind='+kind+'&limit=100'))).items;return this.options[key];}
   async edit(item){
     const client=this.client,kind=this.kind;this.opened=item;if(await P.customEdit(this,item))return;const schema=this.schema();let values=item?(kind==='clients'?item:item.data):{};let draft;

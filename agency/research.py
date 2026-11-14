@@ -108,7 +108,7 @@ def import_file(client_id,file,repo=repository,agency=service):
         _slots.release()
 
 
-def target(url):
+def target(url, public_page=False):
     p=urlsplit(url)
     if p.scheme not in {'http','https'} or not p.hostname or p.username or p.password or p.fragment:
         raise ValueError('Research URL must be a public HTTP/HTTPS page without credentials or fragments')
@@ -118,7 +118,7 @@ def target(url):
     allowed={x.strip().lower() for x in os.getenv('AGENCY_RESEARCH_ALLOWED_DOMAINS','').split(',') if x.strip()}
     blocked={x.strip().lower() for x in os.getenv('AGENCY_RESEARCH_BLOCKED_DOMAINS','').split(',') if x.strip()}
     host=p.hostname.encode('idna').decode('ascii').lower()
-    if os.getenv('AGENCY_WEB_RESEARCH','0')!='1' or host not in allowed or host in blocked:
+    if host in blocked or (not public_page and (os.getenv('AGENCY_WEB_RESEARCH','0')!='1' or host not in allowed)):
         raise ValueError('Online capture is disabled or this exact domain is not allowlisted')
     if not _dns_slots.acquire(blocking=False):
         raise ValueError('Research DNS checks are busy; retry shortly')
@@ -135,8 +135,8 @@ def target(url):
     return p,host,port,sorted(addresses,key=lambda ip:(ipaddress.ip_address(ip).version,ip))[0]
 
 
-def fetch(url,path=None,max_bytes=MAX_PAGE):
-    parsed,host,port,address=target(url)
+def fetch(url,path=None,max_bytes=MAX_PAGE,public_page=False):
+    parsed,host,port,address=target(url,public_page)
     cls=http.client.HTTPSConnection if parsed.scheme=='https' else http.client.HTTPConnection
     kwargs=dict(timeout=10)
     if parsed.scheme=='https':

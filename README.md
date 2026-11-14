@@ -1,5 +1,10 @@
 # Lexnis Campaign Studio — improved pipeline
 
+Public anonymous testing and shared brand-guided Video Editor are documented in
+[PUBLIC_TESTING.md](PUBLIC_TESTING.md), with executed checks and file groups in
+[PUBLIC_BRAND_VIDEO_REPORT.md](PUBLIC_BRAND_VIDEO_REPORT.md).
+`PUBLIC_TEST_MODE` is opt-in and defaults to false. The default operator mode is loopback-only.
+
 Product research → creative brief → copywriting → creative review → photographic asset → separately typeset advertising copy.
 
 

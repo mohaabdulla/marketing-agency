@@ -11,8 +11,9 @@ from .schemas import CreativeProject
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-CREATIVE_STORAGE_DIR = ROOT_DIR / "output/creative_projects"
-CREATIVE_ASSET_DIR = ROOT_DIR / "output/creative_assets"
+from public_access import scoped
+CREATIVE_STORAGE_DIR = scoped(ROOT_DIR / "output/creative_projects", 'creative_projects')
+CREATIVE_ASSET_DIR = scoped(ROOT_DIR / "output/creative_assets", 'creative_assets')
 
 
 class CreativeStorage:
@@ -26,7 +27,7 @@ class CreativeStorage:
 
     def _sanitize_path(self, target: Path) -> Path:
         resolved = target.resolve()
-        if not (str(resolved).startswith(str(self.base_dir.resolve())) or str(resolved).startswith(str(self.asset_dir.resolve()))):
+        if not (resolved.is_relative_to(self.base_dir.resolve()) or resolved.is_relative_to(self.asset_dir.resolve())):
             raise PermissionError(f"Access denied: path '{target}' escapes allowed creative storage.")
         return resolved
 

@@ -134,8 +134,9 @@ LEGACY_MODEL_ALIASES = {"sana", "tongyi-mai/z-image-turbo"}
 POST_WIDTH, POST_HEIGHT = 1080, 1350           # Instagram 4:5 portrait
 RENDER_WIDTH, RENDER_HEIGHT = 1088, 1344       # multiples of 32, <=1.6 MP (FLUX 1.1 Pro limits)
 IG_CAPTION_LIMIT = 2200
-RENDERS_DIR = BASE_DIR / "output" / "renders"
-UPLOADS_DIR = BASE_DIR / "output" / "uploads"
+from public_access import scoped
+RENDERS_DIR = scoped(BASE_DIR / "output" / "renders", 'renders')
+UPLOADS_DIR = scoped(BASE_DIR / "output" / "uploads", 'uploads')
 
 
 def _layout_code_fingerprint() -> str:
@@ -2273,7 +2274,14 @@ class LexnisCampaignStudio:
         if not url or requests is None or BeautifulSoup is None:
             return ""
         try:
-            resp = requests.get(url, headers=BROWSER_HEADERS, timeout=8)
+            from public_access import guest
+            if guest():
+                from agency.research import fetch
+                from types import SimpleNamespace
+                status,mime,body=fetch(url,public_page=True)
+                resp=SimpleNamespace(ok=status==200,headers={'content-type':mime},text=body.decode('utf-8',errors='replace'))
+            else:
+                resp = requests.get(url, headers=BROWSER_HEADERS, timeout=8)
             if not resp.ok or "html" not in resp.headers.get("content-type", ""):
                 return ""
             soup = BeautifulSoup(resp.text, "html.parser")
@@ -2975,7 +2983,14 @@ class LexnisCampaignStudio:
                 headers = {
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                 }
-                resp = requests.get(clean_url, headers=headers, timeout=6)
+                from public_access import guest
+                if guest():
+                    from agency.research import fetch
+                    from types import SimpleNamespace
+                    status,mime,body=fetch(clean_url,public_page=True)
+                    resp=SimpleNamespace(status_code=status,text=body.decode('utf-8',errors='replace'))
+                else:
+                    resp = requests.get(clean_url, headers=headers, timeout=6)
                 if resp.status_code == 200:
                     html_text = resp.text
                     if BeautifulSoup:
@@ -4456,6 +4471,10 @@ class LexnisCampaignStudio:
         ref_subject = BASE_DIR / "test_assets" / "raw_subject.jpg"
         if not ref_subject.exists():
             ref_subject = BASE_DIR / "static" / "assets" / "raw_subject.jpg"
+        from public_access import guest, folder
+        if guest():
+            ref_template = folder('uploads') / 'no-default-template'
+            ref_subject = folder('uploads') / 'no-default-employee'
 
         t_file, s_file = select_template_and_subject(candidate_images, is_welcome_mode, ref_subject, classify_template_and_subject)
 

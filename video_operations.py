@@ -235,6 +235,7 @@ class OperationExecutor:
                 duration=params.get('duration', 3.0),
                 color=params.get('color', '#ffffff'),
                 font=params.get('font', 'sans'),
+                font_family=params.get('font_family', ''),
                 font_size=params.get('font_size', 48),
                 x=params.get('x', 0.5),
                 y=params.get('y', 0.5),
@@ -253,6 +254,10 @@ class OperationExecutor:
                 if 'color' in params: clip.color = str(params['color'])
                 if 'font' in params: clip.font = str(params['font'])
                 if 'font_size' in params: clip.font_size = int(params['font_size'])
+                if 'font_family' in params: clip.font_family = str(params['font_family'])
+                for key in ('x','y','start','duration'):
+                    if key in params:
+                        setattr(clip,key,float(params[key]))
                 if 'text_role' in params: clip.text_role = str(params['text_role'])
 
         elif op_t == 'ADD_OVERLAY':
@@ -393,5 +398,6 @@ class OperationExecutor:
         for op in plan.operations:
             cls.apply_operation(cloned, op)
 
-        return cloned, plan.warnings
+        from video_projects import Project
+        return Project.model_validate(cloned.model_dump()), plan.warnings
 

@@ -9,7 +9,8 @@ import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-DATA = Path(os.getenv('VIDEO_DATA_DIR', str(ROOT / 'output/video'))).resolve()
+from public_access import scoped
+DATA = scoped(Path(os.getenv('VIDEO_DATA_DIR', str(ROOT / 'output/video'))).resolve(), 'video')
 LOCK = threading.RLock()
 MAX_UPLOAD = int(os.getenv('VIDEO_MAX_UPLOAD_MB', '256')) * 1024**2
 QUOTA = int(os.getenv('VIDEO_DISK_QUOTA_GB', '8')) * 1024**3
@@ -29,7 +30,7 @@ def identifier(value):
 
 def atomic(path, value):
     with LOCK:
-        temp = path.with_name(path.name + '.' + uid() + '.tmp')
+        temp = path.with_name(uid()[:16] + '.tmp')
         try:
             temp.write_text(json.dumps(value, ensure_ascii=False), encoding='utf-8')
             os.replace(temp, path)
