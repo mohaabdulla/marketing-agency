@@ -13,7 +13,7 @@ DATA = Path(os.getenv('VIDEO_DATA_DIR', str(ROOT / 'output/video'))).resolve()
 LOCK = threading.RLock()
 MAX_UPLOAD = int(os.getenv('VIDEO_MAX_UPLOAD_MB', '256')) * 1024**2
 QUOTA = int(os.getenv('VIDEO_DISK_QUOTA_GB', '8')) * 1024**3
-for folder in ('assets', 'projects', 'jobs', 'work'):
+for folder in ('assets', 'projects', 'jobs', 'work', 'revisions', 'analysis'):
     (DATA / folder).mkdir(parents=True, exist_ok=True)
 
 

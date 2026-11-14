@@ -604,6 +604,11 @@ def generate_campaign_endpoint(req: GenerateRequest):
         if not _is_generic_brand(effective_brand) and effective_brand != "Lexnis Technologies" and not bp.get("brand_name"):
             bp["brand_name"] = effective_brand
 
+        if effective_brand and "lexnis" not in effective_brand.lower():
+            if logo_to_use and any(k in str(logo_to_use).lower() for k in ["lexnis", "brand_logo", "default_logo"]):
+                logo_to_use = None
+                req.logo_url = None
+
         asset: CampaignAsset = studio.generate_campaign(
             prompt=req.prompt,
             brand=effective_brand,
@@ -1302,6 +1307,9 @@ async def template_swap_endpoint(
         # is a stale default while a guideline is loaded, unless the website is lexnis.com) > prompt.
         brand_name, bp = resolve_request_brand(brand_name, bp, guidelines, prompt, company_url)
         is_lexnis_brand = "lexnis" in brand_name.lower()
+        if not is_lexnis_brand and logo_image_param:
+            if any(k in str(logo_image_param).lower() for k in ["lexnis", "brand_logo", "default_logo"]):
+                logo_image_param = None
 
         # Person: never a camera/messenger filename; fall back to the name written in the prompt.
         if post_type in ("team_welcome", "general"):

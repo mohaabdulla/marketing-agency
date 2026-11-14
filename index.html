@@ -1152,8 +1152,8 @@
           </div>
           <div class="text-xs font-mono text-slate-400">
             <label for="format-select">Format: </label><select id="format-select" class="bg-obsidian-950 border border-obsidian-700 rounded px-2 py-1 text-cyan-accent">
-              <option value="landscape" selected>Landscape ad (1536 × 864)</option>
-              <option value="portrait">Instagram 4:5 (1080 × 1350)</option>
+              <option value="portrait" selected>Portrait 4:5 (1080 × 1350)</option>
+              <option value="landscape">Landscape ad (1536 × 864)</option>
               <option value="square">Square (1080 × 1080)</option>
             </select>
           </div>
@@ -1274,7 +1274,7 @@
                     </div>
 
                     <!-- English Frame -->
-                    <div id="dual-frame-en" class="relative w-full aspect-[16/9] bg-obsidian-900 rounded-lg overflow-hidden border border-obsidian-800 group shadow-inner">
+                    <div id="dual-frame-en" class="relative w-full aspect-[4/5] max-h-[560px] bg-obsidian-950 rounded-lg overflow-hidden border border-obsidian-800 group shadow-inner flex items-center justify-center p-1">
                       <!-- Loader -->
                       <div id="image-loader-en" class="absolute inset-0 flex flex-col items-center justify-center bg-obsidian-950 z-20 transition-opacity duration-300">
                         <div class="w-8 h-8 rounded-full border-2 border-cyan-accent/20 border-t-cyan-accent animate-spin mb-1.5"></div>
@@ -1285,7 +1285,7 @@
                         id="result-image-en" 
                         src="" 
                         alt="English Campaign Ad" 
-                        class="w-full h-full object-cover transition-transform duration-500 group-hover/en:scale-105"
+                        class="max-w-full max-h-full object-contain transition-transform duration-500 group-hover/en:scale-[1.02] rounded shadow-md"
                       />
 
                       <div class="absolute top-2 left-2 z-10 bg-obsidian-950/80 backdrop-blur-md border border-cyan-accent/40 px-2 py-0.5 rounded text-[9px] font-mono text-cyan-accent font-bold">
@@ -1331,7 +1331,7 @@
                     </div>
 
                     <!-- Arabic Frame -->
-                    <div id="dual-frame-ar" class="relative w-full aspect-[16/9] bg-obsidian-900 rounded-lg overflow-hidden border border-obsidian-800 group shadow-inner">
+                    <div id="dual-frame-ar" class="relative w-full aspect-[4/5] max-h-[560px] bg-obsidian-950 rounded-lg overflow-hidden border border-obsidian-800 group shadow-inner flex items-center justify-center p-1">
                       <!-- Loader -->
                       <div id="image-loader-ar" class="absolute inset-0 flex flex-col items-center justify-center bg-obsidian-950 z-20 transition-opacity duration-300">
                         <div class="w-8 h-8 rounded-full border-2 border-violet-400/20 border-t-violet-400 animate-spin mb-1.5"></div>
@@ -1342,7 +1342,7 @@
                         id="result-image-ar" 
                         src="" 
                         alt="Arabic Campaign Ad" 
-                        class="w-full h-full object-cover transition-transform duration-500 group-hover/ar:scale-105"
+                        class="max-w-full max-h-full object-contain transition-transform duration-500 group-hover/ar:scale-[1.02] rounded shadow-md"
                       />
 
                       <div class="absolute top-2 left-2 z-10 bg-obsidian-950/80 backdrop-blur-md border border-violet-400/40 px-2 py-0.5 rounded text-[9px] font-mono text-violet-300 font-bold">
@@ -3846,21 +3846,33 @@
       if (compUrlInput) {
         compUrlInput.value = (dna.has_website && dna.website) ? dna.website : (dna.website || '');
       }
-      if (dna.brand_tag && dnaTagText) {
-        // Show the team hashtag used on welcome cards (#<Brand>Team) rather than the bare brand tag.
-        const bareSlug = '#' + String(compName || '').replace(/[^a-zA-Z0-9]/g, '');
-        dnaTagText.textContent = (bareSlug.length > 1 && dna.brand_tag.toLowerCase() === bareSlug.toLowerCase())
-          ? `${bareSlug}Team`
-          : dna.brand_tag;
+      const isLex = Boolean(compName && compName.toLowerCase().startsWith('lexnis'));
+      if (dnaTagText) {
+        if (dna.brand_tag && (isLex || !/lexnis/i.test(dna.brand_tag))) {
+          const bareSlug = '#' + String(compName || '').replace(/[^a-zA-Z0-9]/g, '');
+          dnaTagText.textContent = (bareSlug.length > 1 && dna.brand_tag.toLowerCase() === bareSlug.toLowerCase())
+            ? `${bareSlug}Team`
+            : dna.brand_tag;
+        } else {
+          const cleanSlug = String(compName || 'Brand').replace(/[^a-zA-Z0-9]/g, '') || 'Brand';
+          dnaTagText.textContent = isLex ? '#LexnisTeam' : `#${cleanSlug}Team`;
+        }
       }
       if (dnaDomainText) {
-        dnaDomainText.textContent = dna.domain || (dna.has_website ? dna.website : 'No Website (Guideline-Only)');
+        if (!isLex && dna.domain && /lexnis/i.test(dna.domain)) {
+          dnaDomainText.textContent = 'No Website (Guideline-Only)';
+        } else {
+          dnaDomainText.textContent = dna.domain || (dna.has_website ? dna.website : (isLex ? 'lexnis.com' : 'No Website (Guideline-Only)'));
+        }
+      }
+      if (dnaLogoText) {
+        dnaLogoText.textContent = isLex ? 'Vector Logo' : 'Brand Monogram (Vector)';
       }
       const colors = dna.color_palette || dna.brand_colors || {};
-      const priCol = colors.primary || colors.accent || colors.primary_hex || '#131724';
-      const secCol = colors.secondary || colors.dark_bg || colors.secondary_hex || '#023024';
-      const accCol = colors.accent || colors.primary || '#53B849';
-      const limeCol = colors.accent_lime || colors.secondary || '#BCD755';
+      const priCol = colors.primary || colors.accent || colors.primary_hex || (isLex ? '#131724' : '#1e293b');
+      const secCol = colors.secondary || colors.dark_bg || colors.secondary_hex || (isLex ? '#023024' : '#0f172a');
+      const accCol = colors.accent || colors.primary || (isLex ? '#53B849' : '#06b6d4');
+      const limeCol = colors.accent_lime || colors.secondary || (isLex ? '#BCD755' : '#38bdf8');
 
       if (dnaSwatchPri && dnaHexPri) {
         dnaSwatchPri.style.backgroundColor = priCol;
@@ -3893,8 +3905,13 @@
         if (dna.industry || dna.brand_tone) {
           const offStr = (dna.core_offerings && dna.core_offerings.length > 0) ? ` | ${dna.core_offerings.slice(0, 3).join(', ')}` : '';
           dnaAestheticText.textContent = `${dna.industry || 'Technology'} • ${dna.brand_tone || 'Innovative'}${offStr}`;
-        } else if (dna.visual_aesthetic) {
+        } else if (dna.visual_aesthetic && (isLex || !/chevron|lexnis/i.test(dna.visual_aesthetic))) {
           dnaAestheticText.textContent = dna.visual_aesthetic;
+        } else {
+          const bLabel = compName || 'Enterprise';
+          dnaAestheticText.textContent = isLex 
+            ? 'Enterprise transformation minimalism with 135° Depth Gradient (#131724 → #023024), Tech Green & Lime dual open chevrons, Core Chevron Field pattern.'
+            : `Modern ${bLabel} executive brand identity, calibrated high-contrast typography, and tailored brand palette.`;
         }
       }
       if (window.lucide) window.lucide.createIcons();
@@ -4536,29 +4553,11 @@
           currentPersonTitle = values['pt-member-role'] || (personTitleInput && personTitleInput.value.trim()) || '';
           if (personNameInput && values['pt-member-name'] !== undefined) personNameInput.value = values['pt-member-name'];
           if (personTitleInput && values['pt-member-role'] !== undefined) personTitleInput.value = values['pt-member-role'];
-        } else if (typeId === 'hiring') {
-          const bName = resolveActiveBrandName() || 'our company';
-          const isLex = bName.toLowerCase().startsWith('lexnis');
-          currentPersonName = values['pt-hire-role'] || 'Senior Machine Learning & Vision Systems Engineer';
-          currentPersonTitle = values['pt-hire-team'] || (isLex ? 'Lexnis Core AI Lab, Manama / Hybrid' : `${bName} Core Team, Hybrid`);
-        } else if (typeId === 'product_launch') {
-          currentPersonName = values['pt-prod-name'] || 'Enterprise AI Platform';
-          currentPersonTitle = values['pt-prod-cat'] || 'Next-Gen Autonomous Systems';
-        } else if (typeId === 'milestone_achievement') {
-          currentPersonName = values['pt-ms-metric'] || 'Enterprise Leadership';
-          currentPersonTitle = values['pt-ms-impact'] || 'Growth & Excellence Award';
-        } else if (typeId === 'event_announcement') {
-          currentPersonName = values['pt-event-name'] || 'Tech Innovation Summit';
-          currentPersonTitle = values['pt-event-details'] || 'Keynotes & Live Workshops';
-        } else if (typeId === 'thought_leadership') {
-          currentPersonName = values['pt-tl-topic'] || 'The Future of AI';
-          currentPersonTitle = values['pt-tl-takeaway'] || 'Industry Perspectives & Research';
-        } else if (typeId === 'case_study') {
-          currentPersonName = values['pt-cs-client'] || 'Client Transformation';
-          currentPersonTitle = values['pt-cs-metric'] || 'Validated Operational ROI';
-        } else if (typeId === 'brand_awareness') {
-          currentPersonName = values['pt-story-theme'] || 'Engineering Excellence';
-          currentPersonTitle = values['pt-story-msg'] || 'Pioneering Trusted Intelligence';
+          const pStrip = document.getElementById('personalization-strip');
+          if (pStrip) pStrip.classList.remove('hidden');
+        } else {
+          const pStrip = document.getElementById('personalization-strip');
+          if (pStrip) pStrip.classList.add('hidden');
         }
         if (typeId === 'team_welcome') {
           if (personNameInput && currentPersonName) personNameInput.value = currentPersonName;

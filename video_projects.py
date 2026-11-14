@@ -1,6 +1,6 @@
-"""Strict, non-destructive timeline schema and atomic project persistence."""
+"""Strict, non-destructive timeline schema, schema versioning, and atomic project persistence."""
 import time
-from typing import Literal
+from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 from video_storage import DATA, atomic, read, uid
 
@@ -38,6 +38,18 @@ class Clip(Strict):
     font: Literal['sans', 'arabic', 'serif'] = 'sans'
     font_size: int = Field(48, ge=16, le=160)
 
+    # Professional multi-track & semantic properties
+    track: int = Field(1, ge=1, le=10)
+    audio_role: Literal['dialogue', 'voiceover', 'music', 'sfx', 'ambient', 'master'] = 'dialogue'
+    ducking_priority: int = Field(0, ge=0, le=5)
+    z_index: int = Field(0, ge=-100, le=100)
+    locked: bool = False
+    muted: bool = False
+    blend_mode: Literal['normal', 'multiply', 'screen', 'overlay'] = 'normal'
+    text_role: Literal['hook', 'headline', 'subheadline', 'lower_third', 'speaker_name', 'speaker_role', 'metric', 'disclosure', 'cta', 'end_card', 'caption', 'title'] = 'title'
+    caption_style_id: str | None = None
+    ai_operation_id: str | None = None
+
     @model_validator(mode='after')
     def source(self):
         if self.kind == 'title':
@@ -56,10 +68,18 @@ class Canvas(Strict):
 
 
 class Project(Strict):
+    schema_version: int = Field(2, ge=1)
     name: str = Field('Untitled video', min_length=1, max_length=120)
     canvas: Canvas = Field(default_factory=Canvas)
     brand_id: str | None = Field(None, max_length=100)
     clips: list[Clip] = Field(default_factory=list, max_length=60)
+
+    # Master/variant & compliance tracking
+    master_project_id: str | None = Field(default=None, max_length=100)
+    variant_target: Literal['original', '9:16', '1:1', '4:5', '16:9'] | None = None
+    safe_zone_profile: Literal['generic', 'vertical-social', 'square-social', 'landscape-social', 'custom'] = 'generic'
+    status: Literal['draft', 'review', 'approved', 'rejected'] = 'draft'
+    caption_tracks: list[Dict[str, Any]] = Field(default_factory=list)
 
     @model_validator(mode='after')
     def unique_clips(self):
@@ -68,10 +88,64 @@ class Project(Strict):
         return self
 
 
-def save(project, project_id=None):
+def migrate_project(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Non-destructive migration of legacy (version 1 or unversioned) project dictionaries."""
+    data = dict(data)
+    if 'schema_version' not in data or data['schema_version'] < 2:
+        data['schema_version'] = 2
+        data.setdefault('master_project_id', None)
+        data.setdefault('variant_target', None)
+        data.setdefault('safe_zone_profile', 'generic')
+        data.setdefault('status', 'draft')
+        data.setdefault('caption_tracks', [])
+
+        migrated_clips = []
+        for c in data.get('clips', []):
+            cd = dict(c)
+            cd.setdefault('track', 1)
+            cd.setdefault('audio_role', 'dialogue' if cd.get('kind') != 'audio' else 'music')
+            cd.setdefault('ducking_priority', 0)
+            cd.setdefault('z_index', 0)
+            cd.setdefault('locked', False)
+            cd.setdefault('muted', False)
+            cd.setdefault('blend_mode', 'normal')
+            cd.setdefault('text_role', 'title')
+            cd.setdefault('caption_style_id', None)
+            cd.setdefault('ai_operation_id', None)
+            migrated_clips.append(cd)
+        data['clips'] = migrated_clips
+    return data
+
+
+def save(
+    project: Project,
+    project_id: Optional[str] = None,
+    actor: str = 'user',
+    instruction: str = '',
+    reason: str = '',
+    operation_ids: Optional[List[str]] = None,
+    label: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Atomic project save that automatically commits a persistent revision snapshot."""
     now = time.time()
     old = read('projects', project_id) if project_id else {}
     key = project_id or uid()
     value = dict(project.model_dump(), id=key, created=old.get('created', now), updated=now)
     atomic(DATA / 'projects' / (key + '.json'), value)
+
+    # Persist immutable revision snapshot
+    try:
+        from video_revisions import record_revision
+        record_revision(
+            project_id=key,
+            project_state=value,
+            actor=actor,  # type: ignore
+            instruction=instruction,
+            reason=reason,
+            operation_ids=operation_ids,
+            label=label,
+        )
+    except Exception:
+        pass  # Never fail project save if revision logging hits a transient issue
+
     return value

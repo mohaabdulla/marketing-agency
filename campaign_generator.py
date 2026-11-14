@@ -4511,6 +4511,10 @@ class LexnisCampaignStudio:
                         logo_to_use = str(up)
                         break
 
+            if brand and "lexnis" not in brand.lower():
+                if logo_to_use and any(k in str(logo_to_use).lower() for k in ["lexnis", "brand_logo", "default_logo"]):
+                    logo_to_use = None
+
             clean_bname = brand or "Our Brand"
             if clean_bname.lower() in ("our brand", "brand", "lexnis technologies", "lexnis"):
                 det_prompt_b = extract_brand_name_from_prompt(effective_prompt, fallback_name="")
@@ -4746,6 +4750,10 @@ class LexnisCampaignStudio:
                     if "logo" in Path(up).name.lower() and Path(up).exists():
                         logo_to_use = str(up)
                         break
+
+            if brand and "lexnis" not in brand.lower():
+                if logo_to_use and any(k in str(logo_to_use).lower() for k in ["lexnis", "brand_logo", "default_logo"]):
+                    logo_to_use = None
 
             # If brand is generic or default Lexnis, check prompt first
             if not brand or brand.lower() in ("lexnis technologies", "brand", "our brand", "lexnis"):

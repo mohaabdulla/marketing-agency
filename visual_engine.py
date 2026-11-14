@@ -3956,7 +3956,10 @@ def resolve_brand_theme(
 
     resolved_logo = None
     if uploaded_logo_path and Path(uploaded_logo_path).exists():
-        resolved_logo = str(uploaded_logo_path)
+        if not is_lexnis and any(k in str(uploaded_logo_path).lower() for k in ["lexnis", "brand_logo", "default_logo"]):
+            resolved_logo = None
+        else:
+            resolved_logo = str(uploaded_logo_path)
 
     return BrandTheme(
         brand_name=resolved_name,
@@ -4085,12 +4088,13 @@ def draw_brand_header(
     logo_pasted = False
 
     logo_to_load = custom_logo or brand_theme.logo_path
-    if not logo_to_load and brand_theme.is_lexnis:
+    if not brand_theme.is_lexnis:
+        if logo_to_load and any(k in str(logo_to_load).lower() for k in ["lexnis", "brand_logo", "default_logo"]):
+            logo_to_load = None
+    elif not logo_to_load:
         bundled_logo = Path(__file__).resolve().parent / "static" / "assets" / "brand_logo.png"
         if bundled_logo.is_file():
             logo_to_load = bundled_logo
-    if logo_to_load and not brand_theme.is_lexnis and "lexnis" in str(logo_to_load).lower():
-        logo_to_load = None
     if logo_to_load:
         p_logo = load_logo_pil(logo_to_load, is_dark_bg=True)
         if p_logo:

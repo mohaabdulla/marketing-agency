@@ -180,19 +180,61 @@ def render(project, job, container='mp4', audio=True, preview=False):
                       f"[{vlabel}][ov{n}]overlay=x=(W-w)*{c.x}:y=(H-h)*{c.y}:enable='between(t,{c.start},{c.start+c.duration})':eof_action=pass[vo{n}]"]
             vlabel = f'vo{n}'
             index += 1
+
+        # Render first-class burnt-in caption tracks if present
+        for t_idx, track in enumerate(getattr(project, 'caption_tracks', [])):
+            if track.get('burn_in', True):
+                from video_captions import render_caption_image, DEFAULT_CAPTION_STYLES
+                style = DEFAULT_CAPTION_STYLES.get(track.get('style_id', 'brand-primary'), DEFAULT_CAPTION_STYLES['brand-primary'])
+                for s_idx, seg in enumerate(track.get('segments', [])):
+                    s_text = seg.get('text', '').strip()
+                    s_start = float(seg.get('start', 0.0))
+                    s_end = float(seg.get('end', s_start + 2.0))
+                    if s_text and s_end > s_start:
+                        cap_img = render_caption_image(s_text, w, h, style)
+                        cap_path = tmp / f'cap-{t_idx}-{s_idx}.png'
+                        cap_img.save(cap_path)
+                        args += ['-loop', '1', '-framerate', str(fps), '-i', str(cap_path)]
+                        graph += [f'[{index}:v]format=rgba[capov{t_idx}_{s_idx}]',
+                                  f"[{vlabel}][capov{t_idx}_{s_idx}]overlay=0:0:enable='between(t,{s_start},{s_end})':eof_action=pass[vo_c{t_idx}_{s_idx}]"]
+                        vlabel = f'vo_c{t_idx}_{s_idx}'
+                        index += 1
+
         audio_labels = [alabel]
         if audio:
+            music_labels = []
+            dialogue_labels = [alabel]
             for n, c in enumerate(x for x in project.clips if x.kind == 'audio'):
                 args += ['-ss', str(c.trim), '-i', str(path_for(c.asset_id))]
+                au_label = f'au{n}'
                 graph += [f'[{index}:a]{atempo(c.speed)},atrim=duration={c.duration},asetpts=PTS-STARTPTS,'
                           f'volume={c.volume},afade=t=in:d={max(.001,c.fade_in)},'
                           f'afade=t=out:st={max(0,c.duration-c.fade_out)}:d={max(.001,c.fade_out)},'
-                          f'adelay={round(c.start*1000)}:all=1[au{n}]']
-                audio_labels.append(f'au{n}')
+                          f'adelay={round(c.start*1000)}:all=1[{au_label}]']
+                if getattr(c, 'audio_role', '') == 'music':
+                    music_labels.append(au_label)
+                else:
+                    dialogue_labels.append(au_label)
                 index += 1
-        if len(audio_labels) > 1:
-            graph += [''.join(f'[{x}]' for x in audio_labels) + f'amix=inputs={len(audio_labels)}:normalize=0:duration=longest[mix]']
-            alabel = 'mix'
+
+            if music_labels and dialogue_labels and any(getattr(c, 'ducking_priority', 0) > 0 for c in project.clips if c.kind == 'audio'):
+                d_lab = dialogue_labels[0]
+                if len(dialogue_labels) > 1:
+                    graph += [''.join(f'[{x}]' for x in dialogue_labels) + f'amix=inputs={len(dialogue_labels)}:normalize=0:duration=longest[dlg]']
+                    d_lab = 'dlg'
+
+                m_lab = music_labels[0]
+                if len(music_labels) > 1:
+                    graph += [''.join(f'[{x}]' for x in music_labels) + f'amix=inputs={len(music_labels)}:normalize=0:duration=longest[msc]']
+                    m_lab = 'msc'
+
+                graph += [f'[{m_lab}][{d_lab}]sidechaincompress=threshold=0.1:ratio=4:attack=50:release=300[ducked_msc]',
+                          f'[{d_lab}][ducked_msc]amix=inputs=2:normalize=0:duration=longest[mix]']
+                alabel = 'mix'
+            elif len(dialogue_labels) + len(music_labels) > 1:
+                all_audios = dialogue_labels + music_labels
+                graph += [''.join(f'[{x}]' for x in all_audios) + f'amix=inputs={len(all_audios)}:normalize=0:duration=longest[mix]']
+                alabel = 'mix'
         dest = tmp / ('preview.mp4' if preview else f'export.{container}')
         if graph:
             # Passed as one argv value, never through a shell. Titles are PNG inputs.
