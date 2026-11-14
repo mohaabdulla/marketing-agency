@@ -59,6 +59,9 @@ from agency.security import AgencyRequestLimits
 app.include_router(agency_router)
 app.add_middleware(AgencyRequestLimits)
 
+from creative.api import router as creative_router
+app.include_router(creative_router)
+
 BASE_DIR = Path(__file__).resolve().parent
 # Per-campaign bundles are generated output: they live with the other renders (git-ignored),
 # not in the tracked static assets folder, which every generated campaign used to add a ZIP to.

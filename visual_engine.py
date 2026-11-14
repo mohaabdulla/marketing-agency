@@ -419,6 +419,8 @@ def model_setup(model):
 def cloudflare_image(prompt, seed):
     import base64
     import requests
+    if os.getenv("LEXNIS_LOCAL_ONLY", "0") == "1":
+        raise RuntimeError("Cloudflare image generation is disabled in strict local-only mode (LEXNIS_LOCAL_ONLY=1). Configure a local GPU model.")
     account = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
     token = os.getenv("CLOUDFLARE_API_TOKEN", "")
     if not account or not token:
@@ -502,6 +504,8 @@ def open_model_image(prompt, seed, model, width, height):
             result = _pipelines[model_id](prompt=prompt, width=width, height=height,
                 generator=torch.Generator("cpu").manual_seed(seed), **kwargs).images[0]
     else:
+        if os.getenv("LEXNIS_LOCAL_ONLY", "0") == "1":
+            raise RuntimeError("Hosted Hugging Face inference is disabled in strict local-only mode (LEXNIS_LOCAL_ONLY=1). Set IMAGE_PROVIDER=local or use local GPU models.")
         token = os.getenv("HF_TOKEN", "")
         if not token:
             raise RuntimeError("Set HF_TOKEN for hosted inference, or IMAGE_PROVIDER=local for free local weights. Hosted inference may require credits.")

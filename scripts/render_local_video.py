@@ -23,6 +23,23 @@ def build_pipeline(request, torch, diffusers):
                                                         torch_dtype=torch.float32, local_files_only=True)
         pipe = diffusers.WanImageToVideoPipeline.from_pretrained(request['model_path'], vae=vae,
             torch_dtype=torch.bfloat16, local_files_only=True, use_safetensors=True)
+    elif request['model'] == 'wan21-t2v-480p':
+        if request['mode'] != 'text-to-video':
+            raise ValueError('Wan T2V is text-only')
+        pipe = getattr(diffusers, 'WanPipeline', diffusers.CogVideoXPipeline).from_pretrained(
+            request['model_path'], torch_dtype=torch.bfloat16, local_files_only=True, use_safetensors=True
+        )
+    elif request['model'] == 'wan22-ti2v-5b':
+        if request['mode'] == 'image-to-video':
+            if not request.get('image'):
+                raise ValueError('Wan TI2V requires a starting image in image-to-video mode')
+            pipe = diffusers.WanImageToVideoPipeline.from_pretrained(
+                request['model_path'], torch_dtype=torch.bfloat16, local_files_only=True, use_safetensors=True
+            )
+        else:
+            pipe = getattr(diffusers, 'WanPipeline', diffusers.CogVideoXPipeline).from_pretrained(
+                request['model_path'], torch_dtype=torch.bfloat16, local_files_only=True, use_safetensors=True
+            )
     else:
         raise ValueError('Unsupported model')
     pipe.enable_sequential_cpu_offload()

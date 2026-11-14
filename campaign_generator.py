@@ -3681,10 +3681,13 @@ class LexnisCampaignStudio:
 
     def _fetch_image_bytes(self, visual_prompt: str, seed: int, model: str,
                            width: int = RENDER_WIDTH, height: int = RENDER_HEIGHT) -> Tuple[bytes, bool]:
+        local_only = os.getenv("LEXNIS_LOCAL_ONLY", "0") == "1"
         if model in LOCAL_MODELS:
             try:
                 return local_image(visual_prompt, seed, width, height, model=model)
             except Exception as exc:
+                if local_only:
+                    raise RuntimeError(f"Local GPU rendering failed ({exc}). Strict local-only mode is active (LEXNIS_LOCAL_ONLY=1); cloud fallback is disabled.")
                 warn_msg = "Local GPU rendering limit reached; automatically switched to cloud visual generator."
                 if warn_msg not in self.generation_warnings:
                     self.generation_warnings.append(warn_msg)
@@ -3694,6 +3697,10 @@ class LexnisCampaignStudio:
                     except Exception:
                         pass
                 model = "flux"
+        if local_only:
+            if model.startswith("hf:") and os.getenv("IMAGE_PROVIDER", "huggingface") == "local":
+                return open_model_image(visual_prompt, seed, model, width, height)
+            raise RuntimeError(f"Visual model '{model}' cannot be used in strict local-only mode (LEXNIS_LOCAL_ONLY=1). Configure a local GPU model.")
         if model == "cf:flux-schnell":
             try:
                 return cloudflare_image(visual_prompt, seed)

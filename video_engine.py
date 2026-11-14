@@ -22,7 +22,7 @@ def spawn_worker(*args, **kwargs):
 
 class Generate(Strict):
     mode: Literal['text-to-video', 'image-to-video', 'image-animation'] = 'text-to-video'
-    model: Literal['cogvideox-2b', 'wan21-i2v-480p'] = 'cogvideox-2b'
+    model: Literal['cogvideox-2b', 'wan21-i2v-480p', 'wan21-t2v-480p', 'wan22-ti2v-5b'] = 'cogvideox-2b'
     prompt: str = Field('', max_length=2000)
     negative_prompt: str = Field('', max_length=1000)
     camera: str = Field('', max_length=250)
