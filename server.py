@@ -230,6 +230,12 @@ class BrandKitRequest(BaseModel):
     hashtag: str = Field("", max_length=100, pattern=r"^(?:#[\w\u0600-\u06ff]+)?$")
 
 
+@app.get("/api/system/capabilities")
+def system_capabilities():
+    from agency.model_registry import registry
+    return registry.probe_system_capabilities()
+
+
 @app.get("/api/brands")
 def brand_kits_list():
     from brand_kits import list_brands

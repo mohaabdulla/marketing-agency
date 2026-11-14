@@ -259,4 +259,4 @@ def local_draft(client_id:Id,body:DraftRequest):
 
 
 # Content, asset, approval, publication-package, analytics and report routes share this router.
-from . import api_production, api_acquisition, api_audio, api_privacy, api_planning  # noqa: E402,F401
+from . import api_production, api_acquisition, api_audio, api_privacy, api_planning, api_orchestrator  # noqa: E402,F401
