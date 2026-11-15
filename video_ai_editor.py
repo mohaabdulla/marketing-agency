@@ -36,16 +36,22 @@ class VideoAIEditor:
         primary_clips = [c for c in clips if c.kind == 'video']
         total_duration = sum(c.duration for c in primary_clips) if primary_clips else 0.0
 
-        # 1. Ensure primary clips have subtle, elegant transitions
-        for c in primary_clips[:-1]:
-            if c.transition == 0.0:
-                ops.append(EditOperation(
-                    operation_type='SET_TRANSITION',
-                    target_id=c.id,
-                    parameters={'transition': 0.5},
-                    reason='Add smooth 0.5s crossfade between shots',
-                    source='rule_engine'
-                ))
+        # 1. Transitions are an editorial choice, not a default. Cuts stay clean; a dissolve is
+        #    only added when the brand rules ask for one (passage of time, montage, soft tone).
+        wanted = ' '.join(str(x) for x in (getattr(context, 'transition_preferences', None) or [])).lower() \
+            + ' ' + str(getattr(context, 'animation_style', '') or '').lower()
+        if any(word in wanted for word in ('dissolve', 'crossfade', 'cross-fade')):
+            for c in primary_clips[:-1]:
+                if c.transition == 0.0:
+                    ops.append(EditOperation(
+                        operation_type='SET_TRANSITION',
+                        target_id=c.id,
+                        parameters={'transition': 0.4},
+                        reason='Dissolve between shots because the brand rules ask for dissolves',
+                        source='rule_engine'
+                    ))
+        else:
+            assumptions.append('Cuts between shots are left clean. Ask for a dissolve, or set it in the brand transition rules, to add one.')
 
         # 2. Add brand logo if missing and available
         logo_id = getattr(context, 'logo_asset_id', None)
@@ -110,7 +116,7 @@ class VideoAIEditor:
                     source='rule_engine'
                 ))
 
-        assumptions.append('Auto Polish applied standard crossfades, brand watermark, opening hook, and CTA card.')
+        assumptions.append('Auto Polish applied the brand watermark, opening hook and CTA card where they were missing.')
         return EditPlan(
             plan_version='1.0',
             intent='Deterministic Auto Polish',
@@ -153,7 +159,7 @@ class VideoAIEditor:
                     'kind': 'video',
                     'duration': round(clip_dur, 2),
                     'trim': 0.0,
-                    'transition': 0.4 if idx > 0 else 0.0,
+                    'transition': 0.0,   # clean cut; dissolves are added only on request
                     'track': 1,
                     'audio_role': 'dialogue' if asset.get('has_audio') else 'ambient'
                 },
@@ -311,15 +317,10 @@ class VideoAIEditor:
 
         else:
             # Fallback general refinement
-            if primary_clips:
-                ops.append(EditOperation(
-                    operation_type='SET_TRANSITION',
-                    target_id=primary_clips[0].id,
-                    parameters={'transition': 0.3},
-                    reason='Fine-tuned transition pacing in response to general refinement direction',
-                    source='rule_engine'
-                ))
-            assumptions.append(f"Applied editorial refinement based on direction: '{instruction}'.")
+            # An instruction this rule engine does not understand changes nothing; it is reported
+            # instead of being answered with an unrelated transition tweak.
+            assumptions.append(f"No supported operation matches: '{instruction}'. Nothing was changed. "
+                               "Try a specific request (trim, caption, title, logo, volume, transition) or the Advanced editor.")
 
         return EditPlan(
             plan_version='1.0',

@@ -182,7 +182,12 @@ def polish(project, instruction, rules, repair_only=False):
             else:
                 add('SET_DURATION',{'duration':max(.1,total-clip.start)},clip.id)
         if clip.kind == 'video' and soft and not repair_only:
-            add('SET_FADE',{'fade_in':min(.2,clip.duration/4),'fade_out':min(.2,clip.duration/4)},clip.id)
+            # Fade only the opening and the close. Fading every clip would dip to black at each cut.
+            videos = [c for c in project.clips if c.kind == 'video']
+            fade_in = min(.2,clip.duration/4) if clip is videos[0] else clip.fade_in if clip.transition else 0
+            fade_out = min(.2,clip.duration/4) if clip is videos[-1] else clip.fade_out if clip.transition else 0
+            if (fade_in, fade_out) != (clip.fade_in, clip.fade_out):
+                add('SET_FADE',{'fade_in':fade_in,'fade_out':fade_out},clip.id,'Fade in at the start and out at the end; cuts in between stay clean')
             if clip.transition:
                 add('SET_TRANSITION',{'transition':0 if 'reduce' in inst else min(.3,clip.transition)},clip.id)
         if clip.kind == 'audio' and clip.audio_role == 'music' and not repair_only:

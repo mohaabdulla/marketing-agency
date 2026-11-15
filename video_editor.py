@@ -8,6 +8,9 @@ from video_assets import path_for, ingest
 from video_ffmpeg import ffmpeg
 
 
+REC709_FRAMES = 'setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv'
+
+
 def primary_layout(project):
     cursor = 0.
     result = []
@@ -107,10 +110,17 @@ def render(project, job, container='mp4', audio=True, preview=False):
     space(int(duration * 2_000_000))
     w, h, fps = project.canvas.width, project.canvas.height, project.canvas.fps
     high = project.export_quality == 'high' and not preview
+    from video_presets import preset, video_encode_args, audio_encode_args, loudnorm_filter
+    spec = preset(project.delivery_preset)
+    # The frame rate is passed to FFmpeg as the source's exact rational (for example 30000/1001),
+    # so 29.97/59.94 material is never silently rounded to 30/60.
+    fps_arg = str(fps)
     if project.canvas.fps_mode == 'original':
-        fps = read('assets', layout[0][0].asset_id).get('fps') or fps
+        first = read('assets', layout[0][0].asset_id)
+        fps = first.get('fps') or fps
         if not 1 <= fps <= 60:
             raise ValueError('Original frame rate must be between 1 and 60 fps')
+        fps_arg = first.get('fps_rational') or str(fps)
     if preview:
         ratio = min(1, 480 / max(w, h))
         w, h = round(w * ratio / 2) * 2, round(h * ratio / 2) * 2
@@ -122,14 +132,16 @@ def render(project, job, container='mp4', audio=True, preview=False):
             src = path_for(c.asset_id)
             meta = read('assets', c.asset_id)
             still = meta['kind'] == 'image'
-            inputs = ['-loop', '1', '-framerate', str(fps)] if still else ['-ss', str(c.trim)]
+            inputs = ['-loop', '1', '-framerate', fps_arg] if still else ['-ss', str(c.trim)]
             inputs += ['-protocol_whitelist', 'file,pipe', '-i', str(src)]
             if not meta.get('has_audio'):
                 inputs += ['-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=stereo']
             filters = [f'setpts=(PTS-STARTPTS)/{c.speed}', f'crop=iw*{1-2*c.crop}:ih*{1-2*c.crop}',
-                       f'scale={w}:{h}:force_original_aspect_ratio=increase', f'crop={w}:{h}', 'setsar=1', f'fps={fps}']
+                       # Explicit Rec.709 limited-range SDR working space for every clip.
+                       f'scale={w}:{h}:force_original_aspect_ratio=increase:out_color_matrix=bt709:out_range=tv',
+                       f'crop={w}:{h}', 'setsar=1', f'fps={fps_arg}']
             if c.zoom != 1 or c.zoom_start != 1 or c.pan:
-                filters += [f"zoompan=z='{c.zoom_start}+({c.zoom}-{c.zoom_start})*on/{max(1,round(c.duration*fps)-1)}':x='iw/2-iw/zoom/2+({c.pan})*(iw-iw/zoom)*(on/{max(1,round(c.duration*fps)-1)}-0.5)':y='ih/2-ih/zoom/2':d=1:s={w}x{h}:fps={fps}"]
+                filters += [f"zoompan=z='{c.zoom_start}+({c.zoom}-{c.zoom_start})*on/{max(1,round(c.duration*fps)-1)}':x='iw/2-iw/zoom/2+({c.pan})*(iw-iw/zoom)*(on/{max(1,round(c.duration*fps)-1)}-0.5)':y='ih/2-ih/zoom/2':d=1:s={w}x{h}:fps={fps_arg}"]
             if c.rotation:
                 filters += [f'rotate={c.rotation}*PI/180:c=black']
             if c.scale != 1 or c.x != .5 or c.y != .5:
@@ -143,12 +155,14 @@ def render(project, job, container='mp4', audio=True, preview=False):
                 filters += [f'fade=t=in:st=0:d={c.fade_in}']
             if c.fade_out:
                 filters += [f'fade=t=out:st={max(0,c.duration-c.fade_out)}:d={c.fade_out}']
-            filters += ['format=yuv420p']
+            # Frame properties carry the colour description into the encoder; encoder flags alone
+            # are dropped when the source frames are untagged.
+            filters += ['format=yuv420p', REC709_FRAMES]
             out = tmp / f'clip-{i}.mp4'
             ffmpeg(inputs + ['-map', '0:v:0', '-map', '0:a:0' if meta.get('has_audio') else '1:a:0',
                              '-vf', ','.join(filters), '-af', atempo(c.speed) + f',volume={c.volume},aresample=48000,apad',
-                             '-t', str(c.duration), '-c:v', 'libx264', '-preset', 'fast' if high else 'veryfast', '-crf', '16' if high else '23',
-                             '-c:a', 'aac', '-ac', '2', '-ar', '48000', str(out)], job)
+                             '-t', str(c.duration), *video_encode_args(dict(spec, crf=min(spec['crf'], 16), x264_preset='fast'), high),
+                             '-c:a', 'aac', '-b:a', '256k', '-ac', '2', '-ar', '48000', str(out)], job)
             intermediates.append(out)
         args, graph = [], []
         for p in intermediates:
@@ -176,7 +190,7 @@ def render(project, job, container='mp4', audio=True, preview=False):
                     plate=Image.new('RGBA',(logo.width+pad*2,logo.height+pad*2),(7,17,28,215))
                     plate.alpha_composite(logo,(pad,pad))
                     source=tmp/f'logo-plate-{n}.png';plate.save(source)
-            args += ['-loop', '1', '-framerate', str(fps), '-i', str(source)]
+            args += ['-loop', '1', '-framerate', fps_arg, '-i', str(source)]
             filters = f'scale={max(2,round(w*c.scale/2)*2)}:-2,format=rgba,colorchannelmixer=aa={c.opacity}'
             if c.rotation:
                 filters += f',rotate={c.rotation}*PI/180:c=none:ow=rotw(iw):oh=roth(ih)'
@@ -202,7 +216,7 @@ def render(project, job, container='mp4', audio=True, preview=False):
                         cap_img = render_caption_image(s_text, w, h, style)
                         cap_path = tmp / f'cap-{t_idx}-{s_idx}.png'
                         cap_img.save(cap_path)
-                        args += ['-loop', '1', '-framerate', str(fps), '-i', str(cap_path)]
+                        args += ['-loop', '1', '-framerate', fps_arg, '-i', str(cap_path)]
                         graph += [f'[{index}:v]format=rgba[capov{t_idx}_{s_idx}]',
                                   f"[{vlabel}][capov{t_idx}_{s_idx}]overlay=0:0:enable='between(t,{s_start},{s_end})':eof_action=pass[vo_c{t_idx}_{s_idx}]"]
                         vlabel = f'vo_c{t_idx}_{s_idx}'
@@ -244,9 +258,14 @@ def render(project, job, container='mp4', audio=True, preview=False):
                 graph += [''.join(f'[{x}]' for x in all_audios) + f'amix=inputs={len(all_audios)}:normalize=0:duration=longest[mix]']
                 alabel = 'mix'
         dest = tmp / ('preview.mp4' if preview else f'export.{container}')
-        if audio and project.normalize_audio:
-            graph.append(f'[{alabel}]loudnorm=I=-16:TP=-1.5:LRA=7[audio_normalized]')
+        normalizer = loudnorm_filter(spec) if audio and project.normalize_audio else None
+        if normalizer:
+            # loudnorm resamples internally; return to 48 kHz before the AAC encoder.
+            graph.append(f'[{alabel}]{normalizer},aresample=48000[audio_normalized]')
             alabel='audio_normalized'
+        if container == 'mp4':
+            graph.append(f'[{vlabel}]format=yuv420p,{REC709_FRAMES}[video_tagged]')
+            vlabel = 'video_tagged'
         if graph:
             # Passed as one argv value, never through a shell. Titles are PNG inputs.
             # filter_complex_script was removed in newer FFmpeg builds.
@@ -254,9 +273,12 @@ def render(project, job, container='mp4', audio=True, preview=False):
         def mapped(label):
             return label if ':' in label else f'[{label}]'
         args += ['-map', mapped(vlabel)]
-        args += ['-map', mapped(alabel), '-c:a', 'aac' if container == 'mp4' else 'libopus','-ar','48000'] if audio else ['-an']
-        args += ['-c:v', 'libx264', '-preset', 'fast' if high else 'veryfast', '-crf', '18' if high else '23', '-movflags', '+faststart'] if container == 'mp4' else ['-c:v', 'libvpx-vp9', '-crf', '32', '-b:v', '0', '-deadline', 'realtime', '-cpu-used', '6']
-        args += ['-pix_fmt', 'yuv420p', '-r', str(fps), '-t', str(duration), str(dest)]
+        if audio:
+            args += ['-map', mapped(alabel)] + (audio_encode_args(spec) if container == 'mp4' else ['-c:a', 'libopus', '-ar', '48000'])
+        else:
+            args += ['-an']
+        args += video_encode_args(spec, high) if container == 'mp4' else ['-c:v', 'libvpx-vp9', '-crf', '32', '-b:v', '0', '-deadline', 'realtime', '-cpu-used', '6', '-pix_fmt', 'yuv420p']
+        args += ['-r', fps_arg, '-t', str(duration), str(dest)]
         job.update(state='encoding', progress=None, phase='Compositing timeline')
         ffmpeg(args, job, timeout=1200)
         return ingest(dest, dest.name, job)

@@ -12,9 +12,12 @@ from PIL import Image, ImageStat
 from video_storage import DATA, LOCK, atomic, identifier, read, uid
 from video_assets import path_for
 from video_ffmpeg import binary, probe
-from video_analysis_schemas import MediaAnalysis, Shot, SilenceSegment, AudioMetrics
+from video_analysis_schemas import MediaAnalysis, Shot, SilenceSegment, AudioMetrics, TechnicalMetadata
+import video_measure
 
-ANALYSIS_VERSION = 1
+# 2: measured motion/sharpness/face/loudness/true peak replace the former constant values.
+ANALYSIS_VERSION = 2
+HDR_TRANSFERS = {'smpte2084', 'arib-std-b67'}
 
 
 def _file_hash(path: Path) -> str:
@@ -36,6 +39,21 @@ def get_cached_analysis(asset_id: str) -> Optional[MediaAnalysis]:
             return MediaAnalysis(**data)
         except Exception:
             return None
+
+
+def _cached_words(asset_id: str):
+    """Word timings from an existing local transcript of this asset, or None if there is none."""
+    words = []
+    found = False
+    for path in (DATA / 'transcripts').glob(asset_id + '-*.json') if (DATA / 'transcripts').is_dir() else []:
+        try:
+            value = json.loads(path.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            continue
+        found = True
+        for segment in value.get('segments', []):
+            words.extend(w for w in segment.get('words', []) if 'start' in w)
+    return words if found else None
 
 
 def detect_silence(path: Path, job=None) -> List[SilenceSegment]:
@@ -153,7 +171,7 @@ def detect_shots(path: Path, total_duration: float, asset_id: str, job=None) -> 
         thumb_path = thumbs_dir / thumb_name
         rel_thumb = f"/api/video/thumbnails/{thumb_name}"
 
-        brightness, contrast = 0.5, 0.5
+        brightness, contrast = None, None
         if ffmpeg_bin:
             try:
                 cmd_thumb = [
@@ -180,10 +198,9 @@ def detect_shots(path: Path, total_duration: float, asset_id: str, job=None) -> 
             end=round(s_end, 3),
             duration=round(s_dur, 3),
             representative_frame=rel_thumb if thumb_path.is_file() else None,
-            motion_score=0.5,
             brightness=brightness,
             contrast=contrast,
-            speech_present=False
+            scene_change_method='PySceneDetect ContentDetector(threshold=27)' if has_pyscenedetect else 'FFmpeg scene score > 0.35',
         ))
 
     return shots
@@ -225,14 +242,77 @@ def analyze_asset(asset_id: str, force: bool = False, job=None) -> MediaAnalysis
     total_silence = sum(s.duration for s in silence_segs)
     silence_pct = round(total_silence / dur, 3) if dur > 0 else 0.0
 
+    not_measured = []
+    measured = {}
+    if has_audio:
+        try:
+            measured = video_measure.loudness(source_path, job)
+        except Exception:
+            not_measured.append('audio loudness and true peak (FFmpeg ebur128 failed)')
+    peak = measured.get('true_peak_dbtp')
     audio_metrics = AudioMetrics(
-        sample_rate=int(meta.get('audio_sample_rate') or 48000),
-        channels=int(meta.get('audio_channels') or 2),
+        sample_rate=meta.get('audio_sample_rate'),
+        channels=meta.get('audio_channels'),
+        codec=meta.get('audio_codec'),
+        bitrate=meta.get('audio_bitrate'),
         duration=dur if has_audio else 0.0,
         has_audio=has_audio,
-        peak_db=-1.5 if has_audio else -99.0,
-        silence_percentage=silence_pct
+        integrated_lufs=measured.get('integrated_lufs'),
+        loudness_range_lu=measured.get('loudness_range_lu'),
+        true_peak_dbtp=peak,
+        true_peak_over_0dbtp=(peak > 0) if peak is not None else None,
+        measurement_method=measured.get('method'),
+        silence_percentage=silence_pct if has_audio else None,
     )
+    if peak is not None and peak > -1.0:
+        warnings.append(f'Source audio true peak is {peak:+.1f} dBTP; it will be brought under the delivery ceiling when exported with mastering.')
+
+    if job:
+        job.update(state='running', phase='Measuring motion, sharpness and framing')
+    silence_dicts = [s.model_dump() for s in silence_segs]
+    profile = None
+    try:
+        profile = video_measure.visual_profile(source_path, [dict(start=s.start, end=s.end) for s in shots], job=job)
+    except Exception as exc:
+        from video_ffmpeg import Cancelled
+        if isinstance(exc, Cancelled):
+            raise
+    if profile is None:
+        not_measured.append('motion, sharpness and face framing (OpenCV unavailable or frames unreadable)')
+    words = _cached_words(asset_id)
+    if words is None:
+        not_measured.append('speech presence per shot (no transcript yet; audio activity is measured instead)')
+    for index, shot in enumerate(shots):
+        if profile and index < len(profile):
+            entry = profile[index]
+            shot.motion_score, shot.motion_mean_abs_diff = entry['motion_score'], entry['motion_mean_abs_diff']
+            shot.sharpness_laplacian_var, shot.face = entry['sharpness_laplacian_var'], entry['face']
+        if has_audio:
+            shot.audio_activity_ratio = video_measure.audio_activity(shot.start, shot.end, silence_dicts)
+        if words is not None:
+            shot.speech_present = any(shot.start <= w['start'] < shot.end for w in words)
+
+    black = frozen = None
+    try:
+        intervals = video_measure.black_and_frozen(source_path, job)
+        black, frozen = intervals['black'], intervals['frozen']
+    except Exception as exc:
+        from video_ffmpeg import Cancelled
+        if isinstance(exc, Cancelled):
+            raise
+        not_measured.append('black and frozen intervals (FFmpeg detection failed)')
+
+    hdr = (meta.get('color_transfer') in HDR_TRANSFERS) or (meta.get('color_primaries') == 'bt2020') if (meta.get('color_transfer') or meta.get('color_primaries')) else None
+    if hdr:
+        warnings.append('This source is tagged HDR (PQ/HLG or BT.2020). HDR tone mapping is not implemented; exporting it as SDR would shift colours.')
+    if meta.get('variable_frame_rate'):
+        warnings.append('The source appears to use a variable frame rate; exports use its average rate.')
+    technical = TechnicalMetadata(
+        hdr=hdr, orientation='portrait' if h > w else 'landscape' if w > h else 'square' if w else None,
+        **{key: meta.get(key) for key in ('video_codec', 'video_profile', 'video_level', 'pix_fmt', 'bit_depth', 'field_order',
+                                         'fps_rational', 'nominal_fps', 'variable_frame_rate', 'frame_count', 'video_bitrate',
+                                         'color_range', 'color_space', 'color_transfer', 'color_primaries',
+                                         'sample_aspect_ratio', 'display_aspect_ratio', 'rotation')})
 
     analysis = MediaAnalysis(
         asset_id=asset_id,
@@ -246,6 +326,10 @@ def analyze_asset(asset_id: str, force: bool = False, job=None) -> MediaAnalysis
         shots=shots,
         silence_segments=silence_segs,
         audio_metrics=audio_metrics,
+        technical=technical,
+        black_intervals=black,
+        frozen_intervals=frozen,
+        not_measured=not_measured,
         warnings=warnings,
         created_at=time.time()
     )

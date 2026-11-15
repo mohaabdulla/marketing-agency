@@ -507,10 +507,26 @@ class Export(Strict):
 @router.post('/export', status_code=202)
 def export(body: Export):
     guard(validate_sources, body.project)
-    return guard(
-        jobs.submit, 'preview' if body.preview else 'export',
-        lambda job: render(body.project, job, body.container, body.audio, body.preview)
-    )
+    if body.preview or body.container != 'mp4':
+        return guard(jobs.submit, 'preview' if body.preview else 'export',
+                     lambda job: render(body.project, job, body.container, body.audio, body.preview))
+    # Final MP4 exports are measured after rendering; the report travels with the result.
+    from video_qa import master
+    return guard(jobs.submit, 'export', lambda job: master(body.project, job, audio=body.audio))
+
+
+@router.get('/export-presets')
+def export_presets():
+    from video_presets import public, DEFAULT
+    return dict(presets=public(), default=DEFAULT,
+                note='Loudness and true peak are measured per ITU-R BS.1770 for every preset. Only the broadcast preset uses the EBU R128 target; '
+                     'web and social targets are product delivery choices.')
+
+
+@router.post('/assets/{asset_id}/qa', status_code=202)
+def asset_technical_qa(asset_id: str):
+    """Measure any managed video (loudness, true peak, colour tags, black/frozen intervals)."""
+    return guard(jobs.submit, 'analyze', lambda job: analyze_asset(asset_id, force=True, job=job).model_dump(mode='json'))
 
 
 @router.post('/generate', status_code=202)

@@ -214,6 +214,14 @@ additional clients require both `CORS_ALLOWED_ORIGINS` and `VIDEO_ALLOWED_ORIGIN
 local, single-user application, with no new authentication or multi-tenant permission model.
 Detailed processing/worker errors stay in local `jobs/*.log` / `work/last-ffmpeg-error.log`.
 
+## Measured analysis, delivery presets and post-render QA
+
+Since 2026-11-15 the Quick Edit and final MP4 export paths measure the source, explain every
+cut and framing change, export through named delivery presets and validate the rendered file.
+See [VIDEO_EDITING_UPGRADE.md](VIDEO_EDITING_UPGRADE.md) for the presets, the QA checks, the
+comparison of the supplied videos and the remaining limits. Verify with
+`python scripts/test_video_mastering.py` and `python scripts/test_video_guided_edit_browser.py`.
+
 ## Verification and current limits
 
 ```powershell

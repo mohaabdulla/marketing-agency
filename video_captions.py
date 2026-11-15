@@ -218,6 +218,7 @@ def render_caption_image(
     if curr:
         lines.append(curr)
 
+    im.info['caption_layout'] = dict(wrapped_lines=len(lines), truncated=len(lines) > style.max_lines)
     lines = lines[:style.max_lines]
     full_str = "\n".join(lines)
     t_bbox = draw.multiline_textbbox((0, 0), full_str, font=font, align=style.alignment)
@@ -251,5 +252,47 @@ def render_caption_image(
             (x_pos, y_pos), full_str, font=font, fill=style.fill, align=style.alignment
         )
 
+    im.info['caption_layout'].update(box=[x_pos - pad, y_pos - pad, x_pos + t_w + pad, y_pos + t_h + pad],
+                                     text_box=[x_pos, y_pos, x_pos + t_w, y_pos + t_h], font_size=font_size, lines=len(lines))
     return im
+
+
+def caption_qa(segments, style: CaptionStyle, width: int, height: int, max_cps: float = 20.0, min_duration: float = 0.7,
+               max_duration: float = 7.0, low_confidence: float = 0.6):
+    """Readability review of caption cues. Returns (issues, stats); issues are review flags.
+
+    Reading speed (characters per second), minimum/maximum display time and line limits are
+    common subtitling guidelines exposed as parameters, not a formal standard.
+    """
+    issues, speeds = [], []
+    ordered = sorted(segments, key=lambda s: s['start'])
+    for index, seg in enumerate(ordered):
+        text = ' '.join(str(seg.get('text', '')).split())
+        duration = seg['end'] - seg['start']
+        where = f'cue {index + 1} ({seg["start"]:.2f}s)'
+        if not text:
+            issues.append(dict(code='empty', severity='FAIL', message=where + ' has no text'))
+            continue
+        cps = len(text) / duration if duration > 0 else float('inf')
+        speeds.append(cps)
+        if duration < min_duration:
+            issues.append(dict(code='too_short', severity='WARNING', message=f'{where} is shown for {duration:.2f}s (under {min_duration}s)'))
+        if duration > max_duration:
+            issues.append(dict(code='too_long', severity='WARNING', message=f'{where} stays for {duration:.1f}s'))
+        if cps > max_cps:
+            issues.append(dict(code='reading_speed', severity='WARNING', message=f'{where} needs {cps:.0f} characters/second (guideline {max_cps:.0f})'))
+        if index and seg['start'] < ordered[index - 1]['end'] - 0.01:
+            issues.append(dict(code='overlap', severity='FAIL', message=where + ' overlaps the previous cue'))
+        layout = render_caption_image(text, width, height, style).info['caption_layout']
+        if layout['truncated']:
+            issues.append(dict(code='truncated', severity='FAIL', message=f'{where} wraps to {layout["wrapped_lines"]} lines; only {style.max_lines} are drawn, so words are cut off'))
+        box = layout['box']
+        if box[0] < width * 0.04 or box[2] > width * 0.96 or box[1] < height * 0.05 or box[3] > height * 0.95:
+            issues.append(dict(code='safe_zone', severity='WARNING', message=where + ' sits outside the 4-5% edge safe margin'))
+        for word in seg.get('words', []) or []:
+            if word.get('probability', 1) < low_confidence:
+                issues.append(dict(code='low_confidence', severity='WARNING', message=f'{where}: check the recognised word "{str(word.get("word", "")).strip()}"'))
+    stats = dict(cues=len(ordered), max_characters_per_second=round(max(speeds), 1) if speeds else None,
+                 mean_characters_per_second=round(sum(speeds) / len(speeds), 1) if speeds else None)
+    return issues, stats
 

@@ -92,8 +92,39 @@ def probe(path):
     duration = float(result.get('format', {}).get('duration') or v.get('duration') or 0)
     rate = v.get('avg_frame_rate', '0/1').split('/')
     fps = float(rate[0]) / max(float(rate[-1]), 1)
+
+    def ratio(value):
+        try:
+            a_, b_ = (value or '0/1').split('/')
+            return float(a_) / float(b_) if float(b_) else 0.0
+        except ValueError:
+            return 0.0
+
+    def number(value):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    nominal = ratio(v.get('r_frame_rate'))
+    rotation = 0
+    for side in v.get('side_data_list', []) or []:
+        if 'rotation' in side:
+            rotation = number(side['rotation']) or 0
+    # Everything below is read from the container/stream headers; absent tags stay None.
     return dict(duration=duration, width=int(v.get('width', 0)), height=int(v.get('height', 0)),
-                fps=fps, video_codec=v.get('codec_name'), audio_codec=a.get('codec_name'), has_audio=bool(a))
+                fps=fps, video_codec=v.get('codec_name'), audio_codec=a.get('codec_name'), has_audio=bool(a),
+                fps_rational=v.get('avg_frame_rate') if fps else None, nominal_fps=nominal or None,
+                variable_frame_rate=bool(fps and nominal and abs(nominal - fps) / nominal > 0.01),
+                video_profile=v.get('profile'), video_level=number(v.get('level')), pix_fmt=v.get('pix_fmt'),
+                bit_depth=number(v.get('bits_per_raw_sample')), field_order=v.get('field_order'),
+                color_range=v.get('color_range'), color_space=v.get('color_space'),
+                color_transfer=v.get('color_transfer'), color_primaries=v.get('color_primaries'),
+                sample_aspect_ratio=v.get('sample_aspect_ratio'), display_aspect_ratio=v.get('display_aspect_ratio'),
+                rotation=rotation, frame_count=number(v.get('nb_frames')), video_bitrate=number(v.get('bit_rate')),
+                audio_profile=a.get('profile'), audio_sample_rate=number(a.get('sample_rate')),
+                audio_channels=number(a.get('channels')), audio_bitrate=number(a.get('bit_rate')),
+                container_bitrate=number(result.get('format', {}).get('bit_rate')))
 
 
 def ffmpeg(args, job=None, timeout=600):

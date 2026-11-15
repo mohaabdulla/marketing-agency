@@ -91,6 +91,8 @@ class EditingBrief(Strict):
 class Project(Strict):
     normalize_audio: bool = False
     export_quality: Literal['standard','high'] = 'standard'
+    # Named delivery preset (video_presets.PRESETS). None keeps the web defaults.
+    delivery_preset: Literal['source-master','web-youtube','vertical-social','square-social','portrait-feed','broadcast-ebu'] | None = None
     editing_brief: EditingBrief = Field(default_factory=EditingBrief)
     creative_context: CreativeContext = Field(default_factory=CreativeContext)
     schema_version: int = Field(2, ge=1)
