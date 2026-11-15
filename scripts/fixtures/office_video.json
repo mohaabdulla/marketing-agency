@@ -1,0 +1,16 @@
+{
+  "fixture": "user-supplied-office-talking-head",
+  "authorization": "The user supplied this footage and explicitly requested editing and regression testing through the agency app.",
+  "storage": "Keep the private source outside Git; set LEXNIS_VIDEO_REGRESSION_SOURCE to its local path.",
+  "sha256": "eb5fbf9b4bb70cb9b1797d1c4dd09069824b9e8f02f5f4d54718d7d241c3b70d",
+  "bytes": 3300780,
+  "expected": {
+    "duration_seconds": 15.706667,
+    "width": 464,
+    "height": 832,
+    "fps_rational": "35325/589",
+    "language": "en",
+    "observations": ["one seated speaker", "bright window", "potentially uncertain proper nouns"]
+  },
+  "acceptance_instruction": "change the background to make it more pro and add some words on the screen and edit the lighting and add some effect"
+}

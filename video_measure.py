@@ -7,6 +7,61 @@ import re
 from pathlib import Path
 from video_ffmpeg import run
 
+
+def audio_quality(path, job=None):
+    """Local signal indicators, not a speech-intelligibility or source-separation score.
+
+    The quiet-block level is an estimate: speech and music may contaminate it. A narrow
+    50/60 Hz spectral spike is only a possible mains hum, never a confirmed diagnosis.
+    """
+    import hashlib
+    import json
+    import tempfile
+    import wave
+    import numpy as np
+    from video_storage import DATA, atomic
+    from video_ffmpeg import ffmpeg, Cancelled
+    digest = hashlib.sha256()
+    with open(path, 'rb') as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+            digest.update(chunk)
+    cache = DATA / 'analysis' / ('audio-v1-' + digest.hexdigest() + '.json')
+    if cache.is_file():
+        return json.loads(cache.read_text(encoding='utf-8'))
+    with tempfile.TemporaryDirectory(dir=DATA / 'work', prefix='signal-') as folder:
+        wav = Path(folder) / 'mono.wav'
+        ffmpeg(['-i', str(path), '-map', '0:a:0', '-vn', '-t', '300', '-ac', '1', '-ar', '8000', '-c:a', 'pcm_s16le', str(wav)], job, timeout=120)
+        with wave.open(str(wav)) as handle:
+            samples = np.frombuffer(handle.readframes(handle.getnframes()), dtype='<i2').astype('float32') / 32768
+    if not len(samples):
+        raise ValueError('No audio samples could be decoded')
+    def db(value):
+        return round(float(20 * np.log10(max(1e-9, value))), 2)
+    blocks = samples[:len(samples) // 800 * 800].reshape(-1, 800)
+    rms = np.sqrt(np.mean(blocks ** 2, axis=1)) if len(blocks) else np.array([0.])
+    hum = {50: [], 60: []}
+    window = np.hanning(8000)
+    for offset in range(0, len(samples) - 7999, 8000):
+        if job and job.cancelled():
+            raise Cancelled()
+        power = np.abs(np.fft.rfft(samples[offset:offset + 8000] * window)) ** 2
+        for frequency in hum:
+            band = float(power[frequency - 1:frequency + 2].sum())
+            neighbour = float(np.concatenate((power[frequency - 8:frequency - 3], power[frequency + 4:frequency + 9])).mean()) * 3
+            hum[frequency].append((10 * np.log10(max(band, 1e-12) / max(neighbour, 1e-12)), band / max(float(power.sum()), 1e-12)))
+    peaks = []
+    for frequency, values in hum.items():
+        if values:
+            prominence, share = np.median(np.array(values), axis=0)
+            peaks.append(dict(frequency_hz=frequency, prominence_db=round(float(prominence), 2), power_share=round(float(share), 5),
+                              possible_hum=bool(prominence > 15 and share > .005)))
+    result = dict(quiet_block_level_dbfs=db(float(np.percentile(rms, 10))), rms_dbfs=db(float(np.sqrt(np.mean(samples ** 2)))),
+                  sample_peak_dbfs=db(float(np.max(np.abs(samples)))), near_full_scale_share=round(float((np.abs(samples) >= .999).mean()), 7),
+                  hum_candidates=peaks, measurement='8 kHz mono proxy, 100 ms RMS blocks and 1 Hz spectral bins',
+                  limitations='Quiet-block level is not an isolated noise floor. Hum flags require listening; dialogue intelligibility is not measured.')
+    atomic(cache, result)
+    return result
+
 _NUMBER = r'(-?\d+(?:\.\d+)?|-?inf|nan)'
 
 
@@ -125,9 +180,10 @@ def visual_profile(path, shots, sample_fps=4.0, job=None):
                 entry['sharpness_laplacian_var'] = round(float(cv2.Laplacian(gray, cv2.CV_64F).var()), 2)
                 height, width = gray.shape
                 # A Haar hit in one frame is often a tie or a window; keep only a box that
-                # reappears at about the same place in at least two of three frames of the shot.
+                # reappears at about the same place in at least two sampled frames of the shot.
+                # Six samples: a speaker who gestures or looks away in some frames is still found.
                 votes = []
-                for moment in (start + (end - start) * f for f in (0.25, 0.5, 0.75)):
+                for moment in (start + (end - start) * f for f in (0.08, 0.25, 0.4, 0.55, 0.7, 0.9)):
                     capture.set(cv2.CAP_PROP_POS_MSEC, moment * 1000)
                     ok, sample = capture.read()
                     if not ok or cascade.empty():
@@ -147,7 +203,7 @@ def visual_profile(path, shots, sample_fps=4.0, job=None):
                     x, y, w, h = max(confirmed, key=lambda f: f[2] * f[3])
                     entry['face'] = dict(x=round(x / width, 4), y=round(y / height, 4), width=round(w / width, 4), height=round(h / height, 4),
                                          headroom=round(y / height, 4), center_offset_x=round((x + w / 2) / width - 0.5, 4),
-                                         detector='OpenCV Haar frontal face, confirmed in at least 2 of 3 sampled frames')
+                                         detector='OpenCV Haar frontal face, confirmed in at least 2 of 6 sampled frames')
             results.append(entry)
     finally:
         capture.release()

@@ -11,9 +11,14 @@ FONTS = {
 }
 
 
-def path(name):
-    return next((p for key, values in FONTS.items() if key.casefold() == (name or '').casefold()
-                 for p in values if Path(p).is_file()), None)
+def path(name, weight='regular'):
+    regular = next((p for key, values in FONTS.items() if key.casefold() == (name or '').casefold()
+                    for p in values if Path(p).is_file()), None)
+    if regular and weight == 'bold':
+        bold = regular.replace('arial.ttf', 'arialbd.ttf').replace('times.ttf', 'timesbd.ttf').replace('-Regular.ttf', '-Bold.ttf').replace('DejaVuSans.ttf', 'DejaVuSans-Bold.ttf')
+        if Path(bold).is_file():
+            return bold
+    return regular
 
 
 def choose(preferences):

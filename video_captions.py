@@ -25,6 +25,7 @@ class CaptionStyle(StrictCaption):
     font_family: Literal['sans', 'arabic', 'serif'] = 'sans'
     font_size: int = Field(38, ge=18, le=96)
     font_weight: str = 'bold'
+    font_name: str = Field('', max_length=80)
     fill: str = '#ffffff'
     stroke: Optional[str] = '#000000'
     stroke_width: int = 2
@@ -36,6 +37,9 @@ class CaptionStyle(StrictCaption):
     y_pct: float = Field(0.85, ge=0.1, le=0.95)
     max_chars_per_line: int = Field(36, ge=15, le=80)
     max_lines: int = Field(2, ge=1, le=4)
+    # Horizontal placement: widest text line and block centre, as fractions of the frame width.
+    max_width_pct: float = Field(0.8, ge=0.3, le=0.95)
+    x_center_pct: float = Field(0.5, ge=0.2, le=0.8)
 
 
 class CaptionTrack(StrictCaption):
@@ -50,6 +54,8 @@ class CaptionTrack(StrictCaption):
 DEFAULT_CAPTION_STYLES: Dict[str, CaptionStyle] = {
     'quick-social': CaptionStyle(id='quick-social',name='Readable social captions',font_size=64,
         fill='#ffffff',stroke='#000000',stroke_width=2,background='#07111cbb',y_pct=.82,max_chars_per_line=32,max_lines=2),
+    'lower-third': CaptionStyle(id='lower-third', name='Speaker lower third', font_size=40, fill='#ffffff', stroke=None, stroke_width=0,
+        background='#07111ce0', padding=14, y_pct=.6, max_chars_per_line=40, max_lines=2),
     'brand-primary': CaptionStyle(
         id='brand-primary', name='Brand Primary (High Legibility)',
         font_family='sans', font_size=38, fill='#ffffff', stroke='#041b15',
@@ -171,6 +177,38 @@ def segment_transcript(cues: List[Dict[str, Any]], max_chars: int = 36, max_line
     return results
 
 
+def track_style(track) -> CaptionStyle:
+    """Style for a caption track, with the track's own vertical position when it sets one
+    (used to keep captions above a platform's interface area)."""
+    style = DEFAULT_CAPTION_STYLES.get(track.get('style_id', 'brand-primary'), DEFAULT_CAPTION_STYLES['brand-primary'])
+    if track.get('brand_style'):
+        style = CaptionStyle.model_validate(track['brand_style'])
+    update = {}
+    if track.get('y_pct') is not None:
+        update['y_pct'] = min(.95, max(.1, float(track['y_pct'])))
+    if track.get('max_width_pct') is not None:
+        update['max_width_pct'] = min(.95, max(.3, float(track['max_width_pct'])))
+    if track.get('x_center_pct') is not None:
+        update['x_center_pct'] = min(.8, max(.2, float(track['x_center_pct'])))
+    return style.model_copy(update=update) if update else style
+
+
+def brand_caption_style(rules, language='en', base='quick-social'):
+    """Snapshot reviewed rules into the track so later library changes cannot alter a render."""
+    from video_fonts import choose
+    font, warnings = choose(rules.font_preferences)
+    style = DEFAULT_CAPTION_STYLES[base].model_copy(deep=True)
+    style.font_name = font
+    style.font_family = 'arabic' if language.startswith('ar') else 'sans'
+    if rules.caption_color:
+        style.fill = rules.caption_color
+    if rules.caption_size:
+        style.font_size = max(18, min(96, rules.caption_size))
+        if style.font_size != rules.caption_size:
+            warnings.append('Caption size limited to the supported 18–96 range; inspect readability.')
+    return style.model_dump(), warnings
+
+
 def render_caption_image(
     text: str,
     width: int,
@@ -187,30 +225,36 @@ def render_caption_image(
     try:
         from visual_engine import get_font
         is_ar = any('\u0600' <= c <= '\u06ff' for c in text)
+        from video_fonts import path as font_path
+        named = font_path(style.font_name, style.font_weight)
         family = "Cairo" if is_ar else "Inter"
-        font = get_font(family, font_size, "bold")
+        font = ImageFont.truetype(named, font_size) if named else get_font(family, font_size, style.font_weight)
     except Exception:
         font = ImageFont.load_default()
 
     # RTL preparation
     is_ar = any('\u0600' <= c <= '\u06ff' for c in text)
-    rendered_text = text
-    if is_ar:
+    # Wrap logical text before shaping. Reordering the whole paragraph before wrapping
+    # reverses the reading order across lines.
+    direction = {'direction': 'rtl', 'language': 'ar'} if is_ar and features.check_feature('raqm') else {}
+    def shaped(line):
+        if not is_ar or direction:
+            return line
         try:
             import arabic_reshaper
             from bidi.algorithm import get_display
-            rendered_text = get_display(arabic_reshaper.reshape(text))
-        except Exception:
-            pass
+            return get_display(arabic_reshaper.reshape(line))
+        except ImportError as exc:
+            raise ValueError('Arabic captions require Pillow RAQM or arabic-reshaper and python-bidi') from exc
 
     # Word wrapping
-    words = rendered_text.split()
+    words = text.split()
     lines = []
     curr = ""
     for w in words:
         candidate = f"{curr} {w}".strip()
-        bbox = draw.textbbox((0, 0), candidate, font=font)
-        if (bbox[2] - bbox[0]) > (width * 0.8) and curr:
+        bbox = draw.textbbox((0, 0), shaped(candidate), font=font, **direction)
+        if (bbox[2] - bbox[0]) > (width * style.max_width_pct) and curr:
             lines.append(curr)
             curr = w
         else:
@@ -220,13 +264,14 @@ def render_caption_image(
 
     im.info['caption_layout'] = dict(wrapped_lines=len(lines), truncated=len(lines) > style.max_lines)
     lines = lines[:style.max_lines]
-    full_str = "\n".join(lines)
-    t_bbox = draw.multiline_textbbox((0, 0), full_str, font=font, align=style.alignment)
+    full_str = "\n".join(shaped(line) for line in lines)
+    im.info['caption_layout']['logical_lines'] = lines
+    t_bbox = draw.multiline_textbbox((0, 0), full_str, font=font, align=style.alignment, **direction)
     t_w = t_bbox[2] - t_bbox[0]
     t_h = t_bbox[3] - t_bbox[1]
 
     # Coordinate calculation
-    x_pos = (width - t_w) // 2 if style.alignment == 'center' else int(width * 0.1)
+    x_pos = int(width * style.x_center_pct - t_w / 2) if style.alignment == 'center' else int(width * 0.1)
     y_pos = int(height * style.y_pct - t_h // 2)
 
     pad = style.padding
@@ -245,11 +290,11 @@ def render_caption_image(
         s_col = parse_color(style.stroke)
         draw.multiline_text(
             (x_pos, y_pos), full_str, font=font, fill=style.fill,
-            align=style.alignment, stroke_width=style.stroke_width, stroke_fill=s_col
+            align=style.alignment, stroke_width=style.stroke_width, stroke_fill=s_col, **direction
         )
     else:
         draw.multiline_text(
-            (x_pos, y_pos), full_str, font=font, fill=style.fill, align=style.alignment
+            (x_pos, y_pos), full_str, font=font, fill=style.fill, align=style.alignment, **direction
         )
 
     im.info['caption_layout'].update(box=[x_pos - pad, y_pos - pad, x_pos + t_w + pad, y_pos + t_h + pad],

@@ -79,5 +79,13 @@ class Jobs:
                 self.active[key].update(cancel_requested=True)
         return read('jobs', key)
 
+    def status(self, key):
+        with self.lock:
+            item = read('jobs', key)
+            if item['state'] not in TERMINAL and key not in self.active:
+                item.update(state='failed', error='The worker stopped before saving a result. Submit this edit again.', updated=time.time())
+                atomic(DATA / 'jobs' / (key + '.json'), item)
+            return item
+
 
 jobs = Jobs()

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "reviewed": "2026-11-15",
+  "basis": "PRODUCT DEFAULT",
+  "notice": "These obstruction regions are product defaults approximating where each app draws its own interface over a video. They are not official platform specifications and were not taken from a platform's safe-zone template. Check the platform's current template before a paid placement. Fractions are of the frame width or height.",
+  "profiles": {
+    "tiktok-ltr": {"label": "TikTok", "aspect": "9:16", "recommended": [1080, 1920], "minimum_short_side": 720, "top": 0.11, "bottom": 0.25, "left": 0.04, "right": 0.14},
+    "tiktok-rtl": {"label": "TikTok · Arabic / RTL", "aspect": "9:16", "recommended": [1080, 1920], "minimum_short_side": 720, "top": 0.11, "bottom": 0.25, "left": 0.14, "right": 0.04},
+    "instagram-reels": {"label": "Instagram Reels", "aspect": "9:16", "recommended": [1080, 1920], "minimum_short_side": 720, "top": 0.12, "bottom": 0.24, "left": 0.04, "right": 0.13},
+    "instagram-stories": {"label": "Instagram Stories", "aspect": "9:16", "recommended": [1080, 1920], "minimum_short_side": 720, "top": 0.14, "bottom": 0.16, "left": 0.05, "right": 0.05},
+    "youtube-shorts": {"label": "YouTube Shorts", "aspect": "9:16", "recommended": [1080, 1920], "minimum_short_side": 720, "top": 0.12, "bottom": 0.22, "left": 0.04, "right": 0.13},
+    "youtube-standard": {"label": "YouTube (standard player)", "aspect": "16:9", "recommended": [1920, 1080], "minimum_short_side": 720, "top": 0.05, "bottom": 0.12, "left": 0.04, "right": 0.04},
+    "generic-vertical": {"label": "Generic vertical", "aspect": "9:16", "recommended": [1080, 1920], "minimum_short_side": 720, "top": 0.08, "bottom": 0.12, "left": 0.05, "right": 0.05},
+    "generic-horizontal": {"label": "Generic horizontal", "aspect": "16:9", "recommended": [1920, 1080], "minimum_short_side": 720, "top": 0.05, "bottom": 0.08, "left": 0.05, "right": 0.05}
+  }
+}

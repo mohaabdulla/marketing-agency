@@ -68,6 +68,15 @@ class QuickTests(unittest.TestCase):
         self.assertEqual(self.a.get('/api/video/media/'+asset['id']).content,source.read_bytes())
         self.assertEqual(self.b.get('/api/video/download/'+result['id']).status_code,404)
         self.assertGreater(len(self.a.get('/api/video/download/'+result['id']).content),1000)
+        review='/api/video/assets/'+result['id']+'/review'
+        self.assertEqual(self.a.get(review).json()['state'],'DRAFT')
+        self.assertEqual(self.b.get(review).status_code,404)
+        self.assertEqual(self.b.post(review,json={'state':'INTERNAL_REVIEW'}).status_code,404)
+        self.assertEqual(self.a.post(review,json={'state':'INTERNAL_REVIEW'},headers={'Origin':'https://evil.example'}).status_code,403)
+        self.assertEqual(self.a.post(review,json={'state':'INTERNAL_REVIEW'}).json()['state'],'INTERNAL_REVIEW')
+        revision='/api/video/projects/'+result['project_id']+'/revisions/'+result['render_revision_id']
+        self.assertEqual(self.b.get(revision).status_code,404)
+        self.assertEqual(self.a.get(revision).json()['render_asset_id'],result['id'])
 
 
 if __name__=='__main__':unittest.main(verbosity=2)

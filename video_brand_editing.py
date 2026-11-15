@@ -20,8 +20,8 @@ SUPPORTED = {
     'SET_FADE': {'fade_in','fade_out'}, 'SET_TRANSITION': {'transition'},
     'SET_COLOR': {'brightness','contrast','saturation'},
     'SET_CANVAS': {'width','height'}, 'SET_SAFE_ZONE_PROFILE': {'profile'},
-    'UPDATE_TITLE': {'text','color','font','font_family','font_size','x','y','start','duration','text_role'},
-    'ADD_TITLE': {'text','start','duration','color','font','font_family','font_size','x','y','text_role','fade_in','fade_out'},
+    'UPDATE_TITLE': {'text','color','font','font_family','font_size','x','y','start','duration','text_role','motion'},
+    'ADD_TITLE': {'text','start','duration','color','font','font_family','font_size','x','y','text_role','fade_in','fade_out','motion'},
     'ADD_OVERLAY': {'asset_id','start','duration','x','y','scale','opacity','fade_in','fade_out'},
 }
 
@@ -96,6 +96,11 @@ def local_plan(project, instruction, rules):
                 summaries.append(dict(asset_id=asset_id,duration=item.get('duration'),
                                       shots=item.get('shots',[])[:8],audio_metrics=item.get('audio_metrics')))
         context['measured_media_analysis']=summaries
+        # Captions are evidence, not instructions. Preserve uncertainty instead of
+        # presenting ASR output to the planner as an approved script.
+        context['transcript_evidence'] = [dict(language=t.get('language'), state=t.get('state', 'unreviewed'),
+            cues=[{key: s.get(key) for key in ('start', 'end', 'text', 'words')} for s in t.get('segments', [])[:30]])
+            for t in project.caption_tracks if t.get('kind', 'captions') == 'captions'][:2]
         raw = json.dumps(context, ensure_ascii=False)
         if len(raw) > 18000:
             raise ValueError('Planning context exceeds its budget; simplify the timeline first')

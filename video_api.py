@@ -26,6 +26,7 @@ from video_brand_context import compile_video_edit_context
 from video_compliance import VideoComplianceEngine
 from video_ai_editor import VideoAIEditor
 from video_variants import create_platform_variant
+from video_review import ReviewRequest, review_record, set_review
 
 
 def trusted_origin(request: Request):
@@ -259,6 +260,16 @@ def delete_project(project_id: str):
 def list_revisions(project_id: str):
     guard(read, 'projects', project_id)
     return {'revisions': get_revisions(project_id)}
+
+
+@router.get('/assets/{asset_id}/review')
+def get_asset_review(asset_id: str):
+    return guard(review_record, asset_id)
+
+
+@router.post('/assets/{asset_id}/review')
+def update_asset_review(asset_id: str, body: ReviewRequest):
+    return guard(set_review, asset_id, body)
 
 
 @router.get('/projects/{project_id}/revisions/{revision_id}')
@@ -523,6 +534,23 @@ def export_presets():
                      'web and social targets are product delivery choices.')
 
 
+@router.get('/editing-capabilities')
+def editing_capabilities():
+    """What the guided editor can do on this machine: optional models, platform profiles, styles."""
+    import video_platforms
+    import video_segmentation
+    from video_transcription import status as speech
+    from video_brand_editing import ai_status
+    semantic = ai_status()
+    return dict(
+        matting=guard(video_segmentation.status), speech=speech(), platforms=guard(video_platforms.public),
+        styles=[dict(id=key, label=value['label'], summary=value['summary']) for key, value in video_platforms.STYLES.items()],
+        semantic_planner=dict(available=semantic['available'], reason='Semantic AI planner available in the Advanced editor; proposed operations require review.' if semantic['available'] else
+                             'Semantic AI planner unavailable. Deterministic editing remains available.'),
+        generative_background=dict(available=False, reason='Generative background replacement is not implemented. Blur/dim and replacement with your own approved image use a local subject mask.'),
+        ai_upscale=dict(available=False, reason='No restoration or upscaling model is installed. "Platform canvas" only rescales.'))
+
+
 @router.post('/assets/{asset_id}/qa', status_code=202)
 def asset_technical_qa(asset_id: str):
     """Measure any managed video (loudness, true peak, colour tags, black/frozen intervals)."""
@@ -545,7 +573,7 @@ def audio_extract(asset_id: str):
 
 @router.get('/jobs/{job_id}')
 def job_status(job_id: str):
-    return guard(read, 'jobs', job_id)
+    return guard(jobs.status, job_id)
 
 
 @router.get('/jobs')

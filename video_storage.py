@@ -33,7 +33,17 @@ def atomic(path, value):
         temp = path.with_name(uid()[:16] + '.tmp')
         try:
             temp.write_text(json.dumps(value, ensure_ascii=False), encoding='utf-8')
-            os.replace(temp, path)
+            # Windows readers and antivirus scanners can briefly deny replacement of
+            # an existing file. Keep the old complete JSON until the rename succeeds.
+            # A permanent permissions failure still propagates after a bounded wait.
+            for attempt in range(9):
+                try:
+                    os.replace(temp, path)
+                    break
+                except PermissionError as exc:
+                    if os.name != 'nt' or getattr(exc, 'winerror', None) not in (5, 32, 33) or attempt == 8:
+                        raise
+                    time.sleep(min(.2, .015 * 2 ** attempt))
         finally:
             temp.unlink(missing_ok=True)
 

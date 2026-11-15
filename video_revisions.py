@@ -22,6 +22,11 @@ class Revision(BaseModel):
     label: Optional[str] = None
     project_state: Dict[str, Any]
     state_hash: str = ''
+    edit_plan: Optional[Dict[str, Any]] = None
+    render_asset_id: Optional[str] = None
+    qa_report: Optional[Dict[str, Any]] = None
+    editorial_report: Optional[Dict[str, Any]] = None
+    parent_render_revision_id: Optional[str] = None
 
 
 def _hash_state(state: Dict[str, Any]) -> str:
@@ -62,6 +67,7 @@ def record_revision(
     reason: str = '',
     operation_ids: Optional[List[str]] = None,
     label: Optional[str] = None,
+    edit_plan=None, render_asset_id=None, qa_report=None, editorial_report=None, parent_render_revision_id=None,
 ) -> Revision:
     """Record a persistent revision snapshot. Never destructively overwrites history."""
     with LOCK:
@@ -77,7 +83,7 @@ def record_revision(
         # Check if the state is identical to the active revision to prevent useless duplicate snapshots
         if parent_id:
             parent_rev = get_revision(project_id, parent_id)
-            if parent_rev and parent_rev.get('state_hash') == state_hash and not instruction and not label:
+            if parent_rev and parent_rev.get('state_hash') == state_hash and not instruction and not label and not render_asset_id:
                 return Revision(**parent_rev)
 
         rev = Revision(
@@ -93,6 +99,8 @@ def record_revision(
             label=label,
             project_state=project_state,
             state_hash=state_hash,
+            edit_plan=edit_plan, render_asset_id=render_asset_id, qa_report=qa_report,
+            editorial_report=editorial_report, parent_render_revision_id=parent_render_revision_id,
         )
 
         rev_file = _revisions_dir(project_id) / f"{rev_id}.json"
@@ -109,6 +117,8 @@ def record_revision(
             'reason': rev.reason,
             'label': rev.label,
             'state_hash': rev.state_hash,
+            'render_asset_id': render_asset_id,
+            'parent_render_revision_id': parent_render_revision_id,
         })
         index['active_revision_id'] = rev.id
         index['history'] = history

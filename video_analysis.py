@@ -16,7 +16,7 @@ from video_analysis_schemas import MediaAnalysis, Shot, SilenceSegment, AudioMet
 import video_measure
 
 # 2: measured motion/sharpness/face/loudness/true peak replace the former constant values.
-ANALYSIS_VERSION = 2
+ANALYSIS_VERSION = 3
 HDR_TRANSFERS = {'smpte2084', 'arib-std-b67'}
 
 
@@ -247,7 +247,10 @@ def analyze_asset(asset_id: str, force: bool = False, job=None) -> MediaAnalysis
     if has_audio:
         try:
             measured = video_measure.loudness(source_path, job)
-        except Exception:
+        except Exception as exc:
+            from video_ffmpeg import Cancelled
+            if isinstance(exc, Cancelled):
+                raise
             not_measured.append('audio loudness and true peak (FFmpeg ebur128 failed)')
     peak = measured.get('true_peak_dbtp')
     audio_metrics = AudioMetrics(

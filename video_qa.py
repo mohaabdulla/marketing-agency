@@ -91,21 +91,23 @@ def _logo_check(checks, output, project, width, height):
 
 
 def _caption_checks(checks, output, project, width, height, captions_requested):
-    from video_captions import render_caption_image, caption_qa, DEFAULT_CAPTION_STYLES
-    tracks = [t for t in getattr(project, 'caption_tracks', []) if t.get('burn_in', True) and t.get('segments')]
+    from video_captions import render_caption_image, caption_qa, track_style
+    tracks = [t for t in getattr(project, 'caption_tracks', []) if t.get('burn_in', True) and t.get('segments') and t.get('kind', 'captions') == 'captions']
     if not tracks:
         _check(checks, 'captions_present', 'Captions rendered', FAIL if captions_requested else NOT_CHECKED,
                detail='Captions were requested but none were created (speech recognition unavailable or no speech found). Import a reviewed SRT or install the local speech model.'
                if captions_requested else 'Captions were not requested.')
         return
     track = tracks[0]
-    style = DEFAULT_CAPTION_STYLES.get(track.get('style_id', 'brand-primary'), DEFAULT_CAPTION_STYLES['brand-primary'])
+    style = track_style(track)
     issues, stats = caption_qa(track['segments'], style, width, height)
     worst = FAIL if any(i['severity'] == FAIL for i in issues) else WARNING if issues else PASS
     _check(checks, 'caption_readability', 'Caption timing, reading speed, line count and safe margins', worst, measured=stats,
            expected='≤ 20 characters/second, ≥ 0.7 s per cue, no overlap, no truncated lines, inside safe margins',
            detail='; '.join(i['message'] for i in issues[:8]) or 'All cues are within the configured readability guidelines.')
-    if not track.get('reviewed', False) and track.get('source') == 'whisper':
+    if track.get('reviewed', False):
+        _check(checks, 'caption_review', 'Recognised captions reviewed by a person', PASS, detail='Marked as reviewed by the operator.')
+    elif track.get('source') == 'whisper':
         _check(checks, 'caption_review', 'Recognised captions reviewed by a person', WARNING,
                detail='These captions come from local speech recognition and have not been reviewed. Names and uncommon words are often misheard.')
     try:

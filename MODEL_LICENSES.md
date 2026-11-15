@@ -27,6 +27,30 @@ Code licenses do not automatically describe model weights; installed state, oper
 | `musicgen-small` | MusicGen Small | Background Music | [facebook/musicgen-small](https://huggingface.co/facebook/musicgen-small) (CC-BY-NC-4.0) | `NON_COMMERCIAL` [GATED] | 5GB VRAM / 8GB RAM | Strictly blocked in commercial mode |
 | `stable-audio-open-1.0` | Stable Audio Open | Audio SFX | [stabilityai/stable-audio-open-1.0](https://huggingface.co/stabilityai/stable-audio-open-1.0) (Stability Community) | `REVIEW_REQUIRED` (Revenue caps) | 6GB VRAM / 8GB RAM | Music engine adapter integrated |
 
+## Video editing: subject matting (background blur / replacement)
+
+Used only by the Video Studio background treatment. Nothing is downloaded automatically: the
+checkpoint is fetched once, on request, by `python scripts/setup_video_matting.py`, into
+`.model-cache/video-matting/` (git-ignored). Inference is local and on CPU; no frame leaves
+the machine.
+
+| Model | Task | Upstream source & license | Commercial status | Disk | Measured speed on this machine (CPU) | Status |
+|---|---|---|---|---|---|---|
+| `u2net_human_seg` | Person mask per frame | Weights: [xuebinqin/U-2-Net](https://github.com/xuebinqin/U-2-Net) (Apache-2.0), ONNX build distributed by [danielgatis/rembg](https://github.com/danielgatis/rembg) | `COMMERCIAL_ALLOWED` | 176 MB (175,997,641 bytes) | 0.43 s per frame; masks are sampled at 12 fps and cached | Installed and verified with a real inference |
+| `u2netp` | Smaller fallback, same task | Same upstream (Apache-2.0) | `COMMERCIAL_ALLOWED` | about 4.7 MB (not measured here) | Not measured | Supported by the provider, not installed |
+
+Runtime: `rembg` 2.0.86 (MIT) on `onnxruntime` (MIT), CPU execution provider. U-2-Net is an
+image model run frame by frame: it has no temporal model, so edges can flicker on fast motion
+and fine hair. The pipeline measures mask stability (frame-to-frame IoU, coverage jumps) and
+reports it. SAM 2, MatAnyone, Robust Video Matting and BiRefNet were researched but are not
+integrated; the provider interface in `video_segmentation.py` is where one would be added.
+
+The 0.43-second figure above is the setup marker's single synthetic-image inference,
+not an end-to-end video benchmark or guaranteed throughput. The agency upgrade uses
+short-range optical-flow propagation between neural anchors, capped CPU threads and
+checkpoint-hash/versioned caches. Inference bypasses the downloader entirely; an invalid
+local checkpoint fails locally. See `VIDEO_EDITOR_AGENCY_UPGRADE.md` for real-video results.
+
 ## Licensing Gate Policy
 
 1. **Commercial Mode (Default):** Any model with status `NON_COMMERCIAL` (such as Coqui XTTS-v2 CPML weights or Facebook MusicGen CC-BY-NC weights) is blocked at the application level from being selected or executed in marketing campaigns.

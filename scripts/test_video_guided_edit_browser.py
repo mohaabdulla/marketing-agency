@@ -86,11 +86,29 @@ def main():
                     brand.locator('[data-logo-file]').set_input_files(str(logo))
                     page.wait_for_function("()=>/logo/i.test(document.querySelector('[data-logo-status]')?.textContent||'')", timeout=20000)
 
-                    quick.locator('[data-quick-file]').set_input_files(str(source))
-                    page.wait_for_function("()=>document.querySelector('[data-quick-source]').value.length===32", timeout=30000)
+                    with page.expect_response(lambda r:r.url.endswith('/api/video/upload') and r.request.method=='POST', timeout=60000) as uploaded:
+                        quick.locator('[data-quick-file]').set_input_files(str(source))
+                    assert uploaded.value.ok,uploaded.value.text()
+                    try:
+                        page.wait_for_function("()=>document.querySelector('[data-quick-source]').value.length===32", timeout=30000)
+                    except Exception:
+                        print('Upload status:',quick.locator('[data-quick-status]').inner_text(),'JS errors:',errors,flush=True)
+                        page.screenshot(path=str(evidence/'upload-failure.png'))
+                        raise
                     info = quick.locator('[data-quick-source-info]').inner_text()
                     assert '360 × 640' in info and '29.97 fps' in info, info
                     quick.locator('[data-quick-delivery]').select_option('vertical-social')
+
+                    # New settings exist, and the plan preview answers the request without rendering anything.
+                    for control in ('style', 'platform', 'lighting', 'background', 'canvas'):
+                        assert quick.locator(f'[data-quick-{control}]').count() == 1, control
+                    assert quick.locator('[data-quick-capabilities]').inner_text().strip()
+                    quick.locator('button[data-quick-plan]').click()
+                    page.wait_for_function("()=>/PLAN ONLY/.test(document.querySelector('[data-quick-requests]').textContent)", timeout=240000)
+                    planned = quick.locator('[data-quick-requests]').inner_text()
+                    assert 'Nothing has been rendered yet' in planned and 'Deterministic editing remains available' in planned, planned
+                    assert quick.locator('[data-quick-download]').is_hidden(), 'a plan preview must not produce a file'
+
                     quick.locator('[data-quick-run]').click()
                     quick.locator('[data-quick-download]').wait_for(state='visible', timeout=240000)
 
@@ -98,7 +116,17 @@ def main():
                     assert 'What changed' in report and 'Captions were requested but not created' in report, report
                     for decision in ('TRANSITION', 'AUDIO'):
                         assert decision in report.upper(), report
+                    # Two separate gates: technical delivery and editorial quality, with an explicit readiness.
+                    gates = {g.split('\n')[0].strip().lower(): g.split('\n')[-1].strip() for g in quick.locator('[data-quick-gates] .ve-gate').all_inner_texts()}
+                    assert set(gates) == {'technical delivery qa', 'editorial quality', 'brand', 'caption review', 'publish readiness'}, gates
+                    assert gates['publish readiness'] in ('READY', 'DRAFT') and gates['editorial quality'] in ('PASS', 'NEEDS REVIEW'), gates
+                    label = quick.locator('[data-quick-download]').inner_text()
+                    assert ('draft' in label.lower()) == (gates['publish readiness'] == 'DRAFT'), (label, gates)
+                    assert 'no combined score' in quick.locator('[data-quick-gates]').inner_text()
+                    assert quick.locator('[data-quick-editorial] details.ve-category').count() >= 5
+                    assert 'Your request' in quick.locator('[data-quick-requests]').inner_text()
                     qa = quick.locator('[data-quick-qa]')
+                    qa.locator('details').first.evaluate('node=>node.open=true')
                     qa.locator('table').wait_for()
                     text = qa.inner_text()
                     assert 'Vertical social' in text and 'not checked' in text.lower(), text

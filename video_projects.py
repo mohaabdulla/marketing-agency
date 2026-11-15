@@ -33,7 +33,20 @@ class Clip(Strict):
     saturation: float = Field(1, ge=0, le=3)
     fade_in: float = Field(0, ge=0, le=5)
     fade_out: float = Field(0, ge=0, le=5)
+    motion: Literal['none', 'slide-up'] = 'none'
     transition: float = Field(0, ge=0, le=2)
+    # Lighting correction actually rendered by video_grade.filters (neutral values change nothing).
+    exposure: float = Field(0, ge=-1, le=1)
+    gamma: float = Field(1, ge=.6, le=1.6)
+    shadows: float = Field(0, ge=0, le=1)
+    highlights: float = Field(0, ge=0, le=1)
+    temperature: float = Field(0, ge=-1, le=1)
+    vignette: float = Field(0, ge=0, le=1)
+    sharpen: float = Field(0, ge=0, le=1)
+    denoise: float = Field(0, ge=0, le=1)
+    # Where a punch-in is anchored (fraction of the frame); 0.5/0.5 is the centre.
+    zoom_x: float = Field(.5, ge=0, le=1)
+    zoom_y: float = Field(.5, ge=0, le=1)
     text: str = Field('', max_length=500)
     color: str = Field('#ffffff', pattern=r'^#[0-9a-fA-F]{6}$')
     font: Literal['sans', 'arabic', 'serif'] = 'sans'
@@ -88,7 +101,26 @@ class EditingBrief(Strict):
     instruction: str = Field('',max_length=1000)
 
 
+class BackgroundTreatment(Strict):
+    """Subject-mask background treatment. Needs the optional matting model (video_segmentation)."""
+    mode: Literal['blur-dim', 'replace'] = 'blur-dim'
+    blur: float = Field(.5, ge=0, le=1)
+    dim: float = Field(.12, ge=0, le=.5)
+    desaturate: float = Field(.15, ge=0, le=1)
+    replacement_asset_id: str | None = Field(None, pattern=r'^[a-f0-9]{32}$')
+    mask_fps: Literal[6, 12, 24] = 12
+
+    @model_validator(mode='after')
+    def replacement(self):
+        if self.mode == 'replace' and not self.replacement_asset_id:
+            raise ValueError('Choose an approved background image to replace the background')
+        return self
+
+
 class Project(Strict):
+    motion_intensity: Literal['minimal', 'balanced', 'expressive'] = 'minimal'
+    background: BackgroundTreatment | None = None
+    dialogue_polish: bool = False
     normalize_audio: bool = False
     export_quality: Literal['standard','high'] = 'standard'
     # Named delivery preset (video_presets.PRESETS). None keeps the web defaults.
