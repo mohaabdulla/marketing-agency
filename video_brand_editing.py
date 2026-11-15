@@ -35,6 +35,13 @@ def digest(raw):
 
 
 def effective_rules(project, profile=None):
+    rules = _base_rules(project,profile)
+    if project.editing_brief.logo_asset_id:
+        rules = rules.model_copy(update={'logo_asset_id':project.editing_brief.logo_asset_id})
+    return rules
+
+
+def _base_rules(project, profile=None):
     if project.brand_rules is not None:
         return Rules.model_validate(project.brand_rules)
     profile=profile or {}
@@ -181,6 +188,15 @@ def polish(project, instruction, rules, repair_only=False):
         if clip.kind == 'audio' and clip.audio_role == 'music' and not repair_only:
             add('SET_VOLUME',{'volume':.25 if any(w in inst for w in ('quiet','lower','balance')) else min(.5,clip.volume)},clip.id)
     text = ' '.join(c.text for c in project.clips if c.kind == 'title')
+    brief=project.editing_brief
+    for value,role,y,size in [(brief.person_name,'speaker_name',.48,48),(brief.person_position,'speaker_role',.57,32)]:
+        if not value.strip():continue
+        existing=next((c for c in project.clips if c.kind=='title' and c.text_role==role),None)
+        params=dict(text=value.strip(),start=0,duration=min(3,total),font_size=size,
+                    font_family=font,font='arabic' if rules.language=='ar' or re.search(r'[\u0600-\u06ff]',value) else 'sans',
+                    color=color or '#ffffff',x=.5,y=y,text_role=role)
+        add('UPDATE_TITLE' if existing else 'ADD_TITLE',params,existing.id if existing else None,
+            'Display the supplied '+('name' if role=='speaker_name' else 'position'))
     for required, role in [(x,'disclosure') for x in rules.required_disclosures] + ([(rules.cta,'cta')] if rules.cta else []):
         if required and required not in text:
             if len(required) > 500:
@@ -195,6 +211,11 @@ def polish(project, instruction, rules, repair_only=False):
         add('ADD_OVERLAY',dict(asset_id=rules.logo_asset_id,start=0,duration=total,
                               x=margin if placement.endswith('left') else 1-margin,
                               y=margin if placement.startswith('top') else 1-margin,scale=.15,opacity=1))
+    guideline_logo=(project.brand_rules or {}).get('logo_asset_id')
+    if brief.logo_asset_id and guideline_logo and brief.logo_asset_id!=guideline_logo:
+        for clip in project.clips:
+            if clip.kind=='overlay' and clip.asset_id==guideline_logo:
+                add('REMOVE_CLIP',{},clip.id,'Replace the guideline logo with the explicitly selected upload')
     for clip in project.clips:
         if clip.kind=='overlay' and clip.asset_id==rules.logo_asset_id and (rules.logo_placement or 'logo' in inst):
             placement = rules.logo_placement or ('top-left' if 'top left' in inst else 'top-right')
@@ -314,9 +335,15 @@ def preview(project_id, instruction, engine='rule_engine', repair_only=False):
     original = read('projects',project_id)
     project = model(original)
     rules = effective_rules(project)
+    if project.editing_brief.logo_asset_id:
+        if read('assets',project.editing_brief.logo_asset_id)['kind']!='image':
+            raise ValueError('Choose a still image for the logo')
     plan = local_plan(project,instruction,rules) if engine=='local_ai' else polish(project,instruction,rules,repair_only)
     proposed = checked(project,plan)
     conflicts = []
+    guideline_logo=(project.brand_rules or {}).get('logo_asset_id')
+    if guideline_logo and project.editing_brief.logo_asset_id and guideline_logo!=project.editing_brief.logo_asset_id:
+        conflicts.append('The uploaded logo differs from the guideline logo. Review and acknowledge this replacement before applying.')
     if rules.primary_colors:
         requested = re.findall(r'#[0-9a-fA-F]{6}\b', instruction)
         if any(c.casefold() not in {x.casefold() for x in rules.primary_colors+rules.secondary_colors} for c in requested):

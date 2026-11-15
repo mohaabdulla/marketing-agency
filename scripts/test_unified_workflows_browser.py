@@ -122,7 +122,7 @@ def main():
                     assert Path(mp4.value.path()).stat().st_size>1000
                     page.locator('#vg-add-result').click();page.wait_for_function("()=>document.querySelector('#ve-brand-editor [data-associated]').textContent.includes('Applied guideline')")
                     editor=page.locator('#ve-brand-editor');editor.locator('[data-instruction]').fill('Make the opening shorter and follow the brand guidelines.')
-                    ea=editor.locator('[data-prompt-assistant]');ea.locator('summary').click();ea.locator('[data-assist=professional]').click();ea.locator('[data-use]').wait_for();ea.locator('[data-use]').click()
+                    ea=editor.locator('[data-prompt-assistant]');ea.evaluate('(node)=>node.open=true');ea.locator('[data-assist=professional]').click();ea.locator('[data-use]').wait_for();ea.locator('[data-use]').click()
                     editor.locator('[data-polish]').click();editor.locator('[data-apply-plan]').wait_for();editor.locator('[data-apply-plan]').click()
                     editor.locator('[data-compliance-result] h3').wait_for();assert editor.locator('[data-ai]').is_disabled()
                     print('PASS: visible video guideline upload, real branded CPU output and editor prompt handoff',flush=True)

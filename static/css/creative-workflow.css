@@ -4,3 +4,7 @@
 @media(max-width:640px){.flow-toolbar,.flow-step,.creative-assistant{padding:12px}.flow-fields{grid-template-columns:1fr}.flow-toolbar nav{max-height:160px;overflow:auto}.flow-toolbar nav button{flex:1 1 130px;text-align:left}}
 #creative-output-kind{background:#080f1e;border:1px solid #38516d;border-radius:8px;padding:10px;color:#e3edf9;max-width:100%}.creative-flow [data-rule]{max-width:100%;min-width:0}.flow-step .vs-card{margin-bottom:10px}
 .studio-rail{overflow-y:auto;overscroll-behavior:contain}
+.ve-purpose-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.vs .ve-purpose-grid button{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;text-align:left;padding:14px;min-height:96px;gap:7px}.vs .ve-purpose-grid button small{white-space:normal}.vs .ve-purpose-grid button[aria-pressed=true]{border-color:#65e7f4;background:#173949;color:#d9fbff}.ve-logo-preview{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:14px 0}.ve-logo-preview img{width:140px;height:100px;object-fit:contain;border:1px dashed #38516d;border-radius:10px;padding:12px;background:repeating-conic-gradient(#152238 0% 25%,#23324a 0% 50%) 50% / 18px 18px}
+@media(max-width:900px){.ve-purpose-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:420px){.vs .ve-purpose-grid button{padding:10px;min-height:88px}}
+.vs .flow-toolbar button[aria-current=step],.vs .flow-toolbar button[aria-current=step]:hover{background:#60d8e7;color:#051522}

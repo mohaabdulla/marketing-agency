@@ -78,7 +78,17 @@ class CreativeContext(Strict):
     language: Literal['en','ar','ar-BH'] = 'en'
 
 
+class EditingBrief(Strict):
+    purpose: Literal['','team_welcome','product_launch','event_announcement','milestone_achievement',
+                     'thought_leadership','case_study','hiring','brand_awareness'] = ''
+    person_name: str = Field('',max_length=150)
+    person_position: str = Field('',max_length=200)
+    logo_asset_id: str | None = Field(None,pattern=r'^[a-f0-9]{32}$')
+    instruction: str = Field('',max_length=1000)
+
+
 class Project(Strict):
+    editing_brief: EditingBrief = Field(default_factory=EditingBrief)
     creative_context: CreativeContext = Field(default_factory=CreativeContext)
     schema_version: int = Field(2, ge=1)
     name: str = Field('Untitled video', min_length=1, max_length=120)

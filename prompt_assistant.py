@@ -8,7 +8,7 @@ import os
 from typing import Literal
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import Field
-from video_projects import Strict
+from video_projects import Strict, EditingBrief
 from brand_guidelines import Rules, get
 from video_brand_editing import AI_LOCK, ai_status
 from video_api import trusted_origin
@@ -47,6 +47,7 @@ class AssistRequest(Strict):
     brand_kit_id: str | None = Field(None, pattern=r'^[a-f0-9]{32}$')
     # Manually supplied context stays untrusted. Stored documents take precedence.
     brand_rules: Rules | None = None
+    editing_brief: EditingBrief | None = None
 
 
 class Suggestion(Strict):
@@ -62,6 +63,13 @@ def capabilities():
 def draft(body: AssistRequest):
     rules = body.brand_rules or Rules()
     version = None
+    if body.editing_brief and body.editing_brief.logo_asset_id:
+        from video_storage import read
+        try:
+            if read('assets',body.editing_brief.logo_asset_id)['kind']!='image':
+                raise ValueError('A still image is required for the logo')
+        except (FileNotFoundError,ValueError):
+            raise HTTPException(404,'Selected logo is not available in this workspace')
     if body.client_id and not body.guideline_id:
         from agency.services import service
         try:
@@ -89,13 +97,23 @@ def draft(body: AssistRequest):
     missing = [label for key, label in [('objective','Creative objective'),('audience','Target audience'),
                ('platform','Target platform'),('cta','Approved call to action')]
                if not getattr(body,key) and not (key == 'cta' and rules.cta)]
-    source = body.prompt.strip() or body.objective.strip() or body.key_message.strip()
+    purpose_labels={'team_welcome':'team welcome','product_launch':'product launch','event_announcement':'event announcement',
+                    'milestone_achievement':'milestone announcement','thought_leadership':'thought leadership',
+                    'case_study':'case study','hiring':'recruitment','brand_awareness':'brand awareness'}
+    purpose=purpose_labels.get(body.editing_brief.purpose,'') if body.editing_brief else ''
+    source = body.prompt.strip() or body.objective.strip() or body.key_message.strip() or ('Create a '+purpose+' video.' if purpose else '')
     if not source:
         raise HTTPException(400, 'Describe your idea or objective first; no creative facts will be invented')
     context = body.model_dump(exclude={'engine','brand_rules','guideline_id'})
     context['brand_rules'] = rules.model_dump(exclude_defaults=True)
     if body.engine == 'template':
         lines = [source]
+        if body.editing_brief:
+            brief=body.editing_brief
+            if purpose:lines.append('Video purpose: '+purpose)
+            if brief.person_name:lines.append('Name on screen: '+brief.person_name)
+            if brief.person_position:lines.append('Position on screen: '+brief.person_position)
+            if brief.logo_asset_id:lines.append('Use the uploaded logo as a visible overlay; preserve its proportions.')
         for label,key in [('Objective','objective'),('Audience','audience'),('Key message','key_message'),
                           ('Style','style'),('Platform','platform'),('Output','output_format')]:
             if getattr(body,key) and getattr(body,key) != source:

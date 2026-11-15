@@ -6,6 +6,28 @@ The existing Image & GIF Studio remains mounted in place. A separate vanilla-Jav
 workspace adds media import, a non-destructive timeline, projects, CPU image animation,
 and local-model adapters. There are no hosted video APIs or automatic model downloads.
 
+## Video Editor setup
+
+The editor now has ten sections: video purpose, footage, brand guidelines, company logo,
+name and position, creative objective, settings, prompt and enhancer, preview, and export.
+The purpose cards match Image & GIF Studio (welcome, launch, hiring, events and the
+other existing campaign types). Use **Focus on one step** for a shorter screen.
+
+Upload a PNG, JPEG or WebP logo up to 8 MB in the logo section, or select an existing
+managed image. It stays separate from primary footage. Name and position are optional;
+Auto Polish adds supplied values as editable titles and places the selected logo in the
+proposed edit. Logo replacement conflicts with a reviewed guideline require acknowledgment.
+
+The final setup section contains the prompt and its enhancer. It receives the purpose,
+logo, name, position, brand rules, objective, audience, language, platform and output
+settings. Accepting a suggestion updates the real edit instruction. The setup and prompt
+are retained in browser drafts, saved projects and revision history. Local AI availability
+and editable-template fallback are labelled as before.
+
+Focused checks: `python scripts/test_unified_workflows.py` and
+`python scripts/test_video_editing_setup_browser.py`. Browser evidence is saved in
+`output/video-editing-setup/`; the export checks use real FFmpeg media.
+
 ## Start and install
 
 Use the existing application Python environment. Add CPU video dependencies without changing

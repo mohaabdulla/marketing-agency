@@ -38,6 +38,56 @@ class UnifiedTests(unittest.TestCase):
         doc=self.call('POST','/api/guidelines',files={'file':('brand.md',b'Brand: Noor Solar\nPrimary color: #ffffff\nFonts: Arial\nCTA: Book a demo\nAnimation: smooth and subtle\n')},status=201)
         return self.call('PUT','/api/guidelines/'+doc['id'],dict(expected_version=doc['version'],rules=doc['rules'],confirmed=True))
 
+    def test_editing_setup_drives_prompt_titles_logo_and_real_export(self):
+        source=io.BytesIO();Image.new('RGB',(320,240),'#223344').save(source,'PNG')
+        logo=io.BytesIO();Image.new('RGBA',(80,40),'#e4572e').save(logo,'PNG')
+        media=self.call('POST','/api/video/upload',files={'file':('footage.png',source.getvalue())})
+        mark=self.call('POST','/api/video/upload',files={'file':('logo.png',logo.getvalue())})
+        brief=dict(purpose='team_welcome',person_name='Amal Hassan',person_position='Marketing Manager',logo_asset_id=mark['id'],instruction='Keep the introduction clean.')
+        suggestion=self.call('POST','/api/creative/assistant/suggest',dict(task='video-edit',editing_brief=brief,max_chars=1000))
+        for expected in ['team welcome','Amal Hassan','Marketing Manager','uploaded logo']:
+            self.assertIn(expected,suggestion['prompt'])
+        project=self.call('POST','/api/video/projects',dict(name='Welcome setup',canvas=dict(width=320,height=240,fps=24),editing_brief=brief,clips=[dict(asset_id=media['id'],duration=1)]))
+        self.assertEqual(project['editing_brief'],brief)
+        path='/api/video/projects/'+project['id']
+        proposed=self.call('POST',path+'/brand-edit/preview',dict(engine='rule_engine',instruction=suggestion['prompt']))
+        saved=self.call('POST',path+'/brand-edit/apply',dict(plan_id=proposed['id'],confirm_conflicts=True))
+        self.assertTrue(any(c['kind']=='overlay' and c['asset_id']==mark['id'] for c in saved['clips']))
+        self.assertTrue(any(c['text']=='Amal Hassan' and c['text_role']=='speaker_name' for c in saved['clips']))
+        self.assertTrue(any(c['text']=='Marketing Manager' and c['text_role']=='speaker_role' for c in saved['clips']))
+        again=self.call('POST',path+'/brand-edit/preview',dict(engine='rule_engine',instruction='Polish again'))
+        self.assertEqual(sum(c['text_role']=='speaker_name' for c in again['proposed_project']['clips']),1)
+        job=self.call('POST','/api/video/export',dict(project=proposed['proposed_project'],container='mp4',audio=False),status=202)
+        for _ in range(600):
+            state=self.call('GET','/api/video/jobs/'+job['id'])
+            if state['state'] in {'completed','failed','cancelled'}:break
+            time.sleep(.1)
+        self.assertEqual(state['state'],'completed',state)
+        output=Path(TEMP.name)/'setup-export.mp4';output.write_bytes(self.a.get('/api/video/download/'+state['result']['id']).content)
+        from video_ffmpeg import ffmpeg
+        frame=Path(TEMP.name)/'setup-frame.png'
+        ffmpeg(['-i',str(output),'-ss','0.5','-frames:v','1',str(frame)],timeout=30)
+        with Image.open(frame).convert('RGB') as image:
+            crop=image.crop((240,15,305,60))
+            red=sum(r>150 and r>g*1.4 and r>b*1.4 for r,g,b in [crop.getpixel((x,y)) for x in range(crop.width) for y in range(crop.height)])
+            self.assertGreater(red,100,'Uploaded logo must be visible in the actual exported pixels')
+        self.assertEqual(self.a.get('/api/video/media/'+media['id']).content,source.getvalue())
+
+    def test_editing_logo_is_private_and_conflicting_guideline_requires_review(self):
+        raw=io.BytesIO();Image.new('RGB',(80,40),'#ff0000').save(raw,'PNG')
+        first=self.call('POST','/api/video/upload',files={'file':('brand-logo.png',raw.getvalue())})
+        second=self.call('POST','/api/video/upload',files={'file':('replacement.png',raw.getvalue())})
+        brief=dict(purpose='team_welcome',logo_asset_id=second['id'])
+        self.call('POST','/api/creative/assistant/suggest',dict(task='video-edit',editing_brief=brief),client=self.b,status=404)
+        doc=self.guide();rules=dict(doc['rules'],logo_asset_id=first['id'])
+        project=self.call('POST','/api/video/projects',dict(name='Logo conflict',brand_rules=rules,editing_brief=brief,
+            clips=[dict(asset_id=first['id'],duration=1),dict(kind='overlay',asset_id=first['id'],duration=1,scale=.15)]))
+        path='/api/video/projects/'+project['id']
+        result=self.call('POST',path+'/brand-edit/preview',dict(engine='rule_engine',instruction='Use the uploaded logo'))
+        self.assertTrue(any('logo' in item for item in result['conflicts']))
+        self.call('POST',path+'/brand-edit/apply',dict(plan_id=result['id']),status=400)
+        self.assertFalse(any(c['kind']=='overlay' and c['asset_id']==first['id'] for c in result['proposed_project']['clips']))
+
     def test_task_aware_templates_actual_context_and_isolation(self):
         doc=self.guide();texts=[]
         for task in ['image','gif','video-generation','video-edit','campaign','copy','audio','web','crm']:
