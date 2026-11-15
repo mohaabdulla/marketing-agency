@@ -38,6 +38,7 @@ def main():
                     browser=pw.chromium.launch(headless=True);ctx=browser.new_context(accept_downloads=True,viewport={'width':1440,'height':1000});page=ctx.new_page();errors=[]
                     page.on('pageerror',lambda error:errors.append(error.stack));page.route('https://**/*',lambda route:route.abort())
                     page.goto(origin,wait_until='domcontentloaded');page.get_by_role('button',name='Video Studio',exact=True).click();page.locator('#vs-tab-editor').click()
+                    page.get_by_role('button',name='Advanced editor',exact=True).click()
                     panel=page.locator('#ve-brand-editor');flow=panel.locator('[data-workflow=video-edit]')
                     assert flow.locator(':scope > [data-flow-step]').count()==10
                     headings=flow.locator(':scope > [data-flow-step] > h2').all_text_contents()

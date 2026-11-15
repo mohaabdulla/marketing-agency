@@ -1,6 +1,7 @@
 import {reviewGuideline} from './guideline-review.js';
 import {api,post,esc,report,upload} from './video-api.js';
 import {GuidedWorkflow,PromptAssistant,objectiveFields} from './creative-workflow.js';
+import {QuickVideoEditor} from './video-quick-editor.js';
 async function shared(path, options={}){
   const response=await fetch('/api/guidelines'+path,options),data=await response.json();
   if(!response.ok)throw new Error(typeof data.detail==='string'?data.detail:JSON.stringify(data.detail));
@@ -91,6 +92,7 @@ export class VideoBrandEditor{
       {title:'Export',nodes:[exports]}
     ]);
     root.querySelector('.vs-editor')?.remove();
+    this.quickEditor=new QuickVideoEditor(this,{purpose,goal,instruction});
   }
   brief(){return this.editor.project.editing_brief||=( {purpose:'',person_name:'',person_position:'',logo_asset_id:null,instruction:''} );}
   setLogo(key){const old=this.brief().logo_asset_id;if(old&&old!==key)this.editor.project.clips=this.editor.project.clips.filter(clip=>!(clip.kind==='overlay'&&clip.asset_id===old));this.brief().logo_asset_id=key;this.editor.changed();this.editor.draw();}
@@ -114,7 +116,7 @@ export class VideoBrandEditor{
   }
   async run(fn){this.$('[data-status]').textContent='Working…';try{await fn();this.$('[data-status]').textContent='Ready.';}catch(error){this.$('[data-status]').textContent=error.message;report(error);}}
   async ensureSaved(){if(!this.editor.projectId||this.editor.dirty)await this.editor.save();}
-  sync(){this.$('[data-associated]').textContent=this.editor.project.guideline_id?'Applied guideline v'+this.editor.project.guideline_version+' · '+(this.editor.project.brand_rules?.brand_name||'Reviewed brand'):'No guideline applied. Upload or select a document to begin.';this.objective?.set(this.editor.project.creative_context);this.syncBrief();}
+  sync(){this.$('[data-associated]').textContent=this.editor.project.guideline_id?'Applied guideline v'+this.editor.project.guideline_version+' · '+(this.editor.project.brand_rules?.brand_name||'Reviewed brand'):'No guideline applied. Upload or select a document to begin.';this.objective?.set(this.editor.project.creative_context);this.syncBrief();this.quickEditor?.sync();}
   async refresh(){const list=await shared('');const select=this.$('[data-library]');select.innerHTML='<option value="">Select existing guidelines</option>'+list.map(d=>'<option value="'+d.id+'">'+esc(d.rules.brand_name||d.filename)+' · v'+d.version+(d.confirmed?' · reviewed':' · needs review')+'</option>').join('');select.value=this.doc?.id||this.editor.project.guideline_id||'';}
   review(){
     const doc=this.doc;

@@ -324,19 +324,25 @@ def start_transcribe_asset(asset_id: str, body: TranscribeRequest):
         raise HTTPException(400, 'Asset has no audio track for transcription')
 
     def run_transcription(job):
-        job.update(state='running', phase='Starting local Whisper transcription')
-        # Check if agency audio transcribe is available
-        from agency.audio import capabilities as agency_caps, transcribe as agency_transcribe
-        caps = agency_caps()
-        if not caps['asr']['available']:
-            raise ValueError('Local Whisper runtime and weights must be installed first')
-
-        # Mock-friendly or real agency ASR call
-        from agency.services import service
-        res = agency_transcribe('client-video', asset_id, body.language, job)
-        return res
+        from video_transcription import transcribe
+        return transcribe(asset_id,body.language,job)
 
     return guard(jobs.submit, 'transcribe', run_transcription)
+
+
+from video_quick_edit import QuickEdit
+
+
+@router.post('/projects/{project_id}/quick-edit',status_code=202)
+def quick_edit(project_id: str,body: QuickEdit):
+    from video_quick_edit import run
+    from video_brand_editing import model
+    original=guard(model,guard(read,'projects',project_id))
+    asset=guard(read,'assets',body.asset_id)
+    if asset['kind']!='video':raise HTTPException(400,'Choose a video source; upload logos separately')
+    if not 0<asset['duration']<=300:raise HTTPException(400,'Quick edit supports videos up to five minutes')
+    original.master_project_id=project_id
+    return guard(jobs.submit,'quick-edit',lambda job:run(original,body,job))
 
 
 @router.get('/captions/styles')

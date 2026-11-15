@@ -60,7 +60,8 @@ async def import_captions(project_id: str,file: UploadFile=File(...)):
 
 @router.get('/editor/capabilities')
 def editor_status():
-    return dict(ai=edits.ai_status(), deterministic=True, supported_operations=list(edits.SUPPORTED),
+    from video_transcription import status
+    return dict(ai=edits.ai_status(), speech=status(), quick_edit=True, deterministic=True, supported_operations=list(edits.SUPPORTED),
                 fonts=list(__import__('video_fonts').FONTS))
 
 

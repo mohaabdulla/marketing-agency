@@ -60,7 +60,8 @@ window.addEventListener('lexnis:workspace',event=>switchWorkspace(event.detail.n
 mountImageWorkflow();
 mountContext();
 window.addEventListener('lexnis:video',async event=>{await switchWorkspace('video');window.dispatchEvent(new CustomEvent('lexnis:video-import',{detail:event.detail}));});
-switchWorkspace(recalled('lexnis.workspace') || 'image',false);
+const startParams=new URLSearchParams(location.search);const startWorkspace=startParams.get('workspace')||recalled('lexnis.workspace')||'image';
+switchWorkspace(startWorkspace,false).then(async()=>{if(startWorkspace==='video'&&startParams.get('tab')==='editor')(await mountStudio()).showTab('editor');}).catch(error=>console.error(error));
 // Attach only to generated carousel output; never alter uploaded originals or old handlers.
 function bridge() {
   const scope=document.getElementById('carousel-preview');if(!scope)return;

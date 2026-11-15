@@ -121,7 +121,7 @@ def main():
                     with page.expect_download() as mp4:page.locator('#vg-result').get_by_role('link',name='Download video',exact=True).click()
                     assert Path(mp4.value.path()).stat().st_size>1000
                     page.locator('#vg-add-result').click();page.wait_for_function("()=>document.querySelector('#ve-brand-editor [data-associated]').textContent.includes('Applied guideline')")
-                    editor=page.locator('#ve-brand-editor');editor.locator('[data-instruction]').fill('Make the opening shorter and follow the brand guidelines.')
+                    page.get_by_role('button',name='Advanced editor',exact=True).click();editor=page.locator('#ve-brand-editor');editor.locator('[data-instruction]').fill('Make the opening shorter and follow the brand guidelines.')
                     ea=editor.locator('[data-prompt-assistant]');ea.evaluate('(node)=>node.open=true');ea.locator('[data-assist=professional]').click();ea.locator('[data-use]').wait_for();ea.locator('[data-use]').click()
                     editor.locator('[data-polish]').click();editor.locator('[data-apply-plan]').wait_for();editor.locator('[data-apply-plan]').click()
                     editor.locator('[data-compliance-result] h3').wait_for();assert editor.locator('[data-ai]').is_disabled()
@@ -134,7 +134,7 @@ def main():
                     # Explicit context, escaping and the corrected POST ZIP download in Command Center.
                     client=ctx.request.post(origin+'/api/agency/clients',data={'name':'Browser client'}).json()
                     campaign=ctx.request.post(origin+'/api/agency/clients/'+client['id']+'/records/campaigns',data={'name':'<img src=x onerror="window.cccInjected=true">','data':{'objective':'Launch'}}).json()
-                    page.evaluate("async record=>{const module=await import('/static/js/app-context.js');await module.setCampaign(record)}",campaign)
+                    page.evaluate("async record=>{const module=await import('/static/js/app-context.js?v='+window.lexnisUiVersion);await module.setCampaign(record)}",campaign)
                     page.locator('#studio-navigation [data-workspace=agency-command-center]').click();page.locator('#ccc-export-pkg-btn').wait_for()
                     assert not page.evaluate('window.cccInjected||false')
                     with page.expect_download() as archive:page.locator('#ccc-export-pkg-btn').click()

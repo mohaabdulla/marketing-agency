@@ -106,6 +106,7 @@ def render(project, job, container='mp4', audio=True, preview=False):
     validate_sources(project)
     space(int(duration * 2_000_000))
     w, h, fps = project.canvas.width, project.canvas.height, project.canvas.fps
+    high = project.export_quality == 'high' and not preview
     if project.canvas.fps_mode == 'original':
         fps = read('assets', layout[0][0].asset_id).get('fps') or fps
         if not 1 <= fps <= 60:
@@ -146,7 +147,7 @@ def render(project, job, container='mp4', audio=True, preview=False):
             out = tmp / f'clip-{i}.mp4'
             ffmpeg(inputs + ['-map', '0:v:0', '-map', '0:a:0' if meta.get('has_audio') else '1:a:0',
                              '-vf', ','.join(filters), '-af', atempo(c.speed) + f',volume={c.volume},aresample=48000,apad',
-                             '-t', str(c.duration), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
+                             '-t', str(c.duration), '-c:v', 'libx264', '-preset', 'fast' if high else 'veryfast', '-crf', '16' if high else '23',
                              '-c:a', 'aac', '-ac', '2', '-ar', '48000', str(out)], job)
             intermediates.append(out)
         args, graph = [], []
@@ -169,6 +170,12 @@ def render(project, job, container='mp4', audio=True, preview=False):
             source = path_for(c.asset_id) if c.kind == 'overlay' else tmp / f'title-{n}.png'
             if c.kind == 'title':
                 title_image(c, source, w)
+            elif c.logo_backplate:
+                with Image.open(source).convert('RGBA') as logo:
+                    pad=max(8,round(logo.width*.05))
+                    plate=Image.new('RGBA',(logo.width+pad*2,logo.height+pad*2),(7,17,28,215))
+                    plate.alpha_composite(logo,(pad,pad))
+                    source=tmp/f'logo-plate-{n}.png';plate.save(source)
             args += ['-loop', '1', '-framerate', str(fps), '-i', str(source)]
             filters = f'scale={max(2,round(w*c.scale/2)*2)}:-2,format=rgba,colorchannelmixer=aa={c.opacity}'
             if c.rotation:
@@ -237,6 +244,9 @@ def render(project, job, container='mp4', audio=True, preview=False):
                 graph += [''.join(f'[{x}]' for x in all_audios) + f'amix=inputs={len(all_audios)}:normalize=0:duration=longest[mix]']
                 alabel = 'mix'
         dest = tmp / ('preview.mp4' if preview else f'export.{container}')
+        if audio and project.normalize_audio:
+            graph.append(f'[{alabel}]loudnorm=I=-16:TP=-1.5:LRA=7[audio_normalized]')
+            alabel='audio_normalized'
         if graph:
             # Passed as one argv value, never through a shell. Titles are PNG inputs.
             # filter_complex_script was removed in newer FFmpeg builds.
@@ -244,8 +254,8 @@ def render(project, job, container='mp4', audio=True, preview=False):
         def mapped(label):
             return label if ':' in label else f'[{label}]'
         args += ['-map', mapped(vlabel)]
-        args += ['-map', mapped(alabel), '-c:a', 'aac' if container == 'mp4' else 'libopus'] if audio else ['-an']
-        args += ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-movflags', '+faststart'] if container == 'mp4' else ['-c:v', 'libvpx-vp9', '-crf', '32', '-b:v', '0', '-deadline', 'realtime', '-cpu-used', '6']
+        args += ['-map', mapped(alabel), '-c:a', 'aac' if container == 'mp4' else 'libopus','-ar','48000'] if audio else ['-an']
+        args += ['-c:v', 'libx264', '-preset', 'fast' if high else 'veryfast', '-crf', '18' if high else '23', '-movflags', '+faststart'] if container == 'mp4' else ['-c:v', 'libvpx-vp9', '-crf', '32', '-b:v', '0', '-deadline', 'realtime', '-cpu-used', '6']
         args += ['-pix_fmt', 'yuv420p', '-r', str(fps), '-t', str(duration), str(dest)]
         job.update(state='encoding', progress=None, phase='Compositing timeline')
         ffmpeg(args, job, timeout=1200)

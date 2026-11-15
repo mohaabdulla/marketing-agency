@@ -77,7 +77,8 @@ TEST_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/renders", StaticFiles(directory=RENDERS_DIR), name="renders")
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 app.mount("/test_assets", StaticFiles(directory=TEST_ASSETS_DIR), name="test_assets")
-app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+from ui_assets import StudioStaticFiles
+app.mount("/static", StudioStaticFiles(directory=BASE_DIR / "static"), name="static")
 app.add_middleware(PublicTestingMiddleware)
 from guideline_api import router as guideline_router
 app.include_router(guideline_router)
@@ -471,7 +472,14 @@ def serve_index():
     index_path = BASE_DIR / "index.html"
     if not index_path.exists():
         raise HTTPException(status_code=404, detail="index.html not found")
-    return FileResponse(index_path)
+    from ui_assets import index_response
+    return index_response(index_path)
+
+
+@app.get('/api/ui-version')
+def ui_version():
+    from ui_assets import revision
+    return {'version':revision()}
 
 
 @app.api_route("/favicon.ico", methods=["GET", "HEAD"], include_in_schema=False)

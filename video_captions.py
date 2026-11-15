@@ -48,6 +48,8 @@ class CaptionTrack(StrictCaption):
 
 
 DEFAULT_CAPTION_STYLES: Dict[str, CaptionStyle] = {
+    'quick-social': CaptionStyle(id='quick-social',name='Readable social captions',font_size=64,
+        fill='#ffffff',stroke='#000000',stroke_width=2,background='#07111cbb',y_pct=.82,max_chars_per_line=32,max_lines=2),
     'brand-primary': CaptionStyle(
         id='brand-primary', name='Brand Primary (High Legibility)',
         font_family='sans', font_size=38, fill='#ffffff', stroke='#041b15',

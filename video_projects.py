@@ -10,6 +10,7 @@ class Strict(BaseModel):
 
 
 class Clip(Strict):
+    logo_backplate: bool = False
     id: str = Field(default_factory=uid, pattern=r'^[a-f0-9]{32}$')
     asset_id: str | None = Field(default=None, pattern=r'^[a-f0-9]{32}$')
     kind: Literal['video', 'overlay', 'title', 'audio'] = 'video'
@@ -88,6 +89,8 @@ class EditingBrief(Strict):
 
 
 class Project(Strict):
+    normalize_audio: bool = False
+    export_quality: Literal['standard','high'] = 'standard'
     editing_brief: EditingBrief = Field(default_factory=EditingBrief)
     creative_context: CreativeContext = Field(default_factory=CreativeContext)
     schema_version: int = Field(2, ge=1)

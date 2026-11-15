@@ -2,6 +2,10 @@
 
 See [Unified workflow and website repair report](UNIFIED_WORKFLOW_REPORT.md) for the shared step navigation, prompt assistant, and brand-aware video generation.
 
+The default editor is now **Quick edit**: upload a video and logo, write one short request,
+then watch/download the actual edited file. **Advanced editor** retains the detailed
+sections below. See [iteration 01 review and local speech setup](VIDEO_REVIEW_ITERATION_01.md).
+
 The existing Image & GIF Studio remains mounted in place. A separate vanilla-JavaScript
 workspace adds media import, a non-destructive timeline, projects, CPU image animation,
 and local-model adapters. There are no hosted video APIs or automatic model downloads.

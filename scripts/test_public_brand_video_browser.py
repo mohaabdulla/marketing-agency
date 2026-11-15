@@ -53,6 +53,7 @@ def main():
                     assert page.get_by_role('button',name='System Status',exact=True).count()==0
                     page.get_by_role('button',name='Video Studio',exact=True).click()
                     page.locator('#vs-tab-editor').click()
+                    page.get_by_role('button',name='Advanced editor',exact=True).click()
                     assert page.locator('#ve-name').input_value()=='Untitled video'
                     assert page.evaluate('(keys)=>Object.fromEntries(keys.map(k=>[k,localStorage.getItem(k)]))',list(seeds))==seeds
                     page.locator('#vs-upload-input').set_input_files(str(source))
