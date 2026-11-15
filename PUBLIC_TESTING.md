@@ -1,5 +1,7 @@
 # Public testing and brand-guided video editing
 
+See [Unified workflow and website repair report](UNIFIED_WORKFLOW_REPORT.md) for the shared step navigation, prompt assistant, and brand-aware video generation.
+
 Implemented in the existing application on 2026-11-14. There is no separate studio or
 shared public account. The audit found no login, registration, subscription, credit or
 account-role implementation in this checkout; none was removed or invented.

@@ -42,7 +42,7 @@ def main():
                 with sync_playwright() as pw:
                     browser=pw.chromium.launch(headless=True)
                     a=browser.new_context(accept_downloads=True,viewport={'width':1500,'height':1050})
-                    page=a.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+                    page=a.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)+'\n'+str(e.stack)))
                     page.route('https://**/*',lambda route:route.abort())
                     operator_draft=json.dumps({'id':'operator-project','project':{'name':'Operator work','clips':[]}})
                     seeds={'lexnis.video.draft':operator_draft,'lexnis.workspace':'settings','lexnis.agency.context':json.dumps({'language':'ar'})}

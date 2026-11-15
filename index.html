@@ -112,7 +112,7 @@
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div class="flex items-center space-x-2">
-              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gradient-to-r from-emerald-950 to-cyan-950 text-emerald-300 border border-emerald-500/40 uppercase">STAGE 1</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gradient-to-r from-emerald-950 to-cyan-950 text-emerald-300 border border-emerald-500/40 uppercase">BRAND CONTEXT</span>
               <h2 class="text-lg font-tech font-bold text-white flex items-center space-x-2">
                 <i data-lucide="globe" class="w-5 h-5 text-emerald-400"></i>
                 <span>COMPANY &amp; BRAND IDENTITY INTELLIGENCE</span>
@@ -438,7 +438,7 @@
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div class="flex items-center space-x-2">
-              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gradient-to-r from-cyan-950 to-violet-950 text-cyan-300 border border-cyan-500/40 uppercase">STAGE 2</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gradient-to-r from-cyan-950 to-violet-950 text-cyan-300 border border-cyan-500/40 uppercase">CREATIVE OBJECTIVE</span>
               <h2 class="text-lg font-tech font-bold text-white flex items-center space-x-2">
                 <i data-lucide="target" class="w-5 h-5 text-cyan-accent"></i>
                 <span>CAMPAIGN OBJECTIVE &amp; CONCEPT STUDIO</span>
@@ -679,7 +679,7 @@
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div class="flex items-center space-x-2">
-              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-violet-950/90 text-violet-300 border border-violet-500/50 uppercase">STAGE 3</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-violet-950/90 text-violet-300 border border-violet-500/50 uppercase">VISUAL MEDIA</span>
               <h2 class="text-lg font-tech font-bold text-white flex items-center space-x-2">
                 <i data-lucide="image" class="w-5 h-5 text-violet-400"></i>
                 <span>VISUAL ASSETS &amp; LAUNCH PRODUCTION</span>
@@ -1690,7 +1690,7 @@
         <div class="max-w-md mx-auto space-y-2">
           <h3 class="text-base font-tech font-bold text-white tracking-wide">Studio Engine Idle</h3>
           <p class="text-xs font-mono text-slate-400">
-            Paste your Gemini API key above, enter a campaign prompt, and generate synchronized high-converting B2B copy with custom Pollinations Flux visuals.
+            Upload brand guidelines and optional source media, describe your campaign, then generate a matching social kit. Optional image and AI models require local setup or provider configuration.
           </p>
         </div>
       </section>
@@ -1734,7 +1734,7 @@
       </div>
       <div class="p-4 flex-1 flex flex-col space-y-2 overflow-hidden">
         <div class="flex items-center justify-between text-[11px] font-mono text-slate-400">
-          <span id="guidelines-modal-subtitle">Review or adjust directives. All generated campaign copy and visuals enforce these rules:</span>
+          <span id="guidelines-modal-subtitle">Review or adjust directives. These rules guide supported copy and visual controls. Review the final output:</span>
           <span id="guidelines-modal-words">0 words</span>
         </div>
         <textarea id="guidelines-modal-textarea" class="w-full flex-1 min-h-[300px] max-h-[50vh] bg-obsidian-950 border border-obsidian-800 focus:border-cyan-accent rounded-xl p-3.5 font-mono text-xs text-slate-200 leading-relaxed outline-none resize-none shadow-inner select-text"></textarea>
@@ -2030,6 +2030,7 @@
   </div>
 
   </section>
+  <link rel="stylesheet" href="/static/css/creative-workflow.css">
   <section id="video-workspace" aria-label="Video Studio" hidden></section>
   <section id="settings-workspace" aria-label="System Status" hidden></section>
   <section id="agency-dashboard-workspace" aria-label="Agency dashboard" hidden></section>
@@ -2517,7 +2518,7 @@
           guidelinesActiveBadge.textContent = 'AI MARKET RESEARCH DIRECTIVES';
           guidelinesActiveBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-violet-950/80 text-violet-300 border border-violet-500/40 uppercase';
         } else {
-          guidelinesActiveBadge.textContent = 'CUSTOM GUIDELINES ENFORCED';
+          guidelinesActiveBadge.textContent = 'CUSTOM GUIDELINES LOADED';
           guidelinesActiveBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-900/60 text-emerald-200 border border-emerald-500/40 uppercase';
         }
       }
@@ -2541,6 +2542,7 @@
             e.stopPropagation();
             const idToRemove = btn.dataset.id;
             activeGuidelineFiles = activeGuidelineFiles.filter(f => f.id !== idToRemove);
+            window.dispatchEvent(new CustomEvent('lexnis:guideline-cleared'));
             syncGuidelinesFromActiveFiles(isMarketRes ? 'market_research' : 'custom');
             showToast('Brand directive removed.');
           });
@@ -2555,6 +2557,7 @@
     }
 
     function clearGuidelinesUI() {
+      window.dispatchEvent(new CustomEvent('lexnis:guideline-cleared'));
       activeGuidelineFiles = [];
       currentGuidelines = '';
       currentGuidelinesTitle = '';
@@ -2588,7 +2591,7 @@
       let guidelineBrandApplied = false;
 
       try {
-        if (isPythonBackendActive && backendApiBase) {
+        if (isPythonBackendActive) {
           const fd = new FormData();
           fileList.forEach(f => fd.append('files', f));
           const userBName = document.getElementById('brandNameInput')?.value.trim() || '';
@@ -2649,44 +2652,14 @@
             } else {
               showToast(`Added ${fileList.length} brand asset${fileList.length > 1 ? 's' : ''}! (${activeGuidelineFiles.length} total active)`, true);
             }
+            if(data.id)window.dispatchEvent(new CustomEvent('lexnis:image-guideline',{detail:data}));
             return;
           }
+          const failure=await resp.json().catch(()=>({}));
+          throw new Error(typeof failure.detail==='string'?failure.detail:JSON.stringify(failure.detail||'Guideline upload failed'));
         }
 
-        // Client fallback for local processing
-        for (const file of fileList) {
-          const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(file.name);
-          if (isImage) {
-            await new Promise(resolve => {
-              const reader = new FileReader();
-              reader.onload = (e) => {
-                const text = `BRAND VISUAL STYLE DIRECTIVES (Extracted from ${file.name}):\n- Reference File: ${file.name}\n- Photographic Directive: Maintain composition, ambient lighting, and material quality matching this reference image.\n- Brand Rule: Align campaign themes and tone to the premium standards established by this reference.`;
-                activeGuidelineFiles.push({
-                  id: 'file_' + Math.random().toString(36).substr(2, 9),
-                  filename: file.name,
-                  is_image: true,
-                  thumbnail: e.target.result,
-                  word_count: text.split(/\s+/).filter(Boolean).length,
-                  guidelines: text
-                });
-                resolve();
-              };
-              reader.readAsDataURL(file);
-            });
-          } else {
-            const text = await file.text();
-            activeGuidelineFiles.push({
-              id: 'file_' + Math.random().toString(36).substr(2, 9),
-              filename: file.name,
-              is_image: false,
-              thumbnail: '',
-              word_count: text.split(/\s+/).filter(Boolean).length,
-              guidelines: text
-            });
-          }
-        }
-        syncGuidelinesFromActiveFiles();
-        showToast(`Added ${fileList.length} brand file${fileList.length > 1 ? 's' : ''}!`, true);
+        throw new Error('Guideline upload requires the local backend. Start the application server and retry.');
       } catch (err) {
         showToast(`Could not load guidelines: ${err.message}`, false);
       } finally {
@@ -4549,7 +4522,7 @@
           }
 
           // Query /api/suggest-prompt for enhanced AI brief if backend is online
-          if (isPythonBackendActive && backendApiBase) {
+          if (isPythonBackendActive) {
             try {
               const resp = await fetch(`${backendApiBase}/api/suggest-prompt`, {
                 method: 'POST',
@@ -4801,35 +4774,19 @@
 
       try {
         let enhancedData = null;
-        if (isPythonBackendActive) {
-          const resp = await fetch(`${backendApiBase}/api/enhance-prompt`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              prompt: prompt,
-              brand: brandInput ? brandInput.value.trim() : '',
-              guidelines: currentGuidelines || '',
-              style_preset: stylePreset || '',
-              post_type: currentPostType || 'general',
-              person_name: (personNameInput && personNameInput.value.trim()) || currentPersonName || '',
-              person_title: (personTitleInput && personTitleInput.value.trim()) || currentPersonTitle || '',
-              logo_url: (activeLogoAsset && activeLogoAsset.url) || null
-            })
-          });
-          if (resp.ok) {
-            enhancedData = await resp.json();
-          }
+        if (isPythonBackendActive && window.lexnisImageAssist) {
+          enhancedData = await window.lexnisImageAssist(prompt, stylePreset || '');
         }
-
         if (!enhancedData || !enhancedData.enhanced_prompt) {
-          enhancedData = enhancePromptClientSide(prompt, brandInput ? brandInput.value.trim() : '');
+          enhancedData = {enhanced_prompt:prompt,ai_used:false,improvements:['Manual instructions: prompt assistance is unavailable. Your original intent is preserved.']};
         }
 
         openPromptReviewModal(enhancedData);
-        showToast('AI Prompt Architect: Review & tweak your enhanced launch brief!');
+        showToast(enhancedData.ai_used?'Local AI suggestion ready for review.':'Editable prompt template ready for review; no AI inference used.');
       } catch (err) {
-        const fallback = enhancePromptClientSide(prompt, brandInput ? brandInput.value.trim() : '');
+        const fallback = {enhanced_prompt:prompt,ai_used:false,improvements:['Prompt assistant unavailable: '+err.message+'. Original instructions preserved for manual editing.']};
         openPromptReviewModal(fallback);
+        showToast('Prompt assistance unavailable. Review your original instructions manually.',false);
       } finally {
         if (enhancePromptBtn) {
           enhancePromptBtn.disabled = false;
@@ -5409,10 +5366,10 @@
               finalUploadedUrl = activeSubjectAsset.url;
             } else if (activeSubjectAsset && activeSubjectAsset.url) {
               finalUploadedUrl = activeSubjectAsset.url;
-              finalUploadedUrls = ['/test_assets/template_reference.jpg', activeSubjectAsset.url];
+              finalUploadedUrls = window.publicTestMode ? [activeSubjectAsset.url] : ['/test_assets/template_reference.jpg', activeSubjectAsset.url];
             } else if (activeTemplateAsset && activeTemplateAsset.url) {
               finalUploadedUrl = activeTemplateAsset.url;
-              finalUploadedUrls = [activeTemplateAsset.url, '/test_assets/raw_subject.jpg'];
+              finalUploadedUrls = window.publicTestMode ? [activeTemplateAsset.url] : [activeTemplateAsset.url, '/test_assets/raw_subject.jpg'];
             } else if (currentUploadedImageUrl) {
               finalUploadedUrl = currentUploadedImageUrl;
               finalUploadedUrls = [currentUploadedImageUrl];

@@ -1,4 +1,5 @@
 import {storageKey} from './public-session.js';
+import {assistAgencyForm} from './creative-workflow.js';
 import {agencyApi as api,agencyPost as post,escapeHtml as e,human} from './agency-api.js';
 import {context,contextName,setClient,setCampaign,refreshContext} from './app-context.js';
 import * as P from './agency-production.js';
@@ -127,6 +128,7 @@ class Page{
     }
     if(this.$('[data-archive]'))this.$('[data-archive]').onclick=async()=>{try{await post(scoped(client,`/record/${item.id}/archive`),{expected_version:item.version,archived:!item.archived});this.opened=null;editor.innerHTML='<div class="ag-empty">Record archive state updated. Original data is retained.</div>';await this.load();}catch(error){this.status(error.message,true);}};
     if(this.$('[data-history]'))this.$('[data-history]').ontoggle=()=>{if(this.$('[data-history]').open)this.history(item).catch(error=>this.status(error.message,true));};
+    assistAgencyForm(form,kind);
     this.actions(item);P.bind(this);P.actions(this,item).catch(error=>this.status(error.message,true));
   }
   collect(){const data={},schema=this.schema();for(const input of this.$('[data-editor]').querySelectorAll('[data-field]')){const key=input.dataset.field,raw=schema.properties[key],field=this.resolve(raw);let value=input.type==='checkbox'?input.checked:input.multiple?[...input.selectedOptions].map(o=>o.value):input.value;

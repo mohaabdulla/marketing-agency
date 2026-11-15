@@ -1,5 +1,7 @@
 # Lexnis Campaign Studio — improved pipeline
 
+See [Unified workflow and website repair report](UNIFIED_WORKFLOW_REPORT.md) for the shared step navigation, prompt assistant, and brand-aware video generation.
+
 Public anonymous testing and shared brand-guided Video Editor are documented in
 [PUBLIC_TESTING.md](PUBLIC_TESTING.md), with executed checks and file groups in
 [PUBLIC_BRAND_VIDEO_REPORT.md](PUBLIC_BRAND_VIDEO_REPORT.md).

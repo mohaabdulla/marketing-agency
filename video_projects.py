@@ -68,7 +68,18 @@ class Canvas(Strict):
     fps_mode: Literal['fixed', 'original'] = 'fixed'
 
 
+class CreativeContext(Strict):
+    objective: str = Field('',max_length=1000)
+    audience: str = Field('',max_length=500)
+    key_message: str = Field('',max_length=1000)
+    style: str = Field('',max_length=500)
+    platform: str = Field('',max_length=100)
+    cta: str = Field('',max_length=500)
+    language: Literal['en','ar','ar-BH'] = 'en'
+
+
 class Project(Strict):
+    creative_context: CreativeContext = Field(default_factory=CreativeContext)
     schema_version: int = Field(2, ge=1)
     name: str = Field('Untitled video', min_length=1, max_length=120)
     canvas: Canvas = Field(default_factory=Canvas)

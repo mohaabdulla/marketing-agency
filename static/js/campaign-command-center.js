@@ -1,4 +1,11 @@
 import {storageKey} from './public-session.js';
+import {context} from './app-context.js';
+import {escapeHtml as escape} from './agency-api.js';
+const requests=new WeakMap();
+window.addEventListener('lexnis:agency-context',()=>{
+  const root=document.getElementById('agency-command-center-workspace');
+  if(root&&!root.hidden)mountCommandCenter(root);
+});
 /**
  * Campaign Command Center for LEXNIS Marketing Agency Operating System.
  * Connects briefs, concepts, copy, scripts, storyboards, production, approvals,
@@ -7,6 +14,7 @@ import {storageKey} from './public-session.js';
 
 export async function mountCommandCenter(container) {
   if (!container) return;
+  const version=(requests.get(container)||0)+1;requests.set(container,version);
   container.innerHTML = `
     <div class="ccc-loading" style="padding: 3rem; text-align: center; color: var(--color-text-secondary, #94a3b8);">
       <div class="spinner" style="display: inline-block; width: 28px; height: 28px; border: 3px solid rgba(16, 185, 129, 0.2); border-top-color: #10b981; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
@@ -15,8 +23,9 @@ export async function mountCommandCenter(container) {
   `;
 
   // Fetch current client and campaign from app context / agency API
-  let clientId = localStorage.getItem(storageKey('lexnis.clientId')) || '';
-  let campaignId = localStorage.getItem(storageKey('lexnis.campaignId')) || '';
+  const selected=context();
+  let clientId = selected.client_id || '';
+  let campaignId = selected.campaign_id || '';
 
   try {
     // If no client or campaign selected, fetch default or first client
@@ -43,6 +52,7 @@ export async function mountCommandCenter(container) {
     }
 
     if (!clientId || !campaignId) {
+      if(requests.get(container)!==version)return;
       container.innerHTML = `
         <div style="padding: 3rem; text-align: center; max-width: 600px; margin: 0 auto;">
           <h2 style="font-size: 1.5rem; color: #fff; margin-bottom: 0.75rem;">Campaign Command Center</h2>
@@ -60,12 +70,14 @@ export async function mountCommandCenter(container) {
       throw new Error(`Failed to load command center (${res.status})`);
     }
     const data = await res.json();
+    if(requests.get(container)!==version)return;
     renderCommandCenter(container, data, clientId, campaignId);
   } catch (err) {
+    if(requests.get(container)!==version)return;
     container.innerHTML = `
       <div style="padding: 2rem; color: #ef4444; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; margin: 1rem;">
         <h3 style="margin-top: 0;">Error Loading Campaign Command Center</h3>
-        <p>${err.message}</p>
+        <p>${escape(err.message)}</p>
       </div>
     `;
   }
@@ -95,16 +107,16 @@ function renderCommandCenter(container, data, clientId, campaignId) {
         <div>
           <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
             <span style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 9999px; text-transform: uppercase;">
-              ${camp.client_name}
+              ${escape(camp.client_name)}
             </span>
-            <span style="color: #64748b; font-size: 0.85rem;">Stage: <b style="color: #38bdf8;">${camp.current_stage}</b></span>
+            <span style="color: #64748b; font-size: 0.85rem;">Stage: <b style="color: #38bdf8;">${escape(camp.current_stage)}</b></span>
           </div>
-          <h1 style="font-size: 1.75rem; font-weight: 800; color: #f8fafc; margin: 0 0 0.5rem 0;">${camp.name}</h1>
+          <h1 style="font-size: 1.75rem; font-weight: 800; color: #f8fafc; margin: 0 0 0.5rem 0;">${escape(camp.name)}</h1>
           <div style="display: flex; gap: 1.25rem; font-size: 0.85rem; color: #94a3b8; flex-wrap: wrap;">
-            <span>🎯 <b>Objective:</b> ${camp.objective}</span>
+            <span>🎯 <b>Objective:</b> ${escape(camp.objective)}</span>
             <span>💰 <b>Budget:</b> $${Number(camp.budget).toLocaleString()}</span>
-            <span>📈 <b>Primary KPI:</b> ${camp.primary_kpi}</span>
-            <span>🌐 <b>Languages:</b> ${(camp.languages || []).join(', ').toUpperCase()}</span>
+            <span>📈 <b>Primary KPI:</b> ${escape(camp.primary_kpi)}</span>
+            <span>🌐 <b>Languages:</b> ${escape((camp.languages || []).join(', ').toUpperCase())}</span>
           </div>
         </div>
 
@@ -113,7 +125,7 @@ function renderCommandCenter(container, data, clientId, campaignId) {
           <div style="display: flex; align-items: center; gap: 0.75rem;">
             <span style="font-size: 0.85rem; color: #94a3b8;">Distribution Readiness:</span>
             <span style="font-size: 0.8rem; font-weight: 700; padding: 0.3rem 0.7rem; border-radius: 6px; ${readiness.status === 'READY' ? 'background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981;' : 'background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid #ef4444;'}">
-              ${readiness.status}
+              ${escape(readiness.status)}
             </span>
           </div>
           <div style="display: flex; gap: 0.5rem;">
@@ -130,17 +142,17 @@ function renderCommandCenter(container, data, clientId, campaignId) {
       <!-- STAGE PROGRESS RAIL -->
       <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; overflow-x: auto;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-          <h3 style="margin: 0; font-size: 0.95rem; font-weight: 700; color: #f1f5f9; text-transform: uppercase; letter-spacing: 0.05em;">Lifecycle Stage Progression (${camp.progress_percent}%)</h3>
+          <h3 style="margin: 0; font-size: 0.95rem; font-weight: 700; color: #f1f5f9; text-transform: uppercase; letter-spacing: 0.05em;">Lifecycle Stage Progression (${Math.min(100,Math.max(0,Number(camp.progress_percent)||0))}%)</h3>
           <div style="width: 250px; height: 8px; background: #1e293b; border-radius: 9999px; overflow: hidden;">
-            <div style="width: ${camp.progress_percent}%; height: 100%; background: #10b981; transition: width 0.3s ease;"></div>
+            <div style="width: ${Math.min(100,Math.max(0,Number(camp.progress_percent)||0))}%; height: 100%; background: #10b981; transition: width 0.3s ease;"></div>
           </div>
         </div>
         <div style="display: flex; gap: 0.5rem; min-width: 900px;">
           ${stages.map((st, i) => `
             <div style="flex: 1; background: #1e293b; border: 1px solid ${st.stage === camp.current_stage ? '#38bdf8' : '#334155'}; border-radius: 8px; padding: 0.6rem; text-align: center; position: relative;">
               <div style="font-size: 0.7rem; color: #64748b; font-weight: 700; margin-bottom: 0.2rem;">0${st.order}</div>
-              <div style="font-size: 0.75rem; font-weight: 700; color: ${st.stage === camp.current_stage ? '#38bdf8' : '#f8fafc'}; margin-bottom: 0.4rem;">${st.stage}</div>
-              <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${statusColors[st.status] || '#64748b'};" title="${st.status}"></span>
+              <div style="font-size: 0.75rem; font-weight: 700; color: ${st.stage === camp.current_stage ? '#38bdf8' : '#f8fafc'}; margin-bottom: 0.4rem;">${escape(st.stage)}</div>
+              <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${statusColors[st.status] || '#64748b'};" title="${escape(st.status)}"></span>
             </div>
           `).join('')}
         </div>
@@ -157,19 +169,19 @@ function renderCommandCenter(container, data, clientId, campaignId) {
           <div style="display: flex; flex-direction: column; gap: 0.75rem; font-size: 0.85rem;">
             <div>
               <span style="color: #64748b; font-weight: 600;">Core Proposition:</span>
-              <p style="margin: 0.2rem 0 0 0; color: #f8fafc; font-weight: 600;">${strat.proposition}</p>
+              <p style="margin: 0.2rem 0 0 0; color: #f8fafc; font-weight: 600;">${escape(strat.proposition)}</p>
             </div>
             <div>
               <span style="color: #64748b; font-weight: 600;">Problem Solved:</span>
-              <p style="margin: 0.2rem 0 0 0; color: #cbd5e1;">${strat.problem}</p>
+              <p style="margin: 0.2rem 0 0 0; color: #cbd5e1;">${escape(strat.problem)}</p>
             </div>
             <div>
               <span style="color: #64748b; font-weight: 600;">Offer & Proof:</span>
-              <p style="margin: 0.2rem 0 0 0; color: #cbd5e1;">${strat.offer} (${(strat.proof || []).join(', ')})</p>
+              <p style="margin: 0.2rem 0 0 0; color: #cbd5e1;">${escape(strat.offer)} (${escape((strat.proof || []).join(', '))})</p>
             </div>
             <div>
               <span style="color: #64748b; font-weight: 600;">Primary Call to Action:</span>
-              <p style="margin: 0.2rem 0 0 0; color: #10b981; font-weight: 700;">${strat.cta}</p>
+              <p style="margin: 0.2rem 0 0 0; color: #10b981; font-weight: 700;">${escape(strat.cta)}</p>
             </div>
           </div>
         </div>
@@ -221,11 +233,11 @@ function renderCommandCenter(container, data, clientId, campaignId) {
             ` : risks.map(r => `
               <div style="background: rgba(239, 68, 68, 0.08); border-left: 3px solid ${r.severity === 'HIGH' ? '#ef4444' : '#f59e0b'}; padding: 0.6rem; border-radius: 0 6px 6px 0; font-size: 0.82rem;">
                 <div style="display: flex; justify-content: space-between; margin-bottom: 0.2rem;">
-                  <b style="color: ${r.severity === 'HIGH' ? '#ef4444' : '#f59e0b'};">${r.code}</b>
-                  <span style="color: #64748b; font-size: 0.75rem;">${r.stage}</span>
+                  <b style="color: ${r.severity === 'HIGH' ? '#ef4444' : '#f59e0b'};">${escape(r.code)}</b>
+                  <span style="color: #64748b; font-size: 0.75rem;">${escape(r.stage)}</span>
                 </div>
-                <div style="color: #cbd5e1; margin-bottom: 0.3rem;">${r.message}</div>
-                <div style="color: #94a3b8; font-size: 0.78rem;"><b>Action:</b> ${r.remediation}</div>
+                <div style="color: #cbd5e1; margin-bottom: 0.3rem;">${escape(r.message)}</div>
+                <div style="color: #94a3b8; font-size: 0.78rem;"><b>Action:</b> ${escape(r.remediation)}</div>
               </div>
             `).join('')}
           </div>
@@ -237,8 +249,14 @@ function renderCommandCenter(container, data, clientId, campaignId) {
   // Attach event handlers
   const exportBtn = container.querySelector('#ccc-export-pkg-btn');
   if (exportBtn) {
-    exportBtn.onclick = () => {
-      window.location.href = `/api/agency/clients/${clientId}/campaigns/${campaignId}/export-package`;
+    exportBtn.onclick = async () => {
+      exportBtn.disabled=true;
+      let status=container.querySelector('[data-export-status]');if(!status){status=document.createElement('p');status.dataset.exportStatus='';status.setAttribute('role','status');exportBtn.after(status);}status.textContent='Preparing publication package...';
+      try{
+        const response=await fetch(`/api/agency/clients/${clientId}/campaigns/${campaignId}/export-package`,{method:'POST'});
+        if(!response.ok){const error=await response.json().catch(()=>({}));throw new Error(typeof error.detail==='string'?error.detail:JSON.stringify(error.detail||'Export failed'));}
+        const url=URL.createObjectURL(await response.blob()),link=document.createElement('a');link.href=url;link.download='campaign-publication-package.zip';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);status.textContent='Package downloaded. Nothing was published.';
+      }catch(error){status.textContent=error.message;}finally{exportBtn.disabled=false;}
     };
   }
 
@@ -268,7 +286,7 @@ function renderCommandCenter(container, data, clientId, campaignId) {
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({target_stage: nextStage}),
         });
-        if (!advRes.ok) throw new Error('Stage advancement failed');
+        if (!advRes.ok){const error=await advRes.json().catch(()=>({}));throw new Error(typeof error.detail==='string'?error.detail:JSON.stringify(error.detail||'Stage advancement failed'));}
         await mountCommandCenter(container);
       } catch (e) {
         alert('Could not advance stage: ' + e.message);

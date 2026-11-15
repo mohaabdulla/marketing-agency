@@ -81,6 +81,8 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 app.add_middleware(PublicTestingMiddleware)
 from guideline_api import router as guideline_router
 app.include_router(guideline_router)
+from prompt_assistant import router as prompt_assistant_router
+app.include_router(prompt_assistant_router)
 
 
 @app.get('/api/session')

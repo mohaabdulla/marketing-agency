@@ -1,4 +1,5 @@
 import {storageKey} from './public-session.js';
+import {mountImageWorkflow} from './image-workflow.js';
 await import('./shared-guideline-picker.js');
 import {mountStudio, refreshStatus} from './video-studio.js';
 import {mountContext} from './app-context.js';
@@ -56,6 +57,7 @@ export async function switchWorkspace(name, focus = true) {
 }
 rail.querySelectorAll('[data-workspace]').forEach(b=>b.onclick=()=>switchWorkspace(b.dataset.workspace));
 window.addEventListener('lexnis:workspace',event=>switchWorkspace(event.detail.name));
+mountImageWorkflow();
 mountContext();
 window.addEventListener('lexnis:video',async event=>{await switchWorkspace('video');window.dispatchEvent(new CustomEvent('lexnis:video-import',{detail:event.detail}));});
 switchWorkspace(recalled('lexnis.workspace') || 'image',false);

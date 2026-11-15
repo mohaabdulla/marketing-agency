@@ -1,5 +1,7 @@
 # LEXNIS Video Studio
 
+See [Unified workflow and website repair report](UNIFIED_WORKFLOW_REPORT.md) for the shared step navigation, prompt assistant, and brand-aware video generation.
+
 The existing Image & GIF Studio remains mounted in place. A separate vanilla-JavaScript
 workspace adds media import, a non-destructive timeline, projects, CPU image animation,
 and local-model adapters. There are no hosted video APIs or automatic model downloads.
