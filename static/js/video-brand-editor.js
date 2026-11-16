@@ -1,27 +1,24 @@
-import {reviewGuideline} from './guideline-review.js';
+import {reviewGuideline,guidelineError} from './guideline-review.js';
 import {api,post,esc,report,upload} from './video-api.js';
 import {GuidedWorkflow,PromptAssistant,objectiveFields} from './creative-workflow.js';
 import {QuickVideoEditor} from './video-quick-editor.js';
 async function shared(path, options={}){
   const response=await fetch('/api/guidelines'+path,options),data=await response.json();
-  if(!response.ok)throw new Error(typeof data.detail==='string'?data.detail:JSON.stringify(data.detail));
+  if(!response.ok)throw new Error(guidelineError(data.detail));
   return data;
 }
 export class VideoBrandEditor{
-  constructor(editor,options={}){
+  constructor(editor){
     this.editor=editor;this.doc=null;this.pending=null;
     this.root=document.createElement('section');this.root.className='vs-card';this.root.id='ve-brand-editor';this.root.style.marginTop='18px';
-    this.root.innerHTML='<h2>Brand Guidelines</h2><p>Reuse one reviewed guideline across Image, GIF and Video Studio. Original files remain available.</p><div class="vs-row"><button type="button" data-upload>Upload / Replace Guidelines</button><select data-library aria-label="Select existing guidelines"><option value="">Select existing guidelines</option></select><button type="button" data-refresh>Refresh library</button><button type="button" data-view>View Guidelines</button><button type="button" data-kit>Select Existing Brand Kit</button><button type="button" data-remove>Remove Guidelines</button></div><input type="file" data-file accept=".pdf,.docx,.txt,.md,.markdown,.json" hidden><div data-review></div><div data-associated></div><h2 style="margin-top:20px">AI Video Editor</h2><label>Tell AI How to Edit Your Video<textarea data-instruction maxlength="1000" placeholder="Follow the guidelines, improve the introduction and add the approved CTA."></textarea></label><p data-model></p><div class="vs-row"><button type="button" data-analyze>Analyze Video</button><button type="button" data-captions>Import SRT captions</button><input data-srt type="file" accept=".srt" hidden><button type="button" data-ai disabled>Edit with AI</button><button type="button" data-polish>Auto Polish / Apply Guidelines</button><button type="button" data-compliance>Check Against Guidelines</button><button type="button" data-repair>Fix Issues (preview)</button></div><div data-plan></div><div data-preview></div><div class="vs-row" style="margin-top:14px"><button type="button" data-undo>Undo</button><button type="button" data-redo>Redo</button><button type="button" data-history>Revision history</button></div><div data-history-list></div><div data-compliance-result></div><p data-status role="status"></p>';
-    if(options.generation)this.root.id='vg-brand-guidelines';
-    (options.host||editor.root).append(this.root);
-    this.options=options;
-    // Keep the shared, reviewed upload controls visible in both generation and editing.
+    this.root.innerHTML='<h2>Brand Guidelines</h2><p>Select the reviewed brand rules for this editing project.</p><div class="vs-row"><button type="button" data-upload>Upload / Replace Guidelines</button><select data-library aria-label="Select existing guidelines"><option value="">Select existing guidelines</option></select><button type="button" data-refresh>Refresh library</button><button type="button" data-view>View Guidelines</button><button type="button" data-kit>Select Existing Brand Kit</button><button type="button" data-remove>Remove Guidelines</button></div><input type="file" data-file accept=".pdf,.docx,.txt,.md,.markdown,.json" hidden><div data-review></div><div data-associated></div><h2 style="margin-top:20px">AI Video Editor</h2><label>Tell AI How to Edit Your Video<textarea data-instruction maxlength="1000" placeholder="Follow the guidelines, improve the introduction and add the approved CTA."></textarea></label><p data-model></p><div class="vs-row"><button type="button" data-analyze>Analyze Video</button><button type="button" data-captions>Import SRT captions</button><input data-srt type="file" accept=".srt" hidden><button type="button" data-ai disabled>Edit with AI</button><button type="button" data-polish>Auto Polish / Apply Guidelines</button><button type="button" data-compliance>Check Against Guidelines</button><button type="button" data-repair>Fix Issues (preview)</button></div><div data-plan></div><div data-preview></div><div class="vs-row" style="margin-top:14px"><button type="button" data-undo>Undo</button><button type="button" data-redo>Redo</button><button type="button" data-history>Revision history</button></div><div data-history-list></div><div data-compliance-result></div><p data-status role="status"></p>';
+    editor.root.append(this.root);
+    // Group the editor guideline controls separately from editing actions.
     const children=[...this.root.children],boundary=children.findIndex(el=>el.tagName==='H2'&&el.textContent==='AI Video Editor');
     this.guidelineControls=document.createElement('div');this.guidelineControls.dataset.guidelineControls='';
     this.editControls=document.createElement('div');this.editControls.dataset.editControls='';
     children.forEach((node,i)=>(i<boundary?this.guidelineControls:this.editControls).append(node));
     this.root.append(this.guidelineControls,this.editControls);
-    if(options.generation){this.editControls.hidden=true;this.root.append(this.root.querySelector('[data-status]'));this.root.querySelectorAll('button').forEach(b=>b.type='button');}
     this.$=s=>this.root.querySelector(s);
     const bind=(selector,fn)=>this.$(selector).onclick=()=>this.run(fn);
     bind('[data-upload]',()=>this.$('[data-file]').click());
@@ -49,8 +46,8 @@ export class VideoBrandEditor{
     bind('[data-compliance]',()=>this.compliance());
     for(const key of ['undo','redo'])bind('[data-'+key+']',async()=>{if(!editor.projectId)throw new Error('Save a project first');const saved=await post('/projects/'+editor.projectId+'/'+key,{});editor.open(saved);this.pending=null;this.$('[data-plan]').innerHTML='';});
     bind('[data-history]',async()=>{if(!editor.projectId)return;const result=await api('/projects/'+editor.projectId+'/revisions');this.$('[data-history-list]').innerHTML='<h3>Saved revisions</h3>'+result.revisions.map(r=>'<p>'+esc(r.label||r.instruction||r.actor)+' · '+esc(new Date(r.created_at*1000).toLocaleString())+'</p>').join('');});
-    if(!options.generation)this.guidedEditor();
-    this.run(async()=>{await this.refresh();if(!options.generation){const cap=await api('/editor/capabilities');this.$('[data-ai]').disabled=!cap.ai.available;this.$('[data-model]').textContent=cap.ai.reason;}this.sync();});
+    this.guidedEditor();
+    this.run(async()=>{await this.refresh();const cap=await api('/editor/capabilities');this.$('[data-ai]').disabled=!cap.ai.available;this.$('[data-model]').textContent=cap.ai.reason;this.sync();});
   }
   guidedEditor(){
     const e=this.editor,root=e.root,goal=document.createElement('div'),assist=document.createElement('div');
@@ -97,7 +94,7 @@ export class VideoBrandEditor{
   brief(){return this.editor.project.editing_brief||=( {purpose:'',person_name:'',person_position:'',logo_asset_id:null,instruction:''} );}
   setLogo(key){const old=this.brief().logo_asset_id;if(old&&old!==key)this.editor.project.clips=this.editor.project.clips.filter(clip=>!(clip.kind==='overlay'&&clip.asset_id===old));this.brief().logo_asset_id=key;this.editor.changed();this.editor.draw();}
   syncBrief(){
-    if(this.options.generation)return;const brief=this.brief();
+    const brief=this.brief();
     this.root.querySelectorAll('[data-video-purpose]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.videoPurpose===(brief.purpose||''))));
     this.personPanel.querySelector('[data-person-name]').value=brief.person_name||'';this.personPanel.querySelector('[data-person-position]').value=brief.person_position||'';
     this.$('[data-instruction]').value=brief.instruction||'';this.refreshLogo();this.updatePromptContext();

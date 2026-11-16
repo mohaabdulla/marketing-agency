@@ -37,7 +37,7 @@ def main():
                 with sync_playwright() as pw:
                     browser=pw.chromium.launch(headless=True);ctx=browser.new_context(accept_downloads=True,viewport={'width':1440,'height':1000});page=ctx.new_page();errors=[]
                     page.on('pageerror',lambda error:errors.append(error.stack));page.route('https://**/*',lambda route:route.abort())
-                    page.goto(origin,wait_until='domcontentloaded');page.get_by_role('button',name='Video Studio',exact=True).click();page.locator('#vs-tab-editor').click()
+                    page.goto(origin,wait_until='domcontentloaded');page.get_by_role('button',name='Video Editor',exact=True).click();page.locator('#vs-tab-editor').click()
                     page.get_by_role('button',name='Advanced editor',exact=True).click()
                     panel=page.locator('#ve-brand-editor');flow=panel.locator('[data-workflow=video-edit]')
                     assert flow.locator(':scope > [data-flow-step]').count()==10
@@ -90,7 +90,7 @@ def main():
                     result=ctx.request.get(origin+'/api/video/jobs/'+job['id']).json()['result']
                     download=ctx.request.get(origin+'/api/video/download/'+result['id']);assert download.ok and len(download.body())>1000
                     assert ctx.request.get(origin+'/api/video/media/'+proposal['proposed_project']['clips'][0]['asset_id']).body()==source.read_bytes()
-                    page.reload(wait_until='domcontentloaded');page.get_by_role('button',name='Video Studio',exact=True).click();page.locator('#vs-tab-editor').click()
+                    page.reload(wait_until='domcontentloaded');page.get_by_role('button',name='Video Editor',exact=True).click();page.locator('#vs-tab-editor').click()
                     page.wait_for_function("()=>document.querySelector('#ve-brand-editor [data-person-name]').value==='Amal Hassan'")
                     assert panel.locator('[data-person-position]').input_value()=='Marketing Manager'
                     assert panel.locator('[data-instruction]').input_value()==accepted

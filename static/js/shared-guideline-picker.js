@@ -1,10 +1,10 @@
 import {escapeHtml as e} from './agency-api.js';
-import {reviewGuideline} from './guideline-review.js';
+import {reviewGuideline,guidelineError} from './guideline-review.js';
 const target=document.getElementById('guidelines-card');
 if(target){
   const row=document.createElement('div');row.className='vs-row';row.innerHTML='<label style="flex:1">Shared guideline library<select data-shared-guidelines><option value="">Choose a saved guideline</option></select></label><button type="button" data-refresh-guidelines>Refresh</button><button type="button" data-use-guidelines>Use in Image & GIF</button><button type="button" data-review-brand-kit>Review selected brand kit</button><span role="status" data-shared-status></span>';target.append(row);
   const review=document.createElement('div');review.className='vs';review.style.minHeight='0';review.dataset.imageGuidelineReview='';target.append(review);
-  const read=async(response)=>{const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(typeof data.detail==='string'?data.detail:JSON.stringify(data.detail||'Guideline unavailable'));return data;};
+  const read=async(response)=>{const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(guidelineError(data.detail));return data;};
   const show=async doc=>{
     const response=await fetch('/api/video/assets');const assets=response.ok?(await response.json()).filter(a=>a.kind==='image'):[];
     reviewGuideline(review,doc,assets,rules=>run(async()=>{

@@ -51,7 +51,7 @@ def main():
                     page.goto(origin,wait_until='domcontentloaded')
                     page.locator('#public-testing-notice').wait_for()
                     assert page.get_by_role('button',name='System Status',exact=True).count()==0
-                    page.get_by_role('button',name='Video Studio',exact=True).click()
+                    page.get_by_role('button',name='Video Editor',exact=True).click()
                     page.locator('#vs-tab-editor').click()
                     page.get_by_role('button',name='Advanced editor',exact=True).click()
                     assert page.locator('#ve-name').input_value()=='Untitled video'
@@ -115,7 +115,7 @@ def main():
                     assert response.status==404,response.text()
                     assert await_json(b.request.get(origin+'/api/video/projects'))==[]
                     assert b.request.get(origin+'/api/system/capabilities').status==403
-                    page.get_by_role('button',name='Video Studio',exact=True).click()
+                    page.get_by_role('button',name='Video Editor',exact=True).click()
                     page.locator('#vs-tab-editor').click()
                     with page.expect_response(lambda r:r.url.endswith('/api/video/export') and r.request.method=='POST') as export_response:
                         page.locator('#ve-export').click()
@@ -133,7 +133,7 @@ def main():
                     assert json.loads(guest_draft)['id']==project['id']
                     assert page.evaluate('(keys)=>Object.fromEntries(keys.map(k=>[k,localStorage.getItem(k)]))',list(seeds))==seeds
                     page.reload(wait_until='domcontentloaded')
-                    page.get_by_role('button',name='Video Studio',exact=True).click()
+                    page.get_by_role('button',name='Video Editor',exact=True).click()
                     page.locator('#vs-tab-editor').click()
                     panel=page.locator('#ve-brand-editor')
                     page.wait_for_function("()=>document.querySelector('#ve-brand-editor [data-associated]')?.textContent.includes('Applied guideline')")

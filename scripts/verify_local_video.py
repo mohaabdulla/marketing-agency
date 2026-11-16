@@ -29,6 +29,7 @@ def main():
     parser.add_argument('--model', choices=['cogvideox-2b','wan21-i2v-480p'])
     parser.add_argument('--image', type=Path, help='Local operator-controlled image for the Wan I2V smoke test')
     parser.add_argument('--run-inference', action='store_true')
+    parser.add_argument('--quality', choices=['draft','standard'], default='draft')
     args=parser.parse_args()
     print(json.dumps(statuses(),indent=2))
     if not args.run_inference:
@@ -38,13 +39,15 @@ def main():
         parser.error('--model is required for real inference')
     source=ingest(args.image,args.image.name)['id'] if args.image else None
     request=Generate(model=args.model,mode='image-to-video' if args.model.startswith('wan') else 'text-to-video',
-                     prompt='A small toy robot waves its arm, realistic studio lighting, slow camera motion.',asset_id=source)
+                     prompt='A small toy robot waves its arm, realistic studio lighting, slow camera motion.',asset_id=source,quality=args.quality)
     check_generate(request)
+    started=time.monotonic()
     result=generate(request, SmokeProgress())
     metadata=probe(path_for(result['id']))
     assert metadata['video_codec']=='h264' and metadata['duration']>1
     manifest=json.loads((CACHE/args.model/'installation.json').read_text())
-    marker=dict(model=args.model,revision=manifest['revision'],verified_at=time.time(),asset_id=result['id'],metadata=metadata)
+    marker=dict(model=args.model,revision=manifest['revision'],verified_at=time.time(),asset_id=result['id'],metadata=metadata,
+                quality=args.quality,elapsed_seconds=round(time.monotonic()-started,1),inference_profile=result.get('inference_profile'))
     (CACHE/args.model/'smoke-test.json').write_text(json.dumps(marker,indent=2),encoding='utf-8')
     print(json.dumps(marker,indent=2))
 

@@ -11,14 +11,30 @@ import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Annotated, Literal
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 from public_access import scoped
 from video_storage import uid, atomic, identifier
 
 HOME = scoped(Path(__file__).resolve().parent / 'output/guidelines', 'guidelines')
 Short = Annotated[str, Field(max_length=500)]
 Items = Annotated[list[Short], Field(max_length=30)]
-Colors = Annotated[list[Annotated[str, Field(pattern=r'^#[0-9a-fA-F]{6}$')]], Field(max_length=12)]
+def normalize_color(value):
+    """Store opaque RGB hex; accept explicit CSS names and short hex from operators."""
+    from PIL import ImageColor
+    if isinstance(value, str):
+        value = value.strip()
+        if re.fullmatch(r'#[0-9a-fA-F]{6}', value):
+            return value
+        if re.fullmatch(r'#[0-9a-fA-F]{3}', value):
+            return '#' + ''.join(c * 2 for c in value[1:])
+        named = ImageColor.colormap.get(value.casefold())
+        if named:
+            return named
+    raise ValueError('Use a CSS color name such as blue or green, or a hex color such as #123ABC')
+
+
+Color = Annotated[str, Field(pattern=r'^#[0-9a-fA-F]{6}$'), BeforeValidator(normalize_color)]
+Colors = Annotated[list[Color], Field(max_length=12)]
 
 
 class Rules(BaseModel):
@@ -34,7 +50,7 @@ class Rules(BaseModel):
     tone_of_voice: Short = ''
     animation_style: Short = ''
     transition_preferences: Items = []
-    caption_color: str | None = Field(None, pattern=r'^#[0-9a-fA-F]{6}$')
+    caption_color: Color | None = None
     caption_size: int | None = Field(None, ge=16, le=160)
     cta: Short = ''
     prohibited_elements: Items = []
@@ -142,7 +158,10 @@ def parse(text):
             if not field or not value:
                 continue
             if field in {'primary_colors', 'secondary_colors'}:
-                parsed = re.findall(r'#[0-9A-Fa-f]{6}\b', value)
+                try:
+                    parsed = [normalize_color(x.strip()) for x in re.split(r'[;,|]', value)]
+                except ValueError:
+                    parsed = re.findall(r'#[0-9A-Fa-f]{6}\b', value)
                 if not parsed:
                     continue
             elif field in {'font_preferences', 'transition_preferences', 'prohibited_elements', 'required_elements', 'required_disclosures'}:

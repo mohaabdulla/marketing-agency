@@ -57,6 +57,27 @@ class PublicBrandTests(unittest.TestCase):
         return self.call('PUT','/api/guidelines/'+doc['id'],dict(expected_version=doc['version'],confirmed=True,
                          rules=dict(doc['rules'],**changes))).json()
 
+    def test_review_accepts_color_names_and_preserves_validated_hex(self):
+        doc=self.guideline()
+        confirmed=self.confirm(doc,primary_colors=['blue', ' #AbC '],secondary_colors=[' GREEN '],caption_color='White')
+        self.assertEqual(confirmed['rules']['primary_colors'],['#0000ff', '#AAbbCC'])
+        self.assertEqual(confirmed['rules']['secondary_colors'],['#008000'])
+        self.assertEqual(confirmed['rules']['caption_color'],'#ffffff')
+        stored=self.call('GET','/api/guidelines/'+doc['id']).json()
+        self.assertEqual(stored['rules'],confirmed['rules'])
+        for invalid in ['company blue', 'transparent', '#12345678', 'rgb(0,0,255)', 123]:
+            response=self.call('PUT','/api/guidelines/'+doc['id'],dict(expected_version=confirmed['version'],
+                rules=dict(confirmed['rules'],primary_colors=[invalid])),status=422)
+            self.assertIn('CSS color name',response.text)
+        self.assertEqual(self.call('GET','/api/guidelines/'+doc['id']).json()['version'],confirmed['version'])
+
+    def test_upload_normalizes_named_colors_in_json_and_text(self):
+        for name,raw in [('brand.json',b'{"primary_colors":["blue"],"secondary_colors":["green"]}'),
+                         ('brand.txt',b'Primary colors: blue\nSecondary colors: green\nCaption color: white')]:
+            doc=self.guideline(raw,name)
+            self.assertEqual(doc['rules']['primary_colors'],['#0000ff'])
+            self.assertEqual(doc['rules']['secondary_colors'],['#008000'])
+
     def wait(self,job):
         for _ in range(200):
             state=self.call('GET','/api/video/jobs/'+job['id']).json()

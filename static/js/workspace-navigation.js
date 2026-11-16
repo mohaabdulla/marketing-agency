@@ -27,7 +27,7 @@ const productionIcons=[
   icon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M8 13h8M8 17h6"/>'),
   icon('<path d="m3 7 2 2 4-4M3 17l2 2 4-4M13 6h8M13 12h8M13 18h8"/>')
 ];
-const destinations=[['agency-dashboard','Dashboard',agencyIcons[0]],['agency-command-center','Campaign Command Center',agencyIcons[4]],['agency-clients','Clients & Brands',agencyIcons[1]],['agency-research','Research',agencyIcons[2]],['agency-strategy','Strategy',agencyIcons[3]],['agency-campaigns','Campaigns',agencyIcons[4]],['agency-content','Content Studio',productionIcons[0]],['image','Image & GIF Studio',icons[0]],['video','Video Studio',icons[1]],['agency-audio','Audio & Subtitles',icons[1]],['agency-assets','Assets & Approvals',productionIcons[1]],['agency-publishing','Calendar & Publishing',productionIcons[2]],['agency-analytics','Analytics & Experiments',productionIcons[3]],['agency-reports','Reports & Learnings',productionIcons[4]],['agency-web','SEO & Landing Pages',agencyIcons[2]],['agency-crm','Email & CRM',agencyIcons[1]],['agency-paid','Paid Media Planning',productionIcons[3]],['agency-creators','Creators & UGC',agencyIcons[1]],['agency-operations','Operations',productionIcons[5]],['agency-privacy','Privacy & Retention',icons[2]],['settings','System Status',icons[2]]];
+const destinations=[['agency-dashboard','Dashboard',agencyIcons[0]],['agency-command-center','Campaign Command Center',agencyIcons[4]],['agency-clients','Clients & Brands',agencyIcons[1]],['agency-research','Research',agencyIcons[2]],['agency-strategy','Strategy',agencyIcons[3]],['agency-campaigns','Campaigns',agencyIcons[4]],['agency-content','Content Studio',productionIcons[0]],['image','Image & GIF Studio',icons[0]],['video','Video Generator',icons[1]],['video-editor','Video Editor',icons[1]],['agency-audio','Audio & Subtitles',icons[1]],['agency-assets','Assets & Approvals',productionIcons[1]],['agency-publishing','Calendar & Publishing',productionIcons[2]],['agency-analytics','Analytics & Experiments',productionIcons[3]],['agency-reports','Reports & Learnings',productionIcons[4]],['agency-web','SEO & Landing Pages',agencyIcons[2]],['agency-crm','Email & CRM',agencyIcons[1]],['agency-paid','Paid Media Planning',productionIcons[3]],['agency-creators','Creators & UGC',agencyIcons[1]],['agency-operations','Operations',productionIcons[5]],['agency-privacy','Privacy & Retention',icons[2]],['settings','System Status',icons[2]]];
 if(window.publicTestMode){const i=destinations.findIndex(d=>d[0]==='settings');if(i>=0)destinations.splice(i,1);}
 const workspaceKeys=destinations.map(x=>x[0]);
 rail.innerHTML = `<div class="studio-brand"><b>L</b><span class="rail-label">LEXNIS</span></div>${destinations.map(([key,label,svg])=>`<button type="button" data-workspace="${key}" title="${label}">${svg}<span class="rail-label">${label}</span></button>`).join('')}<button type="button" class="rail-bottom" id="rail-collapse" title="Collapse navigation" aria-label="Collapse navigation">${icon('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18m7-13-3 4 3 4"/>')}<span class="rail-label">Collapse sidebar</span></button>`;
@@ -43,31 +43,32 @@ drawer(false);window.addEventListener('resize',()=>{rail.inert=matchMedia('(max-
 mobile.onclick = () => drawer(!rail.classList.contains('drawer-open')); backdrop.onclick = () => drawer(false);
 rail.addEventListener('keydown', event => {if(event.key === 'Escape'){drawer(false);return;}if(event.key==='Tab'&&rail.classList.contains('drawer-open')){const buttons=[...rail.querySelectorAll('button')];if(event.shiftKey&&document.activeElement===buttons[0]){buttons.at(-1).focus();event.preventDefault();}else if(!event.shiftKey&&document.activeElement===buttons.at(-1)){buttons[0].focus();event.preventDefault();}}});
 document.getElementById('rail-collapse').onclick = () => {if(matchMedia('(max-width:640px)').matches){drawer(false);return;}document.body.classList.toggle('rail-collapsed');remember('lexnis.railCollapsed',document.body.classList.contains('rail-collapsed'));};
+const workspaceRoot=name=>document.getElementById(`${name==='video-editor'?'video':name}-workspace`);
 export async function switchWorkspace(name, focus = true) {
   if(!workspaceKeys.includes(name))name='image';
-  for(const key of workspaceKeys)document.getElementById(`${key}-workspace`).hidden = key !== name;
+  for(const root of new Set(workspaceKeys.map(workspaceRoot)))root.hidden=root!==workspaceRoot(name);
   rail.querySelectorAll('[data-workspace]').forEach(b=>{if(b.dataset.workspace===name)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   remember('lexnis.workspace',name);drawer(false);
-  if(name==='video')await mountStudio();if(name==='settings'){await refreshStatus();await mountAgencySystem(document.getElementById('settings-workspace'));}
+  if(name==='video'||name==='video-editor')await mountStudio(name==='video-editor'?'editor':'generate');if(name==='settings'){await refreshStatus();await mountAgencySystem(document.getElementById('settings-workspace'));}
   if(name==='agency-command-center'){try{await mountCommandCenter(document.getElementById('agency-command-center-workspace'));}catch(error){document.getElementById('agency-command-center-workspace').textContent='Command Center error: '+error.message;}}
   else if(name.startsWith('agency-')){try{await mountAgency(name.slice(7),document.getElementById(`${name}-workspace`));}catch(error){document.getElementById(`${name}-workspace`).textContent='Agency workspace unavailable: '+error.message;}}
   if(name!=='image')document.getElementById('image-workspace').querySelectorAll('video,audio').forEach(x=>x.pause());
-  if(name!=='video')document.getElementById('video-workspace').querySelectorAll('video,audio').forEach(x=>x.pause());
-  if(focus){const heading=document.getElementById(`${name}-workspace`).querySelector('h1');if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true});}}
+  if(!['video','video-editor'].includes(name))document.getElementById('video-workspace').querySelectorAll('video,audio').forEach(x=>x.pause());
+  if(focus){const heading=workspaceRoot(name).querySelector('h1');if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true});}}
 }
 rail.querySelectorAll('[data-workspace]').forEach(b=>b.onclick=()=>switchWorkspace(b.dataset.workspace));
 window.addEventListener('lexnis:workspace',event=>switchWorkspace(event.detail.name));
 mountImageWorkflow();
 mountContext();
-window.addEventListener('lexnis:video',async event=>{await switchWorkspace('video');window.dispatchEvent(new CustomEvent('lexnis:video-import',{detail:event.detail}));});
+window.addEventListener('lexnis:video',async event=>{await switchWorkspace(event.detail.mode==='editor'?'video-editor':'video');window.dispatchEvent(new CustomEvent('lexnis:video-import',{detail:event.detail}));});
 const startParams=new URLSearchParams(location.search);const startWorkspace=startParams.get('workspace')||recalled('lexnis.workspace')||'image';
-switchWorkspace(startWorkspace,false).then(async()=>{if(startWorkspace==='video'&&startParams.get('tab')==='editor')(await mountStudio()).showTab('editor');}).catch(error=>console.error(error));
+switchWorkspace(startWorkspace,false).then(async()=>{if(startWorkspace==='video'&&startParams.get('tab')==='editor')(await mountStudio('editor')).showTab('editor');}).catch(error=>console.error(error));
 // Attach only to generated carousel output; never alter uploaded originals or old handlers.
 function bridge() {
   const scope=document.getElementById('carousel-preview');if(!scope)return;
   scope.querySelectorAll('img,video').forEach(img=>{const raw=img.getAttribute('src');if(!raw)return;let parsed;try{parsed=new URL(raw,location.href);}catch{return;}const local=['localhost','127.0.0.1','[::1]'];if(parsed.origin!==location.origin&&!(local.includes(parsed.hostname)&&local.includes(location.hostname)))return;const source=parsed.pathname;if(!source.startsWith('/renders/')&&!source.startsWith('/static/assets/'))return;if(img.parentElement.querySelector('.image-video-actions'))return;
     const actions=document.createElement('div');actions.className='image-video-actions';
-    for(const [label,mode] of [['Send to Video','editor'],['Animate Image','image-animation'],['Use as starting frame','image-to-video']]){const button=document.createElement('button');button.type='button';button.textContent=label;button.onclick=()=>window.dispatchEvent(new CustomEvent('lexnis:video',{detail:{source_url:source,mode}}));actions.append(button);}
+    for(const [label,mode] of [['Open in Video Editor','editor'],['Animate Image','image-animation'],['Use as starting frame','image-to-video']]){const button=document.createElement('button');button.type='button';button.textContent=label;button.onclick=()=>window.dispatchEvent(new CustomEvent('lexnis:video',{detail:{source_url:source,mode}}));actions.append(button);}
     // Hand the generated file to the agency asset library; nothing is registered until the operator confirms there.
     const register=document.createElement('button');register.type='button';register.textContent='Register in Assets';register.onclick=()=>{window.dispatchEvent(new CustomEvent('lexnis:agency-asset',{detail:{media_url:source,origin:'generated'}}));switchWorkspace('agency-assets');};actions.append(register);
     img.parentElement.append(actions);

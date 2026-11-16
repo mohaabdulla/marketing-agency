@@ -43,18 +43,56 @@ def main():
                         if 'lucide' in route.request.url:route.fulfill(body='window.lucide={createIcons(){}};',content_type='application/javascript')
                         else:route.abort()
                     page.route('https://**/*',external)
+                    # Model availability is deterministic even when the operator has installed real weights.
+                    model_ready={'value':False}
+                    page.route('**/api/video/models',lambda route:route.fulfill(json=[dict(id='cogvideox-2b',modes=['text-to-video'],available=model_ready['value'],
+                        reasons=[] if model_ready['value'] else ['No AI model is configured for this isolated browser test'],width=720,height=480,frames=49,fps=8,license='Apache-2.0',note='',verified=False)]))
+
                     page.goto(origin,wait_until='domcontentloaded')
                     page.wait_for_selector('.studio-rail')
                     assert page.locator('#image-workspace').is_visible()
                     page.locator('#prompt-input').fill('Unsaved employee welcome campaign')
-                    page.get_by_role('button',name='Video Studio',exact=True).click()
+                    page.get_by_role('button',name='Video Generator',exact=True).click()
                     page.wait_for_selector('#vg-form')
                     assert not page.locator('#image-workspace').is_visible()
                     assert page.locator('#vg-generate').is_disabled()
+                    assert 'AI generation is unavailable' in page.locator('#vg-readiness').inner_text()
+                    page.locator('#vg-use-animation').click()
+                    assert page.locator('#vg-mode').input_value()=='image-animation'
+                    assert page.locator('#vg-generate').is_enabled()
+                    assert 'without an AI model' in page.locator('#vg-readiness').inner_text()
+                    page.locator('#vg-mode').select_option('text-to-video')
+                    assert page.locator('#vg-generate').is_disabled()
+                    model_ready['value']=True
+                    page.locator('#vg-refresh-models').click()
+                    page.wait_for_function("!document.querySelector('#vg-generate').disabled")
+                    assert 'Ready to generate locally' in page.locator('#vg-readiness').inner_text()
+                    page.locator('#vg-mode').select_option('image-animation')
+
+
+                    assert page.locator('#vs-tab-editor').is_hidden()
+                    assert page.locator('#vs-editor').is_hidden()
+                    assert page.locator('#vg-brand-guidelines [data-instruction]').count()==0
+                    # Reviewing generation rules must not create or mutate an editor project.
+                    before_projects=requests.get(origin+'/api/video/projects',timeout=5).json()
+                    before_draft=page.evaluate("localStorage.getItem('lexnis.video.draft')")
+                    guideline=Path(tmp)/'generator-brand.txt'
+                    guideline.write_text('Brand: Generator Brand\nPrimary color: blue\nSecondary color: green\n')
+                    page.locator('#vg-brand-guidelines [data-file]').set_input_files(guideline)
+                    confirm=page.locator('#vg-brand-guidelines [data-confirm]')
+                    confirm.wait_for(state='attached')
+                    confirm.evaluate("el=>{for(let p=el;p;p=p.parentElement)if(p.tagName==='DETAILS')p.open=true}")
+                    confirm.click()
+                    page.wait_for_function("document.querySelector('#vg-brand-guidelines [data-associated]').textContent.includes('Generator Brand')")
+                    assert requests.get(origin+'/api/video/projects',timeout=5).json()==before_projects
+                    assert page.evaluate("localStorage.getItem('lexnis.video.draft')")==before_draft
+
                     page.get_by_role('button',name='Image & GIF Studio',exact=True).click()
                     assert page.locator('#prompt-input').input_value()=='Unsaved employee welcome campaign'
-                    page.get_by_role('button',name='Video Studio',exact=True).click()
+                    page.get_by_role('button',name='Video Generator',exact=True).click()
+                    page.get_by_role('button',name='Video Editor',exact=True).click()
                     page.get_by_role('tab',name='Media Library').click()
+                    page.locator('#vs-upload').click()
                     page.locator('#vs-upload-input').set_input_files(source)
                     # Quick edit is the default view; the timeline lives in the Advanced editor.
                     page.wait_for_selector('.vs-clip',state='attached',timeout=20000)
@@ -80,14 +118,22 @@ def main():
                     with page.expect_response(lambda response: response.url.endswith('/api/video/export') and response.request.method=='POST') as exported:
                         page.locator('#ve-export').click()
                     export_job=exported.value.json()['id']
+                    generation_preview=page.locator('#vg-preview').inner_html()
                     # "completed_clips" appears during encoding; wait for this exact job's terminal state.
                     page.wait_for_selector(f'#vs-jobs [data-job="{export_job}"][data-state="completed"]',timeout=60000)
                     assets=requests.get(origin+'/api/video/assets',timeout=5).json()
                     assert any(a['name']=='export.mp4' and abs(a['duration']-1.5)<.2 for a in assets)
+                    assert page.locator('#vg-preview').inner_html()==generation_preview
+                    assert page.locator('#vg-result').inner_text()==''
+                    page.wait_for_selector('#ve-export-result a')
+                    assert 'Download edited video' in page.locator('#ve-export-result').inner_text()
                     page.get_by_role('tab',name='Projects',exact=True).click();page.wait_for_selector('[data-open]')
                     assert page.locator('#vs-project-list').inner_text().find('Browser production project')>=0
                     page.locator('[data-open]').first.click();assert page.locator('#ve-name').input_value()=='Browser production project'
-                    page.get_by_role('tab',name='AI Generate').click();page.locator('#vg-mode').select_option('image-animation')
+                    page.get_by_role('button',name='Video Generator',exact=True).click();page.locator('#vg-mode').select_option('image-animation')
+                    assert page.locator('#vs-tab-editor').is_hidden()
+                    assert 'Generator Brand' in page.locator('#vg-brand-guidelines [data-associated]').inner_text()
+                    assert page.locator('#ve-brand-editor [data-associated]').inner_text().startswith('No guideline')
                     assert page.locator('#vg-generate').is_enabled()
                     page.locator('#vg-upload').click()
                     page.locator('#vs-upload-input').set_input_files(picture)
@@ -96,8 +142,11 @@ def main():
                     with page.expect_response(lambda response: response.url.endswith('/api/video/generate') and response.request.method=='POST') as started:
                         page.locator('#vg-generate').click()
                     animation_job=started.value.json()['id']
+                    assert started.value.request.post_data_json['guideline_id']
+                    editor_draft_before_generation=page.evaluate("localStorage.getItem('lexnis.video.draft')")
                     page.wait_for_selector(f'#vs-jobs [data-job="{animation_job}"][data-state="completed"]',timeout=60000)
                     page.wait_for_selector('#vg-result a')
+                    assert page.evaluate("localStorage.getItem('lexnis.video.draft')")==editor_draft_before_generation
                     page.wait_for_selector('#vg-quality-report')
                     assert 'Export quality' in page.locator('#vg-quality-report').inner_text()
                     page.locator('#vg-quality-report summary').click()
@@ -128,7 +177,7 @@ def main():
                     Image.open(picture).save(bridge)
                     try:
                         page.locator('#carousel-preview').evaluate("(e,url)=>{e.classList.remove('hidden');e.innerHTML='<div><img alt=\"Campaign output\"></div>';e.querySelector('img').src=new URL(url,location.href).href;for(let p=e;p&&p.id!=='image-workspace';p=p.parentElement)p.classList.remove('hidden');}",'/renders/'+bridge.name)
-                        page.locator('#carousel-preview').get_by_role('button',name='Send to Video',exact=True).click()
+                        page.locator('#carousel-preview').get_by_role('button',name='Open in Video Editor',exact=True).click()
                         page.wait_for_function("document.querySelectorAll('.vs-lane[data-kind=video] .vs-clip').length===3")
                         assert page.locator('#video-workspace').is_visible()
                     finally:
@@ -138,7 +187,7 @@ def main():
                     mobile.goto(origin,wait_until='domcontentloaded');mobile.wait_for_selector('.studio-mobile-toggle')
                     mobile.locator('.studio-mobile-toggle').click()
                     assert mobile.locator('.studio-rail').evaluate("e=>e.classList.contains('drawer-open')")
-                    mobile.get_by_role('button',name='Video Studio',exact=True).click();mobile.wait_for_selector('#vg-form')
+                    mobile.get_by_role('button',name='Video Generator',exact=True).click();mobile.wait_for_selector('#vg-form')
                     assert mobile.locator('.studio-mobile-toggle').get_attribute('aria-expanded')=='false'
                     assert mobile.evaluate('document.documentElement.scrollWidth <= innerWidth')
                     mobile.locator('.studio-mobile-toggle').click();mobile.keyboard.press('Escape')

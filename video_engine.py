@@ -301,6 +301,7 @@ def generate(request, job):
         return annotate(result, generation_type='deterministic-image-animation', name='Image Animation.mp4',
                         project_id=project_id, guideline_id=request.guideline_id, guideline_version=request._version,
                         brand_warnings=warnings, creation_prompt=generation_prompt(request), composition=composition)
+    job.update(state='preparing', phase='Waiting for the local GPU', progress=None)
     with gpu_slot(job.cancelled), tempfile.TemporaryDirectory(dir=DATA / 'work', prefix=job.id + '-') as temp:
         # Recheck free VRAM after acquiring the cross-workspace GPU lock.
         from video_models import hardware
@@ -312,6 +313,7 @@ def generate(request, job):
         tmp = Path(temp)
         payload = dict(request.model_dump(), model_path=str(CACHE / request.model), output=str(tmp/'native.mp4'),
                        progress=str(tmp/'progress.json'), **{k:config[k] for k in ['width','height','frames','fps']})
+        payload['low_memory'] = request.model == 'cogvideox-2b' and hw.get('ram_gb', 32) < 24
         payload['prompt'] = generation_prompt(request)
         if request.asset_id:
             payload['image'] = str(path_for(request.asset_id))
@@ -333,7 +335,7 @@ def generate(request, job):
                     try:
                         progress = json.loads((tmp/'progress.json').read_text())
                         if progress != last:
-                            job.update(state='running', phase='Denoising', progress=progress)
+                            job.update(state='running', phase=progress.get('phase') or 'Denoising', progress=progress)
                             last = progress
                     except (OSError, ValueError):
                         pass
@@ -358,10 +360,10 @@ def generate(request, job):
         result = ingest(tmp/'generated.mp4', 'AI-generated.mp4')
         project = Project(name='Generated AI clip',canvas=canvas,clips=[Clip(asset_id=result['id'],duration=result['duration'])])
         project, project_id, warnings = branded_project(project, request)
-        if request.guideline_id or request.cta:
-            result = master(project, job, audio=False)   # mastered and measured like every other export
+        result = master(project, job, audio=False)   # every AI output receives the same delivery measurements
         manifest=json.loads((CACHE/request.model/'installation.json').read_text(encoding='utf-8'))
         return annotate(result, generation_type=request.mode, native_width=config['width'], native_height=config['height'],
+                        inference_profile='staged-int8-text-fp16-video' if payload['low_memory'] else 'fp16-video' if request.model=='cogvideox-2b' else 'bf16-video',
                         seed=request.seed, model=request.model, revision=manifest['revision'],project_id=project_id,
                         guideline_id=request.guideline_id,guideline_version=request._version,
                         brand_warnings=warnings,creation_prompt=generation_prompt(request))

@@ -6,12 +6,13 @@ from pathlib import Path
 
 
 @contextmanager
-def gpu_slot(cancelled=lambda: False, timeout=1800):
-    path = Path(__file__).resolve().parent / 'output/local-gpu.lock'
+def gpu_slot(cancelled=lambda: False, timeout=1800, *, lock_path=None):
+    path = Path(lock_path) if lock_path else Path(__file__).resolve().parent / 'output/local-gpu.lock'
     path.parent.mkdir(exist_ok=True)
     with path.open('a+b') as handle:
-        handle.seek(0)
-        if not handle.read(1):
+        # Windows forbids reading a byte another process has locked. Inspect file
+        # size instead, so a second job reaches the cancellable wait loop below.
+        if os.fstat(handle.fileno()).st_size == 0:
             handle.write(b'0')
             handle.flush()
         started = time.monotonic()

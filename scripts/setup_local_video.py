@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import venv
+from fnmatch import fnmatch
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from video_models import MODELS, CACHE, PYTHON
@@ -31,17 +32,23 @@ def main():
         if not PYTHON.is_file():
             raise SystemExit('Install --runtime first')
         config = MODELS[args.model]
-        if shutil.disk_usage(ROOT).free < config['disk_gb']*1024**3:
-            raise SystemExit(f"Free at least {config['disk_gb']} GB before this model download")
         # Resolve a specific commit, record exact downloaded sizes and retain the model license.
         from huggingface_hub import HfApi, snapshot_download
         info = HfApi().model_info(config['repo'], files_metadata=True)
         target = CACHE/args.model
+        patterns = ['model_index.json','scheduler/*','tokenizer/*','text_encoder/*','transformer/*','vae/*',
+                    'image_encoder/*','image_processor/*','README.md','LICENSE*','*.license.txt']
+        ignored = ['*.bin','*.onnx','*.msgpack']
+        remaining = sum((item.size or 0) for item in info.siblings
+                        if any(fnmatch(item.rfilename, pattern) for pattern in patterns)
+                        and not any(fnmatch(item.rfilename, pattern) for pattern in ignored)
+                        and not ((target/item.rfilename).is_file() and (target/item.rfilename).stat().st_size == item.size))
+        needed = remaining + 3*1024**3
+        if shutil.disk_usage(ROOT).free < needed:
+            raise SystemExit(f'Free at least {needed/1024**3:.1f} GB for the remaining weights and working space')
         (target/'smoke-test.json').unlink(missing_ok=True)
         snapshot_download(config['repo'], revision=info.sha, local_dir=target,
-                          allow_patterns=['model_index.json','scheduler/*','tokenizer/*','text_encoder/*','transformer/*','vae/*',
-                                          'image_encoder/*','image_processor/*','README.md','LICENSE*','*.license.txt'],
-                          ignore_patterns=['*.bin','*.onnx','*.msgpack'])
+                          allow_patterns=patterns, ignore_patterns=ignored)
         manifest = dict(repo=config['repo'],revision=info.sha,license=config['license'],
                         files={str(p.relative_to(target)):p.stat().st_size for p in target.rglob('*') if p.is_file() and '.cache' not in p.parts})
         (target/'installation.json').write_text(json.dumps(manifest,indent=2),encoding='utf-8')

@@ -96,11 +96,11 @@ def main():
                     with Image.open(gif.value.path()) as animation:assert animation.is_animated and animation.info['loop']==0
                     print('PASS: real Image/GIF generation, assistant handoff, downloads and step navigation',flush=True)
                     # Video Generation: the shared upload is visible before opening the editor.
-                    page.get_by_role('button',name='Video Studio',exact=True).click();page.locator('#vg-mode').select_option('image-animation')
+                    page.get_by_role('button',name='Video Generator',exact=True).click();page.locator('#vg-mode').select_option('image-animation')
                     panel=page.locator('#vg-brand-guidelines');panel.locator('[data-file]').set_input_files(str(invalid))
                     page.wait_for_function("()=>document.querySelector('#vg-brand-guidelines [data-status]').textContent!=='Working…'&&document.querySelector('#vg-brand-guidelines [data-status]').textContent!=='Ready.'")
                     panel.locator('[data-file]').set_input_files(str(guide));panel.locator('[data-confirm]').wait_for();panel.locator('[data-confirm]').click()
-                    page.wait_for_function("()=>document.querySelector('#vg-brand-guidelines [data-associated]').textContent.includes('Applied guideline')")
+                    page.wait_for_function("()=>document.querySelector('#vg-brand-guidelines [data-associated]').textContent.includes('Selected for generation')")
                     page.locator('#vg-upload').click();page.locator('#vs-upload-input').set_input_files(str(image))
                     page.wait_for_function("()=>!!document.querySelector('#vg-image').value")
                     page.locator('#vg-prompt').fill('Welcome Amal with a gentle brand entrance.')
@@ -130,7 +130,7 @@ def main():
                     destinations=page.locator('#studio-navigation [data-workspace]').evaluate_all('(nodes)=>nodes.map(n=>n.dataset.workspace)')
                     for name in destinations:
                         page.locator('#studio-navigation [data-workspace="'+name+'"]').click()
-                        page.locator('#'+name+'-workspace').wait_for(state='visible')
+                        page.locator('#'+('video' if name=='video-editor' else name)+'-workspace').wait_for(state='visible')
                     # Explicit context, escaping and the corrected POST ZIP download in Command Center.
                     client=ctx.request.post(origin+'/api/agency/clients',data={'name':'Browser client'}).json()
                     campaign=ctx.request.post(origin+'/api/agency/clients/'+client['id']+'/records/campaigns',data={'name':'<img src=x onerror="window.cccInjected=true">','data':{'objective':'Launch'}}).json()
@@ -139,11 +139,11 @@ def main():
                     assert not page.evaluate('window.cccInjected||false')
                     with page.expect_download() as archive:page.locator('#ccc-export-pkg-btn').click()
                     with zipfile.ZipFile(archive.value.path()) as bundle:assert bundle.namelist()
-                    page.get_by_role('button',name='Video Studio',exact=True).click();page.locator('#vs-tab-generate').click();assert page.locator('#vg-prompt').input_value()==accepted
-                    page.reload(wait_until='domcontentloaded');page.get_by_role('button',name='Video Studio',exact=True).click();page.locator('#vs-tab-generate').click()
+                    page.get_by_role('button',name='Video Generator',exact=True).click();page.locator('#vs-tab-generate').click();assert page.locator('#vg-prompt').input_value()==accepted
+                    page.reload(wait_until='domcontentloaded');page.get_by_role('button',name='Video Generator',exact=True).click();page.locator('#vs-tab-generate').click()
                     assert page.locator('#vg-prompt').input_value()==accepted
                     page.wait_for_function("()=>document.querySelector('#vg-model-info').textContent.includes('Deterministic image animation')")
-                    page.wait_for_function("()=>document.querySelector('#vg-brand-guidelines [data-associated]').textContent.includes('Applied guideline')")
+                    page.wait_for_function("()=>document.querySelector('#vg-brand-guidelines [data-associated]').textContent.includes('Selected for generation')")
                     page.locator('#vg-preview video').wait_for()
                     page.locator('#vg-result').get_by_role('link',name='Download video',exact=True).wait_for()
                     page.set_viewport_size({'width':390,'height':844});assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')

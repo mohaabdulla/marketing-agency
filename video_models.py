@@ -75,6 +75,12 @@ class VideoModelAdapter(ABC):
 class CogVideoXAdapter(VideoModelAdapter):
     """Adapter for CogVideoX-2B text-to-video diffusion."""
 
+    def validate_environment(self, hw: dict, runtime: dict) -> list[str]:
+        reasons = super().validate_environment(hw, runtime)
+        if runtime.get('cuda') and hw.get('ram_gb', 0) < 24 and not runtime.get('bitsandbytes'):
+            reasons.append('Install the video runtime low-memory dependency (bitsandbytes) for a 16 GB laptop')
+        return reasons
+
     def validate_request(self, request: dict) -> None:
         super().validate_request(request)
         if request.get('mode') != 'text-to-video':
@@ -195,9 +201,9 @@ MODELS = {
         frames=49,
         fps=8,
         vram_gb=6,
-        ram_gb=24,
+        ram_gb=14,
         disk_gb=30,
-        note='FP16 sequential CPU offload, VAE slicing/tiling. 6.125 seconds. Laptop memory use unverified.'
+        note='6.125 seconds. On 16 GB laptops: staged 8-bit text encoding, FP16 video weights and CPU offload; first generation loads weights from disk.'
     ),
     'wan21-i2v-480p': dict(
         repo='Wan-AI/Wan2.1-I2V-14B-480P-Diffusers',
@@ -262,12 +268,13 @@ def runtime_status():
     if time.monotonic() - _runtime_cache[0] < 60:
         return _runtime_cache[1]
     code = (
-        "import json,torch,diffusers;"
+        "import json,torch,diffusers,importlib.util;"
         "print(json.dumps(dict("
         "cuda=torch.cuda.is_available(),"
         "bf16=torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,"
         "torch=torch.__version__,"
         "diffusers=diffusers.__version__"
+        ",bitsandbytes=importlib.util.find_spec('bitsandbytes') is not None"
         ")))"
     )
     try:

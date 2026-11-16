@@ -5,6 +5,8 @@ import json
 import os
 import sys
 import tempfile
+import subprocess
+from contextlib import nullcontext
 import time
 import unittest
 from pathlib import Path
@@ -156,14 +158,20 @@ class VideoStudioTests(unittest.TestCase):
         self.assertEqual(job['state'],'completed',job);self.assertEqual(job['result']['kind'],'audio')
 
     def test_model_gates_and_adapters(self):
-        self.assertEqual(self.client.post('/api/video/generate',json={'prompt':'A robot waves','model':'cogvideox-2b'}).status_code,400)
-        self.assertEqual(self.client.post('/api/video/generate',json={'prompt':'A robot waves','mode':'image-to-video','model':'cogvideox-2b','asset_id':self.picture['id']}).status_code,400)
+        # A developer installing real weights must not turn this rejection test into real inference.
+        unavailable=dict(id='cogvideox-2b',modes=['text-to-video'],available=False,reasons=['Test model unavailable'])
+        with patch('video_engine.statuses',return_value=[unavailable]):
+            self.assertEqual(self.client.post('/api/video/generate',json={'prompt':'A robot waves','model':'cogvideox-2b'}).status_code,400)
+            self.assertEqual(self.client.post('/api/video/generate',json={'prompt':'A robot waves','mode':'image-to-video','model':'cogvideox-2b','asset_id':self.picture['id']}).status_code,400)
         spec=importlib.util.spec_from_file_location('worker',ROOT/'scripts/render_local_video.py');worker=importlib.util.module_from_spec(spec);spec.loader.exec_module(worker)
         torch=SimpleNamespace(float16='fp16',bfloat16='bf16',float32='fp32')
         diffusers=Mock();request=dict(model='cogvideox-2b',mode='text-to-video',model_path='managed-cache')
         pipe=worker.build_pipeline(request,torch,diffusers)
         diffusers.CogVideoXPipeline.from_pretrained.assert_called_once_with('managed-cache',torch_dtype='fp16',local_files_only=True,use_safetensors=True)
         pipe.enable_sequential_cpu_offload.assert_called_once()
+        diffusers.CogVideoXPipeline.from_pretrained.reset_mock()
+        worker.build_pipeline(dict(request,prompt_encoded=True),torch,diffusers)
+        self.assertIsNone(diffusers.CogVideoXPipeline.from_pretrained.call_args.kwargs['text_encoder'])
         worker.build_pipeline(dict(request,model='wan21-i2v-480p',mode='image-to-video',image='managed-image.png'),torch,diffusers)
         diffusers.WanImageToVideoPipeline.from_pretrained.assert_called_once()
         with self.assertRaises(ValueError):worker.build_pipeline(dict(request,mode='image-to-video'),torch,diffusers)
@@ -188,13 +196,15 @@ class VideoStudioTests(unittest.TestCase):
             self.assertEqual(kwargs['env']['HF_HUB_OFFLINE'],'1')
             self.assertFalse(kwargs['shell'])
             payload=json.loads(Path(args[-1]).read_text())
+            self.assertTrue(payload['low_memory'])
             shutil.copyfile(native,payload['output'])
             Path(payload['progress']).write_text(json.dumps({'step':2,'total_steps':20}))
             return Process()
         model=dict(id='cogvideox-2b',**MODELS['cogvideox-2b'],available=True,reasons=[])
         job=Job('mock-ai-contract')
-        with patch('video_engine.statuses',return_value=[model]),patch('video_models.hardware',return_value={'gpu':{'free_gb':8}}),\
+        with patch('video_engine.statuses',return_value=[model]),patch('video_models.hardware',return_value={'gpu':{'free_gb':8},'ram_gb':15.7}),\
              patch('video_engine.CACHE',cache),patch('video_engine.spawn_worker',side_effect=fake_spawn),\
+             patch('video_engine.gpu_slot',return_value=nullcontext()),\
              patch.object(job,'update',wraps=job.update) as updates:
             result=generate(Generate(prompt='A robot waves',quality='draft'),job)
             with patch('video_engine.probe',return_value={'width':1,'height':1,'duration':6}):
@@ -203,8 +213,31 @@ class VideoStudioTests(unittest.TestCase):
         self.assertEqual(result['generation_type'],'text-to-video')
         self.assertEqual((result['native_width'],result['native_height']),(720,480))
         self.assertEqual(result['revision'],'test-fixture')
+        self.assertEqual(result['qa_report']['counts']['FAIL'],0)
         self.assertTrue(any(call.kwargs.get('state')=='running' for call in updates.call_args_list))
         self.assertFalse(list((DATA/'work').glob(job.id+'-*')))
+
+    def test_busy_gpu_waits_and_can_be_cancelled(self):
+        from gpu_resources import gpu_slot
+        from video_ffmpeg import Cancelled
+        lock=DATA/'work/contended-gpu.lock'
+        ready=DATA/'work/gpu-owner-ready'
+        code="from pathlib import Path;import sys;from gpu_resources import gpu_slot\nwith gpu_slot(lock_path=sys.argv[1]):\n Path(sys.argv[2]).write_text('ready')\n sys.stdin.read(1)"
+        process=subprocess.Popen([sys.executable,'-c',code,str(lock),str(ready)],cwd=ROOT,stdin=subprocess.PIPE,
+            creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+        try:
+            deadline=time.monotonic()+10
+            while not ready.exists() and process.poll() is None and time.monotonic()<deadline:
+                time.sleep(.02)
+            self.assertTrue(ready.exists(),'The other process did not acquire the GPU lock')
+            with self.assertRaisesRegex(ValueError,'GPU is busy'):
+                with gpu_slot(timeout=.1,lock_path=lock):pass
+            with self.assertRaises(Cancelled):
+                with gpu_slot(cancelled=lambda:True,lock_path=lock):pass
+        finally:
+            process.stdin.close()
+            process.wait(timeout=10)
+        with gpu_slot(timeout=1,lock_path=lock):pass
 
     def test_cancel_real_subprocess_and_persistent_errors(self):
         def slow(job):
