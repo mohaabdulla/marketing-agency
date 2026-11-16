@@ -77,11 +77,11 @@ class AgencySuiteTests(unittest.TestCase):
                 self.assertGreaterEqual(gif.n_frames, 16)
                 self.assertEqual(gif.info["loop"], 0)
                 duration = sum(frame.info["duration"] for frame in ImageSequence.Iterator(gif))
-                self.assertEqual(duration, 4320)
+                self.assertAlmostEqual(duration / 1000, 4.32, delta=.05)
             if data.get("animation_mp4_url"):
                 video = cv2.VideoCapture(server.render_path(data["animation_mp4_url"]))
                 self.assertTrue(video.isOpened())
-                self.assertAlmostEqual(video.get(cv2.CAP_PROP_FPS), 24, delta=.1)
+                self.assertAlmostEqual(video.get(cv2.CAP_PROP_FPS), data.get("motion", {}).get("fps", 24), delta=.1)
                 self.assertEqual(int(video.get(cv2.CAP_PROP_FRAME_WIDTH)), 1080)
                 self.assertEqual(int(video.get(cv2.CAP_PROP_FRAME_HEIGHT)), 1350)
                 video.release()

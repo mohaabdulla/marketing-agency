@@ -1979,18 +1979,50 @@ def render_omnichannel_variants(primary_card_path: str, req_data: dict, brand_th
     return render_variants(primary_card_path, req_data, brand_theme)
 
 
-def _save_social_animation(frames, output, rgb_frames=None, merge_identical=False):
+def assemble_enterprise_campaign(data, *, language, resolve_path, public_url, bundle_dir):
+    """One complete campaign contract; shared rendering remains reusable by individual studios."""
+    import uuid
+    from agency_suite import DELIVERABLE_NAMES, bundle_enterprise_campaign
+    selected = 'ar' if language=='ar' else 'en'
+    kits = data.get('agency_kits') or {}
+    if set(kits) != {'en','ar'}:
+        raise ValueError('Both English and Arabic kits must finish before delivery')
+    paths = {lang: {key:resolve_path(kits[lang].get(key,'')) for key in DELIVERABLE_NAMES} for lang in ('en','ar')}
+    copies = {lang:kits[lang]['copywriting'] for lang in ('en','ar')}
+    bundle = Path(bundle_dir) / f'campaign_{uuid.uuid4().hex}_full_agency_kit.zip'
+    bundle_enterprise_campaign(paths,copies,bundle,selected=selected,brand=data.get('brand',''))
+    result = {key:value for key,value in data.items() if not key.endswith('_path')}
+    result.update(kits[selected],language=selected,requested_language=language,status='completed',schema_version=1,
+                  primary_image_url=kits[selected]['image_url'],bundle_zip_url=public_url(str(bundle)),
+                  copywriting={**copies[selected],**copies},copywriting_by_language=copies,
+                  motion=dict(fps=30,kind='rendered-card-animation',native_frames=True))
+    def absolute(value):
+        if isinstance(value,dict):return {key:absolute(item) for key,item in value.items()}
+        if isinstance(value,list):return [absolute(item) for item in value]
+        if isinstance(value,str) and value.startswith(('/renders/','/static/assets/','/uploads/')):
+            return public_url(value)
+        return value
+    return absolute(result)
+
+
+def _save_social_animation(frames, output, rgb_frames=None, merge_identical=False, frame_ms=60, output_fps=24):
     """`frames` are palette frames for the Pillow writer; `rgb_frames`, when given, are the
     same frames in full colour for the smaller, cleaner FFmpeg encode (GIF and MP4)."""
     from agency_suite import export_animation_mp4, encode_animation
-    if rgb_frames and encode_animation(rgb_frames, output, 60, merge_identical):
+    if rgb_frames and encode_animation(rgb_frames, output, frame_ms, merge_identical, output_fps):
         return
+    if not frames:
+        palette = rgb_frames[0].quantize(colors=256, method=Image.Quantize.MEDIANCUT)
+        frames = [frame.quantize(palette=palette) for frame in rgb_frames]
+    delays = [round((i+1)*frame_ms/10)*10-round(i*frame_ms/10)*10 for i in range(len(frames))]
     frames[0].save(output, format="GIF", save_all=True, append_images=frames[1:],
-                   duration=60, loop=0, disposal=1, optimize=False)
+                   duration=delays, loop=0, disposal=1, optimize=False)
+    if output_fps != 24:
+        raise RuntimeError('FFmpeg is required to deliver the complete 30 fps campaign motion kit')
     export_animation_mp4(output)
 
 
-def generate_social_gif(topic: str, post_type: str, output_gif_path: str, *, base_image=None, brand_theme=None, language="en") -> str:
+def generate_social_gif(topic: str, post_type: str, output_gif_path: str, *, base_image=None, brand_theme=None, language="en", motion_fps=0) -> str:
     """Animate the employee welcome card, or the topic companion for other posts.
 
     A shared palette keeps text/branding stable between frames. Only the glow,
@@ -2019,13 +2051,15 @@ def generate_social_gif(topic: str, post_type: str, output_gif_path: str, *, bas
         animation_layers = base_image.info.get("welcome_animation_layers", {})
         base = base_image.convert("RGB")
     base = fit_cover(base, 1080, 1350).convert("RGBA")
+    frame_ms = 1000 / motion_fps if motion_fps else 60
+    count = round(4.32 * motion_fps) if motion_fps else 72
     if is_welcome:
-        rgb_frames = list(welcome_animation_frames(base, animation_layers, brand_theme, language))
+        rgb_frames = list(welcome_animation_frames(base, animation_layers, brand_theme, language, frame_count=count, frame_ms=frame_ms))
         palette = base.convert("RGB").quantize(colors=256, method=Image.Quantize.MEDIANCUT)
-        frames = [frame.quantize(palette=palette, dither=Image.Dither.FLOYDSTEINBERG) for frame in rgb_frames]
+        frames = [] if motion_fps else [frame.quantize(palette=palette, dither=Image.Dither.FLOYDSTEINBERG) for frame in rgb_frames]
         output = Path(output_gif_path)
         output.parent.mkdir(parents=True, exist_ok=True)
-        _save_social_animation(frames, output, rgb_frames, merge_identical=True)
+        _save_social_animation(frames, output, rgb_frames, merge_identical=True, frame_ms=frame_ms, output_fps=motion_fps or 24)
         return str(output)
     # Replace the static companion's counter with the loop's kit position.
     counter = ImageDraw.Draw(base)
@@ -2035,8 +2069,8 @@ def generate_social_gif(topic: str, post_type: str, output_gif_path: str, *, bas
     palette = base.convert("RGB").quantize(colors=256, method=Image.Quantize.MEDIANCUT)
     frames, rgb_frames = [], []
     plane = base.crop((40, 210, 1040, 1010)).resize((1008, 808), Image.Resampling.LANCZOS)
-    for index in range(72):
-        phase = math.tau * index / 72
+    for index in range(count):
+        phase = math.tau * index / count
         pulse = (1 - math.cos(phase)) / 2
         frame = base.copy()
         # Gently move the complete visual plane, keeping the brand header and
@@ -2066,10 +2100,11 @@ def generate_social_gif(topic: str, post_type: str, output_gif_path: str, *, bas
         ImageDraw.Draw(border).line((sheen_x, 1041, sheen_x+90, 1041), fill=(210, 255, 231, 150), width=2)
         frame.alpha_composite(border)
         rgb_frames.append(frame.convert("RGB"))
-        frames.append(rgb_frames[-1].quantize(palette=palette, dither=Image.Dither.FLOYDSTEINBERG))
+        if not motion_fps:
+            frames.append(rgb_frames[-1].quantize(palette=palette, dither=Image.Dither.FLOYDSTEINBERG))
     output = Path(output_gif_path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    _save_social_animation(frames, output, rgb_frames)
+    _save_social_animation(frames, output, rgb_frames, frame_ms=frame_ms, output_fps=motion_fps or 24)
     return str(output)
 
 
@@ -2094,7 +2129,7 @@ def generate_campaign_post(primary_card, req_data: dict, brand_theme=None, outpu
         animation = generate_social_gif(req_data.get("topic", req_data.get("prompt", "")), req_data.get("post_type", "general"),
                                         str(output.with_name(output.stem + "_anim.gif")),
                                         base_image=image if "welcome" in str(req_data.get("post_type", "")).lower() else companion,
-                                        brand_theme=brand_theme, language=req_data.get("language", "en"))
+                                        brand_theme=brand_theme, language=req_data.get("language", "en"), motion_fps=req_data.get('motion_fps', 0))
     return {"primary_card": str(output), "companion_image": companion, "animation": animation,
             "carousel_paths": [str(output), companion, animation] if companion else [str(output)]}
 
@@ -4349,6 +4384,7 @@ class LexnisCampaignStudio:
         brand_profile: Optional[Dict[str, Any]] = None,
         generate_companion: bool = True,
         use_local_sdxl: Optional[bool] = None,
+        motion_fps: int = 0,
     ) -> CampaignAsset:
         """
         Run the full agency pipeline with Dual-Agent Collaborative refinement:
@@ -5407,11 +5443,14 @@ class LexnisCampaignStudio:
             pair_request = dict(topic=effective_prompt, post_type=post_type or "general", brand_name=brand,
                                 role_title=person_title if "welcome" in str(post_type) else person_name or brief.get("product_name", ""),
                                 person_name=person_name or "", seed=seed, use_local_sdxl=use_local_sdxl,
-                                creative=pair_creative)
+                                creative=pair_creative, motion_fps=motion_fps)
+            import uuid
+            delivery_id = uuid.uuid4().hex[:12]
             for lang, old_path in (("en", primary_post), ("ar", primary_arabic)):
                 if not old_path:
                     continue
-                pair = generate_campaign_post(old_path, {**pair_request, "language": lang}, pair_theme)
+                output = RENDERS_DIR / f'{Path(old_path).stem}_{delivery_id}_{lang}_carousel.jpg'
+                pair = generate_campaign_post(old_path, {**pair_request, "language": lang}, pair_theme, output_path=output)
                 paired_path = Path(pair["primary_card"])
                 if lang == "en":
                     primary_post, companion_en, animation_en = paired_path, pair["companion_image"], pair["animation"]

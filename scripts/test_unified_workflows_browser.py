@@ -73,7 +73,7 @@ def main():
                     for key,value in [('pt-member-name','Amal'),('pt-member-role','Engineer')]:
                         if page.locator('#'+key).is_visible():page.locator('#'+key).fill(value)
                     page.locator('#review-prompt-toggle').uncheck();page.locator('#search-toggle').uncheck()
-                    with page.expect_response(lambda r:r.url.endswith('/api/generate') and r.request.method=='POST',timeout=600000) as generated:
+                    with page.expect_response(lambda r:r.url.endswith('/api/campaign/generate') and r.request.method=='POST',timeout=600000) as generated:
                         page.locator('#generate-btn').click()
                     assert generated.value.ok,generated.value.text()[:2000];kit=generated.value.json()
                     posted=generated.value.request.post_data_json;assert 'Noor Solar' in posted['prompt']
@@ -86,7 +86,7 @@ def main():
                     assert 'loop' in assistant.locator('[data-suggested]').input_value().lower()
                     assistant.locator('[data-use]').click()
                     gif_prompt=page.locator('#prompt-input').input_value()
-                    with page.expect_response(lambda r:r.url.endswith('/api/generate') and r.request.method=='POST',timeout=600000) as animated:
+                    with page.expect_response(lambda r:r.url.endswith('/api/campaign/generate') and r.request.method=='POST',timeout=600000) as animated:
                         page.locator('#generate-btn').click()
                     assert animated.value.ok,animated.value.text()[:2000]
                     assert animated.value.request.post_data_json['prompt']==gif_prompt

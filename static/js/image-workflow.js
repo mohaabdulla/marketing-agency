@@ -6,7 +6,7 @@ export function mountImageWorkflow(){
   const root=document.getElementById('image-workspace'),prompt=document.getElementById('prompt-input');
   if(!prompt||root.dataset.guided)return;root.dataset.guided='true';
   const guidelines=document.getElementById('guidelines-card'),identity=root.querySelector('section'),objective=prompt.closest('section'),visual=document.getElementById('visual-assets-section'),results=document.getElementById('results-section');
-  const chooser=document.createElement('div');chooser.innerHTML='<label>Create<select id="creative-output-kind"><option value="image">Image campaign + companion</option><option value="gif">Animated GIF + matching static cards</option></select></label><p>Both choices use the existing social kit renderer. GIFs animate the completed card and preserve your source image.</p>';
+  const chooser=document.createElement('div');chooser.innerHTML='<label>Create<select id="creative-output-kind"><option value="image">Complete multi-channel campaign kit</option><option value="gif">Animated GIF + matching static cards</option></select></label><p>One campaign generates English and Arabic feed, companion, story and banner visuals, GIF and MP4 motion, channel copy and a full client ZIP.</p>';
   chooser.append(document.getElementById('post-type-grid'));
   const assistantHost=document.createElement('div'),goal=document.createElement('div');
   let draft={};try{draft=JSON.parse(localStorage.getItem(storageKey('lexnis.image.workflow'))||'{}');}catch{}

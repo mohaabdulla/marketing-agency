@@ -5,6 +5,8 @@ import re
 import shutil
 import subprocess
 import zipfile
+import tempfile
+import hashlib
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageOps
@@ -47,7 +49,7 @@ def _fit_x_post(hook, cta, tags, limit=280):
     return hook[:limit - 1].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
 
 
-def generate_campaign_copy(req_data, brand_theme=None):
+def _generate_campaign_copy_base(req_data, brand_theme=None):
     theme = theme_for(req_data, brand_theme)
     ar = req_data.get("language") == "ar"
     kind = str(req_data.get("post_type", "general"))
@@ -134,6 +136,29 @@ def generate_campaign_copy(req_data, brand_theme=None):
                 instagram_caption=instagram, x_post=x, hashtags=tags, cta=cta, copy_source="template",
                 posting_recommendation=recommendation,
                 strategy_source="https://www.linkedin.com/business/marketing/blog/linkedin-ads/whats-the-best-time-to-post-on-linkedin")
+
+
+def generate_campaign_copy(req_data, brand_theme=None):
+    """Adapt the same approved campaign into channel copy, a thread and hashtag groups."""
+    result = _generate_campaign_copy_base(req_data, brand_theme)
+    chunks = []
+    for paragraph in result['linkedin_post'].split('\n\n'):
+        current = ''
+        for word in paragraph.split():
+            # Leave room for thread numbering; split unusually long URLs/tokens safely.
+            for token in [word[i:i+250] for i in range(0, len(word), 250)]:
+                if current and len(current) + len(token) + 1 > 260:
+                    chunks.append(current)
+                    current = ''
+                current = (current + ' ' + token).strip()
+        if current:
+            chunks.append(current)
+    result['x_thread'] = [f'{i+1}/{len(chunks)} {chunk}' for i, chunk in enumerate(chunks)]
+    tags = result['hashtags']
+    result['hashtag_strategy'] = dict(brand=tags[:1], industry=tags[1:5], discovery=tags[5:],
+        guidance='اختر الوسوم المرتبطة بالحملة واستخدم وسم العلامة باستمرار.' if result['language']=='ar'
+                 else 'Use the brand tag consistently and choose industry tags relevant to each post.')
+    return result
 
 
 def _wrapped(draw, text, bounds, lang, size=42, max_lines=3):
@@ -235,7 +260,7 @@ def _ffmpeg_executable():
     return executable
 
 
-def encode_animation(rgb_frames, gif_path, frame_ms=60, merge_identical=False):
+def encode_animation(rgb_frames, gif_path, frame_ms=60, merge_identical=False, output_fps=24):
     """Write the loop from full-colour frames: a GIF whose static areas are identical from
     frame to frame (ordered dither + changed-rectangle encoding, so the file is a fraction of
     a per-frame error-diffused GIF) and an MP4 encoded from the same clean frames rather than
@@ -246,8 +271,11 @@ def encode_animation(rgb_frames, gif_path, frame_ms=60, merge_identical=False):
         return False
     gif_path = Path(gif_path)
     width, height = rgb_frames[0].size
-    raw = b"".join(frame.convert("RGB").tobytes() for frame in rgb_frames)
-    source = ["-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{width}x{height}", "-r", f"1000/{frame_ms}", "-i", "-"]
+    # Spool once instead of duplicating hundreds of full-resolution frames in RAM.
+    raw_file = tempfile.TemporaryFile()
+    for frame in rgb_frames:
+        raw_file.write(frame.convert('RGB').tobytes())
+    source = ["-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{width}x{height}", "-r", f"1000/{frame_ms}", "-i", "pipe:0"]
     # A held frame (a welcome card shown for a second) is one GIF frame with a long delay,
     # not dozens of copies: exact repeats are dropped and the timestamps kept.
     hold = "mpdecimate=hi=1:lo=1:frac=1:max=0," if merge_identical else ""
@@ -259,13 +287,14 @@ def encode_animation(rgb_frames, gif_path, frame_ms=60, merge_identical=False):
         (gif_path, ["-filter_complex", f"[0:v]{hold}split[a][b];[a]palettegen=stats_mode=diff:max_colors=256[p];"
                                        "[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle",
                     *(["-fps_mode", "vfr", "-final_delay", str(max(1, round(closing * frame_ms / 10)))] if merge_identical else []), "-loop", "0"]),
-        (gif_path.with_suffix(".mp4"), ["-vf", "fps=24,scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+        (gif_path.with_suffix(".mp4"), ["-vf", f"fps={output_fps},scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libx264", "-preset", "medium", "-crf", "18",
                                         "-pix_fmt", "yuv420p", "-movflags", "+faststart"]),
     ]
     written = []
     try:
         for target, arguments in jobs:
-            result = subprocess.run([executable, "-y", "-loglevel", "error", *source, *arguments, str(target)], input=raw,
+            raw_file.seek(0)
+            result = subprocess.run([executable, "-y", "-loglevel", "error", *source, *arguments, str(target)], stdin=raw_file,
                                     capture_output=True, timeout=180, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             if result.returncode or not target.is_file() or not target.stat().st_size:
                 raise OSError("animation encode failed")
@@ -275,6 +304,8 @@ def encode_animation(rgb_frames, gif_path, frame_ms=60, merge_identical=False):
         for target, _ in jobs:
             target.unlink(missing_ok=True)
         return False
+    finally:
+        raw_file.close()
 
 
 def export_animation_mp4(gif_path):
@@ -310,4 +341,66 @@ def bundle_campaign(paths, copywriting, output_path):
             if paths.get(key):
                 archive.write(paths[key], name)
         archive.writestr("campaign_copy_and_strategy.txt", document.encode("utf-8"))
+    return str(output)
+
+
+DELIVERABLE_NAMES = {
+    'image_url': '01_primary_feed_1080x1350.jpg',
+    'companion_image_url': '02_companion_feed_1080x1350.jpg',
+    'animation_url': '03_animated_companion.gif',
+    'animation_mp4_url': '03_animated_companion.mp4',
+    'story_url': '04_story_9x16_1080x1920.jpg',
+    'landscape_url': '05_landscape_1200x628.jpg',
+}
+
+
+def bundle_enterprise_campaign(paths_by_language, copy_by_language, output_path, *, selected='en', brand=''):
+    """Publish one complete bilingual archive atomically, with a verifiable hand-off manifest."""
+    if set(paths_by_language) != {'en','ar'} or set(copy_by_language) != {'en','ar'}:
+        raise ValueError('The enterprise kit requires English and Arabic deliverables')
+    manifest = dict(schema_version=1, brand=brand, primary_language=selected, motion_fps=30,
+                    deliverables={}, copywriting='copywriting.json')
+    for language, paths in paths_by_language.items():
+        manifest['deliverables'][language] = {}
+        for key, name in DELIVERABLE_NAMES.items():
+            path = Path(paths.get(key) or '')
+            if not path.is_file() or not path.stat().st_size:
+                raise ValueError(f'Missing enterprise deliverable: {language}.{key}')
+            if key not in {'animation_url','animation_mp4_url'}:
+                expected = (1080,1920) if key=='story_url' else (1200,628) if key=='landscape_url' else (1080,1350)
+                with Image.open(path) as image:
+                    if image.size != expected:
+                        raise ValueError(f'Incorrect canvas size for {language}.{key}')
+            with path.open('rb') as stream:
+                digest = hashlib.file_digest(stream,'sha256').hexdigest()
+            entry = name if language==selected else f'languages/{language}/{name}'
+            manifest['deliverables'][language][key] = dict(file=entry, size=path.stat().st_size, sha256=digest)
+    output = Path(output_path)
+    output.parent.mkdir(parents=True,exist_ok=True)
+    handle, temporary = tempfile.mkstemp(dir=output.parent,prefix='campaign-',suffix='.zip.tmp')
+    os.close(handle)
+    try:
+        with zipfile.ZipFile(temporary,'w',zipfile.ZIP_DEFLATED) as archive:
+            for language, paths in paths_by_language.items():
+                for key, path in paths.items():
+                    if key in DELIVERABLE_NAMES:
+                        archive.write(path,manifest['deliverables'][language][key]['file'])
+            for language, copy in copy_by_language.items():
+                documents = dict(linkedin=copy['linkedin_post'], instagram=copy['instagram_caption'],
+                    x_thread='\n\n'.join(copy['x_thread']),
+                    hashtags=' '.join(copy['hashtags'])+'\n\n'+copy['hashtag_strategy']['guidance'])
+                for channel, text in documents.items():
+                    archive.writestr(f'copy/{language}/{channel}.md',f'# {channel.replace("_"," ").title()}\n\n{text}\n')
+            archive.writestr('copywriting.json',json.dumps(copy_by_language,ensure_ascii=False,indent=2))
+            archive.writestr('campaign_manifest.json',json.dumps(manifest,ensure_ascii=False,indent=2))
+            # Preserve the familiar selected-language export for existing clients.
+            archive.writestr('campaign_copy_and_strategy.txt','\n\n'.join(f'{key.upper()}\n{value}' for key,value in copy_by_language[selected].items()))
+            archive.writestr('README.md',f'# {brand or "Campaign"} — client agency kit\n\n'
+                f'The root media files use {selected.upper()}; the other language is under languages/.\n\n'
+                'Copy for LinkedIn, Instagram, X threads and hashtags is under copy/en/ and copy/ar/. '
+                'campaign_manifest.json records sizes and SHA-256 hashes. MP4 motion is rendered at 30 fps; '
+                'GIF timing is quantized to its centisecond format. Review copy, rights and claims before publishing.\n')
+        os.replace(temporary,output)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
     return str(output)

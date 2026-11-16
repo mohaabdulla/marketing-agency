@@ -231,7 +231,7 @@ def load_welcome_animation_layers(primary_path) -> dict:
     return layers
 
 
-def welcome_animation_frames(card: Image.Image, layers: dict, brand_theme, language="en"):
+def welcome_animation_frames(card: Image.Image, layers: dict, brand_theme, language="en", *, frame_count=72, frame_ms=60):
     """Stagger the original welcome artwork into place, hold, then fade to loop."""
     card = card.convert("RGBA")
     if not layers:
@@ -262,8 +262,8 @@ def welcome_animation_frames(card: Image.Image, layers: dict, brand_theme, langu
         ("role", 1.32, .60, 32*direction, 0),
         ("footer", 1.56, .60, 0, 18),
     ]
-    for index in range(72):
-        time = index * .06
+    for index in range(frame_count):
+        time = index * frame_ms / 1000
         frame = background.copy()
         for name, start, duration, dx, dy in stages:
             progress = max(0., min(1., (time-start) / duration))
@@ -3762,6 +3762,8 @@ class BrandTheme:
     primary_hex: str = ""
     secondary_hex: str = ""
     clean_slug: str = ""
+    tagline: str = ""
+    tagline_ar: str = ""
 
 
 def hex_to_rgb(hex_str: str) -> Tuple[int, int, int]:
@@ -3973,7 +3975,9 @@ def resolve_brand_theme(
         hashtag_ar=hashtag_ar,
         primary_hex=primary_hex,
         secondary_hex=secondary_hex,
-        clean_slug=clean_slug
+        clean_slug=clean_slug,
+        tagline=str((brand_profile or {}).get('tagline') or ''),
+        tagline_ar=str((brand_profile or {}).get('tagline_ar') or '')
     )
 
 
@@ -4204,6 +4208,10 @@ def draw_brand_header(
         draw.text((1008 - tag_w - 16 - tag_bbox[0], 91 - tag_h / 2 - tag_bbox[1]),
                   disp_tag, font=f_tag, fill=brand_theme.secondary_accent)
 
+    tagline = (brand_theme.tagline_ar or brand_theme.tagline) if is_ar else brand_theme.tagline
+    if tagline:
+        _companion_text(ImageDraw.Draw(canvas),tagline,(80,122,canvas.width-160,40),size=16,
+                        lang='ar' if re.search(r'[\u0600-\u06ff]',tagline) else 'en',fill=(211,223,235))
     return ImageDraw.Draw(canvas)
 
 

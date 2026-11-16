@@ -16,11 +16,11 @@ import concurrent.futures
 from urllib.parse import urlsplit
 import cv2
 import numpy as np
-from fastapi import FastAPI, HTTPException, File, UploadFile, Form
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from visual_engine import (
     model_setup, preferred_local_model, composite_template_swap, sanitize_brand_tag, resolve_brand_theme,
     is_unsafe_welcome_headline,
@@ -209,17 +209,14 @@ def enrich_agency_kit(data, request, theme):
     data["copywriting"] = generate_campaign_copy({**request, "language": "ar" if requested_language == "ar" else "en"}, theme)
     if not data.get("companion_image_url") or not data.get("animation_url"):
         return data
-    kits = {}
-    for lang in ("en", "ar"):
-        if lang == "en" and requested_language == "ar":
-            continue
+    def compose_language(lang):
         prefix = "arabic_" if lang == "ar" else ""
         primary_url = data.get(prefix + "image_url")
         if not primary_url:
-            continue
+            return None
         paths = {key: render_path(data.get(prefix+key, "")) for key in ("image_url", "companion_image_url", "animation_url")}
         if not all(paths.values()):
-            continue
+            return None
         localized = {**request, "language": lang, "companion_image_path": paths["companion_image_url"]}
         copywriting = generate_campaign_copy(localized, theme)
         variants = render_omnichannel_variants(paths["image_url"], localized, theme)
@@ -228,11 +225,19 @@ def enrich_agency_kit(data, request, theme):
                      animation_mp4_url=str(video) if video.is_file() else "")
         bundle = AGENCY_BUNDLES_DIR / (Path(paths["image_url"]).stem + "_agency_kit.zip")
         bundle_campaign(paths, copywriting, bundle)
-        kits[lang] = dict(story_url=render_url(paths["story_url"]), landscape_url=render_url(paths["landscape_url"]),
+        return dict(image_url=primary_url,primary_image_url=primary_url,
+                          companion_image_url=data.get(prefix+'companion_image_url'),animation_url=data.get(prefix+'animation_url'),
+                          story_url=render_url(paths["story_url"]), landscape_url=render_url(paths["landscape_url"]),
                           animation_mp4_url=render_url(paths["animation_mp4_url"]), bundle_zip_url=render_url(str(bundle)),
                           copywriting=copywriting)
-        if lang == "ar":
-            data.update({"arabic_"+key: value for key, value in kits[lang].items()})
+    # Independent format/copy adaptations run concurrently with their workspace context.
+    from contextvars import copy_context
+    languages = ['ar'] if requested_language=='ar' else ['en','ar']
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        pending = {lang:pool.submit(copy_context().run,compose_language,lang) for lang in languages}
+        kits = {lang:kit for lang,future in pending.items() if (kit:=future.result()) is not None}
+    if 'ar' in kits:
+        data.update({'arabic_'+key:value for key,value in kits['ar'].items()})
     selected = "ar" if requested_language == "ar" else "en"
     data.update(kits.get(selected, {}))
     data["agency_kits"] = kits
@@ -240,13 +245,28 @@ def enrich_agency_kit(data, request, theme):
 
 
 class BrandKitRequest(BaseModel):
+    id: Optional[str] = Field(None, pattern=r'^[A-Za-z0-9_-]{1,100}$')
     brand_name: str = Field(..., min_length=1, max_length=100)
     brand_name_ar: str = Field("", max_length=100)
     primary_hex: str = Field(..., pattern=r"^#[0-9A-Fa-f]{6}$")
     accent_hex: str = Field(..., pattern=r"^#[0-9A-Fa-f]{6}$")
     logo_path: str = Field("", max_length=500)
     tagline: str = Field("", max_length=200)
+    tagline_ar: str = Field("", max_length=200)
     hashtag: str = Field("", max_length=100, pattern=r"^(?:#[\w\u0600-\u06ff]+)?$")
+
+    @model_validator(mode='before')
+    @classmethod
+    def color_aliases(cls,value):
+        if isinstance(value,dict):
+            value=dict(value)
+            for canonical,alternatives in [('primary_hex',['primary_color']),('accent_hex',['secondary_hex','secondary_color'])]:
+                if canonical not in value:
+                    for alias in alternatives:
+                        if alias in value:
+                            value[canonical]=value[alias]
+                            break
+        return value
 
 
 @app.get("/api/system/capabilities")
@@ -262,14 +282,17 @@ def brand_kits_list():
 
 
 @app.post("/api/brands", status_code=201)
-def brand_kit_create(req: BrandKitRequest):
+def brand_kit_create(req: BrandKitRequest, response: Response):
     from brand_kits import LOCK, list_brands, write_brands
     import uuid
+    if req.id:
+        response.status_code = 200
+        return brand_kit_update(req.id,req)
     with LOCK:
         brands = list_brands()
         if any(item["brand_name"].casefold() == req.brand_name.strip().casefold() for item in brands):
             raise HTTPException(409, "A brand kit with this name already exists")
-        brand = {"id": uuid.uuid4().hex[:12], **req.model_dump()}
+        brand = {"id": uuid.uuid4().hex[:12], **req.model_dump(exclude={'id'})}
         brand["brand_name"] = brand["brand_name"].strip()
         if not brand["brand_name"]:
             raise HTTPException(422, "Brand name is required")
@@ -295,7 +318,7 @@ def brand_kit_update(brand_id: str, req: BrandKitRequest):
             raise HTTPException(404, "Brand kit not found")
         if any(b["id"] != brand_id and b["brand_name"].casefold() == req.brand_name.strip().casefold() for b in brands):
             raise HTTPException(409, "A brand kit with this name already exists")
-        brand = {"id": brand_id, **req.model_dump()}
+        brand = {"id": brand_id, **req.model_dump(exclude={'id'})}
         brand["brand_name"] = brand["brand_name"].strip()
         if not brand["brand_name"].strip():
             raise HTTPException(422, "Brand name is required")
@@ -328,10 +351,11 @@ def campaign_bundle(req: CampaignBundleRequest):
         url = req.deliverables.get(key, "")
         if not url and key == "animation_mp4_url":
             continue
-        if not re.fullmatch(r"/(?:renders|static/assets)/[^/\\]+\.(?:jpg|gif|mp4)", url, re.I):
+        parsed = urlsplit(url)
+        if parsed.query or parsed.fragment or not re.fullmatch(r"/(?:renders|static/assets)/[^/\\]+\.(?:jpg|gif|mp4)", parsed.path, re.I):
             raise HTTPException(400, "Expected a generated deliverable URL")
         expected = ".gif" if key == "animation_url" else ".mp4" if key == "animation_mp4_url" else ".jpg"
-        if Path(url).suffix.lower() != expected:
+        if Path(parsed.path).suffix.lower() != expected:
             raise HTTPException(400, f"Incorrect format for {key}")
         paths[key] = render_path(url)
         if paths[key] and Path(paths[key]).resolve().parent not in (RENDERS_DIR.resolve(), (BASE_DIR/"static/assets").resolve()):
@@ -347,6 +371,7 @@ def campaign_bundle(req: CampaignBundleRequest):
 class GenerateRequest(BaseModel):
     prompt: str = Field(..., description="Product, offer or campaign concept")
     generate_companion: bool = True
+    motion_fps: Literal[0,30] = 0
     use_local_sdxl: Optional[bool] = None
     language: Literal["en", "ar", "both"] = "en"
     brand_id: Optional[str] = None
@@ -552,7 +577,6 @@ def enhance_prompt_endpoint(req: EnhancePromptRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/campaign/generate")
 @app.post("/api/generate")
 def generate_campaign_endpoint(req: GenerateRequest):
     """Research -> brief -> Instagram copy -> watermark-free visual."""
@@ -563,7 +587,7 @@ def generate_campaign_endpoint(req: GenerateRequest):
             if not kit:
                 raise HTTPException(404, "Brand kit not found")
             req.brand = kit["brand_name"]
-            req.brand_profile = {**profile_for(kit), **(req.brand_profile or {})}
+            req.brand_profile = {**(req.brand_profile or {}), **profile_for(kit)}
             req.logo_url = req.logo_url or kit.get("logo_path")
         studio = LexnisCampaignStudio()
         all_up_paths = []
@@ -616,6 +640,9 @@ def generate_campaign_endpoint(req: GenerateRequest):
                     bp.update(parsed_bp)
             except Exception:
                 pass
+        if req.brand_id and not bp.get('locked_by_guidelines'):
+            # The persisted kit wins over stale browser profiles after an operator updates a brand.
+            bp.update(profile_for(kit))
 
         # Brand: uploaded guideline profile > typed brand (a leftover "Lexnis Technologies" is a stale
         # default when a guideline is loaded) > prompt. Market-research text in req.guidelines is not an
@@ -656,6 +683,7 @@ def generate_campaign_endpoint(req: GenerateRequest):
             brand_profile=bp or None,
             generate_companion=req.generate_companion,
             use_local_sdxl=req.use_local_sdxl,
+            motion_fps=req.motion_fps,
         )
         data = asset.to_dict()
         data["image_url"] = render_url(asset.image_path)
@@ -694,6 +722,30 @@ def generate_campaign_endpoint(req: GenerateRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post('/api/campaign/generate')
+def unified_campaign_endpoint(req: GenerateRequest, request: Request):
+    """Return only after the bilingual visuals, native 30 fps motion, copy and master ZIP exist.
+    FastAPI runs this synchronous orchestration in its worker pool, leaving the event loop free.
+    """
+    from agency_suite import _ffmpeg_executable
+    from campaign_generator import assemble_enterprise_campaign
+    if not req.prompt.strip():
+        raise HTTPException(422,'A campaign brief is required')
+    if not _ffmpeg_executable():
+        raise HTTPException(503,'FFmpeg is required for the complete GIF and MP4 motion kit')
+    selected_language = req.language
+    complete = req.model_copy(update=dict(generate_companion=True,output_format='portrait',language='both',motion_fps=30))
+    data = generate_campaign_endpoint(complete)
+    def public_url(path):
+        url = path if str(path).startswith(('/renders/','/uploads/','/static/assets/')) else render_url(str(path))
+        return str(request.base_url).rstrip('/') + url
+    try:
+        return assemble_enterprise_campaign(data,language=selected_language,resolve_path=render_path,
+            public_url=public_url,bundle_dir=AGENCY_BUNDLES_DIR)
+    except ValueError as exc:
+        raise HTTPException(502,str(exc)) from exc
 
 
 @app.post("/api/analyze-website")

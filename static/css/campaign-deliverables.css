@@ -1,0 +1,28 @@
+.campaign-delivery{border:1px solid #2a3d50;border-radius:18px;padding:20px;background:#0c1624;color:#e3edf7;min-width:0;max-width:100%}
+.enterprise-results #campaign-visual-panel{grid-column:1/-1}
+.enterprise-results #campaign-legacy-copy,.enterprise-results #campaign-legacy-display,.enterprise-results #dual-visual-container,.enterprise-results #solo-visual-container{display:none!important}
+.campaign-delivery-header{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:20px}
+.campaign-delivery h3{font-size:22px;font-weight:700}.campaign-delivery h4{font-size:16px;font-weight:650}
+.campaign-delivery-eyebrow{font-size:11px;letter-spacing:.16em;color:#62d9d2;margin-bottom:6px}
+.campaign-delivery label{font-size:12px;display:grid;gap:6px}.campaign-delivery select{background:#101f30;border:1px solid #385267;border-radius:8px;padding:8px;color:#eef5ff}
+.campaign-delivery button{border:1px solid #37506a;background:#172a3d;color:#daeffa;border-radius:9px;padding:9px 13px;font-size:13px;cursor:pointer}
+.campaign-delivery button:focus-visible,.campaign-delivery select:focus-visible{outline:2px solid #68dce8;outline-offset:3px}
+.campaign-delivery-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}.campaign-delivery-tabs [aria-selected=true]{background:#69dfe9;color:#071826;border-color:#69dfe9}
+.campaign-delivery [hidden]{display:none!important}.campaign-format-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.campaign-format-card,.campaign-copy-card{background:#101e2e;border:1px solid #2a4055;border-radius:12px;padding:14px;min-width:0}
+.campaign-format-card p{font-size:12px;color:#9fb2c5;margin:5px 0 10px}.campaign-format-card img{width:100%;height:300px;object-fit:contain;background:#08111c;border-radius:8px;margin-bottom:12px}
+.campaign-delivery video{width:100%;max-height:570px;background:#030910;border-radius:12px;margin-bottom:12px}.campaign-delivery details{margin:16px 0}.campaign-delivery details img{max-height:540px;max-width:100%;object-fit:contain}
+.campaign-copy-card{margin-bottom:14px}.campaign-copy-card button{margin:10px 0}.campaign-copy-card pre{white-space:pre-wrap;overflow-wrap:anywhere;font-family:inherit;font-size:14px;line-height:1.8}
+.campaign-hashtags{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.campaign-hashtags button{border-radius:999px;color:#8af0cc;background:#12382f;max-width:100%;overflow-wrap:anywhere;white-space:normal}
+.campaign-delivery .campaign-delivery-master{width:100%;margin-top:22px;background:#54dab2;color:#05271e;font-weight:750;padding:14px}.campaign-delivery-status{color:#afc2d4;font-size:12px;line-height:1.6;margin-top:12px}
+@media(max-width:640px){.campaign-delivery{padding:12px}.campaign-delivery-header{align-items:flex-start;flex-direction:column}.campaign-format-grid{grid-template-columns:1fr}.campaign-format-card img{height:320px}.campaign-delivery-tabs button{flex:1 1 120px}}
+@media(max-width:640px){
+  .studio-ambient-glow{width:60vw!important;height:60vw!important}
+  #image-workspace select{min-width:0;max-width:100%}
+  #theme-select{max-width:min(180px,46vw)}
+  #image-workspace div:has(>#theme-select),#image-workspace div:has(>#format-select){display:grid;grid-template-columns:minmax(0,1fr);width:100%;min-width:0;max-width:100%;gap:6px}
+  #image-workspace .flex:has(>div>#format-select){flex-wrap:wrap}
+  #theme-select,#format-select{width:100%;max-width:100%}
+  #image-model-select{max-width:min(200px,52vw)}
+  #dna-logo-badge{min-width:0;max-width:130px;white-space:normal;overflow-wrap:anywhere}
+}

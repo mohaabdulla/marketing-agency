@@ -16,6 +16,8 @@
   
   <!-- Lucide Icons -->
   <script src="/static/vendor/lucide.min.js"></script>
+  <link rel="stylesheet" href="/static/css/campaign-deliverables.css">
+  <script src="/static/js/campaign-deliverables.js"></script>
 
 
 
@@ -57,8 +59,8 @@
 <body class="bg-obsidian-950 text-slate-100 font-sans min-h-screen antialiased bg-grid-pattern relative selection:bg-cyan-accent selection:text-obsidian-950">
 
   <!-- Ambient background glow elements -->
-  <div class="fixed top-0 left-1/4 w-96 h-96 bg-cyan-accent/10 rounded-full blur-[140px] pointer-events-none -z-10"></div>
-  <div class="fixed bottom-10 right-1/4 w-[30rem] h-[30rem] bg-violet-accent/10 rounded-full blur-[160px] pointer-events-none -z-10"></div>
+  <div class="studio-ambient-glow fixed top-0 left-1/4 w-96 h-96 bg-cyan-accent/10 rounded-full blur-[140px] pointer-events-none -z-10"></div>
+  <div class="studio-ambient-glow fixed bottom-10 right-1/4 w-[30rem] h-[30rem] bg-violet-accent/10 rounded-full blur-[160px] pointer-events-none -z-10"></div>
 
   <section id="image-workspace" aria-label="Image and GIF Studio">
   <!-- Main Container -->
@@ -1041,10 +1043,10 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div id="campaign-results-grid" class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
           <!-- COLUMN 1: Visual Asset Studio (Dual English & Arabic Display) -->
-          <div class="lg:col-span-6 bg-obsidian-900/90 border border-obsidian-800 rounded-2xl p-5 shadow-2xl space-y-4">
+          <div id="campaign-visual-panel" class="lg:col-span-6 bg-obsidian-900/90 border border-obsidian-800 rounded-2xl p-5 shadow-2xl space-y-4">
             
             <div class="flex items-center justify-between pb-2 border-b border-obsidian-800">
               <div class="flex items-center space-x-2">
@@ -1076,7 +1078,7 @@
             </div>
 
             <!-- Bilingual Visual Mode Switcher (Both / English Solo / Arabic Solo / Clean) -->
-            <div class="flex flex-wrap items-center justify-between gap-2 p-2 bg-obsidian-950/90 rounded-xl border border-obsidian-800 text-[11px] font-mono shadow-sm">
+            <div id="campaign-legacy-display" class="flex flex-wrap items-center justify-between gap-2 p-2 bg-obsidian-950/90 rounded-xl border border-obsidian-800 text-[11px] font-mono shadow-sm">
               <span class="text-slate-400 flex items-center space-x-1.5">
                 <i data-lucide="layout" class="w-3.5 h-3.5 text-cyan-accent"></i>
                 <span class="font-semibold text-slate-300">Visual Display:</span>
@@ -1391,7 +1393,7 @@
           </div>
 
           <!-- COLUMN 2: Marketing Copy & Caption Studio -->
-          <div class="lg:col-span-6 bg-obsidian-900/90 border border-obsidian-800 rounded-2xl p-6 shadow-2xl space-y-5">
+          <div id="campaign-legacy-copy" class="lg:col-span-6 bg-obsidian-900/90 border border-obsidian-800 rounded-2xl p-6 shadow-2xl space-y-5">
             
             <!-- Column Header with Copy Actions -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-obsidian-800">
@@ -2274,54 +2276,20 @@
     });
 
     function renderAgencyPanels(container, data, language) {
-      const kit = data.agency_kits?.[language] || data;
-      if (!kit.copywriting) return;
-      const formats = document.createElement('div');
-      formats.className = 'grid grid-cols-1 sm:grid-cols-2 gap-3';
-      for (const [key,label,ratio] of [['story_url','Story 9:16','9 / 16'],['landscape_url','Banner 1.91:1','1200 / 628']]) {
-        if (!kit[key]) continue;
-        const card = document.createElement('div'); card.className = 'rounded-xl border border-emerald-500/30 p-3 space-y-2';
-        const title = document.createElement('p'); title.textContent = label; title.className = 'text-xs text-emerald-200';
-        const image = document.createElement('img'); image.src = resolveBackendUrl(kit[key]); image.alt = label; image.className = 'w-full object-contain rounded'; image.style.aspectRatio = ratio;
-        const download = document.createElement('button'); download.type = 'button'; download.textContent = 'Download '+label; download.className = 'text-xs text-emerald-300';
-        download.addEventListener('click', () => downloadAssetByUrl(resolveBackendUrl(kit[key]), key));
-        card.append(title,image,download); formats.appendChild(card);
-      }
-      container.appendChild(formats);
-      if (kit.animation_mp4_url) {
-        const video = document.createElement('video'); video.src = resolveBackendUrl(kit.animation_mp4_url);
-        video.autoplay = true; video.loop = true; video.muted = true; video.playsInline = true; video.controls = true;
-        video.className = 'w-full max-h-96 rounded-xl'; video.setAttribute('aria-label','Social motion MP4 preview');
-        const download = document.createElement('button'); download.type='button'; download.textContent='Download MP4'; download.className='text-xs text-emerald-300';
-        download.addEventListener('click',()=>downloadAssetByUrl(resolveBackendUrl(kit.animation_mp4_url),'motion'));
-        container.append(video,download);
-      }
-      const panel = document.createElement('div'); panel.className = 'rounded-xl border border-emerald-500/30 bg-obsidian-950 p-4 space-y-3';
-      const heading=document.createElement('h3');heading.textContent='Copywriting & Strategy';heading.className='text-sm font-bold text-emerald-200';
-      const tabs = document.createElement('div'); tabs.className='flex flex-wrap gap-3';
-      const text = document.createElement('pre'); text.className = 'whitespace-pre-wrap text-sm text-slate-200 font-sans'; text.dir=language==='ar'?'rtl':'ltr';
-      let active = 'linkedin_post';
-      for (const [key,label] of [['linkedin_post','LinkedIn Copy'],['instagram_caption','Instagram Caption'],['x_post','X Post']]) {
-        const button=document.createElement('button'); button.type='button'; button.textContent=label; button.className='text-xs text-emerald-300';
-        button.addEventListener('click',()=>{active=key; text.textContent=kit.copywriting[key] || '';}); tabs.appendChild(button);
-      }
-      const copy=document.createElement('button'); copy.type='button'; copy.textContent='Copy Text'; copy.className='text-xs font-bold text-emerald-300';
-      const copyValue=async value=>{try {await navigator.clipboard.writeText(value);showToast('Copied');} catch {showToast('Select the text to copy it',false);}};
-      copy.addEventListener('click',()=>copyValue(kit.copywriting[active] || ''));
-      text.textContent=kit.copywriting.linkedin_post || '';
-      const tags=document.createElement('div'); tags.className='flex flex-wrap gap-2';
-      (kit.copywriting.hashtags || []).forEach(tag=>{const pill=document.createElement('button');pill.type='button';pill.textContent=tag;pill.className='rounded-full bg-emerald-500/20 px-2 py-1 text-xs text-emerald-200';pill.addEventListener('click',()=>copyValue(tag));tags.appendChild(pill);});
-      const advice=document.createElement('p');advice.className='text-xs text-slate-400';advice.textContent=kit.copywriting.posting_recommendation || '';
-      panel.append(heading,tabs,text,copy,tags,advice);container.appendChild(panel);
-      if (kit.bundle_zip_url) {
-        const bundle=document.createElement('button');bundle.type='button';bundle.className='w-full rounded-xl bg-emerald-500 py-3 font-bold text-obsidian-950';bundle.textContent='Download Full Agency Kit (.ZIP)';
-        bundle.addEventListener('click',()=>downloadAssetByUrl(resolveBackendUrl(kit.bundle_zip_url),'agency-kit'));container.appendChild(bundle);
-      }
+      if (!data.copywriting) return;
+      window.renderCampaignDeliverables(container,data,language,{
+        resolve:resolveBackendUrl,download:downloadAssetByUrl,notify:showToast
+      });
     }
 
     function renderCarouselPreview(containerId, data, language = 'en') {
       const container = document.getElementById(containerId);
       if (!container) return;
+      document.getElementById('results-section').classList.toggle('enterprise-results',data.schema_version===1&&data.status==='completed');
+      if (data.schema_version === 1 && data.status === 'completed') {
+        container.classList.remove('hidden');container.replaceChildren();
+        renderAgencyPanels(container,data,language);return;
+      }
       const en = data.carousel_urls || [];
       const ar = data.arabic_carousel_urls || [];
       const pair = (language === 'ar' && ar.length >= 2) ? ar : en;
@@ -4064,7 +4032,9 @@
         return;
       }
       try {
-        const blob = await (await fetch(url)).blob();
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Download failed (HTTP '+response.status+'). Please retry.');
+        const blob = await response.blob();
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         const slug = (brandInput.value.trim() || 'campaign').toLowerCase().replace(/[^a-z0-9]+/g, '-');
@@ -4076,7 +4046,7 @@
         setTimeout(() => URL.revokeObjectURL(a.href), 2000);
         showToast(`Downloaded ${suffix.toUpperCase()} asset!`);
       } catch (err) {
-        window.open(url, '_blank');
+        showToast(err.message || 'Could not download the asset',false);
       }
     }
 
@@ -5391,7 +5361,7 @@
           }
           if (!effectiveBrand) effectiveBrand = 'Our Brand';
 
-          const pyResponse = await fetch(`${backendApiBase}/api/generate`, {
+          const pyResponse = await fetch(`${backendApiBase}/api/campaign/generate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

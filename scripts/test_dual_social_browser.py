@@ -30,7 +30,7 @@ with sync_playwright() as pw:
         elif url.endswith("/api/health"):
             route.fulfill(json={"status": "online", "image_models": {"cf:flux-schnell": "FLUX Schnell"},
                                 "default_image_model": "cf:flux-schnell", "image_model_setup": {"cf:flux-schnell": {"configured": True}}})
-        elif url.endswith("/api/generate"):
+        elif url.endswith("/api/campaign/generate"):
             route.fulfill(json=campaign)
         elif url.endswith("/api/carousel/download"):
             urls = route.request.post_data_json["urls"]

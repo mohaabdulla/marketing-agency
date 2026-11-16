@@ -13,6 +13,7 @@ from starlette.responses import JSONResponse, FileResponse
 
 ROOT = Path(__file__).resolve().parent
 _guest = contextvars.ContextVar('lexnis_guest', default=None)
+_origin = contextvars.ContextVar('lexnis_request_origin', default=None)
 _lock = threading.RLock()
 COOKIE = 'lexnis_guest'
 TTL = 7 * 86400
@@ -99,7 +100,9 @@ def media_path(url):
     from urllib.parse import urlsplit
     parsed = urlsplit(url)
     value = unquote(parsed.path)
-    if parsed.scheme or parsed.netloc or parsed.query or parsed.fragment or '\\' in value:
+    if (parsed.scheme or parsed.netloc) and f'{parsed.scheme}://{parsed.netloc}' != _origin.get():
+        raise ValueError('Use a managed workspace media URL from this application')
+    if parsed.query or parsed.fragment or '\\' in value:
         raise ValueError('Use a managed workspace media URL')
     for prefix, name in [('/renders/', 'renders'), ('/uploads/', 'uploads'), ('/creative-renders/', 'creative_renders')]:
         if value.startswith(prefix):
@@ -155,7 +158,9 @@ def _clean(value):
             for base in (str(folder(name)), str(folder(name)).replace('\\', '/')):
                 if value.startswith(base + os.sep) or value.startswith(base + '/'):
                     return prefix + Path(value).name
-        if home in value or home.replace('\\', '/') in value or re.search(r'[A-Za-z]:[\\/]', value):
+        # The trailing "p:/" in "http://" is not a Windows drive letter.
+        path_candidate = re.sub(r'^https?://', '', value, flags=re.I)
+        if home in value or home.replace('\\', '/') in value or re.search(r'[A-Za-z]:[\\/]', path_candidate):
             return 'Managed workspace asset'
         if value.startswith('/') and not value.startswith(('/api/','/uploads/','/renders/','/static/','/creative-renders/')):
             return 'Managed workspace asset'
@@ -241,6 +246,7 @@ class PublicTestingMiddleware:
                 return await self.app(scope, receive, send)
             return await JSONResponse({'detail': 'Open the application to initialize your private guest session'}, 401)(scope, receive, send)
         reset = _guest.set(key)
+        origin_reset = _origin.set(own)
         acquired = False
         try:
             if key not in self.recovered:
@@ -353,3 +359,4 @@ class PublicTestingMiddleware:
             if acquired:
                 self.render_slots.release()
             _guest.reset(reset)
+            _origin.reset(origin_reset)
