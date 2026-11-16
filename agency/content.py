@@ -6,7 +6,7 @@ import itertools
 import json
 import re
 import zipfile
-from .database import repository, uid, timestamp, Conflict
+from .database import repository, uid, timestamp
 from .schemas import RecordInput
 from .services import service
 from .compliance import scan

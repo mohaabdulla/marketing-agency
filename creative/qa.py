@@ -1,13 +1,13 @@
 """Creative QA Engine for still images, animated GIFs, and video exports."""
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass, asdict
 from typing import Any, Dict, List, Optional
 from PIL import Image
 
-from .schemas import Scene, Layer, LayerType
+from .schemas import Scene, LayerType
 from .transforms import compute_layer_bounds, is_within_safe_area
-from .colors import contrast_ratio, parse_color
+from .colors import contrast_ratio
 
 
 @dataclass

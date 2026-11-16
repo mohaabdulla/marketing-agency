@@ -213,7 +213,9 @@ class PolicyTests(unittest.TestCase):
         issues, _ = caption_qa([dict(start=0, end=4, text=text)], style, 720, 1280)
         self.assertFalse([i for i in issues if i['code'] in ('truncated', 'safe_zone')], issues)
         long = render_caption_image(text + ' ' + text + ' ' + text, 720, 1280, style).info['caption_layout']
-        self.assertTrue(long['truncated'])                                     # over two lines is reported, never silently cut
+        self.assertFalse(long['truncated'])                                    # retain all words, expose excess lines instead of dropping them
+        self.assertEqual(' '.join(long['logical_lines']),text+' '+text+' '+text)
+        self.assertTrue(long['font_reduced'] or long['exceeds_lines'])
 
 
 class GuidedEditTests(unittest.TestCase):

@@ -7,14 +7,13 @@ from __future__ import annotations
 
 import io
 import math
-import os
 import re
 import struct
 import wave
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .model_registry import registry as model_registry
 

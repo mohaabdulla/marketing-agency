@@ -91,7 +91,7 @@ def _logo_check(checks, output, project, width, height):
 
 
 def _caption_checks(checks, output, project, width, height, captions_requested):
-    from video_captions import render_caption_image, caption_qa, track_style
+    from video_captions import render_caption_image, caption_qa, track_style, cue_style
     tracks = [t for t in getattr(project, 'caption_tracks', []) if t.get('burn_in', True) and t.get('segments') and t.get('kind', 'captions') == 'captions']
     if not tracks:
         _check(checks, 'captions_present', 'Captions rendered', FAIL if captions_requested else NOT_CHECKED,
@@ -100,7 +100,7 @@ def _caption_checks(checks, output, project, width, height, captions_requested):
         return
     track = tracks[0]
     style = track_style(track)
-    issues, stats = caption_qa(track['segments'], style, width, height)
+    issues, stats = caption_qa(track['segments'], style, width, height,max_cps=track.get('max_cps',20),track=track)
     worst = FAIL if any(i['severity'] == FAIL for i in issues) else WARNING if issues else PASS
     _check(checks, 'caption_readability', 'Caption timing, reading speed, line count and safe margins', worst, measured=stats,
            expected='≤ 20 characters/second, ≥ 0.7 s per cue, no overlap, no truncated lines, inside safe margins',
@@ -119,6 +119,7 @@ def _caption_checks(checks, output, project, width, height, captions_requested):
     scores, ratios = [], []
     segments = track['segments']
     for seg in [segments[i] for i in sorted({0, len(segments) // 2, len(segments) - 1})]:
+        style=cue_style(track,seg)
         frame = video_measure.frame_at(output, (seg['start'] + seg['end']) / 2)
         if frame is None:
             continue
@@ -150,6 +151,39 @@ def _caption_checks(checks, output, project, width, height, captions_requested):
                detail='Contrast ratio measured in rendered frames using the WCAG formula as a readability benchmark; this is not a WCAG certification of the video.')
     else:
         _check(checks, 'caption_contrast', 'Caption text contrast (readability benchmark)', NOT_CHECKED, detail='Text pixels could not be isolated in the sampled frames.')
+
+
+def _designed_graphics_checks(checks,output,project,width,height):
+    import cv2
+    import numpy as np
+    from video_captions import CaptionStyle,render_caption_image,cue_style
+    artwork=[]
+    for clip in project.clips:
+        if clip.kind=='title' and clip.graphic_style:
+            style=CaptionStyle.model_validate({k:v for k,v in clip.graphic_style.items() if k not in {'canvas_width','canvas_height'}})
+            artwork.append((clip.text_role,clip.text,clip.start,clip.start+clip.duration,style))
+    for track in project.caption_tracks:
+        if track.get('kind')=='lower-third':
+            artwork += [('lower-third',s['text'],s['start'],s['end'],cue_style(track,s)) for s in track.get('segments',[])]
+    for index,(role,text,start,end,style) in enumerate(artwork[:8]):
+        image=render_caption_image(text,width,height,style)
+        box=image.info['caption_layout']['box'];x0,y0,x1,y1=[max(0,round(v)) for v in box]
+        frame=video_measure.frame_at(output,(start+end)/2)
+        if frame is None:continue
+        score=_match(cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY),np.array(image)[y0:y1,x0:x1],x0,y0)
+        _check(checks,f'graphic_visible_{index}',f'{role.replace("_"," ").title()} visible at the designed position',
+               PASS if score is not None and score>=.5 else WARNING if score is None else FAIL,
+               measured=dict(correlation=round(score,3) if score is not None else None,box=box),
+               detail='Measured against the actual rendered pixels at the center of the graphic display interval.')
+        expected=np.array(image)[y0:y1,x0:x1]
+        region=cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)[y0:y1,x0:x1]
+        fill=np.array([int(style.fill[i:i+2],16) for i in (1,3,5)])
+        text_mask=(np.abs(expected[:,:,:3].astype(int)-fill).sum(axis=2)<45)&(expected[:,:,3]>220)
+        around=(expected[:,:,3]>100)&~text_mask
+        if text_mask.sum()>15 and around.sum()>15:
+            ratio=video_measure.contrast_ratio(np.median(region[text_mask],axis=0),np.median(region[around],axis=0))
+            _check(checks,f'graphic_contrast_{index}',f'{role.replace("_"," ").title()} readable contrast',PASS if ratio>=4.5 else WARNING if ratio>=3 else FAIL,
+                   measured=ratio,expected='at least 4.5:1 as a readability benchmark',detail='Measured text and surrounding plate pixels from the actual export; not a formal accessibility certification.')
 
 
 def validate(output_asset, project, *, source_asset=None, source_sha_before=None, cuts=None, captions_requested=None, audio_expected=True):
@@ -253,6 +287,7 @@ def validate(output_asset, project, *, source_asset=None, source_sha_before=None
 
     _logo_check(checks, output, project, meta['width'], meta['height'])
     _caption_checks(checks, output, project, meta['width'], meta['height'], captions_requested)
+    _designed_graphics_checks(checks,output,project,meta['width'],meta['height'])
 
     if source_asset is not None:
         if cuts is not None:

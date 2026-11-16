@@ -1,11 +1,19 @@
 """Scoped review events for rendered assets; review never rewrites the source or render."""
 import time
 from typing import Literal
+from typing import Annotated
 from pydantic import Field
 from video_projects import Strict
 from video_storage import DATA, LOCK, atomic, read, identifier, space
 
 State = Literal['DRAFT', 'INTERNAL_REVIEW', 'CLIENT_REVIEW', 'APPROVED', 'FINAL']
+RubricCategory=Literal['story','hook','pacing','composition','typography','captions','framing','lighting','color','background','audio','brand','platform-fit','professional-finish']
+RUBRIC_CATEGORIES=list(RubricCategory.__args__)
+
+
+class RubricRequest(Strict):
+    scores: dict[RubricCategory,Annotated[int,Field(ge=1,le=5)]] = Field(default_factory=dict,max_length=14)
+    notes: str = Field('',max_length=2000)
 
 
 class ReviewRequest(Strict):
@@ -47,4 +55,18 @@ def set_review(asset_id, body):
             record['caption_state'] = 'LOCKED' if body.state == 'FINAL' else 'APPROVED' if body.state == 'APPROVED' else (asset['edit_report']['caption_state'].upper().replace('-', '_'))
         (DATA / 'reviews').mkdir(exist_ok=True)
         atomic(DATA / 'reviews' / (asset_id + '.json'), record)
+        return record
+
+
+def set_rubric(asset_id,body):
+    with LOCK:
+        asset=read('assets',asset_id)
+        record=review_record(asset_id)
+        history=record.setdefault('rubric_history',[])
+        if len(history)>=30:raise ValueError('Rubric history is full for this render; create a new revision.')
+        if not body.scores:raise ValueError('Select at least one human-review score.')
+        entry=dict(scores=body.scores,notes=body.notes,timestamp=time.time(),basis='USER_SUPPLIED_HUMAN_REVIEW',render_revision_id=asset['render_revision_id'])
+        history.append(entry);record['rubric']=entry
+        space(16384);(DATA/'reviews').mkdir(exist_ok=True)
+        atomic(DATA/'reviews'/(asset_id+'.json'),record)
         return record

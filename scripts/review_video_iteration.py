@@ -12,11 +12,17 @@ def main():
     parser.add_argument('source',type=Path)
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--brand',default='')
+    parser.add_argument('--base-url',default='http://127.0.0.1:8000')
+    parser.add_argument('--person-name',default='')
+    parser.add_argument('--person-position',default='')
+    parser.add_argument('--cta',default='')
+    parser.add_argument('--reference',type=Path)
+    parser.add_argument('--preview-first',action='store_true')
     parser.add_argument('--resume-project',default='',help='Reuse a managed source project and its cached analysis/masks after an interrupted export.')
     parser.add_argument('--parent-asset',default='',help='Link this render to an earlier edit of the same source.')
     parser.add_argument('--language',default='en',choices=['en','ar','auto'])
     parser.add_argument('--instruction',default='Add readable captions, tighten pauses, add subtle zoom-ins and remove recording remarks at the end. Keep the original quality.')
-    args=parser.parse_args();base='http://127.0.0.1:8000';session=requests.Session()
+    args=parser.parse_args();base=args.base_url.rstrip('/');session=requests.Session()
     for _ in range(90):
         try:
             response=session.get(base+'/api/video/editor/capabilities',timeout=3)
@@ -51,7 +57,30 @@ def main():
             editing_brief=dict(logo_asset_id=logo['id'] if logo else None,instruction=args.instruction),
             creative_context=dict(objective='Social video edit',platform='Instagram / TikTok',language=args.language if args.language!='auto' else 'en'),
             clips=[dict(asset_id=asset['id'],duration=asset['duration'])]))
-    job=call('/projects/'+project['id']+'/quick-edit',dict(asset_id=asset['id'],instruction=args.instruction,language=args.language,parent_asset_id=args.parent_asset or None))
+    if args.person_name or args.person_position or args.cta:
+        payload={k:v for k,v in project.items() if k not in {'id','created','updated'}}
+        payload['name']='Review '+args.output.name
+        payload['editing_brief']=dict(payload.get('editing_brief') or {},person_name=args.person_name,person_position=args.person_position)
+        payload['creative_context']=dict(payload.get('creative_context') or {},cta=args.cta)
+        project=call('/projects',payload) # separate source project, never mutate the earlier review
+    edit_body=dict(asset_id=asset['id'],instruction=args.instruction,language=args.language,parent_asset_id=args.parent_asset or None)
+    if args.reference:
+        with args.reference.open('rb') as stream:reference=call('/upload',files={'file':(args.reference.name,stream,'video/mp4')})
+        edit_body.update(reference_asset_id=reference['id'],reference_preferences=['pacing'])
+    args.output.mkdir(parents=True,exist_ok=True)
+    if args.preview_first:
+        preview=call('/projects/'+project['id']+'/quick-edit',dict(edit_body,dry_run=True,preview_frames=True))
+        for _ in range(1200):
+            state=session.get(base+'/api/video/jobs/'+preview['id'],timeout=15).json()
+            if state['state'] in {'completed','failed','cancelled'}:break
+            time.sleep(.5)
+        if state['state']!='completed':raise RuntimeError(state)
+        plan=state['result'];(args.output/'preview-plan.json').write_text(json.dumps(plan,indent=2),encoding='utf-8')
+        for index,frame in enumerate(plan.get('preview_frames',[])):
+            response=session.get(base+frame['asset']['url'],timeout=30);response.raise_for_status()
+            (args.output/f'composition-preview-{index+1}.png').write_bytes(response.content)
+        print('Composition preview complete',flush=True)
+    job=call('/projects/'+project['id']+'/quick-edit',edit_body)
     print('Project',project['id'],'job',job['id'],flush=True);last=None
     for _ in range(1800):
         r=session.get(base+'/api/video/jobs/'+job['id'],timeout=15);r.raise_for_status();state=r.json();status=(state['state'],state.get('phase'))
@@ -63,7 +92,8 @@ def main():
     args.output.mkdir(parents=True,exist_ok=True);(args.output/'edited.mp4').write_bytes(response.content)
     (args.output/'result.json').write_text(json.dumps(dict(source_sha256=original_hash,source_asset=asset,source_project_id=project['id'],result=result),indent=2),encoding='utf-8')
     assert hashlib.sha256(args.source.read_bytes()).hexdigest()==original_hash
-    print('Saved',args.output/'edited.mp4',json.dumps(result['edit_report']),flush=True)
+    print('Saved',args.output/'edited.mp4',json.dumps(dict(asset_id=result['id'],technical_qa=(result.get('qa_report') or {}).get('counts'),
+        publish_readiness=(result.get('editorial_report') or {}).get('publish_readiness'),caption_count=result['edit_report']['caption_count'])),flush=True)
 
 
 if __name__=='__main__':main()

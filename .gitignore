@@ -10,3 +10,14 @@ node_modules/
 
 tests/
 test_assets/
+
+# Test and preview renders written into static/assets by the test scripts (regenerated on every run).
+# Only the files the application itself loads are tracked.
+static/assets/*
+!static/assets/brand_kits.json
+!static/assets/brand_logo.png
+!static/assets/learned_blueprint.json
+!static/assets/raw_subject.jpg
+!static/assets/target_ground_truth.jpg
+!static/assets/template_reference.jpg
+!static/assets/debug_layout_boxes.jpg

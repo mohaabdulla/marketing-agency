@@ -2,9 +2,6 @@
 from __future__ import annotations
 
 import io
-from pathlib import Path
-from typing import Optional, Tuple, Union
-import numpy as np
 from PIL import Image, ImageFilter, ImageOps
 
 

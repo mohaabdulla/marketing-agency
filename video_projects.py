@@ -9,8 +9,20 @@ class Strict(BaseModel):
     model_config = ConfigDict(extra='forbid', allow_inf_nan=False)
 
 
+class FrameAnchor(Strict):
+    time: float = Field(ge=0,le=300)
+    x: float = Field(ge=0,le=1)
+    y: float = Field(ge=0,le=1)
+
+
 class Clip(Strict):
+    reframe_keyframes: list[FrameAnchor] = Field(default_factory=list,max_length=24)
+    zoom_ease: float = Field(0,ge=0,le=1)
+    layout_box: list[float] | None = Field(None,min_length=4,max_length=4)
+    graphic_style: dict | None = None
     logo_backplate: bool = False
+    # How a still fills the canvas: 'cover' crops it; 'blur-fill' shows it whole over a blurred copy.
+    fit: Literal['cover', 'blur-fill'] = 'cover'
     id: str = Field(default_factory=uid, pattern=r'^[a-f0-9]{32}$')
     asset_id: str | None = Field(default=None, pattern=r'^[a-f0-9]{32}$')
     kind: Literal['video', 'overlay', 'title', 'audio'] = 'video'
@@ -33,7 +45,7 @@ class Clip(Strict):
     saturation: float = Field(1, ge=0, le=3)
     fade_in: float = Field(0, ge=0, le=5)
     fade_out: float = Field(0, ge=0, le=5)
-    motion: Literal['none', 'slide-up'] = 'none'
+    motion: Literal['none','fade','slide-up','masked-reveal','soft-scale','word-emphasis'] = 'none'
     transition: float = Field(0, ge=0, le=2)
     # Lighting correction actually rendered by video_grade.filters (neutral values change nothing).
     exposure: float = Field(0, ge=-1, le=1)
@@ -72,6 +84,17 @@ class Clip(Strict):
                 raise ValueError('Title text is required')
         elif not self.asset_id:
             raise ValueError('A server asset ID is required')
+        if self.graphic_style:
+            if self.layout_box is None:raise ValueError('Designed graphics require a measured layout rectangle')
+            from video_captions import CaptionStyle
+            style=dict(self.graphic_style)
+            for key in ('canvas_width','canvas_height'):
+                value=style.get(key)
+                if not isinstance(value,int) or not 128<=value<=1920:raise ValueError('Graphic canvas dimensions must be between 128 and 1920')
+            CaptionStyle.model_validate({k:v for k,v in style.items() if k not in {'canvas_width','canvas_height'}})
+        times=[p.time for p in self.reframe_keyframes]
+        if times!=sorted(set(times)):raise ValueError('Framing keyframe times must be unique and increasing')
+        if times and times[-1]>self.duration+.01:raise ValueError('Framing keyframes extend beyond the clip')
         return self
 
 
@@ -104,9 +127,9 @@ class EditingBrief(Strict):
 class BackgroundTreatment(Strict):
     """Subject-mask background treatment. Needs the optional matting model (video_segmentation)."""
     mode: Literal['blur-dim', 'replace'] = 'blur-dim'
-    blur: float = Field(.5, ge=0, le=1)
-    dim: float = Field(.12, ge=0, le=.5)
-    desaturate: float = Field(.15, ge=0, le=1)
+    blur: float = Field(.12, ge=0, le=1)
+    dim: float = Field(.02, ge=0, le=.5)
+    desaturate: float = Field(0, ge=0, le=1)
     replacement_asset_id: str | None = Field(None, pattern=r'^[a-f0-9]{32}$')
     mask_fps: Literal[6, 12, 24] = 12
 
@@ -117,7 +140,33 @@ class BackgroundTreatment(Strict):
         return self
 
 
+class RegionalGrade(Strict):
+    exposure: float = Field(0,ge=-1,le=1)
+    gamma: float = Field(1,ge=.6,le=1.6)
+    shadows: float = Field(0,ge=0,le=1)
+    highlights: float = Field(0,ge=0,le=1)
+    temperature: float = Field(0,ge=-1,le=1)
+    saturation: float = Field(1,ge=.5,le=1.5)
+    contrast: float = Field(1,ge=.75,le=1.3)
+
+
+class ColorPipeline(Strict):
+    mask_fps: Literal[6,12,24] = 12
+    input_space: Literal['rec709-sdr'] = 'rec709-sdr'
+    output_space: Literal['rec709-sdr'] = 'rec709-sdr'
+    look: Literal['organic','polished-organic','corporate-clean','warm-lifestyle','high-energy','cinematic-brand'] = 'polished-organic'
+    subject: RegionalGrade = Field(default_factory=RegionalGrade)
+    background: RegionalGrade = Field(default_factory=RegionalGrade)
+    source_asset_id: str = Field(pattern=r'^[a-f0-9]{32}$')
+    regional: bool = False
+
+
 class Project(Strict):
+    motion_preset: Literal['fade','slide-up','masked-reveal','soft-scale'] = 'fade'
+    dialogue_noise_reduction: bool = False
+    dialogue_hum_hz: Literal[0,50,60] = 0
+    dialogue_deess: bool = False
+    color_pipeline: ColorPipeline | None = None
     motion_intensity: Literal['minimal', 'balanced', 'expressive'] = 'minimal'
     background: BackgroundTreatment | None = None
     dialogue_polish: bool = False

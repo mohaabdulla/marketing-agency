@@ -18,7 +18,7 @@ import cv2
 import numpy as np
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from visual_engine import (
@@ -27,13 +27,7 @@ from visual_engine import (
     save_welcome_animation_layers,
 )
 
-from campaign_generator import (
-    LexnisCampaignStudio, CampaignAsset, IMAGE_MODELS, DEFAULT_IMAGE_MODEL, RENDERS_DIR,
-    GENERIC_BRAND_NAMES, extract_brand_name_from_prompt, resolve_featured_person, team_welcome_headline,
-    is_generic_filename_name as _is_generic_filename_name,
-    generate_companion_image, generate_campaign_post,
-    generate_campaign_copy, render_omnichannel_variants,
-)
+from campaign_generator import LexnisCampaignStudio, CampaignAsset, IMAGE_MODELS, DEFAULT_IMAGE_MODEL, RENDERS_DIR, GENERIC_BRAND_NAMES, extract_brand_name_from_prompt, resolve_featured_person, team_welcome_headline, generate_campaign_post, generate_campaign_copy, render_omnichannel_variants
 
 app = FastAPI(
     title="Lexnis Campaign Studio API",

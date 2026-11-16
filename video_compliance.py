@@ -1,9 +1,7 @@
 """Brand compliance and technical pre-flight QA engine for video projects."""
-import re
 from typing import Any, Dict, List, Literal, Optional, Tuple
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict
 from video_operations import EditOperation, EditPlan
-from video_storage import uid
 
 
 class ComplianceFinding(BaseModel):

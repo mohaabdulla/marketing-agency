@@ -2,12 +2,11 @@
 from __future__ import annotations
 
 import copy
-from typing import Any, Dict, List, Optional
-from PIL import Image, ImageDraw
+from typing import Any, Dict, Optional
+from PIL import Image
 
-from .schemas import Scene, Layer, LayerType, TextLayerData
+from .schemas import Scene, Layer, LayerType
 from .keyframes import KeyframeTrack
-from .transforms import compute_layer_bounds
 from .colors import parse_color
 from .typography import typography_engine
 

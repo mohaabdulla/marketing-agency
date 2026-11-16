@@ -1,7 +1,6 @@
 """Reject oversized or cross-origin video requests before multipart parsing/spooling."""
 import os
 import threading
-from urllib.parse import urlsplit
 from starlette.responses import JSONResponse
 from starlette.exceptions import HTTPException
 from video_storage import MAX_UPLOAD

@@ -1,6 +1,6 @@
 """Copywriting, format adaptations and complete, local campaign packaging."""
-import io
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -221,15 +221,67 @@ def render_omnichannel_variants(primary_card_path, req_data, brand_theme=None):
                 story_url=f"{public_prefix}/{story_path.name}", landscape_url=f"{public_prefix}/{landscape_path.name}")
 
 
-def export_animation_mp4(gif_path):
-    output = Path(gif_path).with_suffix(".mp4")
+def _ffmpeg_executable():
     executable = shutil.which("ffmpeg")
     if not executable:
+        bundled = Path(__file__).resolve().parent / "output/video-tools" / ("ffmpeg.exe" if os.name == "nt" else "ffmpeg")
+        if bundled.is_file():
+            return str(bundled)
         try:
             import imageio_ffmpeg
             executable = imageio_ffmpeg.get_ffmpeg_exe()
         except (ImportError, RuntimeError):
             return ""
+    return executable
+
+
+def encode_animation(rgb_frames, gif_path, frame_ms=60, merge_identical=False):
+    """Write the loop from full-colour frames: a GIF whose static areas are identical from
+    frame to frame (ordered dither + changed-rectangle encoding, so the file is a fraction of
+    a per-frame error-diffused GIF) and an MP4 encoded from the same clean frames rather than
+    from 256-colour GIF pixels. Returns False when FFmpeg is unavailable or fails, leaving
+    nothing behind, so the caller can fall back to the Pillow writer."""
+    executable = _ffmpeg_executable()
+    if not executable or not rgb_frames:
+        return False
+    gif_path = Path(gif_path)
+    width, height = rgb_frames[0].size
+    raw = b"".join(frame.convert("RGB").tobytes() for frame in rgb_frames)
+    source = ["-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{width}x{height}", "-r", f"1000/{frame_ms}", "-i", "-"]
+    # A held frame (a welcome card shown for a second) is one GIF frame with a long delay,
+    # not dozens of copies: exact repeats are dropped and the timestamps kept.
+    hold = "mpdecimate=hi=1:lo=1:frac=1:max=0," if merge_identical else ""
+    # The last frame has no successor to take its duration from: state how long the closing run lasts.
+    closing, last = 1, rgb_frames[-1].convert("RGB").tobytes()
+    while merge_identical and closing < len(rgb_frames) and rgb_frames[-closing - 1].convert("RGB").tobytes() == last:
+        closing += 1
+    jobs = [
+        (gif_path, ["-filter_complex", f"[0:v]{hold}split[a][b];[a]palettegen=stats_mode=diff:max_colors=256[p];"
+                                       "[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle",
+                    *(["-fps_mode", "vfr", "-final_delay", str(max(1, round(closing * frame_ms / 10)))] if merge_identical else []), "-loop", "0"]),
+        (gif_path.with_suffix(".mp4"), ["-vf", "fps=24,scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+                                        "-pix_fmt", "yuv420p", "-movflags", "+faststart"]),
+    ]
+    written = []
+    try:
+        for target, arguments in jobs:
+            result = subprocess.run([executable, "-y", "-loglevel", "error", *source, *arguments, str(target)], input=raw,
+                                    capture_output=True, timeout=180, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            if result.returncode or not target.is_file() or not target.stat().st_size:
+                raise OSError("animation encode failed")
+            written.append(target)
+        return True
+    except (OSError, subprocess.TimeoutExpired):
+        for target, _ in jobs:
+            target.unlink(missing_ok=True)
+        return False
+
+
+def export_animation_mp4(gif_path):
+    output = Path(gif_path).with_suffix(".mp4")
+    executable = _ffmpeg_executable()
+    if not executable:
+        return ""
     try:
         result = subprocess.run([executable, "-y", "-loglevel", "error", "-i", str(gif_path), "-vf", "fps=24",
                                  "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p",

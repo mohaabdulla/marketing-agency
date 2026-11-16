@@ -1,7 +1,7 @@
 """Strict, versioned schemas and atomic execution engine for video edit operations."""
 import time
 from typing import Any, Dict, List, Literal, Optional, Tuple
-from pydantic import BaseModel, Field, ConfigDict, model_validator
+from pydantic import BaseModel, Field, ConfigDict
 from video_storage import uid
 
 

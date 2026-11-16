@@ -1,7 +1,7 @@
 """Forking and intelligent reframing of master video projects into platform variants."""
 import copy
-from typing import Any, Dict, Literal, Optional
-from video_projects import Project, Canvas, Clip
+from typing import Literal
+from video_projects import Project, Clip
 from video_compliance import SAFE_ZONE_PROFILES
 from video_storage import uid
 

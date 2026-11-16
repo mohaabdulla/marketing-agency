@@ -2,7 +2,7 @@
 import re
 from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field, ConfigDict
-from PIL import Image, ImageDraw, ImageFont, features
+from PIL import Image
 from video_storage import uid
 
 
@@ -26,6 +26,11 @@ class CaptionStyle(StrictCaption):
     font_size: int = Field(38, ge=18, le=96)
     font_weight: str = 'bold'
     font_name: str = Field('', max_length=80)
+    font_size_px: float | None = Field(None, ge=12, le=160)
+    reference_width: int | None = Field(None,ge=128,le=1920)
+    min_font_px: int = Field(18, ge=12, le=48)
+    tracking: float = Field(0, ge=-1, le=8)
+    line_height: float = Field(1.22, ge=1, le=2)
     fill: str = '#ffffff'
     stroke: Optional[str] = '#000000'
     stroke_width: int = 2
@@ -193,6 +198,16 @@ def track_style(track) -> CaptionStyle:
     return style.model_copy(update=update) if update else style
 
 
+def cue_style(track, segment):
+    base = track_style(track)
+    override = dict(segment.get('layout_style') or {})
+    origin=segment.get('layout_track_origin') or {}
+    for key in ('y_pct','x_center_pct','max_width_pct'):
+        if key in origin and track.get(key) is not None and track[key]!=origin[key] and key in override:
+            override[key]=override[key]+track[key]-origin[key]
+    return CaptionStyle.model_validate(dict(base.model_dump(), **override))
+
+
 def brand_caption_style(rules, language='en', base='quick-social'):
     """Snapshot reviewed rules into the track so later library changes cannot alter a render."""
     from video_fonts import choose
@@ -209,101 +224,14 @@ def brand_caption_style(rules, language='en', base='quick-social'):
     return style.model_dump(), warnings
 
 
-def render_caption_image(
-    text: str,
-    width: int,
-    height: int,
-    style: CaptionStyle,
-) -> Image.Image:
-    """Render a styled caption into a transparent RGBA image positioned by style coordinates."""
-    im = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(im)
-
-    font_size = max(18, round(style.font_size * width / 1280))
-    # Discover font
-    font = None
-    try:
-        from visual_engine import get_font
-        is_ar = any('\u0600' <= c <= '\u06ff' for c in text)
-        from video_fonts import path as font_path
-        named = font_path(style.font_name, style.font_weight)
-        family = "Cairo" if is_ar else "Inter"
-        font = ImageFont.truetype(named, font_size) if named else get_font(family, font_size, style.font_weight)
-    except Exception:
-        font = ImageFont.load_default()
-
-    # RTL preparation
-    is_ar = any('\u0600' <= c <= '\u06ff' for c in text)
-    # Wrap logical text before shaping. Reordering the whole paragraph before wrapping
-    # reverses the reading order across lines.
-    direction = {'direction': 'rtl', 'language': 'ar'} if is_ar and features.check_feature('raqm') else {}
-    def shaped(line):
-        if not is_ar or direction:
-            return line
-        try:
-            import arabic_reshaper
-            from bidi.algorithm import get_display
-            return get_display(arabic_reshaper.reshape(line))
-        except ImportError as exc:
-            raise ValueError('Arabic captions require Pillow RAQM or arabic-reshaper and python-bidi') from exc
-
-    # Word wrapping
-    words = text.split()
-    lines = []
-    curr = ""
-    for w in words:
-        candidate = f"{curr} {w}".strip()
-        bbox = draw.textbbox((0, 0), shaped(candidate), font=font, **direction)
-        if (bbox[2] - bbox[0]) > (width * style.max_width_pct) and curr:
-            lines.append(curr)
-            curr = w
-        else:
-            curr = candidate
-    if curr:
-        lines.append(curr)
-
-    im.info['caption_layout'] = dict(wrapped_lines=len(lines), truncated=len(lines) > style.max_lines)
-    lines = lines[:style.max_lines]
-    full_str = "\n".join(shaped(line) for line in lines)
-    im.info['caption_layout']['logical_lines'] = lines
-    t_bbox = draw.multiline_textbbox((0, 0), full_str, font=font, align=style.alignment, **direction)
-    t_w = t_bbox[2] - t_bbox[0]
-    t_h = t_bbox[3] - t_bbox[1]
-
-    # Coordinate calculation
-    x_pos = int(width * style.x_center_pct - t_w / 2) if style.alignment == 'center' else int(width * 0.1)
-    y_pos = int(height * style.y_pct - t_h // 2)
-
-    pad = style.padding
-    if style.background:
-        from creative.colors import parse_color
-        bg_col = parse_color(style.background)
-        draw.rounded_rectangle(
-            [x_pos - pad, y_pos - pad, x_pos + t_w + pad, y_pos + t_h + pad],
-            radius=style.bg_radius,
-            fill=bg_col
-        )
-
-    # Outline / stroke
-    if style.stroke and style.stroke_width > 0:
-        from creative.colors import parse_color
-        s_col = parse_color(style.stroke)
-        draw.multiline_text(
-            (x_pos, y_pos), full_str, font=font, fill=style.fill,
-            align=style.alignment, stroke_width=style.stroke_width, stroke_fill=s_col, **direction
-        )
-    else:
-        draw.multiline_text(
-            (x_pos, y_pos), full_str, font=font, fill=style.fill, align=style.alignment, **direction
-        )
-
-    im.info['caption_layout'].update(box=[x_pos - pad, y_pos - pad, x_pos + t_w + pad, y_pos + t_h + pad],
-                                     text_box=[x_pos, y_pos, x_pos + t_w, y_pos + t_h], font_size=font_size, lines=len(lines))
-    return im
+def render_caption_image(text: str, width: int, height: int, style: CaptionStyle) -> Image.Image:
+    """Central complete-text renderer; every word is retained and overflow is explicit."""
+    from video_typography import render
+    return render(text, width, height, style)
 
 
 def caption_qa(segments, style: CaptionStyle, width: int, height: int, max_cps: float = 20.0, min_duration: float = 0.7,
-               max_duration: float = 7.0, low_confidence: float = 0.6):
+               max_duration: float = 7.0, low_confidence: float = 0.6, track=None):
     """Readability review of caption cues. Returns (issues, stats); issues are review flags.
 
     Reading speed (characters per second), minimum/maximum display time and line limits are
@@ -328,9 +256,10 @@ def caption_qa(segments, style: CaptionStyle, width: int, height: int, max_cps: 
             issues.append(dict(code='reading_speed', severity='WARNING', message=f'{where} needs {cps:.0f} characters/second (guideline {max_cps:.0f})'))
         if index and seg['start'] < ordered[index - 1]['end'] - 0.01:
             issues.append(dict(code='overlap', severity='FAIL', message=where + ' overlaps the previous cue'))
-        layout = render_caption_image(text, width, height, style).info['caption_layout']
-        if layout['truncated']:
-            issues.append(dict(code='truncated', severity='FAIL', message=f'{where} wraps to {layout["wrapped_lines"]} lines; only {style.max_lines} are drawn, so words are cut off'))
+        current_style=cue_style(track,seg) if track else style
+        layout = render_caption_image(text, width, height, current_style).info['caption_layout']
+        if layout['truncated'] or layout.get('exceeds_lines') or layout.get('oversized_word'):
+            issues.append(dict(code='truncated', severity='FAIL', message=f'{where} needs {layout["wrapped_lines"]} lines or an overwide word; reflow/retime is required. Text was retained rather than silently removed.'))
         box = layout['box']
         if box[0] < width * 0.04 or box[2] > width * 0.96 or box[1] < height * 0.05 or box[3] > height * 0.95:
             issues.append(dict(code='safe_zone', severity='WARNING', message=where + ' sits outside the 4-5% edge safe margin'))

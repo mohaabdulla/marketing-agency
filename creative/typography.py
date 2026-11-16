@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 from PIL import Image, ImageDraw, ImageFont
 
-from .schemas import TextLayerData, TextDirection, TextRole
-from .colors import parse_color, to_hex
+from .schemas import TextLayerData, TextDirection
+from .colors import parse_color
 
 # Leverage visual_engine's tested font loading and bidirectional text shaping
 try:

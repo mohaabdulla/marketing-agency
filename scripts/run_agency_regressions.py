@@ -34,9 +34,13 @@ with (LOGS/"server.log").open("w", encoding="utf-8") as log:
                 if process.poll() is not None:
                     raise RuntimeError("Regression server failed; see server.log")
                 time.sleep(.5)
-        for target in sorted((ROOT/"scripts").glob("test*.py")):
+        # Browser scripts replay media that the generator scripts write, so they run last:
+        # on a fresh checkout those files do not exist yet.
+        for target in sorted((ROOT/"scripts").glob("test*.py"), key=lambda p: ("_browser" in p.name, p.name)):
             if target.name == "test_professional_agency_suite.py":
                 continue  # Executed separately with its own detailed integration assertions.
+            if target.name in {"test_live_video_review.py", "test_video_review_browser.py"}:
+                continue  # Review tools: each needs a local source video or a result file as an argument.
             if any(r["script"] == target.name and r["status"] == "passed" for r in results):
                 continue
             started = time.monotonic()

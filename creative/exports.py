@@ -1,19 +1,16 @@
 """Export pipeline for still images, animated GIFs, direct MP4, and WebM rendering."""
 from __future__ import annotations
 
-import io
-import os
 import shutil
 import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, List, Optional, Union
 from PIL import Image
 
 from .scene import SceneGraph
 from .schemas import GenerationManifest, Scene
-from .manifests import ManifestEngine
 from .qa import qa_engine
 
 

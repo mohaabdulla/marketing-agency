@@ -24,6 +24,9 @@ MODELS = {
                             runtime='rembg (MIT) + onnxruntime CPU', disk_mb=168, note='Best of the bundled options for people.'),
     'u2netp': dict(file='u2netp.onnx', label='U-2-Net small', license='Apache-2.0 (U-2-Net)', runtime='rembg (MIT) + onnxruntime CPU',
                    disk_mb=5, note='Fast and small; rougher edges.'),
+    'sam2_tiny': dict(file='sam2.1_hiera_tiny.pt',label='SAM 2.1 tiny image refinement',license='Apache-2.0 (SAM 2 checkpoints; published terms, not legal clearance)',
+                     runtime='Operator-installed sam2 + PyTorch, with U-2-Net seed',disk_mb=156,
+                     note='Optional image-anchor refinement plus optical flow; not verified here and not optical alpha matting.'),
 }
 MAX_SECONDS = 90
 CACHE_VERSION = 3
@@ -50,6 +53,7 @@ def status():
         # torch/CUDA) just to paint a settings menu. Inference validates the runtime.
         from importlib.util import find_spec
         runtime = find_spec('rembg') is not None and find_spec('onnxruntime') is not None
+        if model=='sam2_tiny':runtime=runtime and find_spec('sam2') is not None and find_spec('torch') is not None and bool(model_file('u2net_human_seg'))
     except Exception:
         runtime = False
     ready = bool(model and runtime)
@@ -99,7 +103,11 @@ def provider():
     key = (model, version)
     with LOCK:
         if key not in _sessions:
-            session = RembgProvider(model)
+            if model=='sam2_tiny':
+                from video_sam2 import Sam2Provider
+                session=Sam2Provider(checkpoint,RembgProvider('u2net_human_seg'))
+            else:
+                session = RembgProvider(model)
             _sessions.clear()  # active jobs retain their own reference; avoid accumulating old model weights
             _sessions[key] = session
         return _sessions[key]
@@ -175,17 +183,22 @@ def subject_mask(asset_id, job=None, mask_fps=12):
     if asset['duration'] > MAX_SECONDS:
         raise ValueError(f'Subject masking is limited to {MAX_SECONDS} seconds of source video')
     engine = provider()
+    from contextlib import ExitStack
+    lease=ExitStack()
     source = path_for(asset_id)
     folder = DATA / 'masks'
     folder.mkdir(exist_ok=True)
     key = _key(asset_id, mask_fps)
     capture = cv2.VideoCapture(str(source))
     total = max(1, int(asset['duration'] * mask_fps))
-    scale = min(1.0, 480 / max(asset['width'], asset['height']))
+    scale = min(1.0, getattr(engine,'preferred_analysis_edge',480) / max(asset['width'], asset['height']))
     size = (max(2, int(asset['width'] * scale / 2) * 2), max(2, int(asset['height'] * scale / 2) * 2))
-    ious, coverage, jumps, previous = [], [], 0, None
+    ious, coverage, edge_uncertainty, jumps, previous = [], [], [], 0, None
     previous_gray, inferred, propagated, since_anchor = None, 0, 0, 0
     anchor_stride = max(1, mask_fps // 3)  # at most ~0.33s between fresh neural anchors
+    if getattr(engine,'uses_gpu',False):
+        from gpu_resources import gpu_slot
+        lease.enter_context(gpu_slot(job.cancelled if job else lambda:False))
     try:
         with tempfile.TemporaryDirectory(dir=DATA / 'work', prefix='mask-') as tmp:
             tmp = Path(tmp)
@@ -221,6 +234,7 @@ def subject_mask(asset_id, job=None, mask_fps=12):
                     if abs(share - coverage[-1]) > 0.08:
                         jumps += 1
                 coverage.append(share)
+                edge_uncertainty.append(float(((matte>25)&(matte<230)).mean()))
                 previous = matte
                 cv2.imwrite(str(tmp / f'{index:05d}.png'), matte)
                 if job and index % 12 == 0:
@@ -232,6 +246,9 @@ def subject_mask(asset_id, job=None, mask_fps=12):
             video.replace(final)
     finally:
         capture.release()
+        try:
+            if hasattr(engine,'release'):engine.release()
+        finally:lease.close()
     stability = sum(ious) / len(ious) if ious else None
     meta = dict(asset_id=asset_id, model=engine.model, license=MODELS[engine.model]['license'], mask_fps=mask_fps, frames=total,
                 inferred_frames=inferred, propagated_frames=propagated, cache_version=CACHE_VERSION,
@@ -239,6 +256,12 @@ def subject_mask(asset_id, job=None, mask_fps=12):
                 temporal_iou=round(stability, 4) if stability is not None else None, coverage_jumps=jumps,
                 stable=bool(stability is not None and stability >= 0.88 and jumps <= max(1, total // 60)),
                 subject_found=bool(0.03 <= sum(coverage) / len(coverage) <= 0.92),
+                isolation=dict(coarse_mask='U2NET_SEED' if engine.model=='sam2_tiny' else 'U2NET_PROBABILITY',
+                    refined_mask='SAM2_IMAGE_PROMPT' if engine.model=='sam2_tiny' else 'NOT_AVAILABLE',
+                    alpha_matte='SOFT_SEGMENTATION_PROBABILITY_NOT_OPTICAL_MATTING',
+                    uncertain_edge_share=round(sum(edge_uncertainty)/len(edge_uncertainty),5),hair_edge_confidence=None,
+                    motion_edge_confidence=None,ears_fingers_clothing_quality='HUMAN_REVIEW_REQUIRED',
+                    warning='Temporal IoU measures consistency, not hair/hand realism. Inspect soft edges and motion blur.'),
                 note='Masks use reduced-resolution neural anchors with short-range optical-flow propagation; fast or uncertain movement triggers fresh inference. Edges are feathered; inspect hair and gestures.')
     atomic(folder / (key + '.json'), meta)
     return final, meta

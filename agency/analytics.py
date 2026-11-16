@@ -9,9 +9,8 @@ import json
 import zipfile
 from collections import defaultdict
 from datetime import date as Date
-from .database import repository, uid, timestamp, packed, NotFound
+from .database import repository, uid, timestamp, packed
 from .production_schemas import Snapshot
-from .production import experiment_statistics
 from .services import service
 
 MAX_CSV = 2 * 1024 ** 2

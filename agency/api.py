@@ -3,11 +3,10 @@ import json
 import logging
 import sqlite3
 import uuid
-from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query, File, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import ValidationError, Field
-from .database import repository, NotFound, Conflict, packed
+from .database import repository, NotFound, Conflict
 from .schemas import Client, ClientUpdate, MODELS, RecordInput, RecordUpdate, Strict, Id, Locale
 from .services import service
 from .security import local_operator

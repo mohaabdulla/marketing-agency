@@ -1,17 +1,14 @@
 """Creative Studio API router connecting layered scenes, typography, motion, and direct MP4 export."""
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any, Dict, Optional
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from .schemas import CreativeProject, Scene
 from .storage import creative_storage
-from .presets import FORMAT_PRESETS, MOTION_PRESETS, build_preset_scene
-from .scene import SceneGraph
+from .presets import FORMAT_PRESETS, MOTION_PRESETS
 from .exports import CreativeExporter
 from .qa import CreativeQAEngine
 from public_access import scoped, guest, media_path

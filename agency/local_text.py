@@ -5,7 +5,6 @@ import os
 import threading
 import time
 from datetime import datetime,timezone
-from pathlib import Path
 from urllib.parse import urlsplit
 import requests
 from pydantic import Field

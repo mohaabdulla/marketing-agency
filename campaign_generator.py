@@ -25,7 +25,6 @@ import re
 import sys
 import ast
 import json
-import math
 import time
 import shutil
 import random
@@ -36,9 +35,9 @@ import concurrent.futures
 from typing import Dict, Any, Optional, List, Tuple
 from pathlib import Path
 from dataclasses import dataclass, asdict, field
-from PIL import Image, ImageFont, ImageDraw, ImageOps, ImageFilter
+from PIL import Image, ImageFont, ImageDraw, ImageFilter
 
-from visual_engine import OPEN_MODELS, FORMATS, photo_direction, open_model_image, compose_ad, cloudflare_image, LOCAL_MODEL, LOCAL_MODELS, preferred_local_model, local_image, RENDER_VERSION, sanitize_brand_tag, transliterate_to_arabic
+from visual_engine import OPEN_MODELS, FORMATS, photo_direction, open_model_image, compose_ad, cloudflare_image, LOCAL_MODELS, preferred_local_model, local_image, RENDER_VERSION, sanitize_brand_tag, transliterate_to_arabic
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -1016,6 +1015,81 @@ def generate_hiring_mission_hook(role: str, prompt: str, is_ar: bool = False) ->
     return "انضم إلى فريق\nيصنع المستقبل." if is_ar else "JOIN THE TEAM\nSHAPING WHAT'S NEXT."
 
 
+# ---------- Offline fallbacks: read the request, never print it back as copy ----------
+
+_DELIVERABLE = r"(?:posts?|ads?|adverts?|cards?|campaigns?|announcements?|images?|gifs?|graphics?|visuals?|carousels?|stor(?:y|ies)|reels?|banners?|creatives?)"
+_PRODUCT_NOUN = r"(?:system|product|app|platform|device|service|model|range|line|battery|software|tool|solution|suite|plan|package|collection|edition|series)"
+
+
+def named_product(prompt: str, brand: str = "") -> str:
+    """A product name stated in the request: "called X", or a coined name such as HomeCell
+    next to a product noun. Returns "" rather than guessing."""
+    text = (prompt or "").strip()
+    brand_words = {w.casefold() for w in re.findall(r"[A-Za-z0-9]+", brand or "")}
+    called = re.search(r"\b(?:called|named)\s+[\"'“‘]?([A-Z][\w™.-]*(?:\s+[A-Z0-9][\w™.-]*){0,2})", text)
+    if called and called.group(1).casefold() not in brand_words:
+        return called.group(1).strip(" .,'\"”’")
+    # Coined names carry an inner capital or a digit: HomeCell, iPhone, R2, VisionAI.
+    for match in re.finditer(r"\b([A-Za-z]+[a-z][A-Z][A-Za-z0-9]*|[A-Z][A-Za-z]*\d[A-Za-z0-9]*)(?:™)?", text):
+        word = match.group(1)
+        if word.casefold() in brand_words or word.casefold() in {"linkedin", "tiktok", "youtube", "whatsapp", "iphone"}:
+            continue
+        around = text[max(0, match.start() - 40):match.end() + 40]
+        if re.search(_PRODUCT_NOUN + r"\b|\bnew\b|\blaunch", around, re.IGNORECASE):
+            return word
+    return ""
+
+
+def request_descriptor(prompt: str, brand: str = "", product: str = "", limit: int = 110) -> str:
+    """What is being offered, taken from the request without its instruction wording.
+    "Launch post for Noor Solar's new rooftop battery system HomeCell for villas in Bahrain"
+    becomes "New rooftop battery system for villas in Bahrain". Returns "" when nothing
+    descriptive remains, so callers use neutral copy instead of echoing an instruction."""
+    text = re.sub(r"\s+", " ", (prompt or "").split("\n")[0]).strip().rstrip(".")
+    text = re.sub(r"^(?:please\s+)?(?:(?:create|write|make|design|generate|build|draft|produce|prepare|do|give me|i need|i want|we need)\s+)?"
+                  r"(?:(?:an?|the|some)\s+)?(?:[A-Za-z-]+\s+){0,3}?" + _DELIVERABLE + r"\s+(?:for|about|on|announcing|of|to announce|introducing)\s+",
+                  "", text, flags=re.IGNORECASE)
+    if brand:
+        text = re.sub(rf"\b{re.escape(brand)}(?:'s|’s)?\s*", "", text, flags=re.IGNORECASE)
+    if product:
+        text = re.sub(rf"\s*(?:\b(?:called|named)\s+)?[\"'“‘]?\b{re.escape(product)}\b(?:™)?[\"'”’]?", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"^(?:(?:product\s+|platform\s+)?launch\s+(?:of|for)|the launch of|launching|announcing|introducing)\s+", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"^(?:our|the|its|their)\s+", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+", " ", text).strip(" ,;:-")
+    if len(text.split()) < 3 or re.match(r"^(?:create|write|make|design|generate|post|please)\b", text, re.IGNORECASE):
+        return ""
+    return fit_sentence(text[0].upper() + text[1:], limit)
+
+
+
+def request_chips(prompt: str, brand: str = "", product: str = "") -> List[str]:
+    """Three short labels stated in the request itself (what it is, who it is for, where),
+    for a card with no written copy. Returns [] unless all three are found: a card never
+    receives a half-derived row, and nothing here is inferred or invented."""
+    described = request_descriptor(prompt, brand, product, 200)
+    if not described:
+        return []
+    chips: List[str] = []
+
+    def add(label: str) -> None:
+        label = re.sub(r"\s+", " ", label).strip(" ,.;:-")
+        if 3 <= len(label) <= 26 and label.lower() not in [c.lower() for c in chips]:
+            chips.append(label[0].upper() + label[1:])
+
+    what = re.split(r"\s+(?:for|in|with|at|across|to|that|who)\s+", described, maxsplit=1)[0]
+    add(re.sub(r"^(?:new|a|an|the)\s+", "", what, flags=re.IGNORECASE))
+    audience = re.search(r"\bfor\s+((?:[a-z][\w&'-]*\s?){1,3}?)(?=\s+(?:in|with|at|across|who|that)\b|[.,;]|$)", described)
+    if audience:
+        add("For " + audience.group(1))
+    place = re.search(r"\bin\s+((?:the\s+)?[A-Z][\w-]+(?:\s+[A-Z][\w-]+)?)", described)
+    if place:
+        add(place.group(1))
+    feature = re.search(r"\bwith\s+([^.,;]{3,24}?)(?=\s+(?:for|in|at)\b|[.,;]|$)", described)
+    if feature:
+        add(feature.group(1))
+    return chips[:3] if len(chips) >= 3 else []
+
+
 def generate_launch_mission_hook(product: str, prompt: str, is_ar: bool = False) -> str:
     """
     Two balanced lines for a launch (never the product name, never an invented metric).
@@ -1248,7 +1322,7 @@ def apply_card_creative(card: Dict[str, Any], creative: Dict[str, Any], kind: st
         if creative.get(key):
             card[field] = creative[key] if lang == "ar" or key != "overline" else creative[key].upper()
         elif not keep_house_lines:
-            card[field] = neutral[key]
+            card[field] = (card.get("_factual_chips") if key == "chips" else None) or neutral[key]
     if kind != "hiring":
         if creative.get("subtitle"):
             card["card_subtitle"] = creative["subtitle"]
@@ -1267,7 +1341,12 @@ def apply_card_creative(card: Dict[str, Any], creative: Dict[str, Any], kind: st
             card["eyebrow_text"] = neutral["eyebrow"]
         if not card.get("subcopy"):
             card["subcopy"] = neutral["subcopy"]
+    # A supporting line that only repeats the headline ("MEET HOMECELL." / "Meet HomeCell.") says nothing.
+    plain = lambda value: re.sub(r"[\W_]+", " ", str(value or "").casefold()).strip()
+    if card.get("subcopy") and plain(card["subcopy"]) == plain(card.get("hero_hook")):
+        card["subcopy"] = neutral["subcopy"]
     card.pop("_factual_subtitle", None)
+    card.pop("_factual_chips", None)
     return card
 
 
@@ -1900,10 +1979,14 @@ def render_omnichannel_variants(primary_card_path: str, req_data: dict, brand_th
     return render_variants(primary_card_path, req_data, brand_theme)
 
 
-def _save_social_animation(frames, output):
+def _save_social_animation(frames, output, rgb_frames=None, merge_identical=False):
+    """`frames` are palette frames for the Pillow writer; `rgb_frames`, when given, are the
+    same frames in full colour for the smaller, cleaner FFmpeg encode (GIF and MP4)."""
+    from agency_suite import export_animation_mp4, encode_animation
+    if rgb_frames and encode_animation(rgb_frames, output, 60, merge_identical):
+        return
     frames[0].save(output, format="GIF", save_all=True, append_images=frames[1:],
                    duration=60, loop=0, disposal=1, optimize=False)
-    from agency_suite import export_animation_mp4
     export_animation_mp4(output)
 
 
@@ -1937,12 +2020,12 @@ def generate_social_gif(topic: str, post_type: str, output_gif_path: str, *, bas
         base = base_image.convert("RGB")
     base = fit_cover(base, 1080, 1350).convert("RGBA")
     if is_welcome:
-        rgb_frames = welcome_animation_frames(base, animation_layers, brand_theme, language)
+        rgb_frames = list(welcome_animation_frames(base, animation_layers, brand_theme, language))
         palette = base.convert("RGB").quantize(colors=256, method=Image.Quantize.MEDIANCUT)
         frames = [frame.quantize(palette=palette, dither=Image.Dither.FLOYDSTEINBERG) for frame in rgb_frames]
         output = Path(output_gif_path)
         output.parent.mkdir(parents=True, exist_ok=True)
-        _save_social_animation(frames, output)
+        _save_social_animation(frames, output, rgb_frames, merge_identical=True)
         return str(output)
     # Replace the static companion's counter with the loop's kit position.
     counter = ImageDraw.Draw(base)
@@ -1950,7 +2033,7 @@ def generate_social_gif(topic: str, post_type: str, output_gif_path: str, *, bas
     _companion_text(counter, "03 / 03", (904, 1062, 78, 29), size=17, weight="semibold")
     accent = brand_theme.primary_accent
     palette = base.convert("RGB").quantize(colors=256, method=Image.Quantize.MEDIANCUT)
-    frames = []
+    frames, rgb_frames = [], []
     plane = base.crop((40, 210, 1040, 1010)).resize((1008, 808), Image.Resampling.LANCZOS)
     for index in range(72):
         phase = math.tau * index / 72
@@ -1982,10 +2065,11 @@ def generate_social_gif(topic: str, post_type: str, output_gif_path: str, *, bas
         sheen_x = 90 + int((math.sin(phase)*.5+.5)*810)
         ImageDraw.Draw(border).line((sheen_x, 1041, sheen_x+90, 1041), fill=(210, 255, 231, 150), width=2)
         frame.alpha_composite(border)
-        frames.append(frame.convert("RGB").quantize(palette=palette, dither=Image.Dither.FLOYDSTEINBERG))
+        rgb_frames.append(frame.convert("RGB"))
+        frames.append(rgb_frames[-1].quantize(palette=palette, dither=Image.Dither.FLOYDSTEINBERG))
     output = Path(output_gif_path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    _save_social_animation(frames, output)
+    _save_social_animation(frames, output, rgb_frames)
     return str(output)
 
 
@@ -2506,9 +2590,9 @@ class LexnisCampaignStudio:
         gl_text = f"\n\nCLIENT BRAND GUIDELINES (STRICT ADHERENCE):\n{guidelines.strip()}" if guidelines else ""
         user = f"BRAND: {brand}\nREQUEST: {prompt}\n\nWEB RESEARCH:\n{research or 'No research available.'}{gl_text}"
         fallback = {
-            "product_name": detect_brand_and_product(prompt, brand)[1] or brand,
+            "product_name": detect_brand_and_product(prompt, brand)[1] or named_product(prompt, brand) or brand,
             "category": "Product campaign",
-            "one_liner": prompt[:120].strip(),
+            "one_liner": request_descriptor(prompt, brand, named_product(prompt, brand)),
             "target_audience": "Confirm the intended audience",
             "pain_points": [],
             "key_benefits": [],
@@ -3506,9 +3590,9 @@ class LexnisCampaignStudio:
         target_name = prod_candidate or brand
 
         fallback_brief = {
-            "product_name": target_name,
+            "product_name": target_name if target_name != brand else (named_product(prompt, brand) or target_name),
             "category": "Commercial offering",
-            "one_liner": prompt[:120].strip(),
+            "one_liner": request_descriptor(prompt, brand, named_product(prompt, brand)),
             "target_audience": "Discerning clients and decision-makers",
             "pain_points": ["Legacy compromises", "High switching costs"],
             "key_benefits": ["Tangible category superiority", "Frictionless experience", "Verified performance"],
@@ -4452,18 +4536,7 @@ class LexnisCampaignStudio:
         is_welcome_mode = (post_type == "team_welcome")
         needs_swap = is_welcome_mode or any(k in prompt_lower for k in ["template swap", "2.5d swap", "replace face", "swap portrait", "swap subject", "sekawan"])
 
-        from visual_engine import (
-            classify_template_and_subject,
-            composite_template_swap,
-            render_lexnis_executive_artboard,
-            render_lexnis_hiring_card,
-            render_lexnis_launch_card,
-            render_agency_card,
-            resolve_brand_theme,
-            BrandTheme,
-            ARABIC_TITLES_MAP,
-            save_welcome_animation_layers,
-        )
+        from visual_engine import classify_template_and_subject, composite_template_swap, render_lexnis_executive_artboard, render_agency_card, resolve_brand_theme, ARABIC_TITLES_MAP, save_welcome_animation_layers
         # Bundled reference frame / sample subject live in the project root (RENDERS_DIR.parent is output/).
         ref_template = BASE_DIR / "test_assets" / "template_reference.jpg"
         if not ref_template.exists():
@@ -4915,6 +4988,8 @@ class LexnisCampaignStudio:
                     brief_prod = str(brief.get("product_name") or "").strip()
                     if brief_prod and brief_prod.lower() != (brand or "").lower() and len(brief_prod) <= 48:
                         raw_prod = brief_prod
+                if not raw_prod and not brand_theme.is_lexnis:
+                    raw_prod = named_product(effective_prompt, brand)
                 if not raw_prod:
                     raw_prod = f"{brand_theme.clean_slug} VisionAI™" if brand_theme.is_lexnis else "New Release"
 
@@ -4942,7 +5017,10 @@ class LexnisCampaignStudio:
                 subtitle_en = "Autonomous Real-Time Visual Inspection & Defect Prediction Engine"
                 subtitle_ar = "محرك الفحص البصري الذاتي والتنبؤ الفوري بالأعطال الصناعية"
                 if not brand_theme.is_lexnis:
+                    # Never the request itself: an instruction ("Launch post for ...") is not body copy.
                     subtitle_en = fit_sentence(brief.get("one_liner") or "", 96)
+                    if subtitle_en and subtitle_en.strip().lower() == fit_sentence(effective_prompt[:120].strip(), 96).strip().lower():
+                        subtitle_en = request_descriptor(effective_prompt, brand, clean_prod if clean_prod != "New Release" else "", 96)
                     subtitle_ar = ""
 
                 raw_hook = headline or ""
@@ -4965,6 +5043,10 @@ class LexnisCampaignStudio:
                 if brand_theme.is_lexnis and any(w in sub_lower for w in ["breakthrough", "yesterday", "recording past", "unprecedented", "reviewing", "failures"]):
                     subcopy_en = default_launch_subcopy_en
                 subcopy_en = fit_sentence(subcopy_en.split("\n")[0], 100)
+                # A supporting line that only repeats the headline ("MEET HOMECELL." / "Meet HomeCell.") says nothing.
+                _plain = lambda value: re.sub(r"[^a-z0-9]+", " ", str(value).lower()).strip()
+                if _plain(subcopy_en) == _plain(hook_en):
+                    subcopy_en = default_launch_subcopy_en
 
                 raw_ar_hook = arabic_pack.get("visual_headline") or ""
                 if not raw_ar_hook or "لكسنس" in raw_ar_hook or (clean_prod.lower() in raw_ar_hook.lower()) or "\n" not in raw_ar_hook:
@@ -4985,6 +5067,8 @@ class LexnisCampaignStudio:
                     # Performance figures are only ever printed when the campaign copy supplies them.
                     chips_en = NEUTRAL_CARD["launch"]["en"]["chips"]
                     chips_ar = NEUTRAL_CARD["launch"]["ar"]["chips"]
+                    # With no written copy, labels stated in the request beat generic ones.
+                    stated_chips = request_chips(effective_prompt, brand, clean_prod if clean_prod != "New Release" else "")
 
                 if brand_theme.domain:
                     cta_u_en = f"{brand_theme.domain}/visionai" if brand_theme.is_lexnis else f"{brand_theme.domain}/launch"
@@ -5002,6 +5086,7 @@ class LexnisCampaignStudio:
                     "card_overline": overline_en,
                     "card_subtitle": subtitle_en,
                     "_factual_subtitle": subtitle_en,
+                    "_factual_chips": [] if brand_theme.is_lexnis else stated_chips,
                     "chips": chips_en,
                     "hero_hook": hook_en,
                     "subcopy": subcopy_en,

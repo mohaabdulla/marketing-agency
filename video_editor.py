@@ -1,5 +1,4 @@
 """CPU timeline renderer. Sources are immutable; all intermediates are job scoped."""
-import math
 import tempfile
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, features
@@ -52,7 +51,13 @@ def validate_sources(project):
     return duration
 
 
-def title_image(clip, path, width):
+def title_image(clip, path, width,height=None):
+    if clip.graphic_style:
+        from video_captions import CaptionStyle,render_caption_image
+        height=height or min(1920,round(clip.graphic_style['canvas_height']*width/clip.graphic_style['canvas_width']))
+        style=CaptionStyle.model_validate({k:v for k,v in clip.graphic_style.items() if k not in {'canvas_height','canvas_width'}})
+        render_caption_image(clip.text,width,height,style).save(path)
+        return
     size = max(16, round(clip.font_size * width / 1280))
     candidates = {
         'sans': ['C:/Windows/Fonts/arial.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'],
@@ -142,12 +147,24 @@ def render(project, job, container='mp4', audio=True, preview=False):
             inputs += ['-protocol_whitelist', 'file,pipe', '-i', str(src)]
             if not meta.get('has_audio'):
                 inputs += ['-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=stereo']
+            from video_tracking import expression
+            anchors=[p.model_dump() for p in c.reframe_keyframes]
+            anchor_x=expression(anchors,'x','t',c.zoom_x);anchor_y=expression(anchors,'y','t',c.zoom_y)
+            # zoompan positions its window on whole pixels: a slow move at output size advances
+            # 0,2,0,2 px and visibly judders. Animated moves are computed on a larger working
+            # frame (stills 3x, video 2x) and resampled once to the output size.
+            moving = c.zoom_start != c.zoom or bool(c.pan) or bool(anchors)
+            oversample = 1 if not moving or preview else max(1, min(3 if still else 2, 5760 // max(w, h)))
+            ww, wh = w * oversample, h * oversample
             filters = [f'setpts=(PTS-STARTPTS)/{c.speed}', f'crop=iw*{1-2*c.crop}:ih*{1-2*c.crop}',
                        # Explicit Rec.709 limited-range SDR working space for every clip.
-                       f'scale={w}:{h}:force_original_aspect_ratio=increase:out_color_matrix=bt709:out_range=tv',
-                       f'crop={w}:{h}', 'setsar=1', f'fps={fps_arg}']
+                       f'scale={ww}:{wh}:force_original_aspect_ratio=increase:out_color_matrix=bt709:out_range=tv' + (':flags=lanczos' if oversample > 1 else ''),
+                       f"crop={ww}:{wh}:x='min(max(0,iw*({anchor_x})-{ww}/2),iw-{ww})':y='min(max(0,ih*({anchor_y})-{wh}/2),ih-{wh})'", 'setsar=1', f'fps={fps_arg}']
             if c.zoom != 1 or c.zoom_start != 1 or c.pan:
-                filters += [f"zoompan=z='{c.zoom_start}+({c.zoom}-{c.zoom_start})*on/{max(1,round(c.duration*fps)-1)}':x='(iw-iw/zoom)*{c.zoom_x}+({c.pan})*(iw-iw/zoom)*(on/{max(1,round(c.duration*fps)-1)}-0.5)':y='(ih-ih/zoom)*{c.zoom_y}':d=1:s={w}x{h}:fps={fps_arg}"]
+                step=f'min(1,max(0,on/{max(1,c.zoom_ease*fps):.4f}))' if c.zoom_ease else f'on/{max(1,round(c.duration*fps)-1)}'
+                ease=f'({step}*{step}*(3-2*{step}))' if c.zoom_ease else step
+                zx=expression(anchors,'x',f'(on/{fps:.7f})',c.zoom_x);zy=expression(anchors,'y',f'(on/{fps:.7f})',c.zoom_y)
+                filters += [f"zoompan=z='{c.zoom_start}+({c.zoom}-{c.zoom_start})*{ease}':x='min(max(0,iw*({zx})-iw/zoom/2+({c.pan})*(iw-iw/zoom)*({step}-0.5)),iw-iw/zoom)':y='min(max(0,ih*({zy})-ih/zoom/2),ih-ih/zoom)':d=1:s={w}x{h}:fps={fps_arg}"]
             if c.rotation:
                 filters += [f'rotate={c.rotation}*PI/180:c=black']
             if c.scale != 1 or c.x != .5 or c.y != .5:
@@ -169,7 +186,11 @@ def render(project, job, container='mp4', audio=True, preview=False):
             out = tmp / f'clip-{i}.mp4'
             video_args = ['-map', '0:v:0', '-vf', ','.join(filters)]
             treatment = project.background if not still else None
-            if treatment:
+            regional=project.color_pipeline if project.color_pipeline and project.color_pipeline.regional and project.color_pipeline.source_asset_id==c.asset_id and not still else None
+            if treatment or regional:
+                if not treatment:
+                    from video_projects import BackgroundTreatment
+                    treatment=BackgroundTreatment(blur=0,dim=0,desaturate=0,mask_fps=regional.mask_fps)
                 # Subject kept, background treated: composited at source size before any reframing.
                 from video_segmentation import cached_mask
                 found = cached_mask(c.asset_id, treatment.mask_fps)
@@ -183,10 +204,12 @@ def render(project, job, container='mp4', audio=True, preview=False):
                 feather = max(1.0, min(sw, sh) / 380)
                 graph_parts = [f'[{mask_index}:v]scale={sw}:{sh}:flags=bicubic,format=gray,erosion,gblur=sigma={feather:.2f},format=gbrp[mk]']
                 if treatment.mode == 'replace':
-                    inputs += ['-loop', '1', '-framerate', fps_arg, '-protocol_whitelist', 'file,pipe', '-i', str(path_for(treatment.replacement_asset_id))]
+                    replacement=read('assets',treatment.replacement_asset_id)
+                    repeat=['-loop','1','-framerate',fps_arg] if replacement['kind']=='image' else ['-stream_loop','-1']
+                    inputs += repeat+['-protocol_whitelist', 'file,pipe', '-i', str(path_for(treatment.replacement_asset_id))]
                     graph_parts += [f'[{mask_index + 1}:v]scale={sw}:{sh}:force_original_aspect_ratio=increase,crop={sw}:{sh},setsar=1,format=gbrp[bgp]',
                                     f'[0:v]scale={sw}:{sh},setsar=1,format=gbrp[fgp]']
-                else:
+                elif treatment.blur or treatment.dim or treatment.desaturate:
                     # Blur only real background: the subject is excluded before blurring and the result is
                     # renormalised, so no dark or bright smear of the person leaks into the area around them.
                     sigma = 1.5 + 16 * treatment.blur * min(sw, sh) / 720
@@ -199,9 +222,27 @@ def render(project, job, container='mp4', audio=True, preview=False):
                                     '[preb][invb]blend=all_mode=divide[bgfill]',
                                     f'[bgfill]format=yuv444p,eq=brightness={-treatment.dim}:saturation={1 - treatment.desaturate},format=gbrp[bgp]',
                                     '[fg0]format=gbrp[fgp]']
+                else:
+                    graph_parts += [f'[0:v]scale={sw}:{sh},setsar=1,format=gbrp,split[fgp][bgp]']
+                if regional:
+                    from video_grade import regional_filters
+                    graph_parts=[part.replace('[fgp]','[subject_ungraded]').replace('[bgp]','[background_ungraded]') for part in graph_parts]
+                    fg=regional_filters(regional.subject) or ['null']
+                    bg=regional_filters(regional.background) or ['null']
+                    graph_parts += ['[subject_ungraded]'+','.join(fg)+',format=gbrp[fgp]', '[background_ungraded]'+','.join(bg)+',format=gbrp[bgp]']
                 graph_parts += ['[bgp][fgp][mk]maskedmerge,' + ','.join(filters) + '[vout]']
                 video_args = ['-filter_complex', ';'.join(graph_parts), '-map', '[vout]']
-            voice = ',highpass=f=80,acompressor=threshold=-21dB:ratio=2.5:attack=8:release=120:makeup=1.5' if project.dialogue_polish and meta.get('has_audio') else ''
+            if still and c.fit == 'blur-fill' and video_args[0] == '-map':
+                # Show the whole still over a blurred, slightly dimmed copy of itself instead of
+                # cropping away most of a portrait in a landscape frame (or the reverse).
+                tagged = 'out_color_matrix=bt709:out_range=tv'
+                video_args = ['-filter_complex',
+                              f"[0:v]{','.join(filters[:2])},split[fit_a][fit_b];"
+                              f"[fit_b]scale={ww}:{wh}:force_original_aspect_ratio=increase:{tagged},crop={ww}:{wh},gblur=sigma={max(8, ww / 60):.1f},eq=brightness=-0.06:saturation=0.9[fit_bg];"
+                              f"[fit_a]scale={ww}:{wh}:force_original_aspect_ratio=decrease:{tagged}:flags=lanczos[fit_fg];"
+                              f"[fit_bg][fit_fg]overlay=(W-w)/2:(H-h)/2,{','.join(filters[4:])}[vout]", '-map', '[vout]']
+            from video_audio import dialogue_filters
+            voice=','+','.join(dialogue_filters(project)) if meta.get('has_audio') and dialogue_filters(project) else ''
             ffmpeg(inputs + [*video_args, '-map', '0:a:0' if meta.get('has_audio') else '1:a:0',
                              '-af', atempo(c.speed) + f',volume={c.volume}{voice},aresample=48000,apad',
                              '-t', str(c.duration), *video_encode_args(dict(spec, crf=min(spec['crf'], 16), x264_preset='fast'), high),
@@ -226,7 +267,7 @@ def render(project, job, container='mp4', audio=True, preview=False):
         for n, c in enumerate(x for x in project.clips if x.kind in {'overlay', 'title'}):
             source = path_for(c.asset_id) if c.kind == 'overlay' else tmp / f'title-{n}.png'
             if c.kind == 'title':
-                title_image(c, source, w)
+                title_image(c, source, w,h)
             elif c.logo_backplate:
                 with Image.open(source).convert('RGBA') as logo:
                     pad=max(8,round(logo.width*.05))
@@ -242,33 +283,43 @@ def render(project, job, container='mp4', audio=True, preview=False):
             if c.fade_out:
                 filters += f',fade=t=out:st={max(c.start,c.start+c.duration-c.fade_out)}:d={c.fade_out}:alpha=1'
             y_expr = f'(H-h)*{c.y}'
-            if c.motion == 'slide-up':
+            x_expr=f'(W-w)*{c.x}'
+            if c.graphic_style and c.motion!='none':
+                from video_motion import preset as motion_preset
+                box=[v*w/project.canvas.width for v in c.layout_box]
+                extra,mx,my=motion_preset(c.motion,c.start,c.start+c.duration,box,w,h,project.motion_intensity,bool(c.fade_in or c.fade_out))
+                if extra:filters+=','+','.join(extra)
+                x_expr=mx;y_expr=my
+            elif c.motion == 'slide-up':
                 y_expr += '+' + entrance(c.start, h, project.motion_intensity)
             graph += [f'[{index}:v]{filters}[ov{n}]',
-                      f"[{vlabel}][ov{n}]overlay=x=(W-w)*{c.x}:y='{y_expr}':enable='between(t,{c.start},{c.start+c.duration})':eof_action=pass[vo{n}]"]
+                      f"[{vlabel}][ov{n}]overlay=x='{x_expr}':y='{y_expr}':enable='between(t,{c.start},{c.start+c.duration})':eof_action=pass[vo{n}]"]
             vlabel = f'vo{n}'
             index += 1
 
         # Render first-class burnt-in caption tracks if present
         for t_idx, track in enumerate(getattr(project, 'caption_tracks', [])):
             if track.get('burn_in', True):
-                from video_captions import render_caption_image, track_style
+                from video_captions import render_caption_image, track_style, cue_style
                 style = track_style(track)
                 for s_idx, seg in enumerate(track.get('segments', [])):
                     s_text = seg.get('text', '').strip()
                     s_start = float(seg.get('start', 0.0))
                     s_end = float(seg.get('end', s_start + 2.0))
                     if s_text and s_end > s_start:
-                        cap_img = render_caption_image(s_text, w, h, style)
+                        cap_img = render_caption_image(s_text, w, h, cue_style(track,seg))
                         cap_path = tmp / f'cap-{t_idx}-{s_idx}.png'
                         cap_img.save(cap_path)
                         args += ['-loop', '1', '-framerate', fps_arg, '-i', str(cap_path)]
                         cap_filter, y_expr = 'format=rgba', '0'
-                        if track.get('kind') == 'lower-third' and track.get('motion') == 'slide-up':
-                            cap_filter += f',fade=t=in:st={s_start}:d={min(.2,(s_end-s_start)/4)}:alpha=1'
-                            y_expr = entrance(s_start, h, project.motion_intensity)
+                        x_expr='0'
+                        if track.get('kind') == 'lower-third' and track.get('motion','none')!='none':
+                            from video_motion import preset as motion_preset
+                            box=cap_img.info['caption_layout']['box']
+                            extra,x_expr,y_expr=motion_preset(track['motion'],s_start,s_end,box,w,h,project.motion_intensity)
+                            if extra:cap_filter+=','+','.join(extra)
                         graph += [f'[{index}:v]{cap_filter}[capov{t_idx}_{s_idx}]',
-                                  f"[{vlabel}][capov{t_idx}_{s_idx}]overlay=x=0:y='{y_expr}':enable='between(t,{s_start},{s_end})':eof_action=pass[vo_c{t_idx}_{s_idx}]"]
+                                  f"[{vlabel}][capov{t_idx}_{s_idx}]overlay=x='{x_expr}':y='{y_expr}':enable='between(t,{s_start},{s_end})':eof_action=pass[vo_c{t_idx}_{s_idx}]"]
                         vlabel = f'vo_c{t_idx}_{s_idx}'
                         index += 1
 
@@ -280,7 +331,8 @@ def render(project, job, container='mp4', audio=True, preview=False):
             for n, c in enumerate(x for x in project.clips if x.kind == 'audio'):
                 args += ['-ss', str(c.trim), '-i', str(path_for(c.asset_id))]
                 au_label = f'au{n}'
-                graph += [f'[{index}:a]{atempo(c.speed)},atrim=duration={c.duration},asetpts=PTS-STARTPTS,'
+                cleanup=','.join(dialogue_filters(project))+',' if c.audio_role in {'dialogue','voiceover'} and dialogue_filters(project) else ''
+                graph += [f'[{index}:a]{atempo(c.speed)},{cleanup}atrim=duration={c.duration},asetpts=PTS-STARTPTS,'
                           f'volume={c.volume},afade=t=in:d={max(.001,c.fade_in)},'
                           f'afade=t=out:st={max(0,c.duration-c.fade_out)}:d={max(.001,c.fade_out)},'
                           f'adelay={round(c.start*1000)}:all=1[{au_label}]']
@@ -322,6 +374,10 @@ def render(project, job, container='mp4', audio=True, preview=False):
             # loudnorm resamples internally; return to 48 kHz before the AAC encoder.
             graph.append(f'[{alabel}]{normalizer},aresample=48000[audio_normalized]')
             alabel='audio_normalized'
+        if not audio and ':' not in alabel:
+            # A silent export still built an audio chain for its cuts or crossfades; every
+            # filter output must be consumed or FFmpeg rejects the whole graph.
+            graph.append(f'[{alabel}]anullsink')
         if container == 'mp4':
             graph.append(f'[{vlabel}]format=yuv420p,{REC709_FRAMES}[video_tagged]')
             vlabel = 'video_tagged'

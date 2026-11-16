@@ -50,7 +50,7 @@ def stop_process(process):
 def run(args, job=None, timeout=600, executable='ffmpeg'):
     exe = binary(executable)
     if not exe:
-        raise ValueError(f'{executable} missing. Install FFmpeg and FFprobe; see README Video Studio.')
+        raise ValueError(f'{executable} missing. Install FFmpeg and FFprobe (python scripts/setup_video_tools.py).')
     with tempfile.TemporaryFile(dir=DATA / 'work') as log:
         process = subprocess.Popen([exe, *map(str, args)], stdin=subprocess.DEVNULL, stdout=log, stderr=log,
                                    shell=False, start_new_session=os.name!='nt',

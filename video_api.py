@@ -1,16 +1,14 @@
 """Isolated video API with persistent revision control, media analysis, captions, compliance, and AI editing."""
 import os
 import tempfile
-import time
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 from urllib.parse import urlsplit
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse, Response
-from starlette.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import Field, model_validator
 
-from video_storage import DATA, MAX_UPLOAD, read, listing, space, identifier, atomic
+from video_storage import DATA, MAX_UPLOAD, read, listing, identifier
 from video_projects import Strict, Project, save, migrate_project
 from video_assets import ingest, path_for, existing, EXTENSIONS
 from video_jobs import jobs
@@ -18,15 +16,15 @@ from video_ffmpeg import binary
 from video_models import hardware, statuses
 from video_engine import Generate, check_generate, generate, extract_audio
 from video_editor import render, validate_sources
-from video_revisions import record_revision, get_revisions, get_revision, restore_revision, undo, redo
-from video_operations import EditOperation, EditPlan, OperationExecutor
+from video_revisions import get_revisions, get_revision, restore_revision, undo, redo
+from video_operations import OperationExecutor
 from video_analysis import analyze_asset, get_cached_analysis
-from video_captions import DEFAULT_CAPTION_STYLES, CaptionTrack, parse_srt, to_srt, to_vtt
+from video_captions import DEFAULT_CAPTION_STYLES
 from video_brand_context import compile_video_edit_context
 from video_compliance import VideoComplianceEngine
 from video_ai_editor import VideoAIEditor
 from video_variants import create_platform_variant
-from video_review import ReviewRequest, review_record, set_review
+from video_review import ReviewRequest, review_record, set_review,RubricRequest,set_rubric,RUBRIC_CATEGORIES
 
 
 def trusted_origin(request: Request):
@@ -272,6 +270,16 @@ def update_asset_review(asset_id: str, body: ReviewRequest):
     return guard(set_review, asset_id, body)
 
 
+@router.post('/assets/{asset_id}/rubric')
+def save_creative_rubric(asset_id: str,body: RubricRequest):
+    return guard(set_rubric,asset_id,body)
+
+
+@router.get('/creative-review/rubric')
+def creative_rubric():
+    return dict(categories=RUBRIC_CATEGORIES,scale=[1,2,3,4,5],basis='HUMAN_REVIEW_ONLY',notice='Ratings describe a person\'s judgment, not an automated professional quality score.')
+
+
 @router.get('/projects/{project_id}/revisions/{revision_id}')
 def get_revision_snapshot(project_id: str, revision_id: str):
     guard(read, 'projects', project_id)
@@ -352,6 +360,12 @@ def quick_edit(project_id: str,body: QuickEdit):
     asset=guard(read,'assets',body.asset_id)
     if asset['kind']!='video':raise HTTPException(400,'Choose a video source; upload logos separately')
     if not 0<asset['duration']<=300:raise HTTPException(400,'Quick edit supports videos up to five minutes')
+    for key,kinds in [('reference_asset_id',{'video'}),('background_asset_id',{'image','video'}),('parent_asset_id',{'video'})]:
+        value=getattr(body,key)
+        if value:
+            item=guard(read,'assets',value)
+            if item['kind'] not in kinds:raise HTTPException(400,'The selected reference, background or parent asset has an incompatible media type.')
+            if key=='parent_asset_id' and item.get('source_asset_id')!=body.asset_id:raise HTTPException(400,'The previous render must belong to this source video.')
     original.master_project_id=project_id
     return guard(jobs.submit,'quick-edit',lambda job:run(original,body,job))
 
@@ -411,7 +425,6 @@ def ai_edit_timeline(project_id: str, body: AIEditRequest):
     )
 
     import video_brand_editing as branded
-    from brand_guidelines import Rules
     if not branded.ai_status()['available']:
         raise HTTPException(409,branded.ai_status()['reason'])
     plan = guard(branded.local_plan,project,body.instruction,branded.effective_rules(project,body.brand_profile))
@@ -542,8 +555,12 @@ def editing_capabilities():
     from video_transcription import status as speech
     from video_brand_editing import ai_status
     semantic = ai_status()
+    from video_provider_registry import providers
     return dict(
         matting=guard(video_segmentation.status), speech=speech(), platforms=guard(video_platforms.public),
+        creative_director=dict(schema_version=1,semantic_provider_available=semantic['available'],cut_policies=['safe','balanced','aggressive']),
+        composition=dict(scene_aware=True,hand_object_detection=False,caption_timing_optimizer=True),
+        optional_providers=providers(),performance_tiers=['basic-cpu','enhanced-cpu','gpu-professional'],
         styles=[dict(id=key, label=value['label'], summary=value['summary']) for key, value in video_platforms.STYLES.items()],
         semantic_planner=dict(available=semantic['available'], reason='Semantic AI planner available in the Advanced editor; proposed operations require review.' if semantic['available'] else
                              'Semantic AI planner unavailable. Deterministic editing remains available.'),

@@ -106,7 +106,8 @@ def main():
                     quick.locator('button[data-quick-plan]').click()
                     page.wait_for_function("()=>/PLAN ONLY/.test(document.querySelector('[data-quick-requests]').textContent)", timeout=240000)
                     planned = quick.locator('[data-quick-requests]').inner_text()
-                    assert 'Nothing has been rendered yet' in planned and 'Deterministic editing remains available' in planned, planned
+                    assert 'No video has been rendered for this plan' in planned and 'Deterministic editing remains available' in planned, planned
+                    assert quick.locator('[data-quick-plan-stills] img').count()==2
                     assert quick.locator('[data-quick-download]').is_hidden(), 'a plan preview must not produce a file'
 
                     quick.locator('[data-quick-run]').click()

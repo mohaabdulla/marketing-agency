@@ -18,7 +18,7 @@ def _overlap(a, b):
 
 
 def review(output_asset, project, source_asset, report, face=None, job=None):
-    from video_captions import render_caption_image, track_style
+    from video_captions import render_caption_image, cue_style
     checks = []
 
     def add(category, key, label, status, measured=None, detail='', basis='MEASURED'):
@@ -78,7 +78,7 @@ def review(output_asset, project, source_asset, report, face=None, job=None):
     caption_box = None
     if track:
         longest_cue = max(cues, key=lambda c: len(c['text']))
-        caption_box = render_caption_image(longest_cue['text'].strip(), width, height, track_style(track)).info['caption_layout']['box']
+        caption_box = render_caption_image(longest_cue['text'].strip(), width, height, cue_style(track,longest_cue)).info['caption_layout']['box']
     logo = next((c for c in project.clips if c.kind == 'overlay'), None)
     logo_box = None
     if logo:
@@ -91,15 +91,16 @@ def review(output_asset, project, source_asset, report, face=None, job=None):
         logo_box = [round((width - lw) * logo.x), round((height - lh) * logo.y), round((width - lw) * logo.x) + lw, round((height - lh) * logo.y) + lh]
     if face:
         face_box = [face['x'] * width, face['y'] * height, (face['x'] + face['width']) * width, (face['y'] + face['height']) * height]
-        graphics = [('captions', caption_box), ('logo', logo_box)]
+        graphics = [('captions',render_caption_image(c['text'],width,height,cue_style(track,c)).info['caption_layout']['box']) for c in cues]+[('logo', logo_box)]
         if lower:
-            graphics.append(('lower third', render_caption_image(lower['segments'][0]['text'], width, height, track_style(lower)).info['caption_layout']['box']))
+            graphics.append(('lower third', render_caption_image(lower['segments'][0]['text'], width, height, cue_style(lower,lower['segments'][0])).info['caption_layout']['box']))
         for title in (c for c in project.clips if c.kind == 'title'):
             # Titles are centred horizontally; their height follows the renderer's font scaling.
             size = max(16, round(title.font_size * width / 1280)) * 1.6
             top = (height - size) * title.y
-            graphics.append((f'title "{title.text[:24]}"', [width * .1, top, width * .9, top + size]))
-        covered = [name for name, box in graphics if box and _overlap(face_box, box) > 0]
+            graphics.append((f'title "{title.text[:24]}"', title.layout_box or [width * .1, top, width * .9, top + size]))
+        tracked_face_boxes=[r['box'] for r in (report.get('layout') or {}).get('zones',{}).get('protected',[]) if r['kind']=='face'] or [face_box]
+        covered = [name for name, box in graphics if box and any(_overlap(b, box)>0 for b in tracked_face_boxes)]
         add('Framing', 'face_clear', 'Face is not covered by captions, titles or logo', FAIL if covered else PASS, covered or None,
             'Checked against the detected face position in the source framing.')
         add('Framing', 'headroom', 'Headroom is sensible', PASS if 0.04 <= face['headroom'] <= 0.45 else WARNING, f'{face["headroom"]:.0%} of frame above the face')
@@ -136,6 +137,32 @@ def review(output_asset, project, source_asset, report, face=None, job=None):
         add('Colour & light', 'face_exposure', 'Face exposure', NOT_CHECKED, detail='Frames could not be decoded for measurement.', basis='NOT_MEASURED')
     add('Colour & light', 'lighting_correction', 'Lighting correction', PASS if lighting.get('status') in ('CORRECTED', 'NO_CORRECTION_NEEDED') else WARNING if lighting.get('status') == 'REJECTED' else NOT_CHECKED,
         lighting.get('status'), '; '.join(f['message'] for f in lighting.get('findings', [])) or lighting.get('reason', ''))
+    if project.color_pipeline and project.color_pipeline.regional:
+        import numpy as np
+        source_levels=[];output_levels=[];retention=[];contrast=[]
+        for fraction in (.2,.5,.8):
+            time=duration*fraction;original=time
+            for cut in sorted(report['cuts'],key=lambda c:c['start']):
+                if original>=cut['start']:original+=cut['end']-cut['start']
+            source_frame=video_measure.frame_at(path_for(source_asset['id']),original)
+            output_frame=video_measure.frame_at(path_for(output_asset['id']),time)
+            if source_frame is None or output_frame is None:continue
+            src=video_grade.light_stats(source_frame,face);out=video_grade.light_stats(output_frame,face)
+            if src['face_luma'] is not None and out['face_luma'] is not None:
+                source_levels.append(src['face_luma']);output_levels.append(out['face_luma'])
+                if src['face_saturation']:retention.append(out['face_saturation']/src['face_saturation'])
+            if src['contrast']:contrast.append(out['contrast']/src['contrast'])
+        if source_levels:
+            before_var=float(np.std(source_levels));after_var=float(np.std(output_levels))
+            add('Colour & light','temporal_exposure','No extra sampled exposure fluctuation introduced',PASS if after_var<=before_var*1.25+.02 else WARNING,
+                dict(source_std=round(before_var,4),export_std=round(after_var,4),samples=len(source_levels)),
+                'Representative face-box samples, not a frame-by-frame flicker detector. Constant per-shot correction avoids grade pumping.')
+        if retention:
+            add('Colour & light','skin_saturation','Skin saturation retained',PASS if min(retention)>=.88 else WARNING,round(min(retention),3),
+                'Minimum output/source saturation ratio across approximate face samples; not a skin-quality certification.')
+        if contrast:
+            add('Colour & light','contrast_retention','Room contrast remains natural',PASS if min(contrast)>=.85 else WARNING,round(min(contrast),3),
+                'Whole-frame contrast proxy including graphics. A human must still judge the intended look.')
 
     # ---- background
     background = report.get('background') or {}
@@ -162,9 +189,49 @@ def review(output_asset, project, source_asset, report, face=None, job=None):
         add('Captions', 'review', 'Caption review', WARNING, detail='Draft from speech recognition. Read every cue against the audio before publishing.')
     if cues:
         speeds = [len(' '.join(c['text'].split())) / max(0.01, c['end'] - c['start']) for c in cues]
-        fast = [f'{c["start"]:.1f}s' for c, s in zip(cues, speeds) if s > 20]
-        add('Captions', 'reading_speed', 'Reading speed within 20 characters per second', WARNING if fast else PASS, f'max {max(speeds):.0f} cps',
-            ('Too fast at ' + ', '.join(fast) + '. ' if fast else '') + '20 cps is a professional subtitling reference, used here as a guideline.')
+        target=track.get('max_cps',20)
+        fast = [f'{c["start"]:.1f}s' for c, s in zip(cues, speeds) if s > target+.1]
+        add('Captions', 'reading_speed', f'Reading speed within {target:g} characters per second', WARNING if fast else PASS, f'max {max(speeds):.1f} cps',
+            ('Too fast at ' + ', '.join(fast) + '. ' if fast else '') + 'Language/profile target; unresolved density remains a review item instead of losing words.')
+
+    # Joint composition is assessed in timeline time, not by comparing graphics that never coexist.
+    from video_layout import intersection,area
+    actual=[]
+    for t in project.caption_tracks:
+        for i,s in enumerate(t.get('segments',[])):
+            info=render_caption_image(s['text'],width,height,cue_style(t,s)).info['caption_layout']
+            actual.append(dict(id=t['id']+f'-{i}',role=t.get('kind','captions'),start=s['start'],end=s['end'],box=info['box'],size=info['font_size']))
+    for c in project.clips:
+        if c.kind=='title' and c.layout_box:
+            actual.append(dict(id=c.id,role=c.text_role,start=c.start,end=c.start+c.duration,box=c.layout_box,size=(c.graphic_style or {}).get('font_size_px')))
+        elif c.kind=='overlay' and c.layout_box:
+            actual.append(dict(id=c.id,role='logo',start=c.start,end=c.start+c.duration,box=c.layout_box,size=None))
+    overlaps=[]
+    for i,a in enumerate(actual):
+        for b in actual[i+1:]:
+            if min(a['end'],b['end'])>max(a['start'],b['start'])+.01 and intersection(a['box'],b['box'])/min(area(a['box']),area(b['box']))>.005:
+                overlaps.append([a['id'],b['id']])
+    add('Composition','graphic_collisions','Active graphic layers remain separate',FAIL if overlaps else PASS if actual else NOT_CHECKED,overlaps,
+        'Computed from the same per-cue text/plate rectangles used for rendering, with actual display intervals.')
+    cta_sizes=[a['size'] for a in actual if a['role']=='cta' and a['size']]
+    dialogue_sizes=[a['size'] for a in actual if a['role']=='captions' and a['size']]
+    hierarchy=not cta_sizes or not dialogue_sizes or min(cta_sizes)>=max(dialogue_sizes)*1.04
+    add('Typography','hierarchy','CTA has a deliberate readable type hierarchy',PASS if cta_sizes and hierarchy else WARNING if cta_sizes else NOT_CHECKED,
+        dict(cta=cta_sizes,dialogue=dialogue_sizes), 'CTA and dialogue have separate role styles; this check does not judge visual taste.')
+    if report.get('layout'):
+        unchecked=report['layout'].get('not_measured',[])
+        add('Composition','hand_object_protection','Hands and important objects protected',NOT_CHECKED,
+            detail='; '.join(unchecked) or 'No semantic hand/object detector is configured.',basis='NOT_MEASURED')
+    if project.background or project.color_pipeline and project.color_pipeline.regional:
+        from video_segmentation import cached_mask
+        found=cached_mask(source_asset['id'],project.background.mask_fps if project.background else project.color_pipeline.mask_fps)
+        if found:
+            from video_subject_quality import assess
+            edge=assess(found[0],path_for(source_asset['id']),source_asset['duration'],face)
+            report['background']['edge_assessment']=edge
+            if report.get('edit_document'):report['edit_document']['background_plan']['edge_assessment']=edge
+            add('Matting','edge_proxies','Soft-mask edge diagnostics',WARNING if any((s['largest_subject_component_share'] or 0)<.9 for s in edge['samples']) else PASS if edge['samples'] else NOT_CHECKED,edge['samples'],edge['notice'])
+            add('Matting','hair_realism','Hair, ear, finger and motion-edge realism',NOT_CHECKED,detail='No optical alpha-matting ground truth is available. Inspect the actual rendered boundaries; stable masks are not proof of natural edges.',basis='HUMAN_REVIEW_REQUIRED')
 
     # ---- brand
     add('Brand', 'logo', 'Brand logo present', PASS if logo else NOT_CHECKED, detail='' if logo else 'No logo was selected.')
@@ -207,6 +274,8 @@ def review(output_asset, project, source_asset, report, face=None, job=None):
         if not box:
             continue
         share = video_platforms.outside_share(box, platform, width, height)
+        if name=='Captions' and track:
+            share=max(video_platforms.outside_share(render_caption_image(c['text'],width,height,cue_style(track,c)).info['caption_layout']['box'],platform,width,height) for c in cues)
         add('Platform', name.lower() + '_safe_zone', f'{name} clear of the {platform["label"]} interface area', PASS if share <= 0.02 else WARNING if share <= 0.3 else FAIL,
             f'{share:.0%} of the element is in an obstructed region',
             f'{platform["basis"]}: approximate interface regions (top {platform["top"]:.0%}, bottom {platform["bottom"]:.0%}, left {platform["left"]:.0%}, right {platform["right"]:.0%}), not an official specification.',

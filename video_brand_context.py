@@ -1,7 +1,6 @@
 """Sanitized and bounded compilation of brand guidelines, briefs, claims, and timeline context."""
 import hashlib
 import json
-import time
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, ConfigDict
 

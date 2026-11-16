@@ -56,9 +56,15 @@ def main():
                     page.get_by_role('button',name='Video Studio',exact=True).click()
                     page.get_by_role('tab',name='Media Library').click()
                     page.locator('#vs-upload-input').set_input_files(source)
+                    # Quick edit is the default view; the timeline lives in the Advanced editor.
+                    page.wait_for_selector('.vs-clip',state='attached',timeout=20000)
+                    if not page.locator('.vs-clip').first.is_visible():
+                        page.locator('[data-mode-advanced]').click()
                     page.wait_for_selector('.vs-clip',timeout=20000)
                     assert page.locator('#ve-preview video').is_visible()
                     page.locator('#ve-name').fill('Browser production project');page.locator('#ve-name').press('Tab')
+                    # Clip settings sit in a collapsible group in the Advanced editor.
+                    page.locator('[data-prop=duration]').evaluate("e=>{for(let p=e;p;p=p.parentElement)if(p.tagName==='DETAILS')p.open=true}")
                     page.locator('[data-prop=duration]').fill('1.5');page.locator('[data-prop=duration]').press('Tab')
                     page.locator('#ve-seek').evaluate("e=>{e.value='0.75';e.dispatchEvent(new Event('input',{bubbles:true}));}")
                     page.locator('#ve-split').click()
@@ -92,9 +98,25 @@ def main():
                     animation_job=started.value.json()['id']
                     page.wait_for_selector(f'#vs-jobs [data-job="{animation_job}"][data-state="completed"]',timeout=60000)
                     page.wait_for_selector('#vg-result a')
+                    page.wait_for_selector('#vg-quality-report')
+                    assert 'Export quality' in page.locator('#vg-quality-report').inner_text()
+                    page.locator('#vg-quality-report summary').click()
+                    assert 'Frame rate' in page.locator('#vg-quality-report').inner_text()
+                    assert 'Measured:' in page.locator('#vg-quality-report').inner_text()
                     with page.expect_download() as download:page.locator('#vg-result a').click()
                     assert download.value.suggested_filename.endswith('.mp4')
                     assert not page.locator('#vs-message').is_visible()
+                    # Brand promo controls: scenes, logo and music come from the media library; the logo is really placed.
+                    assert page.locator('#vg-more option').count()>=1 and page.locator('#vg-music option').count()>=1
+                    assert page.locator('#vg-motion option[value=auto]').count()==1 and page.locator('#vg-duration').get_attribute('max')=='60'
+                    page.locator('#vg-logo').select_option(page.locator('#vg-image').input_value());page.locator('#vg-duration').fill('3')
+                    with page.expect_response(lambda response: response.url.endswith('/api/video/generate') and response.request.method=='POST') as promo:
+                        page.locator('#vg-generate').click()
+                    assert promo.value.request.post_data_json['logo_asset_id'] and promo.value.request.post_data_json['asset_ids']==[]
+                    promo_job=promo.value.json()['id']
+                    page.wait_for_selector(f'#vs-jobs [data-job="{promo_job}"][data-state="completed"]',timeout=90000)
+                    composed=requests.get(origin+'/api/video/jobs/'+promo_job,timeout=5).json()['result']
+                    assert 'LOGO' in [e['role'] for e in composed['composition']['elements']] and composed['qa_report']['counts']['FAIL']==0,composed.get('composition')
                     page.screenshot(path=str(ROOT/'output/video-studio-desktop.png'),full_page=True)
                     page.get_by_role('button',name='System Status',exact=True).click()
                     page.wait_for_function("document.querySelector('#settings-workspace').textContent.includes('Available')")

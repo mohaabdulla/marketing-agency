@@ -1,12 +1,8 @@
 """Local-first AI video editor and deterministic Auto Polish engine."""
 import json
-import os
-import re
-import time
 from typing import Any, Dict, List, Optional, Tuple
-from video_operations import EditOperation, EditPlan, OperationExecutor
+from video_operations import EditOperation, EditPlan
 from video_brand_context import VideoEditContext
-from video_storage import uid
 
 SYSTEM_PROMPT = (
     "You are an expert video editor planning safe, non-destructive timeline operations. "

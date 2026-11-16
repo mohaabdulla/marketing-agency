@@ -71,7 +71,7 @@ def ai_status():
             return dict(available=True, reason='Configured local model is reachable. Generated operations still require review.')
     except Exception:
         pass
-    return dict(available=False, reason='Local AI model unavailable. Start the CPU llama.cpp server and set LOCAL_TEXT_URL / LOCAL_TEXT_MODEL (LOCAL_AI.md). Auto Polish and manual editing work without it.')
+    return dict(available=False, reason='Local AI model unavailable. Start the CPU llama.cpp server and set LOCAL_TEXT_URL / LOCAL_TEXT_MODEL (setup: python scripts/setup_local_text.py). Auto Polish and manual editing work without it.')
 
 
 def local_plan(project, instruction, rules):

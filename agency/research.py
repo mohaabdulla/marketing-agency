@@ -9,7 +9,6 @@ import json
 import os
 import socket
 import ssl
-import tempfile
 import threading
 import time
 import requests

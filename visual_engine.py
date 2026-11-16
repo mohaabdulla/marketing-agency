@@ -7,8 +7,8 @@ import json
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Optional, Dict, Any, Tuple, List, Union
-from dataclasses import dataclass, field
+from typing import Optional, Dict, Any, Tuple, List
+from dataclasses import dataclass
 import dataclasses
 import colorsys
 import math
@@ -523,7 +523,7 @@ def open_model_image(prompt, seed, model, width, height):
 
 def compose_ad(image, headline="", brand="", tagline=""):
     """Restrained typography in reserved corners; supports English and Arabic text shaping."""
-    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps, ImageDraw
+    from PIL import Image, ImageDraw, ImageDraw
     from campaign_generator import _load_font, _wrap, prepare_bidi_text, remove_watermark
     image = remove_watermark(image).convert("RGBA")
     width, height = image.size
@@ -591,7 +591,7 @@ def extract_subject_matte(subject_image, bg_color=None):
     """
     import cv2
     import numpy as np
-    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
+    from PIL import Image
     import rembg
 
     # Suppress cupy warning if present
@@ -979,7 +979,6 @@ def ensure_brand_fonts():
     import urllib.request
     import zipfile
     import io
-    from pathlib import Path
     try:
         from fontTools.ttLib import TTFont
         from fontTools.varLib import instancer
@@ -1139,7 +1138,7 @@ def render_lexnis_logo(height: int = 28, is_dark_bg: bool = True) -> Image.Image
     - Total lockup width >= 165px
     - Supersampled 4x with Lanczos downscale for 100% anti-aliased crisp edges.
     """
-    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw, ImageFont, ImageDraw, ImageFont
     import math
     ensure_brand_fonts()
     font_path = FONTS_DIR / "Poppins-Bold.ttf"
@@ -1287,7 +1286,7 @@ def load_logo_pil(logo_input, is_dark_bg: bool = True):
     """
     if logo_input is None:
         return None
-    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
+    from PIL import Image
     import io
     from pathlib import Path
 
@@ -1331,7 +1330,7 @@ def generate_chevron_field(width: int, height: int, opacity: float = 0.12, strok
     Signature Gradient stops: #023024 -> #53B849.
     Alpha-blended at 12% opacity over dark substrate.
     """
-    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps, ImageDraw
+    from PIL import Image, ImageDraw, ImageDraw
     import numpy as np
     import math
 
@@ -1457,7 +1456,7 @@ def generate_studio_emerald_spotlight(width: int, height: int, cx: int = 540, cy
     Creates rich agency depth behind hero headlines and status cards.
     """
     import numpy as np
-    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
+    from PIL import Image
 
     y_idx, x_idx = np.ogrid[:height, :width]
     dist_sq = (x_idx - cx) ** 2 + (y_idx - cy) ** 2
@@ -1585,7 +1584,7 @@ def render_lexnis_mesh_background(
     Returns RGBA PIL Image (1080x1350).
     """
     import numpy as np
-    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
+    from PIL import Image
 
     # 1. Float32 Multi-Stop Mesh Gradient
     c_tl = np.array([14.0, 19.0, 31.0], dtype=np.float32)    # #0E131F
@@ -2411,7 +2410,7 @@ def composite_template_swap(
     import cv2
     import numpy as np
     import re
-    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageDraw, ImageFont
 
     POST_TYPE_PRESETS = {
         "team_welcome": {
@@ -3379,7 +3378,7 @@ def render_reflowed_campaign_visual(
     """
     import cv2
     import numpy as np
-    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw, ImageFont, ImageDraw, ImageFont
 
     dim_map = {
         "portrait": (1080, 1350),
@@ -3642,7 +3641,7 @@ def render_lexnis_executive_artboard(
     """
     import cv2
     import numpy as np
-    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw, ImageFont, ImageDraw, ImageFont
 
     W, H = target_size
     # 1. Depth Gradient background (#131724 -> #023024 at 135 degrees)

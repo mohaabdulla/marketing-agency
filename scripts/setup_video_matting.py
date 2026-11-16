@@ -24,7 +24,7 @@ sys.path.insert(0, str(ROOT))
 def main():
     from video_segmentation import MODEL_DIR, MODELS, model_file
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--model', choices=sorted(MODELS), default='u2net_human_seg')
+    parser.add_argument('--model', choices=sorted(k for k in MODELS if k.startswith('u2net')), default='u2net_human_seg')
     args = parser.parse_args()
     try:
         import rembg

@@ -12,6 +12,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from PIL import Image
 import campaign_generator as campaign
 import visual_engine as visual
 import agency_suite
@@ -148,6 +149,63 @@ class CompanionAndKitTests(unittest.TestCase):
             Path(outside.name).unlink()
         self.assertTrue(server._inside_project(str(ROOT / "static/assets/brand_logo.png")))
         self.assertEqual(server.render_path("/renders/../../server.py"), "")
+
+
+class OfflineCopyTests(unittest.TestCase):
+    """Without a text model the request is read, never printed back as card copy."""
+
+    def test_product_and_descriptor_come_from_the_request(self):
+        request = "Launch post for Noor Solar's new rooftop battery system HomeCell for villas in Bahrain"
+        self.assertEqual(campaign.named_product(request, "Noor Solar"), "HomeCell")
+        self.assertEqual(campaign.request_descriptor(request, "Noor Solar", "HomeCell"), "New rooftop battery system for villas in Bahrain")
+        named = "Create a LinkedIn post announcing our new payroll app called PayFlow Pro for small businesses"
+        self.assertEqual(campaign.named_product(named, "Acme"), "PayFlow Pro")
+        self.assertEqual(campaign.request_descriptor(named, "Acme", "PayFlow Pro"), "New payroll app for small businesses")
+
+    def test_nothing_is_guessed_or_echoed(self):
+        self.assertEqual(campaign.named_product("We are hiring a Senior Sales Engineer in Manama", "Noor Solar"), "")
+        self.assertEqual(campaign.named_product("A LinkedIn post about our new office", "Acme"), "")   # platform names are not products
+        self.assertEqual(campaign.request_descriptor("Write a post", "Acme"), "")
+        self.assertEqual(campaign.request_descriptor("Create an ad", "Acme"), "")
+
+    def test_chips_are_stated_in_the_request_or_left_to_the_neutral_row(self):
+        request = "Launch post for Noor Solar's new rooftop battery system HomeCell for villas in Bahrain"
+        self.assertEqual(campaign.request_chips(request, "Noor Solar", "HomeCell"), ["Rooftop battery system", "For villas", "Bahrain"])
+        self.assertEqual(campaign.request_chips("Product launch for the R2 electric SUV with 300 mile range", "Rivian", "R2"), [])
+        card = campaign.apply_card_creative({"chips": ["x"], "_factual_chips": ["A", "B", "C"], "hero_hook": "MEET\nX."}, {}, "launch", "en", False)
+        self.assertEqual(card["chips"], ["A", "B", "C"])
+        self.assertNotIn("_factual_chips", card)
+        neutral = campaign.apply_card_creative({"chips": ["x"], "_factual_chips": []}, {}, "launch", "en", False)
+        self.assertEqual(neutral["chips"], campaign.NEUTRAL_CARD["launch"]["en"]["chips"])
+        repeated = campaign.apply_card_creative({"hero_hook": "MEET\nHOMECELL.", "subcopy": "Meet HomeCell."}, {"headline": "MEET\nHOMECELL."}, "launch", "en", False)
+        self.assertEqual(repeated["subcopy"], campaign.NEUTRAL_CARD["launch"]["en"]["subcopy"])
+
+    def test_welcome_loop_holds_one_long_frame(self):
+        import shutil
+        if not (shutil.which("ffmpeg") or (ROOT / "output/video-tools/ffmpeg.exe").is_file()):
+            self.skipTest("FFmpeg is not available; the Pillow writer is covered elsewhere")
+        with tempfile.TemporaryDirectory() as folder:
+            output = campaign.generate_social_gif("welcome", "welcome", str(Path(folder) / "welcome_anim.gif"), base_image=str(ROOT / "static/assets/api_swap_en.jpg"))
+            with Image.open(output) as gif:
+                durations = []
+                for index in range(gif.n_frames):
+                    gif.seek(index)
+                    durations.append(gif.info["duration"])
+            self.assertEqual(sum(durations), 4320)
+            self.assertTrue(all(d % 60 == 0 for d in durations))
+            self.assertGreaterEqual(max(durations), 600)          # the readable card is one held frame
+            self.assertLess(len(durations), 72)
+
+    def test_animation_is_encoded_from_clean_frames_and_stays_light(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(campaign.generate_social_gif("Why small businesses should invest in solar now", "general", str(Path(folder) / "loop_anim.gif")))
+            with Image.open(output) as gif:
+                self.assertEqual((gif.size, gif.n_frames, gif.info["duration"], gif.info["loop"]), ((1080, 1350), 72, 60, 0))
+            import shutil
+            if shutil.which("ffmpeg") or (ROOT / "output/video-tools/ffmpeg.exe").is_file():
+                # The per-frame error-diffused writer produced about 24 MB for this loop.
+                self.assertLess(output.stat().st_size, 9 * 1024 * 1024)
+                self.assertGreater(output.with_suffix(".mp4").stat().st_size, 20000)
 
 
 class OfflineCampaignTests(unittest.TestCase):

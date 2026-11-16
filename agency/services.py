@@ -1,7 +1,7 @@
 """Agency business rules. Every reference is resolved within the selected client."""
 import json
 from datetime import date
-from .database import repository, Repository, NotFound, Conflict, uid, timestamp, packed
+from .database import repository, NotFound, Conflict, uid, timestamp, packed
 from .schemas import MODELS, REFERENCES
 from . import production
 

@@ -10,6 +10,100 @@ from pathlib import Path
 GRADE_FIELDS = ('exposure', 'gamma', 'shadows', 'highlights', 'temperature', 'vignette', 'sharpen', 'denoise')
 NEUTRAL = dict(exposure=0.0, gamma=1.0, shadows=0.0, highlights=0.0, temperature=0.0, vignette=0.0, sharpen=0.0, denoise=0.0)
 
+LOOKS = {
+    'organic': dict(intent='Preserve the room and skin; minimum intervention',face_range=[.40,.60],strength=.55,saturation_floor=.90),
+    'polished-organic': dict(intent='Natural skin, defined blacks and controlled windows',face_range=[.44,.62],strength=.8,saturation_floor=.92),
+    'corporate-clean': dict(intent='Neutral skin and readable, balanced office light',face_range=[.46,.64],strength=.85,saturation_floor=.94),
+    'warm-lifestyle': dict(intent='Gentle warmth while retaining skin hue and room color',face_range=[.43,.63],strength=.7,saturation_floor=.90),
+    'high-energy': dict(intent='Clear subject contrast and lively color within skin limits',face_range=[.46,.65],strength=.85,saturation_floor=.95),
+    'cinematic-brand': dict(intent='Restrained highlight roll-off and defined subject; no cinema color-management claim',face_range=[.42,.60],strength=.7,saturation_floor=.90),
+}
+
+
+def regional_filters(settings):
+    values=settings.model_dump() if hasattr(settings,'model_dump') else settings
+    result=filters(values)
+    if values.get('contrast',1)!=1 or values.get('saturation',1)!=1:
+        result.append(f'eq=contrast={values.get("contrast",1):.4f}:saturation={values.get("saturation",1):.4f}')
+    return result
+
+
+def plan_regional(correction,source_id,look='polished-organic'):
+    """Adaptive subject and background plans. Correction of the window never lifts or
+    desaturates the whole frame merely to make the face brighter."""
+    from video_projects import ColorPipeline,RegionalGrade
+    look=look if look in LOOKS else 'polished-organic'
+    spec=LOOKS[look];before=correction.get('before') or {}
+    face=before.get('face_luma')
+    need=max(0,spec['face_range'][0]-(face if face is not None else .5))
+    # Gamma that would carry the measured face luminance just inside the look's range
+    # (eq gamma maps v to v**(1/gamma)), scaled by the look's strength and capped. The
+    # rendered candidate is verified and weakened by verify_regional if skin limits fail.
+    import math
+    lift=0.
+    backdrop=before.get('background_luma')
+    # A face inside the nominal range still reads as dull against a much brighter window:
+    # aim within 0.12 of the measured background, bounded by the look's own face range.
+    target=spec['face_range'][0]+.02
+    if backdrop is not None and face is not None and backdrop-face>.15:
+        target=max(target,min(spec['face_range'][1]-.04,backdrop-.12))
+    if face and 0<face<target<1:
+        need=max(need,target-face)
+        lift=max(0.,min(.34,math.log(face)/math.log(target)-1))*spec['strength']
+    subject=RegionalGrade(gamma=round(1+lift,3),
+        shadows=round(min(.12,need*.45)*spec['strength'],3),contrast=round(1+min(.035,need*.15),3),
+        # A luminance lift alone washes skin out; restore chroma in proportion.
+        saturation=round(1+min(.22,lift*.6),3),temperature=.035 if look=='warm-lifestyle' and need else 0.)
+    separation=before.get('backlight_difference') or 0
+    background=RegionalGrade(exposure=round(-min(.12,max(0,separation-.15)*.45),3),
+                             highlights=round(min(.22,max(0,separation-.12)*.6),3))
+    return ColorPipeline(source_asset_id=source_id,look=look,regional=True,subject=subject,background=background)
+
+
+def verify_regional(source,seconds,face,matte,pipeline):
+    """Check the actual soft-matte composite, not a whole-frame proxy grade pretending
+    that bright-window changes are subject exposure. Final output is checked again by QA."""
+    import cv2
+    import numpy as np
+    from video_measure import frame_at
+    from video_ffmpeg import ffmpeg
+    from video_storage import DATA
+    # Baseline and candidates are decoded by the same FFmpeg path: comparing an OpenCV decode
+    # with an FFmpeg decode reads a colour-matrix difference as a skin hue shift.
+    frame=apply_to_frame(source,seconds,{})
+    if frame is None:frame=frame_at(source,seconds)
+    before=light_stats(frame,face)
+    alpha=cv2.resize(matte,(frame.shape[1],frame.shape[0]),interpolation=cv2.INTER_LINEAR).astype('float32')/255.
+    attempts=[]
+    for factor in (1.,.6,.3):
+        candidate=pipeline.model_copy(deep=True)
+        for name,neutral in [('gamma',1.),('shadows',0.),('contrast',1.),('saturation',1.),('temperature',0.)]:
+            setattr(candidate.subject,name,neutral+(getattr(pipeline.subject,name)-neutral)*factor)
+        with tempfile.TemporaryDirectory(dir=DATA/'work',prefix='regional-grade-') as folder:
+            frames=[]
+            for role in ('subject','background'):
+                output=Path(folder)/(role+'.png')
+                chain=regional_filters(getattr(candidate,role)) or ['null']
+                ffmpeg(['-ss',str(seconds),'-i',str(source),'-frames:v','1','-vf',','.join(chain),str(output)],timeout=60)
+                frames.append(cv2.imread(str(output)).astype('float32'))
+            blended=np.clip(frames[0]*alpha[:,:,None]+frames[1]*(1-alpha[:,:,None]),0,255).astype('uint8')
+        after=light_stats(blended,face)
+        ok,reasons,changes=verify(before,after)
+        retention=(after['face_saturation']/before['face_saturation']) if before.get('face_saturation') and after.get('face_saturation') is not None else None
+        if retention is not None and retention<LOOKS[candidate.look]['saturation_floor']:
+            reasons.append('The subject would lose too much skin saturation.');ok=False
+        attempts.append(dict(strength=factor,accepted=ok,reasons=reasons,face_luma=after.get('face_luma')))
+        if ok:
+            gain=changes.get('face_luma')
+            needed=before.get('face_luma') is not None and before['face_luma']<LOOKS[candidate.look]['face_range'][0]
+            effective=not needed or (gain is not None and gain>=.03)
+            return candidate,dict(status='CORRECTED',before=before,after=after,changes=changes,grade=candidate.subject.model_dump(),
+                                  measured_at=seconds,attempts=attempts,regional=True,face_measured=face is not None,subject_lift_effective=effective,
+                                  reason='Subject corrected through a soft matte; room contrast and color retained independently.' if effective else
+                                         'Only a slight subject lift passed the skin checks; the face is still darker than the look intends.',
+                                  stages=['INPUT NORMALIZATION','SHOT BALANCE','SUBJECT CORRECTION','BACKGROUND CORRECTION','CREATIVE LOOK','OUTPUT TRANSFORM'],look=LOOKS[candidate.look])
+    return None,dict(status='REJECTED',before=before,grade={},attempts=attempts,reason='Regional candidates did not preserve the skin/highlight limits.')
+
 
 def filters(clip, face=None):
     """FFmpeg filters for the grade values on a clip (a Clip model or a dict). Empty when neutral."""
@@ -149,7 +243,9 @@ def scene_correction(source, seconds, face=None, strength=1.0):
     frame = frame_at(source, seconds)
     if frame is None:
         return dict(status='NOT_MEASURED', reason='A representative frame could not be decoded (OpenCV unavailable).', grade=dict(NEUTRAL))
-    before = light_stats(frame, face)
+    # Same decoder for the baseline and the graded candidates (see verify_regional).
+    same_path = apply_to_frame(source, seconds, {})
+    before = light_stats(same_path if same_path is not None else frame, face)
     findings = diagnose(before)
     report = dict(status='NO_CORRECTION_NEEDED', measured_at=round(seconds, 2), before=before, findings=findings, grade=dict(NEUTRAL),
                   face_measured=face is not None, attempts=[])

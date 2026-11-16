@@ -1,5 +1,5 @@
 """Brand-aware Video Editor controls using existing timeline, renderer and revisions."""
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import HTTPException, UploadFile, File
 from pydantic import Field
 from video_api import router, guard
 from video_projects import Strict, save

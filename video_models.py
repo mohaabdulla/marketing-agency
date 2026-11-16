@@ -6,7 +6,6 @@ import subprocess
 import time
 from abc import ABC, abstractmethod
 from enum import Enum
-from pathlib import Path
 from video_storage import ROOT
 
 CACHE = ROOT / '.model-cache/video'

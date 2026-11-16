@@ -1,15 +1,14 @@
 """Local media analysis engine: shot detection, silence detection, frame statistics, and caching."""
 import hashlib
 import json
-import os
 import re
 import subprocess
 import time
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, List
 from PIL import Image, ImageStat
 
-from video_storage import DATA, LOCK, atomic, identifier, read, uid
+from video_storage import DATA, LOCK, atomic, identifier, uid
 from video_assets import path_for
 from video_ffmpeg import binary, probe
 from video_analysis_schemas import MediaAnalysis, Shot, SilenceSegment, AudioMetrics, TechnicalMetadata

@@ -19,6 +19,11 @@ export class QuickVideoEditor{
     const advanced=document.createElement('details');advanced.innerHTML='<summary>More edit settings</summary><div class="vs-pair" data-extra-settings></div>';
     this.$('[data-quick-capabilities]').before(advanced);
     for(const key of ['punch','style','motion','platform','lighting','background','background-image','canvas'])advanced.querySelector('[data-extra-settings]').append(this.$('[data-quick-'+key+']').closest('label'));
+    advanced.querySelector('[data-extra-settings]').insertAdjacentHTML('beforeend','<label>Graphic entrance<select data-quick-graphic-motion><option value="fade">Minimal fade</option><option value="slide-up">Slide up</option><option value="masked-reveal">Masked reveal</option><option value="soft-scale">Soft scale</option></select></label>');
+    advanced.querySelector('[data-extra-settings]').insertAdjacentHTML('beforeend','<label>Automatic cuts<select data-quick-policy><option value="safe">Safe · only very confident cleanup</option><option value="balanced" selected>Balanced · review uncertain speech cuts</option><option value="aggressive">Aggressive · stronger shortening</option></select></label><label>Semantic story planner<select data-quick-semantic><option value="auto">Use local model when available</option><option value="off">Measured rules only</option><option value="local">Request local semantic plan</option></select></label><label>Caption reading target (characters/second)<input type="number" data-quick-cps min="8" max="30" placeholder="Language default"></label><label>Color intent<select data-quick-look><option value="auto">From edit style</option><option value="organic">Organic</option><option value="polished-organic">Polished organic</option><option value="corporate-clean">Corporate clean</option><option value="warm-lifestyle">Warm lifestyle</option><option value="high-energy">High-energy social</option><option value="cinematic-brand">Cinematic brand · SDR</option></select></label><label>Performance tier<select data-quick-tier><option value="basic-cpu">Basic CPU</option><option value="enhanced-cpu" selected>Enhanced CPU</option><option value="gpu-professional">GPU professional · requires optional setup</option></select></label><label><input type="checkbox" data-quick-denoise> Gentle dialogue noise reduction</label><label>Hum notch<select data-quick-hum><option value="0">Off</option><option value="50">50 Hz · only if heard/measured</option><option value="60">60 Hz · only if heard/measured</option></select></label><label><input type="checkbox" data-quick-deess> Gentle de-essing</label>');
+    advanced.insertAdjacentHTML('beforeend','<details><summary>Optional reference video</summary><p>Transfer measured pacing and energy. Reference media, copy and music are never copied; undetected properties stay unmeasured.</p><button type="button" data-reference-upload>Upload reference</button><input type="file" data-reference-file accept=".mp4,.mov,.webm" hidden><label>Reference<select data-reference-select><option value="">No reference</option></select></label><label><input type="checkbox" data-reference-property="pacing"> Use this pacing</label><label><input type="checkbox" data-reference-property="energy"> Use this visual energy</label><label><input type="checkbox" data-reference-property="caption-hierarchy"> Review its caption hierarchy</label><label><input type="checkbox" data-reference-property="color-mood"> Review its color mood</label></details>');
+    this.$('[data-quick-requests]').insertAdjacentHTML('afterend','<div data-quick-director></div><div data-quick-plan-stills class="vs-pair"></div>');
+    this.$('[data-quick-assist-slot]').insertAdjacentHTML('beforebegin','<div class="vs-row" data-director-assistant>'+[['typography','Improve typography'],['lighting','Improve lighting'],['background','Improve background'],['pacing','Improve pacing'],['audio','Improve audio'],['hook','Improve hook']].map(([task,label])=>'<button type="button" data-director-task="'+task+'">'+label+'</button>').join('')+'</div><p data-director-advice></p>');
     this.slots=[{node:brand.logoPanel,slot:this.$('[data-quick-logo]')},{node:instruction,slot:this.$('[data-quick-instruction]')},
       {node:brand.assistant.root,slot:this.$('[data-quick-assist-slot]')},
       {node:brand.guidelineControls,slot:this.$('[data-quick-guidelines]')},
@@ -34,6 +39,10 @@ export class QuickVideoEditor{
     this.$('[data-quick-source]').onchange=event=>{this.sourceId=event.target.value;this.refreshSources();};
     this.$('[data-quick-run]').onclick=()=>this.run();
     this.$('[data-quick-plan]').onclick=()=>this.run(true);
+    this.$('[data-reference-upload]').onclick=()=>this.$('[data-reference-file]').click();
+    this.$('[data-reference-file]').onchange=async event=>{const file=event.target.files[0];if(!file)return;try{const a=await upload(file);if(a.kind!=='video')throw new Error('Choose a video reference.');await this.editor.studio.refreshAssets();this.references(a.id);this.status('Reference ready. Choose which measured properties to transfer.');}catch(e){this.status(e.message);}finally{event.target.value='';}};
+    this.$('[data-reference-select]').onfocus=()=>this.references(this.$('[data-reference-select]').value);
+    this.root.querySelectorAll('[data-director-task]').forEach(button=>button.onclick=()=>this.directorAdvice(button.dataset.directorTask));
     this.$('[data-quick-variants]').onclick=()=>this.run(true,true);
     this.$('[data-quick-previous]').onclick=()=>this.showVideo(this.previous?.url,'Previous rendered revision');
     this.$('[data-quick-sync]').onclick=()=>this.comparePlayback();
@@ -70,7 +79,14 @@ export class QuickVideoEditor{
   }
   backgroundChoice(){
     const replace=this.$('[data-quick-background]').value==='replace',wrap=this.$('[data-quick-background-image-wrap]');wrap.hidden=!replace;
-    if(replace)this.$('[data-quick-background-image]').innerHTML='<option value="">Choose an uploaded image</option>'+this.editor.studio.assets.filter(a=>a.kind==='image').map(a=>'<option value="'+a.id+'">'+esc(a.name)+'</option>').join('');
+    if(replace)this.$('[data-quick-background-image]').innerHTML='<option value="">Choose an approved image or video</option>'+this.editor.studio.assets.filter(a=>['image','video'].includes(a.kind)).map(a=>'<option value="'+a.id+'">'+esc(a.name)+'</option>').join('');
+  }
+  references(selected=''){this.$('[data-reference-select]').innerHTML='<option value="">No reference</option>'+this.editor.studio.assets.filter(a=>a.kind==='video'&&a.id!==this.sourceId).map(a=>'<option value="'+a.id+'">'+esc(a.name)+'</option>').join('');this.$('[data-reference-select]').value=selected;}
+  directorAdvice(task){
+    const actions={typography:'Improve text hierarchy and avoid collisions between captions, speaker identity and CTA.',lighting:'Improve subject lighting while preserving natural skin and background color.',background:'Clean the background while preserving a natural environment.',pacing:'Improve pacing without changing meaning; keep uncertain cuts for review.',audio:'Improve dialogue clarity with gentle EQ and compression.',hook:'Review the opening hook against the source transcript; do not invent words or rearrange meaning.'};
+    if(task==='lighting')this.$('[data-quick-lighting]').value='auto';if(task==='background')this.$('[data-quick-background]').value='auto';if(task==='pacing')this.$('[data-quick-pauses]').checked=true;if(task==='audio')this.$('[data-quick-voice]').checked=true;
+    const field=this.brand.$('[data-instruction]');if(!field.value.includes(actions[task]))field.value=(field.value.trim()+'\n'+actions[task]).trim();field.dispatchEvent(new Event('input',{bubbles:true}));
+    this.$('[data-director-advice]').textContent=task==='hook'&&!this.capabilities?.semantic_planner.available?'Added an editable hook-review request. Semantic inference is unavailable; meaning and hook strength need your review.':'Added an editable '+task+' direction. Preview the plan to see actual decisions and limitations.';
   }
   sourceAsset(){return this.editor.studio.assets.find(asset=>asset.id===this.sourceId&&asset.kind==='video');}
   refreshSources(){
@@ -111,11 +127,14 @@ export class QuickVideoEditor{
       const move=async state=>{try{await post('/assets/'+result.id+'/review',{state,note:box.querySelector('[data-review-note]').value});await this.loadReviewState(result);}catch(error){box.querySelector('[data-review-message]').textContent=error.message;}};
       if(next)box.querySelector('[data-review-next]').onclick=()=>move(next);
       if(record.state!=='DRAFT')box.querySelector('[data-review-draft]').onclick=()=>move('DRAFT');
+      const categories=['story','hook','pacing','composition','typography','captions','framing','lighting','color','background','audio','brand','platform-fit','professional-finish'];
+      box.insertAdjacentHTML('beforeend','<details><summary>Your creative review · 1–5</summary><p>Optional human judgment for this render. No automated quality rating is filled in.</p><div class="vs-pair">'+categories.map(key=>'<label>'+esc(key.replaceAll('-',' '))+'<select data-rubric-score="'+key+'"><option value="">Not reviewed</option>'+[1,2,3,4,5].map(n=>'<option '+(record.rubric?.scores?.[key]===n?'selected':'')+'>'+n+'</option>').join('')+'</select></label>').join('')+'</div><label>Creative review notes<textarea data-rubric-notes maxlength="2000">'+esc(record.rubric?.notes||'')+'</textarea></label><button type="button" data-save-rubric>Save my ratings</button><p role="status" data-rubric-status></p></details>');
+      box.querySelector('[data-save-rubric]').onclick=async()=>{try{const scores={};box.querySelectorAll('[data-rubric-score]').forEach(n=>{if(n.value)scores[n.dataset.rubricScore]=Number(n.value);});await post('/assets/'+result.id+'/rubric',{scores,notes:box.querySelector('[data-rubric-notes]').value});box.querySelector('[data-rubric-status]').textContent='Your review was saved for this rendered revision.';}catch(e){box.querySelector('[data-rubric-status]').textContent=e.message;}};
     }catch(error){if(this.result?.id===result.id)box.textContent=error.message;}
   }
   requestStatus(report){
-    const names={FULFILLED:'DONE',PARTIALLY_FULFILLED:'PARTLY DONE',UNSUPPORTED:'NOT AVAILABLE',NOT_NEEDED:'NOT NEEDED',NOT_APPLIED:'NOT APPLIED'};
-    const tone={FULFILLED:'PASS',PARTIALLY_FULFILLED:'WARNING',UNSUPPORTED:'FAIL',NOT_NEEDED:'NOT_CHECKED',NOT_APPLIED:'NOT_CHECKED'};
+    const names={FULFILLED:'DONE',PARTIALLY_FULFILLED:'PARTLY DONE',UNSUPPORTED:'NOT AVAILABLE',NOT_NEEDED:'NOT NEEDED',NOT_APPLIED:'NOT APPLIED',AWAITING_REVIEW:'AWAITING REVIEW'};
+    const tone={FULFILLED:'PASS',PARTIALLY_FULFILLED:'WARNING',UNSUPPORTED:'FAIL',NOT_NEEDED:'NOT_CHECKED',NOT_APPLIED:'NOT_CHECKED',AWAITING_REVIEW:'WARNING'};
     const rows=(report.request_fulfilment||[]).map(r=>'<details class="ve-request"><summary><span>'+esc(r.label)+'</span><span class="ve-qa" data-status="'+tone[r.status]+'">'+names[r.status]+'</span></summary><p>'+esc(r.detail)+'</p></details>').join('');
     return '<h3>Your request</h3>'+(rows||'<p>No specific change was recognised in the instruction; the default clean-up was applied.</p>')+'<p><small>Style: '+esc(report.style_profile.label)+' ('+esc(report.style_profile.basis)+') · '+report.style_profile.summary.map(esc).join('; ')+'. '+esc(report.semantic_planner)+'</small></p>';
   }
@@ -148,9 +167,23 @@ export class QuickVideoEditor{
       +'<details><summary>Notes and limits</summary>'+report.warnings.map(w=>'<p>'+esc(w)+'</p>').join('')+'</details>';
   }
   showPlan(report){
-    this.$('[data-quick-requests]').innerHTML='<p><span class="ve-qa" data-status="NOT_CHECKED">PLAN ONLY</span> Nothing has been rendered yet.</p>'+this.requestStatus(report);
+    this.$('[data-quick-requests]').innerHTML='<p><span class="ve-qa" data-status="NOT_CHECKED">PLAN ONLY</span> No video has been rendered for this plan. Composition stills preview the graphic design over source frames.</p>'+this.requestStatus(report);
+    this.$('[data-quick-download]').hidden=true;this.$('[data-quick-edited]').disabled=true;this.$('[data-quick-sync]').disabled=true;
+    this.$('[data-quick-preview-label]').textContent='Plan only. Any video below is the previous rendered revision, not this proposed edit.';
     this.reviewTools(report);this.$('[data-quick-report]').innerHTML=this.whatChanged(report);
     this.$('[data-quick-requests]').scrollIntoView({block:'nearest'});
+  }
+  directorPreview(report,frames=[]){
+    const timing=report.caption_timing?.profile?report.caption_timing:{words_retained:0,changes:[],unresolved:[],profile:{max_cps:'off'}},layout=report.layout,document=report.edit_document;
+    this.$('[data-quick-director]').innerHTML=document?'<details><summary>Creative director plan · evidence and composition</summary><p>'+esc(report.semantic_planner)+'</p>'
+      +'<p>Cut policy: '+esc(report.cut_policy)+'. '+esc(layout.method)+'. Unmeasured: '+layout.not_measured.map(esc).join(', ')+'.</p>'
+      +'<h4>Caption timing</h4><p>'+timing.words_retained+' words retained · '+timing.changes.length+' timing adjustment(s) · '+timing.unresolved.length+' unresolved density/fit item(s) · target '+timing.profile.max_cps+' characters/second.</p>'
+      +'<h4>Graphic roles</h4><div class="ve-table"><table><thead><tr><th>Role</th><th>Time</th><th>Font</th><th>Layout</th></tr></thead><tbody>'+layout.elements.map(e=>'<tr><td>'+esc(e.role)+'</td><td>'+e.start.toFixed(2)+'–'+e.end.toFixed(2)+'s</td><td>'+(e.font_size_px?e.font_size_px+' px':'Artwork')+'</td><td>'+e.box.map(n=>Math.round(n)).join(', ')+(e.requires_review?' · needs review':'')+'</td></tr>').join('')+'</tbody></table></div>'
+      +'<h4>Color and background</h4><p>'+esc(report.color_pipeline.regional?'Subject and background grades are planned separately in Rec.709 SDR.':'Regional grading unavailable for this plan; review the limitation.')+' Background intent: '+esc(report.background.interpreted_intent?.intent||report.background.mode)+'.</p>'
+      +'<h4>Audio intent</h4><p>'+esc(report.audio_plan.speech_cleanup)+'; noise reduction '+esc(report.audio_plan.noise_reduction)+'; de-reverb '+esc(report.audio_plan.dereverb)+'. '+esc(report.audio_plan.notice)+'</p>'
+      +(report.reference_style?.profile?'<p>Reference pacing: '+report.reference_style.profile.average_shot_seconds+'s average shot; applied properties: '+report.reference_style.applied_properties.map(esc).join(', ')+'. '+esc(report.reference_style.limitations)+'</p>':'')
+      +'<p>'+esc(report.performance?.notice||'')+'</p></details>':'';
+    this.$('[data-quick-plan-stills]').innerHTML=frames.map(f=>'<figure><img src="'+esc(f.asset.url)+'" alt="Composition preview at '+f.time.toFixed(2)+' seconds" style="max-width:100%;height:auto"><figcaption>'+f.time.toFixed(2)+'s · '+esc(f.notice)+'</figcaption></figure>').join('');
   }
   showResult(result){
     if(this.result?.id!==result.id&&this.result?.source_asset_id===result.source_asset_id)this.previous=this.result;
@@ -160,6 +193,7 @@ export class QuickVideoEditor{
     this.$('[data-quick-sync]').disabled=!this.sourceAsset();this.loadReviewState(result);
     this.$('[data-quick-edited]').disabled=false;const link=this.$('[data-quick-download]');link.href='/api/video/download/'+result.id;link.hidden=false;
     const report=result.edit_report,editorial=result.editorial_report,qa=result.qa_report;
+    this.directorPreview(report,[]);
     const ready=editorial?.publish_readiness==='READY';link.download=ready?'edited.mp4':'edited-DRAFT.mp4';link.textContent=ready?'Download edited MP4':'Download draft MP4';
     this.$('[data-quick-requests]').innerHTML=report.request_fulfilment?this.requestStatus(report):'';
     if(report.decisions)this.reviewTools(report);else this.$('[data-quick-review]').innerHTML='';
@@ -189,7 +223,7 @@ export class QuickVideoEditor{
     try{
       const asset=this.sourceAsset();if(!asset)throw new Error('Upload or select a source video first.');
       const instruction=this.brand.$('[data-instruction]').value.trim()||'Add readable captions, tighten pauses and use subtle zooms.';
-      this.brand.brief().instruction=instruction;await this.brand.ensureSaved();
+      this.brand.brief().instruction=instruction.slice(0,1000);await this.brand.ensureSaved();
       const job=await post('/projects/'+this.editor.projectId+'/quick-edit',{asset_id:asset.id,instruction,
         captions:this.$('[data-quick-captions]').checked,tighten_pauses:this.$('[data-quick-pauses]').checked,
         subtle_zooms:this.$('[data-quick-zooms]').checked,trim_recording_tail:this.$('[data-quick-tail]').checked,
@@ -198,6 +232,12 @@ export class QuickVideoEditor{
         style:this.$('[data-quick-style]').value,motion_intensity:this.$('[data-quick-motion]').value,platform_profile:this.$('[data-quick-platform]').value,lighting:this.$('[data-quick-lighting]').value,
         background:this.$('[data-quick-background]').value,background_asset_id:this.$('[data-quick-background-image]').value||null,
         canvas_mode:this.$('[data-quick-canvas]').value,dialogue_polish:this.$('[data-quick-voice]').checked,
+        cut_policy:this.$('[data-quick-policy]').value,semantic_planner:this.$('[data-quick-semantic]').value,
+        graphic_motion:this.$('[data-quick-graphic-motion]').value,
+        caption_max_cps:this.$('[data-quick-cps]').value?Number(this.$('[data-quick-cps]').value):null,color_look:this.$('[data-quick-look]').value,
+        performance_tier:this.$('[data-quick-tier]').value,dialogue_noise_reduction:this.$('[data-quick-denoise]').checked,
+        dialogue_hum_hz:Number(this.$('[data-quick-hum]').value),dialogue_deess:this.$('[data-quick-deess]').checked,
+        reference_asset_id:this.$('[data-reference-select]').value||null,reference_preferences:[...this.root.querySelectorAll('[data-reference-property]:checked')].map(n=>n.dataset.referenceProperty),preview_frames:dryRun&&!variants,
         approved_cuts:[...this.approved],caption_corrections:this.corrections,captions_reviewed:this.reviewed,story_roles:this.storyRoles,dry_run:dryRun,plan_variants:variants,
         parent_asset_id:this.result?.source_asset_id===asset.id?this.result.id:null});
       this.editor.studio.watch(job);const started=Date.now();
@@ -211,9 +251,10 @@ export class QuickVideoEditor{
       const result=this.pendingResult;this.pendingResult=null;
       if(result.dry_run){
         this.showPlan(result.edit_report);
+        this.directorPreview(result.edit_report,result.preview_frames||[]);
         const box=this.$('[data-quick-variant-plans]');box.innerHTML=variants?'<h3>Choose a plan to render</h3>'+result.variants.map(v=>'<div class="vs-card"><h4>'+esc(v.report.style_profile.label)+'</h4><p>'+v.report.cuts.length+' cuts · '+v.report.zoom_segments+' framing changes · '+v.report.caption_count+' caption cues. '+v.report.style_profile.summary.map(esc).join('; ')+'.</p><button type="button" data-choose-style="'+v.style+'">Use this plan</button></div>').join(''):'';
         box.querySelectorAll('[data-choose-style]').forEach(b=>b.onclick=()=>{this.$('[data-quick-style]').value=b.dataset.chooseStyle;this.status('Style selected. Create edited video when ready.');});
-        this.status('Edit plan ready. Nothing was rendered. Review it, then create the edited video.');return;
+        this.status('Edit plan ready. No full video was rendered. Review the composition stills and decisions, then create the edited video.');return;
       }
       this.showResult(result);
       if(this.result.project_id)this.editor.open(await api('/projects/'+this.result.project_id));

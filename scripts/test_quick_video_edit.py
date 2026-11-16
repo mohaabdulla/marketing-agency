@@ -77,6 +77,13 @@ class QuickTests(unittest.TestCase):
         revision='/api/video/projects/'+result['project_id']+'/revisions/'+result['render_revision_id']
         self.assertEqual(self.b.get(revision).status_code,404)
         self.assertEqual(self.a.get(revision).json()['render_asset_id'],result['id'])
+        rubric='/api/video/assets/'+result['id']+'/rubric'
+        self.assertEqual(self.b.post(rubric,json={'scores':{'composition':3}}).status_code,404)
+        self.assertEqual(self.a.post(rubric,json={'scores':{'composition':3}},headers={'Origin':'https://evil.example'}).status_code,403)
+        self.assertEqual(self.a.post(rubric,json={'scores':{'composition':6}}).status_code,422)
+        rated=self.a.post(rubric,json={'scores':{'composition':3,'typography':4},'notes':'Explicit human test review'})
+        self.assertEqual(rated.status_code,200,rated.text)
+        self.assertEqual(rated.json()['rubric']['scores']['typography'],4)
 
 
 if __name__=='__main__':unittest.main(verbosity=2)

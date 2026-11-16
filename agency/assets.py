@@ -13,7 +13,7 @@ from functools import wraps
 from pathlib import Path
 from urllib.parse import urlsplit, unquote
 from .database import repository, uid, timestamp, NotFound, Conflict, ROOT
-from .schemas import RecordInput, MODELS
+from .schemas import RecordInput
 from .production_schemas import APPROVABLE
 from .services import service
 from .compliance import scan

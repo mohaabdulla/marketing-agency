@@ -9,13 +9,13 @@ import hashlib
 import re
 from typing import Annotated, Literal
 from pydantic import Field
-from video_projects import Strict, Project, Clip, Canvas, BackgroundTreatment, save
+from video_projects import Strict, Clip, Canvas, BackgroundTreatment, ColorPipeline, save
 from video_storage import read, uid
 from video_transcription import transcribe, status as speech_status
 from video_assets import annotate, path_for
 from video_editor import validate_sources
-from video_brand_editing import model, polish, checked, effective_rules
-from video_presets import PRESETS, preset, canvas_for
+from video_brand_editing import polish, checked, effective_rules
+from video_presets import preset, canvas_for
 import video_platforms
 
 FILLERS = {'um', 'umm', 'uh', 'uhh', 'erm'}
@@ -31,6 +31,18 @@ def metric(values, key, fmt):
 
 
 class QuickEdit(Strict):
+    graphic_motion: Literal['fade','slide-up','masked-reveal','soft-scale'] = 'fade'
+    preview_frames: bool = False
+    color_look: Literal['auto','organic','polished-organic','corporate-clean','warm-lifestyle','high-energy','cinematic-brand'] = 'auto'
+    reference_asset_id: str | None = Field(None,pattern=r'^[a-f0-9]{32}$')
+    reference_preferences: list[Literal['pacing','caption-hierarchy','energy','color-mood']] = Field(default_factory=list,max_length=4)
+    performance_tier: Literal['basic-cpu','enhanced-cpu','gpu-professional'] = 'enhanced-cpu'
+    dialogue_noise_reduction: bool = False
+    dialogue_hum_hz: Literal[0,50,60] = 0
+    dialogue_deess: bool = False
+    caption_max_cps: float | None = Field(None,ge=8,le=30)
+    cut_policy: Literal['safe','balanced','aggressive'] = 'balanced'
+    semantic_planner: Literal['auto','off','local'] = 'auto'
     asset_id: str = Field(pattern=r'^[a-f0-9]{32}$')
     instruction: str = Field('Add readable captions, tighten pauses and use subtle zooms.', max_length=6000)
     captions: bool = True
@@ -177,12 +189,15 @@ def keep_ranges(duration, words, tighten=True, tail=True, silences=None):
     return merge_cuts(cut_candidates(duration, words, tighten, tail, silences), duration)
 
 
-def plan_cuts(duration, words, tighten=True, tail=True, silences=None, pause_threshold=.65, approved=()):
+def plan_cuts(duration, words, tighten=True, tail=True, silences=None, pause_threshold=.65, approved=(),policy=None):
     """Apply the approval policy. Returns (kept ranges, applied cuts, proposed cuts awaiting approval)."""
     applied, proposed = [], []
     for item in cut_candidates(duration, words, tighten, tail, silences, pause_threshold):
-        if item['confidence'] >= AUTO_CUT_CONFIDENCE or item['id'] in approved:
-            applied.append(dict(item, approval='approved by you' if item['confidence'] < AUTO_CUT_CONFIDENCE else
+        threshold=AUTO_CUT_CONFIDENCE
+        if policy:
+            threshold={'safe':.95,'balanced':.75,'aggressive':.65}[policy] if item['kind']=='pause' else {'safe':.97,'balanced':.86,'aggressive':.74}[policy]
+        if item['confidence'] >= threshold or item['id'] in approved:
+            applied.append(dict(item, approval='approved by you' if item['id'] in approved else
                                 'review recommended' if item['confidence'] < REVIEW_CUT_CONFIDENCE else 'applied'))
         else:
             proposed.append(dict(item, start=round(item['start'], 3), end=round(item['end'], 3), removed_seconds=round(item['end'] - item['start'], 3),
@@ -300,53 +315,17 @@ def apply_corrections(words, corrections):
     return result, applied
 
 
-def caption_cues(words, ranges):
-    mapped = []
-    offset = 0
-    for start, end in ranges:
-        for word in words:
-            if word['start'] >= start - .02 and word['end'] <= end + .02:
-                mapped.append(dict(text=word['word'].strip(), start=max(offset, offset + word['start'] - start), end=offset + min(end, word['end']) - start,
-                                   probability=word.get('probability', 1)))
-        offset += end - start
-    cues, group = [], []
-
-    def flush():
-        if group:
-            cues.append(dict(start=round(group[0]['start'], 3), end=round(max(group[-1]['end'], group[0]['start'] + .2), 3), text=' '.join(x['text'] for x in group),
-                             words=[dict(word=x['text'], probability=round(x['probability'], 3)) for x in group]))
-
-    for word in mapped:
-        if group and (len(group) >= 5 or len(' '.join(x['text'] for x in group)) + len(word['text']) > 32 or word['end'] - group[0]['start'] > 2.1 or word['start'] - group[-1]['end'] > .5):
-            flush()
-            group = []
-        group.append(word)
-        if word['text'].endswith(TERMINAL):
-            flush()
-            group = []
-    flush()
-    # A one- or two-word cue that flashes by is unreadable: join it to a neighbour when the
-    # combined line still fits and the two are spoken back to back.
-    merged = []
-    for cue in cues:
-        previous = merged[-1] if merged else None
-        if previous and (cue['end'] - cue['start'] < .7 or previous['end'] - previous['start'] < .7) \
-                and cue['start'] - previous['end'] < .35 and len(previous['text']) + 1 + len(cue['text']) <= 42:
-            previous.update(end=cue['end'], text=previous['text'] + ' ' + cue['text'], words=previous['words'] + cue['words'])
-        else:
-            merged.append(cue)
-    cues = merged
-    # Hold each cue long enough to read, without running into the next one.
-    for index, cue in enumerate(cues):
-        limit = cues[index + 1]['start'] - .02 if index + 1 < len(cues) else cue['end'] + .6
-        cue['end'] = round(min(limit, max(cue['end'], cue['start'] + .8)), 3)
-    return cues
+def caption_cues(words, ranges, language='en', max_cps=None):
+    from video_caption_timing import map_words, optimize
+    mapped, duration = map_words(words, ranges)
+    return optimize(mapped, duration, language, max_cps)[0]
 
 
 REQUESTS = [
     ('background', 'Improve the background', r'background|backdrop'),
     ('lighting', 'Improve the lighting', r'light|brighten|exposure|colou?r[- ]?(grade|correct)|darker|brighter'),
-    ('text', 'Add words on screen', r'words? on (the )?screen|on[- ]screen (text|words)|\btext\b|\btitles?\b|captions?|subtitles?'),
+    ('text', 'Add words on screen', r'words? on (the )?screen|on[- ]screen (text|words)|\btext\b|\btitles?\b|captions?|subtitles?|typography|hierarchy'),
+    ('story','Review the story and hook',r'\bhook\b|\bstory\b|redundan|repetit'),
     ('effects', 'Add effects', r'effects?|zoom|punch[- ]?in|transition|animation|motion'),
     ('pacing', 'Tighten the pacing', r'\bcuts?\b|trim|shorten|tighten|pauses?|faster|pace|pacing'),
     ('music', 'Add music or sound effects', r'music|soundtrack|sound effects?|\bsfx\b|whoosh'),
@@ -376,10 +355,31 @@ def build(project, asset, request, transcript, silences=None, face=None, context
     style_id, style_words = (request.style, []) if request.style != 'auto' else video_platforms.interpret_style(style_text)
     style = video_platforms.STYLES[style_id]
     punch_scale = request.max_punch_in or style['punch_in']
+    reference=context.get('reference') or {}
+    emphasis_limit=style['max_emphasis']
+    if reference and 'energy' in request.reference_preferences:
+        energy=reference.get('motion_energy') or 0.
+        if request.max_punch_in is None:punch_scale=round(1.03+min(.06,energy*.08),3)
+        emphasis_limit=1 if energy<.15 else min(4,style['max_emphasis']+1)
 
-    ranges, cuts, proposed = plan_cuts(asset['duration'], words, tighten, request.trim_recording_tail, silences, style['pause_threshold'], set(request.approved_cuts))
+    pause_threshold=style['pause_threshold']
+    if context.get('reference') and 'pacing' in request.reference_preferences:
+        from video_reference import pacing_threshold
+        pause_threshold=pacing_threshold(context['reference'],pause_threshold)
+    ranges, cuts, proposed = plan_cuts(asset['duration'], words, tighten, request.trim_recording_tail, silences, pause_threshold, set(request.approved_cuts),request.cut_policy)
+    semantic=context.get('semantic') or {}
+    if not any(term in inst for term in ('no cuts','do not cut','keep all speech')):
+        for candidate in semantic.get('candidates',[]):
+            if any(min(c['end'],candidate['end'])-max(c['start'],candidate['start'])>.1 for c in cuts+proposed):
+                continue # keep the existing measured proposal and its uncertainty; no duplicate deletion
+            candidate=dict(candidate,removed_seconds=round(candidate['end']-candidate['start'],3))
+            if candidate['requires_approval'] and candidate['id'] not in request.approved_cuts:
+                proposed.append(candidate)
+            else:
+                cuts.append(dict(candidate,approval='approved by you' if candidate['id'] in request.approved_cuts else 'semantic proposal under selected cut policy'))
+        ranges,cuts=merge_cuts(cuts,asset['duration'])
     emphasis = context.get('emphasis') or []
-    emphasis = [m for m in emphasis if any(a - .05 <= m[0] and m[1] <= b + .05 for a, b in ranges)][:style['max_emphasis']]
+    emphasis = [m for m in emphasis if any(a - .05 <= m[0] and m[1] <= b + .05 for a, b in ranges)][:emphasis_limit]
     shots = punch_in_plan(ranges, zoom, punch_scale, face, emphasis)
     if len(shots) > 40:
         raise ValueError('Too many cuts for one edit. Disable pause cleanup or shorten the source.')
@@ -405,7 +405,12 @@ def build(project, asset, request, transcript, silences=None, face=None, context
     project.delivery_preset = spec['id']
     project.normalize_audio = bool(asset.get('has_audio', False) and spec['loudness'])
     project.dialogue_polish = bool(request.dialogue_polish and asset.get('has_audio'))
+    noise_requested=bool(re.search(r'denoise|(?:remove|reduce|clean).{0,20}noise',inst)) and 'no noise reduction' not in inst
+    project.dialogue_noise_reduction=(request.dialogue_noise_reduction or noise_requested) and bool(asset.get('has_audio'))
+    project.dialogue_hum_hz=request.dialogue_hum_hz if asset.get('has_audio') else 0
+    project.dialogue_deess=request.dialogue_deess and bool(asset.get('has_audio'))
     project.motion_intensity = request.motion_intensity
+    project.motion_preset=request.graphic_motion
 
     # Lighting: a measured, pixel-verified correction (video_grade), applied to every shot of the take.
     correction = context.get('lighting') or dict(status='NOT_MEASURED', reason='Lighting was not analysed.', grade={})
@@ -415,12 +420,27 @@ def build(project, asset, request, transcript, silences=None, face=None, context
     # Background: only with a subject mask. Never silently skipped.
     wants_background = any(k == 'background' for k, _ in requested(request.instruction))
     matting = context.get('matting') or dict(available=False, reason='Subject matting was not checked.')
-    mode = request.background if request.background != 'auto' else ('blur-dim' if wants_background else 'none')
+    from video_background import interpret
+    background_intent=interpret(request.instruction,request.background,request.background_asset_id)
+    mode=background_intent['mode']
     if mode == 'replace' and not request.background_asset_id:
         mode = 'blur-dim'
     project.background = None
     if mode != 'none' and matting.get('available'):
-        project.background = BackgroundTreatment(mode=mode, replacement_asset_id=request.background_asset_id if mode == 'replace' else None)
+        project.background = BackgroundTreatment(mode=mode, replacement_asset_id=request.background_asset_id if mode == 'replace' else None,**background_intent['parameters'])
+        project.background.mask_fps=6 if request.performance_tier=='basic-cpu' else 24 if (context.get('performance') or {}).get('selected')=='gpu-professional' else 12
+
+    project.color_pipeline=None
+    if context.get('regional_pipeline'):
+        project.color_pipeline=ColorPipeline.model_validate(context['regional_pipeline'])
+    elif face and matting.get('available') and correction.get('status')=='CORRECTED':
+        from video_grade import plan_regional
+        project.color_pipeline=plan_regional(correction,asset['id'],style_id if request.color_look=='auto' else request.color_look)
+        if reference.get('color') and 'color-mood' in request.reference_preferences:
+            project.color_pipeline.subject.temperature=round(max(-.04,min(.04,reference['color']['red_blue_balance']*.1)),4)
+    if project.color_pipeline:
+        project.color_pipeline.mask_fps=project.background.mask_fps if project.background else 6 if request.performance_tier=='basic-cpu' else 12
+    clip_grade={} if project.color_pipeline and project.color_pipeline.regional else grade
 
     anchor_x, anchor_y = (.5, .5)
     if face:
@@ -428,15 +448,19 @@ def build(project, asset, request, transcript, silences=None, face=None, context
         anchor_y = min(.7, max(.3, face['y'] + face['height'] / 2))
     project.clips = []
     for i, shot in enumerate(shots):
+        from video_tracking import keyframes
+        tracked=keyframes(context.get('tracking') or {},shot['start'],shot['end'])
+        continuous=i>0 and abs(shots[i-1]['end']-shot['start'])<.02 and shots[i-1]['scale']!=shot['scale']
         project.clips.append(Clip(asset_id=asset['id'], trim=round(shot['start'], 4), duration=round(shot['end'] - shot['start'], 4),
-                                  zoom_start=shot['scale'], zoom=shot['scale'], zoom_x=anchor_x, zoom_y=anchor_y,
-                                  fade_in=.1 if i == 0 else 0, fade_out=.12 if i == len(shots) - 1 else 0, **grade))
+                                  zoom_start=shots[i-1]['scale'] if continuous else shot['scale'],zoom_ease=.25 if continuous else 0.,
+                                  zoom=shot['scale'], zoom_x=anchor_x, zoom_y=anchor_y,reframe_keyframes=tracked,
+                                  fade_in=.1 if i == 0 else 0, fade_out=.12 if i == len(shots) - 1 else 0, **clip_grade))
     # Rebuild overlays from reviewed setup. Old captions/extra primary images cannot leak into this edit.
     project.caption_tracks = []
     rules = effective_rules(project)
     if project.creative_context.cta.strip() and not rules.cta:
         rules = rules.model_copy(update={'cta': project.creative_context.cta.strip()})
-    plan = polish(project, request.instruction, rules)
+    plan = polish(project, 'Apply reviewed brand styling.', rules)
     project = checked(project, plan)
     logo_note = ''
     for clip in project.clips:
@@ -451,7 +475,9 @@ def build(project, asset, request, transcript, silences=None, face=None, context
             clip.x = min(1., max(0., target_x / max(1, w - lw)))
             clip.y = min(1., max(0., (top + h * .01) / max(1, h - lw * .3)))
             logo_note = f'Logo placed inside the {platform["label"]} safe area ({"left" if rtl else "right"} side, below the top bar).'
-    cues = caption_cues(words, ranges) if captions else []
+    from video_caption_timing import map_words, optimize
+    mapped, mapped_duration = map_words(words,ranges)
+    cues,caption_timing = optimize(mapped,mapped_duration,language,request.caption_max_cps) if captions else ([],{})
     from video_editor import primary_layout
     from video_captions import render_caption_image, CaptionStyle, brand_caption_style
     caption_brand, caption_warnings = brand_caption_style(rules, language)
@@ -470,13 +496,13 @@ def build(project, asset, request, transcript, silences=None, face=None, context
     speaker = {c.text_role: c for c in project.clips if c.kind == 'title' and c.text_role in ('speaker_name', 'speaker_role')}
     lower_third_track = None
     if speaker:
-        text = ' · '.join(speaker[role].text.strip() for role in ('speaker_name', 'speaker_role') if role in speaker)
+        text = '\n'.join(speaker[role].text.strip() for role in ('speaker_name', 'speaker_role') if role in speaker)
         y = caption_y - .15
         if face:
             y = max(y, face['y'] + face['height'] + .09)
         shown = min(3.5, duration)
         lower_third_track = dict(id=uid(), kind='lower-third', language=language, source='manual', reviewed=True, style_id='lower-third',
-                                 y_pct=min(.9, y), burn_in=True, motion='slide-up', brand_style=brand_caption_style(rules, language, 'lower-third')[0],
+                                 y_pct=min(.9, y), burn_in=True, motion=request.graphic_motion, brand_style=brand_caption_style(rules, language, 'lower-third')[0],
                                  segments=[dict(start=.3 if duration > 2 else 0, end=shown, text=text)], **placement)
         project.clips = [c for c in project.clips if c not in speaker.values()]
 
@@ -486,7 +512,8 @@ def build(project, asset, request, transcript, silences=None, face=None, context
     if cues:
         caption_state = 'needs-review' if unresolved else 'reviewed' if request.captions_reviewed else 'draft-asr'
         project.caption_tracks = [dict(id=uid(), kind='captions', language=language, source='whisper', reviewed=caption_state == 'reviewed', state=caption_state,
-                                       style_id='quick-social', brand_style=caption_brand, y_pct=caption_y, burn_in=True, segments=cues, **placement)]
+                                       style_id='quick-social', brand_style=caption_brand, y_pct=caption_y, burn_in=True, segments=cues,
+                                       max_cps=caption_timing['profile']['max_cps'], **placement)]
     if lower_third_track:
         project.caption_tracks.append(lower_third_track)
 
@@ -514,7 +541,7 @@ def build(project, asset, request, transcript, silences=None, face=None, context
     logo = next((c for c in project.clips if c.kind == 'overlay'), None)
     titles = [c for c in project.clips if c.kind == 'title']
     for title in titles:
-        title.motion = 'slide-up'
+        title.motion = request.graphic_motion
         title.fade_in = min(.25, title.duration / 4)
         title.fade_out = min(.18, title.duration / 4)
     framing_changes = [(i, shot) for i, shot in enumerate(shots) if i and shot['scale'] != shots[i - 1]['scale']]
@@ -538,7 +565,7 @@ def build(project, asset, request, transcript, silences=None, face=None, context
         decisions.append(dict(type='LIGHTING', start=0, end=edited, purpose='Correct a backlit or dark subject', reason='; '.join(f['message'] for f in correction.get('findings', [])),
                               evidence=f"Checked on a rendered frame: face luminance {metric(changes, 'face_luma', '+.2f')}, skin hue shift {metric(changes, 'face_hue_shift', '.0f')}°, "
                                        f"clipped highlights {metric(changes, 'clipped_highlights', '+.1%')}", confidence=.85,
-                              effect='Brighter face and midtones, highlights rolled off', requires_review=False, source='rule', parameters=grade))
+                              effect='Subject and background corrected separately' if project.color_pipeline else 'Conservative measured shot correction', requires_review=False, source='rule', parameters=grade))
     if project.background:
         mask = context.get('mask') or {}
         decisions.append(dict(type='BACKGROUND', start=0, end=edited, purpose='Separate the speaker from a distracting background',
@@ -557,7 +584,7 @@ def build(project, asset, request, transcript, silences=None, face=None, context
                               evidence=logo_note or 'Logo asset chosen in the brand step', confidence=1., effect='Adds the logo on a backplate', requires_review=False, source='rule'))
     if lower_third_track:
         segment = lower_third_track['segments'][0]
-        decisions.append(dict(type='LOWER_THIRD', start=segment['start'], end=segment['end'], purpose='Introduce the speaker', reason=f'Lower third: "{segment["text"][:70]}"',
+        decisions.append(dict(type='LOWER_THIRD', start=segment['start'], end=segment['end'], purpose='Introduce the speaker', reason='Lower third: "' + segment['text'].replace('\n', ' · ')[:70] + '"',
                               evidence='Name and position supplied in the brief; placed below the face and above the captions', confidence=1.,
                               effect='Readable name plate for the first seconds', requires_review=False, source='rule'))
     for title in titles:
@@ -579,7 +606,7 @@ def build(project, asset, request, transcript, silences=None, face=None, context
             if project.background and project.background.mode == 'replace':
                 answer(key, label, 'FULFILLED', 'The speaker was masked and composited over the approved background image.')
             elif project.background:
-                answer(key, label, 'PARTIALLY_FULFILLED', 'The background behind the speaker is blurred and slightly dimmed using a subject mask. '
+                answer(key, label, 'FULFILLED' if background_intent['intent'] in {'BLUR','DIM','DESATURATE'} else 'PARTIALLY_FULFILLED', 'The background behind the speaker has the selected masked treatment. '
                        'It is not replaced: choose "Replace with an approved image" and select an image to do that. Generating a new background is not available.')
             elif mode == 'none':
                 answer(key, label, 'NOT_APPLIED', 'Background treatment is switched off in the settings.')
@@ -589,7 +616,7 @@ def build(project, asset, request, transcript, silences=None, face=None, context
             status = correction.get('status')
             if grade:
                 c = correction.get('changes') or {}
-                answer(key, label, 'FULFILLED', f"Measured correction applied: face luminance {metric(c, 'face_luma', '+.2f')}, clipped highlights {metric(c, 'clipped_highlights', '+.1%')}, "
+                answer(key, label, 'FULFILLED' if correction.get('subject_lift_effective', True) else 'PARTIALLY_FULFILLED', ('' if correction.get('subject_lift_effective', True) else 'Only a slight lift passed the skin checks; the face is still darker than intended. ') + f"Measured correction applied: face luminance {metric(c, 'face_luma', '+.2f')}, clipped highlights {metric(c, 'clipped_highlights', '+.1%')}, "
                        f"skin hue shift {metric(c, 'face_hue_shift', '.0f')}° (checked on a rendered frame).")
             elif request.lighting == 'off':
                 answer(key, label, 'NOT_APPLIED', 'Lighting correction is switched off in the settings.')
@@ -622,8 +649,16 @@ def build(project, asset, request, transcript, silences=None, face=None, context
         elif key == 'music':
             answer(key, label, 'UNSUPPORTED', 'Music and sound effects are never added automatically. Add a licensed track in the Advanced editor; it will be ducked under speech.')
         elif key == 'audio':
-            answer(key, label, 'FULFILLED', (f"Loudness normalised toward {spec['loudness']['integrated']} LUFS with a {spec['true_peak_ceiling']} dBTP ceiling" if project.normalize_audio
-                                             else f"True peak limited to {spec['true_peak_ceiling']} dBTP") + ('; dialogue high-pass and gentle compression applied.' if project.dialogue_polish else '. Noise reduction and EQ are not applied.'))
+            if not asset.get('has_audio'):
+                answer(key,label,'UNSUPPORTED','The selected source has no audio track. Add an approved voice/music track in the Advanced editor.')
+                continue
+            treatments=(['high-pass, gentle EQ and compression'] if project.dialogue_polish else [])+(['conservative FFT noise reduction'] if project.dialogue_noise_reduction else [])+([f'{project.dialogue_hum_hz} Hz hum notch'] if project.dialogue_hum_hz else [])+(['gentle de-essing'] if project.dialogue_deess else [])
+            missing=bool(re.search(r'de.?reverb|studio voice|neural speech',inst))
+            answer(key, label, 'PARTIALLY_FULFILLED' if missing else 'FULFILLED', (f"Loudness normalised toward {spec['loudness']['integrated']} LUFS with a {spec['true_peak_ceiling']} dBTP ceiling" if project.normalize_audio
+                                             else f"True peak limited to {spec['true_peak_ceiling']} dBTP") + ('; applied '+', '.join(treatments)+'.' if treatments else '. Dialogue cleanup is off.')+(' Neural enhancement/de-reverb is not installed.' if missing else ''))
+        elif key == 'story':
+            answer(key,label,'PARTIALLY_FULFILLED' if semantic.get('used') else 'AWAITING_REVIEW',
+                   'Source sentences were classified by the local semantic planner; inspect roles, proposed removals and preservation of meaning.' if semantic.get('used') else 'The semantic planner is unavailable or off. Positional story suggestions are editable, but hook strength and sentence meaning require human review.')
         elif key == 'resolution':
             answer(key, label, 'PARTIALLY_FULFILLED' if request.canvas_mode == 'platform' else 'UNSUPPORTED', canvas_note + ' AI restoration/upscaling is not installed.')
         elif key == 'reframe':
@@ -640,19 +675,19 @@ def build(project, asset, request, transcript, silences=None, face=None, context
         decision.update(reversible=True, brand_reference=dict(guideline_id=project.guideline_id, version=project.guideline_version),
                         platform_reference=dict(id=platform['id'], version=platform['version']))
     report = dict(
-        engine='measured-speech-and-timeline-rules', ai_text_planner_used=False,
-        semantic_planner='Semantic AI planner unavailable. Deterministic editing remains available: decisions come from measured speech timing, silence, movement and lighting, not from a language model.',
+        engine='creative-director-and-measured-timeline', ai_text_planner_used=bool(semantic.get('used')),
+        semantic_planner=semantic.get('reason') or 'Semantic AI planner unavailable. Deterministic editing remains available: decisions come from measured speech timing, silence, movement and lighting, not from a language model.',
         speech_model_used=bool(transcript), captions_requested=captions,
         source_duration=asset['duration'], edited_duration=edited, duration_removed=round(sum(c['removed_seconds'] for c in cuts), 3),
         cuts=cuts, proposed_cuts=proposed, decisions=decisions, request_fulfilment=fulfilment,
-        story_map=story_map(words, asset['duration'], emphasis, face, request.story_roles),
+        story_map=semantic.get('story') if semantic.get('used') else story_map(words, asset['duration'], emphasis, face, request.story_roles),
         caption_count=len(cues), caption_draft=bool(cues) and caption_state != 'reviewed', caption_state=caption_state, caption_diagnostic=caption_diagnostic,
         caption_review=dict(required=bool(unresolved), names=names, unresolved=unresolved, corrected=corrected,
                             cues=[dict(start=c['start'], end=c['end'], text=c['text']) for c in cues]),
         zoom_segments=len(framing_changes), punch_in_scale=punch_scale if framing_changes else None, silence_measured=silences is not None,
         style_profile=dict(id=style_id, label=style['label'], summary=style['summary'], basis='INFERRED from the words ' + ', '.join(f'"{x}"' for x in style_words) if style_words
                            else 'USER_SUPPLIED' if request.style != 'auto' else 'PRODUCT DEFAULT (no style words found)',
-                           parameters=dict(pause_threshold=style['pause_threshold'], max_emphasis=style['max_emphasis'], punch_in=punch_scale)),
+                           parameters=dict(pause_threshold=pause_threshold, max_emphasis=emphasis_limit, punch_in=punch_scale)),
         platform_profile=dict(id=platform['id'], label=platform['label'], basis=platform['basis'], version=platform['version'], notice=platform['notice'],
                               obstruction=dict(top=platform['top'], bottom=platform['bottom'], left=platform['left'], right=platform['right'])),
         canvas=dict(mode=request.canvas_mode, note=canvas_note), lighting=correction, background=dict(mode=project.background.mode if project.background else 'none',
@@ -662,6 +697,33 @@ def build(project, asset, request, transcript, silences=None, face=None, context
         pending_approvals=pending, publish_readiness='DRAFT' if pending or (cues and caption_state != 'reviewed') else 'READY_FOR_REVIEW',
         face=face, original_dimensions=[asset['width'], asset['height']], output_dimensions=[project.canvas.width, project.canvas.height],
         warnings=list(dict.fromkeys(warnings)))
+    from video_layout import solve
+    report['caption_timing']=caption_timing
+    report['color_pipeline']=project.color_pipeline.model_dump() if project.color_pipeline else dict(regional=False,notice='Shot/global correction only; regional subject correction requires a usable subject matte.')
+    report['background']['interpreted_intent']=background_intent
+    from video_audio import plan as audio_plan
+    report['audio_plan']=audio_plan(project)
+    report['reference_style']=dict(profile=context.get('reference'),requested_properties=request.reference_preferences,
+        applied_properties=[p for p in request.reference_preferences if reference and p in {'pacing','energy'} or p=='color-mood' and reference.get('color') and project.color_pipeline],
+        limitations='Reference caption hierarchy, semantic hook/CTA, and licensed media selection need human review; no reference media/copy is transferred.')
+    report['performance']=context.get('performance') or dict(requested=request.performance_tier,selected='basic-cpu')
+    report['tracking']=context.get('tracking') or dict(points=[],hands=None,notice='Continuous tracking was not measured.')
+    scene=dict(context.get('scene') or {})
+    if scene:
+        scene['regions']=list(scene.get('regions',[]))+[dict(kind='face',box=p['box'],basis='MEASURED_TEMPORAL_FACE') for p in (context.get('tracking') or {}).get('points',[])]
+    report['layout']=solve(project,platform,face,scene or None,rules)
+    report['decisions'].append(dict(type='COMPOSITION',start=0,end=edited,purpose='Separate brand, speaker, dialogue and CTA roles',
+        reason='Joint arrangement of measured graphic boxes',
+        evidence=report['layout']['method'],confidence=.8,requires_review=any(e['requires_review'] for e in report['layout']['elements']),
+        reversible=True,source='layout-solver',effect='Measured text boxes jointly placed around protected regions and other active graphics'))
+    from video_director import document
+    report['cut_policy']=request.cut_policy
+    for outcome in report['request_fulfilment']:
+        types={'text':{'CAPTIONS','LOWER_THIRD','TITLE','COMPOSITION'},'background':{'BACKGROUND'},'lighting':{'LIGHTING'},'audio':{'AUDIO'},'effects':{'PUNCH_IN','PUNCH_OUT','TRANSITION','BACKGROUND','LIGHTING'},'pacing':{'CUT'}}.get(outcome['request'],set())
+        outcomes=[d for d in report['decisions'] if d['type'] in types]
+        outcome.update(user_request=request.instruction,interpreted_intent=background_intent['intent'] if outcome['request']=='background' else outcome['label'],
+                       operations=[d['type'] for d in outcomes],evidence=[d.get('evidence','') for d in outcomes],limitations=outcome['detail'] if outcome['status']!='FULFILLED' else '')
+    report['edit_document']=document(project,report,asset['id'],semantic)
     return project, report
 
 
@@ -674,8 +736,8 @@ def run(original, request, job):
             raise ValueError('The previous revision must belong to this source video.')
     if asset['kind'] != 'video':
         raise ValueError('Choose one uploaded video as the source. Logos belong in the logo section.')
-    if request.background_asset_id and read('assets', request.background_asset_id)['kind'] != 'image':
-        raise ValueError('The replacement background must be an uploaded image.')
+    if request.background_asset_id and read('assets', request.background_asset_id)['kind'] not in {'image','video'}:
+        raise ValueError('The replacement background must be an approved image or video asset.')
     source = path_for(asset['id'])
     before = sha256(source)
     transcript = {}
@@ -696,13 +758,27 @@ def run(original, request, job):
     except ValueError:
         pass      # analysis tools unavailable: decisions fall back to word timings and say so
     context = {}
+    from video_provider_registry import tier
+    context['performance']=tier(request.performance_tier)
+    if request.reference_asset_id:
+        from video_reference import analyze as analyze_reference
+        job.update(state='running',phase='Analyzing reference style statistics')
+        context['reference']=analyze_reference(request.reference_asset_id,job)
+    from video_layout import analyze_frame
+    import video_measure
+    context['scene']=analyze_frame(video_measure.frame_at(source,min(2.5,asset['duration']*.3)),face)
+    from video_tracking import track as track_subject
+    job.update(state='running',phase='Tracking subject framing')
+    context['tracking']=track_subject(asset['id'],job,sample_fps=1 if request.performance_tier=='basic-cpu' else 2)
+    for point in context['tracking']['points']:
+        context['scene']['regions'].append(dict(kind='face',box=point['box'],basis='MEASURED_TEMPORAL_FACE'))
     words = words_from(transcript)
     style_id = request.style if request.style != 'auto' else video_platforms.interpret_style(request.instruction + ' ' + original.creative_context.style)[0]
     style = video_platforms.STYLES[style_id]
     if request.subtle_zooms and words:
         try:
             job.update(state='running', phase='Analyzing movement for emphasis')
-            limit = max(s['max_emphasis'] for s in video_platforms.STYLES.values()) if request.plan_variants else style['max_emphasis']
+            limit = max(s['max_emphasis'] for s in video_platforms.STYLES.values()) if request.plan_variants or 'energy' in request.reference_preferences else style['max_emphasis']
             context['emphasis'] = emphasis_moments(source, words, [(0, asset['duration'])], limit)
         except Exception:
             context['emphasis'] = []
@@ -715,6 +791,10 @@ def run(original, request, job):
             context['lighting'] = dict(status='NOT_MEASURED', reason=str(exc), grade={})
     import video_segmentation
     context['matting'] = {k: v for k, v in video_segmentation.status().items() if k in ('available', 'model', 'reason', 'privacy')}
+    from video_director import plan_story
+    context['semantic']=plan_story(apply_corrections(words,request.caption_corrections)[0],asset['duration'],
+        dict(original.creative_context.model_dump(),instruction=request.instruction),effective_rules(original).model_dump(),
+        dict(silences=silences,face=face,emphasis=context.get('emphasis',[])),request.cut_policy,request.semantic_planner,job)
     job.update(state='running', phase='Preparing edit plan')
     project, report = build(original.model_copy(deep=True), asset, request, transcript, silences, face, context)
     if request.plan_variants:
@@ -731,10 +811,22 @@ def run(original, request, job):
             _, variant_report = build(original.model_copy(deep=True), asset, variant_request, transcript, silences, face, variant_context)
             variants.append(dict(style=key, report=variant_report))
         return dict(dry_run=True, variants=variants, edit_report=report, source_asset_id=asset['id'])
-    if project.background and not request.dry_run:
+    if (project.background or project.color_pipeline and project.color_pipeline.regional) and not request.dry_run:
         job.update(state='running', phase='Generating subject masks')
-        _, mask = video_segmentation.subject_mask(asset['id'], job, project.background.mask_fps)
+        mask_rate=project.background.mask_fps if project.background else project.color_pipeline.mask_fps
+        _, mask = video_segmentation.subject_mask(asset['id'], job, mask_rate)
         context['mask'] = mask
+        mask_path,_=video_segmentation.cached_mask(asset['id'],mask_rate)
+        mask_frame=video_measure.frame_at(mask_path,min(2.5,asset['duration']*.3))
+        if mask_frame is not None:
+            import cv2
+            context['scene']=analyze_frame(video_measure.frame_at(source,min(2.5,asset['duration']*.3)),face,cv2.cvtColor(mask_frame,cv2.COLOR_BGR2GRAY))
+            if project.color_pipeline and mask['subject_found']:
+                job.update(state='running',phase='Verifying subject and background grades')
+                at=min(asset['duration']*.4,3.)
+                verified,regional_report=video_grade.verify_regional(source,at,face,cv2.cvtColor(video_measure.frame_at(mask_path,at),cv2.COLOR_BGR2GRAY),project.color_pipeline)
+                context['regional_pipeline']=verified.model_dump() if verified else None
+                context['lighting']=regional_report
         if not mask['subject_found']:
             context['matting'] = dict(context['matting'], available=False, reason='No clear subject was found in this video, so the background was left unchanged.')
         project, report = build(original.model_copy(deep=True), asset, request, transcript, silences, face, context)
@@ -751,7 +843,9 @@ def run(original, request, job):
         except ValueError as exc:
             report['audio_signal'] = dict(not_measured=str(exc))
     if request.dry_run:
-        return dict(dry_run=True, edit_report=report, source_asset_id=asset['id'])
+        from video_preview import stills
+        previews=stills(project,report,job) if request.preview_frames else []
+        return dict(dry_run=True, edit_report=report, source_asset_id=asset['id'],preview_frames=previews)
     job.update(state='encoding', phase='Rendering the edited timeline', progress={'cuts': len(report['cuts']), 'captions': report['caption_count']})
     saved = save(project, actor='rule_engine', instruction=request.instruction, label='Quick edit · source project preserved')
     result = master(project, job, source_asset=asset, source_sha_before=before, cuts=report['cuts'], captions_requested=report['captions_requested'])

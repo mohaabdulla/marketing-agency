@@ -1,9 +1,9 @@
 """Brand Kit bindings, brand lock enforcement, and typography role resolution."""
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 from .schemas import Layer, LayerType, TextRole, TextLayerData
-from .colors import contrast_ratio, is_wcag_aa, parse_color
+from .colors import contrast_ratio
 
 
 DEFAULT_BRAND_KIT = {

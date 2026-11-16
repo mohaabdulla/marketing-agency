@@ -3,7 +3,6 @@ import hashlib
 import io
 import json
 import zipfile
-from pathlib import Path
 from .database import repository, Conflict, timestamp, uid, packed
 from .assets import serialized_store
 

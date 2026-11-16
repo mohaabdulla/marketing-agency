@@ -10,7 +10,7 @@ import zipfile
 import re
 from pathlib import Path, PurePosixPath
 from contextlib import closing
-from .database import repository, timestamp, uid, packed, NotFound, SCHEMA_VERSION
+from .database import repository, timestamp, uid, packed, SCHEMA_VERSION
 from .services import service
 from .schemas import RecordInput
 from .compliance import scan
