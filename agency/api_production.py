@@ -14,6 +14,43 @@ from . import content, assets, analytics
 Options = Annotated[list[Short], Field(max_length=12)]
 
 
+def validate_video_campaign_context(client_id,campaign_id):
+    """Resolve a production brief within its client before planning or enqueueing work."""
+    if not client_id and not campaign_id:return {}
+    if not client_id or not campaign_id:raise HTTPException(422,'Select both client and campaign')
+    from .services import service
+    record=guard(service.get,client_id,campaign_id,'campaigns')
+    if record.get('archived'):raise HTTPException(409,'Choose an active campaign before producing a video')
+    return dict(client_id=client_id,campaign_id=campaign_id)
+
+
+from video_director import VideoBriefRequest,RenderSequenceRequest
+
+
+@router.post('/clients/{client_id}/campaigns/{campaign_id}/video-brief')
+def campaign_video_brief(client_id: Id,campaign_id: Id,body: VideoBriefRequest):
+    from video_api import video_generate_brief
+    validate_video_campaign_context(client_id,campaign_id)
+    if body.client_id and (body.client_id!=client_id or body.campaign_id!=campaign_id):
+        raise HTTPException(409,'Brief context differs from the selected campaign')
+    return video_generate_brief(body.model_copy(update=dict(client_id=client_id,campaign_id=campaign_id)))
+
+
+@router.post('/clients/{client_id}/campaigns/{campaign_id}/video-render',status_code=202)
+def campaign_video_render(client_id: Id,campaign_id: Id,body: RenderSequenceRequest):
+    from video_api import video_render_sequence,guard as video_guard
+    from video_storage import read
+    context=validate_video_campaign_context(client_id,campaign_id)
+    if body.brief_id:
+        if video_guard(read,'briefs',body.brief_id).get('agency_context')!=context:
+            raise HTTPException(409,'The storyboard belongs to a different campaign')
+    else:
+        if body.brief.client_id and (body.brief.client_id!=client_id or body.brief.campaign_id!=campaign_id):
+            raise HTTPException(409,'Brief context differs from the selected campaign')
+        body=body.model_copy(update={'brief':body.brief.model_copy(update=context)})
+    return video_render_sequence(body)
+
+
 @router.get('/channel-specs')
 def specs():
     return guard(channel_specs)

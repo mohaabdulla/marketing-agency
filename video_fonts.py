@@ -1,11 +1,14 @@
 """Fixed local font registry; callers never supply filesystem font paths."""
 from pathlib import Path
 
+FONT_ROOT=Path(__file__).resolve().parent/'static/fonts'
+
 FONTS = {
     'Arial': ['C:/Windows/Fonts/arial.ttf', '/usr/share/fonts/truetype/msttcorefonts/Arial.ttf'],
-    'Inter': ['C:/Windows/Fonts/Inter-Regular.ttf', '/usr/share/fonts/truetype/inter/Inter-Regular.ttf'],
-    'Montserrat': ['C:/Windows/Fonts/Montserrat-Regular.ttf', '/usr/share/fonts/truetype/montserrat/Montserrat-Regular.ttf'],
-    'Cairo': ['C:/Windows/Fonts/Cairo-Regular.ttf', '/usr/share/fonts/truetype/cairo/Cairo-Regular.ttf'],
+    'Inter': [str(FONT_ROOT/'Inter-Regular.ttf'),'C:/Windows/Fonts/Inter-Regular.ttf', '/usr/share/fonts/truetype/inter/Inter-Regular.ttf'],
+    'Montserrat': [str(FONT_ROOT/'Montserrat-Regular.ttf'),'C:/Windows/Fonts/Montserrat-Regular.ttf', '/usr/share/fonts/truetype/montserrat/Montserrat-Regular.ttf'],
+    'Cairo': [str(FONT_ROOT/'Cairo-Regular.ttf'),'C:/Windows/Fonts/Cairo-Regular.ttf', '/usr/share/fonts/truetype/cairo/Cairo-Regular.ttf'],
+    'Almarai': [str(FONT_ROOT/'Almarai-Regular.ttf'),'C:/Windows/Fonts/Almarai-Regular.ttf', '/usr/share/fonts/truetype/almarai/Almarai-Regular.ttf'],
     'DejaVu Sans': ['/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'],
     'Times New Roman': ['C:/Windows/Fonts/times.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf'],
 }

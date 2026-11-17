@@ -18,8 +18,12 @@ from gpu_resources import gpu_slot
 
 def prepare_sequence(request):
     """Validate the reviewed storyboard and owned media before occupying a worker."""
-    from video_director import generate_video_brief,StoryboardScene,validate_storyboard
+    from video_director import generate_video_brief,StoryboardScene,VideoBriefRequest,compile_storyboard,validate_storyboard
     brief=read('briefs',request.brief_id) if request.brief_id else generate_video_brief(request.brief)
+    context=brief.get('agency_context') or {}
+    if context:
+        from agency.api_production import validate_video_campaign_context
+        validate_video_campaign_context(context['client_id'],context['campaign_id'])
     scenes=request.scenes or [StoryboardScene.model_validate(scene) for scene in brief['scenes']]
     validate_storyboard(scenes,brief['request']['duration'])
     for scene in scenes:
@@ -31,10 +35,11 @@ def prepare_sequence(request):
             if read('assets',key)['kind']!='audio':raise ValueError('Choose an audio asset for music or voiceover')
             path_for(key)
     if brief['brand'].get('logo_asset_id'):path_for(brief['brand']['logo_asset_id'])
-    return {**brief,'scenes':[scene.model_dump() for scene in scenes]}
+    return {**brief,'scenes':[scene.model_dump() for scene in scenes],
+            'timeline':compile_storyboard(VideoBriefRequest.model_validate(brief['request']),brief['brand'],scenes)}
 
 
-def sequence_backdrop(path,canvas,brand,index):
+def sequence_backdrop(path,canvas,brand,index,style='brand-gradient'):
     """Local vector-like motion artwork; supplied scene images can replace this backdrop."""
     from PIL import Image,ImageDraw
     primary=tuple(bytes.fromhex(brand['primary_hex'].lstrip('#')))
@@ -42,12 +47,13 @@ def sequence_backdrop(path,canvas,brand,index):
     w,h=canvas.width,canvas.height
     image=Image.new('RGB',(w,h));draw=ImageDraw.Draw(image)
     for y in range(h):
-        alpha=.07+.18*y/h
+        alpha=0 if style=='minimal' else .07+.18*y/h
         color=tuple(round((1-alpha)*a+alpha*b) for a,b in zip(primary,accent))
         draw.line((0,y,w,y),fill=color)
-    for n in range(5):
+    for n in range(5 if style=='geometric' else 3 if style=='brand-gradient' else 0):
         x=int(w*(.12+((n+index)%5)*.19));y=int(h*(.22+(n%3)*.12));radius=int(min(w,h)*(.06+n*.018))
-        draw.rounded_rectangle((x-radius,y-radius,x+radius,y+radius),radius=radius//3,outline=accent,width=max(2,w//250))
+        if style=='brand-gradient':draw.arc((x-radius,y-radius,x+radius,y+radius),start=30,end=300,fill=accent,width=max(2,w//250))
+        else:draw.rounded_rectangle((x-radius,y-radius,x+radius,y+radius),radius=radius//3,outline=accent,width=max(2,w//250))
     draw.line((int(w*.1),int(h*.72),int(w*.9),int(h*.72)),fill=accent,width=max(3,w//150))
     image.save(path)
 
@@ -55,9 +61,10 @@ def sequence_backdrop(path,canvas,brand,index):
 def build_sequence_project(brief,request,job,work):
     from video_captions import CaptionStyle
     from video_editor import validate_sources
-    settings=brief['request'];brand=brief['brand'];ratio=settings['platform_target'];edge=settings['resolution']
-    dimensions={'9:16':(edge,round(edge*16/9/2)*2),'1:1':(edge,edge),'16:9':(round(edge*16/9/2)*2,edge)}
-    canvas=Canvas(width=dimensions[ratio][0],height=dimensions[ratio][1],fps=30)
+    from video_director import VideoBriefRequest,StoryboardScene,compile_storyboard
+    settings=brief['request'];brand=brief['brand'];ratio=settings['platform_target']
+    compiled=compile_storyboard(VideoBriefRequest.model_validate(settings),brand,[StoryboardScene.model_validate(scene) for scene in brief['scenes']])
+    canvas=Canvas(width=compiled['width'],height=compiled['height'],fps=compiled['fps'])
     w,h=canvas.width,canvas.height;scenes=brief['scenes'];clips=[]
     rgb=tuple(bytes.fromhex(brand['primary_hex'].lstrip('#')))
     text_color='#07111c' if sum(a*b for a,b in zip(rgb,(.299,.587,.114)))>160 else '#ffffff'
@@ -67,7 +74,7 @@ def build_sequence_project(brief,request,job,work):
         job.update(state='running',phase='Preparing storyboard visuals',progress={'completed_scenes':index,'total_scenes':len(scenes)})
         asset=scene.get('asset_id')
         if not asset:
-            path=work/f'scene-{index}.png';sequence_backdrop(path,canvas,brand,index)
+            path=work/f'scene-{index}.png';sequence_backdrop(path,canvas,brand,index,scene.get('background_style','brand-gradient'))
             asset=ingest(path,path.name,job)['id']
         move=MOTIONS[scene['motion']]
         zoom_delta={'calm':.025,'balanced':.06,'fast':.10}[settings['pacing']]
@@ -87,11 +94,12 @@ def build_sequence_project(brief,request,job,work):
     clips.append(graphic(name,0,settings['duration'],.16, max(22,round(w*.035)),brand['secondary_hex'],'lower_third'))
     for index,scene in enumerate(scenes):
         clips.append(graphic(scene['overlay_text'],scene['start'],scene['duration'],.56,
-                            min(80,max(28,round(w*.055))),text_color,'cta' if index==len(scenes)-1 else 'headline'))
+                            min(80,max(28,round(w*.055))),text_color,'hook' if index==0 else 'cta' if index==len(scenes)-1 else 'headline'))
     if brand.get('logo_asset_id'):
         clips.append(Clip(kind='overlay',asset_id=brand['logo_asset_id'],duration=settings['duration'],scale=.16,x=.86,y=.05,logo_backplate=True))
-    for asset_id,role,volume in [(request.music_asset_id,'music',.18 if request.voiceover_asset_id else .55),
-                                 (request.voiceover_asset_id,'voiceover',1)]:
+    music_volume=request.music_volume if request.music_volume is not None else .18 if request.voiceover_asset_id else .55
+    for asset_id,role,volume in [(request.music_asset_id,'music',music_volume),
+                                 (request.voiceover_asset_id,'voiceover',request.voiceover_volume)]:
         if asset_id:
             meta=read('assets',asset_id)
             clips.append(Clip(kind='audio',asset_id=asset_id,audio_role=role,volume=volume,
@@ -103,7 +111,7 @@ def build_sequence_project(brief,request,job,work):
         clips=clips,normalize_audio=bool(request.voiceover_asset_id or request.music_asset_id),
         delivery_preset={'9:16':'vertical-social','1:1':'square-social','16:9':'web-youtube'}[ratio],
         brand_rules=dict(brand_name=brand['brand_name'],primary_colors=[brand['primary_hex']],secondary_colors=[brand['secondary_hex']],font_preferences=[brand['font_family']]),
-        creative_context=CreativeContext(key_message=settings['core_message'][:1000],objective=settings['campaign_type'],
+        creative_context=CreativeContext(key_message=settings['core_message'][:1000],objective=settings['campaign_type'],audience=settings.get('target_audience',''),
             language=settings['language'],platform=ratio,style=settings['tone']),
         caption_tracks=[dict(id='storyboard-captions',language=settings['language'],source='manual',burn_in=request.burn_subtitles,
             brand_style=caption_style.model_dump(),segments=[dict(start=s['start'],end=round(s['start']+s['duration'],3),text=s['voiceover']) for s in scenes])])
@@ -136,13 +144,16 @@ def render_sequence(brief,request,job):
             bundle.writestr('copy/subtitles.srt',subtitles)
             bundle.writestr('storyboard.json',json.dumps(brief,ensure_ascii=False,indent=2))
             bundle.writestr('project.json',project.model_dump_json(indent=2))
+            if brief.get('research'):
+                # Claim substantiation for the client: every researched source and the facts drawn from it.
+                bundle.writestr('research/sources.json',json.dumps(brief['research'],ensure_ascii=False,indent=2))
         if job.cancelled():raise Cancelled()
         destination=folder/(job.id+'.zip');os.replace(archive,destination)
         manifest=dict(sequence_id=job.id,brief_id=brief['brief_id'],asset_id=result['id'],project_id=project_id,
             video_url=result['url'],mp4_url='/api/video/download/'+result['id'],bundle_zip_url='/api/video/sequences/'+job.id+'/bundle',
             width=meta['width'],height=meta['height'],fps=meta['fps'],duration=meta['duration'],
             burn_subtitles=request.burn_subtitles,planning_source=brief['planning_source'],rendering_source='local-motion-graphics',
-            has_voiceover=bool(request.voiceover_asset_id),has_music=bool(request.music_asset_id))
+            has_voiceover=bool(request.voiceover_asset_id),has_music=bool(request.music_asset_id),agency_context=brief.get('agency_context',{}))
         atomic(folder/(job.id+'.json'),manifest)
         annotate(result,project_id=project_id,sequence_id=job.id,generation_type='storyboard-sequence')
         return manifest

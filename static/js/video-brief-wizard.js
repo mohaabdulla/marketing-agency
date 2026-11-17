@@ -1,5 +1,7 @@
 import {api,post,esc} from './video-api.js';
 import {storageKey} from './public-session.js';
+import {context} from './app-context.js';
+import {CompanyIntro} from './video-company-intro.js';
 
 const key=()=>storageKey('lexnis.video.brief-wizard');
 export class VideoBriefWizard {
@@ -17,9 +19,12 @@ export class VideoBriefWizard {
       <p data-notice role="status" aria-live="polite"></p>
       <section data-panel="0"><h3>1. Brand & Campaign Brief</h3>
         <label>Brand kit<select data-field="brand_id" required><option value="">Loading brand kits…</option></select></label>
-        <div class="vs-pair"><label>Campaign type<select data-field="campaign_type"><option value="product_launch">Product Launch</option><option value="hiring">Hiring / Recruitment</option><option value="brand_announcement">Brand Announcement</option><option value="explainer">Explainer</option></select></label>
+        <div class="vs-pair"><label>Campaign goal<select data-field="campaign_type"><option value="product_launch">Product Launch</option><option value="company_intro">Introduce the Company</option><option value="hiring">Hiring & Recruitment</option><option value="brand_announcement">Social Brand Awareness</option><option value="explainer">Service Explainer</option></select></label>
         <label>Language<select data-field="language"><option value="en">English</option><option value="ar">Arabic</option></select></label></div>
-        <div class="vbf-message-help"><h4>Let us help you write the message</h4><p>Paste the company website and add its guidelines. We’ll suggest a starting message you can edit.</p>
+        <label>Target audience<input data-field="target_audience" maxlength="500" placeholder="For example: operations managers, graduates, or potential customers"></label>
+        <section data-company-intro class="vbf-message-help" hidden></section>
+        <label data-job-details hidden>Job opening details (optional)<textarea data-field="job_details" maxlength="1000" placeholder="For recruitment: role, approved responsibilities, location, and how to apply."></textarea></label>
+        <div class="vbf-message-help" data-generic-brief><h4>Let us help you write the message</h4><p>Paste the company website and add its guidelines. We’ll suggest a starting message you can edit.</p>
           <label>Company website<input type="url" data-field="company_url" maxlength="2000" placeholder="https://your-company.com"></label>
           <label>Company guidelines<select data-field="guideline_id"><option value="">No guideline selected</option></select></label>
           <div class="vs-row"><button type="button" data-guideline-upload>Upload guidelines</button><button type="button" data-guideline-refresh>Refresh guidelines</button></div>
@@ -30,10 +35,10 @@ export class VideoBriefWizard {
           <p data-assist-status role="status" aria-live="polite"></p>
           <section data-suggestion hidden><p data-suggestion-source></p><label>Suggested message<textarea data-suggested maxlength="2000"></textarea></label><button type="button" data-use-suggestion>Use this message</button><div data-source-links></div><ul data-questions></ul></section>
         </div>
-        <label>Core message or vacancy/product details<textarea data-field="core_message" maxlength="2000" required placeholder="Use the suggestion above, or describe your idea in your own words. You can edit everything before rendering."></textarea></label>
-        <button type="button" data-assist="enhance">AI enhance message</button>
-        <p><small>Enhancement proposes a clearer version for you to review. Your current message stays unchanged until you use it.</small></p>
-        <button type="button" class="primary" data-next>Next: Format & Style</button>
+        <label data-generic-brief>Core message or vacancy/product details<textarea data-field="core_message" maxlength="2000" required placeholder="Use the suggestion above, or describe your idea in your own words. You can edit everything before rendering."></textarea></label>
+        <button type="button" data-assist="enhance" data-generic-brief>AI enhance message</button>
+        <p data-generic-brief><small>Enhancement proposes a clearer version for you to review. Your current message stays unchanged until you use it.</small></p>
+        <button type="button" class="primary" data-next data-generic-brief>Next: Format & Style</button>
       </section>
       <section data-panel="1" hidden><h3>2. Format & Style</h3><div class="vs-pair">
         <label>Platform format<select data-field="platform_target"><option value="9:16">Reels / TikTok · 9:16</option><option value="1:1">Feed · 1:1</option><option value="16:9">Landscape · 16:9</option></select></label>
@@ -44,8 +49,18 @@ export class VideoBriefWizard {
         <label>Export short edge<select data-field="resolution"><option value="720">720 px</option><option value="1080">1080 px</option></select></label></div>
         <div class="vs-row"><button type="button" data-back>Back</button><button type="button" class="primary" data-plan>Generate storyboard</button></div>
       </section>
-      <section data-panel="2" hidden><h3>3. Storyboard Preview & Editing</h3><p data-source></p><div data-scenes class="vbf-scenes"></div>
+      <section data-panel="2" hidden><h3>3. Storyboard Preview & Editing</h3><p data-source></p>
+        <label>Opening hook<select data-hook aria-label="Opening hook"></select></label>
+        <section class="vbf-timeline" aria-label="Interactive storyboard preview">
+          <div data-timeline-scenes class="vbf-timeline-scenes"></div>
+          <label>Storyboard playhead (seconds)<input data-playhead type="range" min="0" step=".1" value="0"></label>
+          <div class="vs-row"><button type="button" data-play-storyboard>Play storyboard</button><output data-playhead-time aria-live="off"></output></div>
+          <div data-timeline-preview class="vbf-timeline-preview"><h4 data-preview-overlay></h4><p data-preview-script></p></div>
+          <p><small>Planned scene timing and artwork styles. The finished video appears after rendering.</small></p>
+          <p data-timing-status role="status"></p>
+        </section><div data-scenes class="vbf-scenes"></div>
         <div class="vs-pair"><label>Recorded voiceover<select data-audio="voiceover_asset_id"><option value="">No voiceover</option></select></label><label>Licensed music track<select data-audio="music_asset_id"><option value="">No music</option></select></label></div>
+        <div class="vs-pair"><label>Voiceover volume<input data-gain="voiceover_volume" type="range" min="0" max="2" step=".05" value="1"></label><label>Music volume<input data-gain="music_volume" type="range" min="0" max="2" step=".05" value=".25"></label></div>
         <button type="button" data-upload>Upload storyboard images or audio</button>
         <p><small>The editable script is not synthesized speech. Select a recorded voiceover to include speech. Scene images are optional; otherwise the renderer uses branded motion graphics.</small></p>
         <div class="vs-row"><button type="button" data-back>Back</button><button type="button" class="primary" data-next>Next: Render & Export</button></div>
@@ -56,6 +71,15 @@ export class VideoBriefWizard {
         <div data-preview class="vs-preview"></div><div data-exports class="vs-row"></div>
       </section>`;
     this.$=s=>this.root.querySelector(s);this.labelControls(this.root);
+    this.companyIntro=new CompanyIntro(this,this.$('[data-company-intro]'));
+    this.$('[data-playhead]').oninput=()=>this.previewTime(+this.$('[data-playhead]').value);
+    this.$('[data-play-storyboard]').onclick=()=>this.playStoryboard();
+    this.$('[data-hook]').onchange=()=>{
+      const scene=this.brief?.scenes[0];if(!scene)return;
+      const previous=scene.overlay_text;scene.overlay_text=this.$('[data-hook]').value;
+      if(scene.voiceover===previous)scene.voiceover=scene.overlay_text;
+      this.drawScenes();this.persist();
+    };
     this.root.querySelectorAll('[data-assist]').forEach(button=>button.onclick=()=>this.suggest(button.dataset.assist));
     this.$('[data-use-suggestion]').onclick=()=>this.useSuggestion();
     this.$('[data-guideline-upload]').onclick=()=>this.$('[data-guideline-file]').click();
@@ -67,6 +91,7 @@ export class VideoBriefWizard {
     this.root.querySelectorAll('[data-back]').forEach(button=>button.onclick=()=>this.go(this.step-1));
     this.$('[data-plan]').onclick=()=>this.plan();this.$('[data-render]').onclick=()=>this.render();
     this.root.addEventListener('change',event=>{
+      if(event.target.dataset.field==='campaign_type')this.syncCompanyIntro();
       if(event.target.dataset.field)this.invalidate();
       if(['brand_id','company_url','guideline_id'].includes(event.target.dataset.field)||event.target.hasAttribute('data-guideline-notes'))this.resetSources();
       this.persist();
@@ -79,11 +104,20 @@ export class VideoBriefWizard {
     this.go(0);this.ready=this.load();
   }
   notice(text){this.$('[data-notice]').textContent=text;}
+  syncCompanyIntro(){
+    const goal=this.$('[data-field=campaign_type]').value,intro=goal==='company_intro';
+    this.$('[data-company-intro]').hidden=!intro;this.$('[data-job-details]').hidden=goal!=='hiring';
+    // The company introduction runs its own research -> proposal -> approval flow; the manual brief steps step aside.
+    this.root.querySelectorAll('[data-generic-brief]').forEach(el=>el.hidden=intro);
+    this.$('.vbf-steps').hidden=intro;
+  }
   assistNotice(text){this.$('[data-assist-status]').textContent=text;}
   resetSources(){this.messageContext=null;this.suggestionIdentity=null;this.$('[data-suggestion]').hidden=true;}
   sourceValues(){return {brand_id:this.$('[data-field=brand_id]').value,company_url:this.$('[data-field=company_url]').value.trim(),
     guideline_id:this.$('[data-field=guideline_id]').value||null,guideline_notes:this.$('[data-guideline-notes]').value,
-    campaign_type:this.$('[data-field=campaign_type]').value,language:this.$('[data-field=language]').value,tone:this.$('[data-field=tone]').value};}
+    campaign_type:this.$('[data-field=campaign_type]').value,language:this.$('[data-field=language]').value,tone:this.$('[data-field=tone]').value,
+    target_audience:this.$('[data-field=target_audience]').value,job_details:this.$('[data-field=job_details]').value,
+    company_overview:'',company_services:'',company_values:''};}
   async refreshGuidelines(selected){
     const response=await fetch('/api/guidelines');const data=await response.json();if(!response.ok)throw new Error('Unable to load guidelines.');
     const select=this.$('[data-field=guideline_id]'),value=selected??select.value;
@@ -145,34 +179,39 @@ export class VideoBriefWizard {
     }
   }
   invalidate(){
+    this.stopStoryboard();
     if(!this.brief)return;
     this.brief=null;this.result=null;this.unlock(false);
     this.$('[data-preview]').querySelector('video')?.pause();
     this.$('[data-preview]').replaceChildren();this.$('[data-exports]').replaceChildren();
     this.notice('Brief changed. Generate a new storyboard before rendering.');
   }
-  values(){return Object.fromEntries([...this.root.querySelectorAll('[data-field]')].map(el=>[el.dataset.field,['duration','resolution'].includes(el.dataset.field)?+el.value:el.dataset.field==='guideline_id'?el.value||null:el.value]));}
+  values(){const fields=Object.fromEntries([...this.root.querySelectorAll('[data-field]')].map(el=>[el.dataset.field,['duration','resolution'].includes(el.dataset.field)?+el.value:el.dataset.field==='guideline_id'?el.value||null:el.value]));const selected=context();return {...fields,...(selected.client_id&&selected.campaign_id?{client_id:selected.client_id,campaign_id:selected.campaign_id}:{})};}
   unlock(ready){this.root.querySelectorAll('[data-step]').forEach(button=>button.disabled=this.busy||(+button.dataset.step>1&&!ready));}
   go(step){
     if(this.busy||step<0||step>3)return;
+    this.stopStoryboard();
     if(this.step===0&&step>0&&!this.$('[data-field=core_message]').value.trim()){this.suggest('draft');return;}
     if(step>0&&!this.valid(0))return;if(step>1&&(!this.brief||!this.valid(1)))return;
+    if(step===3&&!this.timingsValid){this.notice('Adjust scene durations to match the target before continuing to Render & Export.');return;}
     this.step=step;this.root.querySelectorAll('[data-panel]').forEach(el=>el.hidden=+el.dataset.panel!==step);
     this.root.querySelectorAll('[data-step]').forEach(el=>el.setAttribute('aria-current',+el.dataset.step===step?'step':'false'));
     this.persist();
   }
   valid(step){for(const el of this.$(`[data-panel="${step}"]`).querySelectorAll('input,textarea,select'))if(!el.reportValidity())return false;return true;}
-  persist(){if(this.loading)return;try{this.audioDraft=Object.fromEntries([...this.root.querySelectorAll('[data-audio]')].map(el=>[el.dataset.audio,el.value]));localStorage.setItem(key(),JSON.stringify({fields:this.values(),brief_id:this.brief?.brief_id,scenes:this.brief?.scenes,job_id:this.jobId,result:this.result,audio:this.audioDraft,burn_subtitles:this.$('[data-subtitles]').checked,company_notes:this.$('[data-guideline-notes]').value,message_context:this.messageContext}));}catch{}}
+  persist(){if(this.loading)return;try{this.audioDraft=Object.fromEntries([...this.root.querySelectorAll('[data-audio]')].map(el=>[el.dataset.audio,el.value]));localStorage.setItem(key(),JSON.stringify({fields:this.values(),brief_id:this.brief?.brief_id,scenes:this.brief?.scenes,job_id:this.jobId,result:this.result,audio:this.audioDraft,audio_levels:Object.fromEntries([...this.root.querySelectorAll('[data-gain]')].map(el=>[el.dataset.gain,+el.value])),burn_subtitles:this.$('[data-subtitles]').checked,company_notes:this.$('[data-guideline-notes]').value,message_context:this.messageContext}));}catch{}}
   async load(){
     try{
       const saved=JSON.parse(localStorage.getItem(key())||'null');
       this.audioDraft=saved?.audio||{};this.$('[data-subtitles]').checked=saved?.burn_subtitles!==false;
+      for(const [name,value] of Object.entries(saved?.audio_levels||{})){const input=[...this.root.querySelectorAll('[data-gain]')].find(el=>el.dataset.gain===name);if(input)input.value=value;}
       this.messageContext=saved?.message_context||null;this.$('[data-guideline-notes]').value=saved?.company_notes||'';
       const response=await fetch('/api/brands');if(!response.ok)throw new Error('Unable to load brand kits.');
       const {brands}=await response.json();const select=this.$('[data-field=brand_id]');select.replaceChildren(new Option('Choose a brand kit',''));
       for(const brand of brands)select.add(new Option(brand.brand_name,brand.id));
       await this.refreshGuidelines(saved?.fields?.guideline_id);
       for(const [name,value] of Object.entries(saved?.fields||{})){const el=this.$('[data-field="'+name+'"]');if(el)el.value=value;}
+      this.syncCompanyIntro();
       if(saved?.brief_id){this.brief=await api('/briefs/'+saved.brief_id);if(saved.scenes)this.brief.scenes=saved.scenes;this.drawScenes();this.unlock(true);}
       if(saved?.result)this.showResult(saved.result);
       if(saved?.job_id)this.watch(await api('/jobs/'+saved.job_id));
@@ -180,6 +219,7 @@ export class VideoBriefWizard {
     finally{this.loading=false;}
   }
   refreshAssets(){
+    this.companyIntro?.proposal&&this.companyIntro.refreshAudio();
     for(const select of this.root.querySelectorAll('[data-audio],[data-scene-image]')){
       const selected=select.value||this.audioDraft?.[select.dataset.audio]||'',isImage=select.hasAttribute('data-scene-image');
       select.replaceChildren(new Option(isImage?'Branded motion artwork':'None',''));
@@ -187,7 +227,62 @@ export class VideoBriefWizard {
       select.value=selected;
     }
   }
+  stopStoryboard(){
+    this.storyboardPlaying=false;
+    if(this.storyboardFrame)cancelAnimationFrame(this.storyboardFrame);
+    this.storyboardFrame=null;
+    if(this.$)this.$('[data-play-storyboard]').textContent='Play storyboard';
+  }
+  playStoryboard(){
+    if(this.storyboardPlaying){this.stopStoryboard();return;}
+    if(!this.brief||this.busy)return;
+    const range=this.$('[data-playhead]'),total=+range.max;
+    const offset=+range.value>=total?0:+range.value,start=performance.now();
+    this.storyboardPlaying=true;this.$('[data-play-storyboard]').textContent='Pause storyboard';
+    const frame=now=>{
+      if(!this.storyboardPlaying||this.step!==2){this.stopStoryboard();return;}
+      const time=Math.min(total,offset+(now-start)/1000);range.value=time;this.previewTime(time);
+      if(time>=total){this.stopStoryboard();return;}
+      this.storyboardFrame=requestAnimationFrame(frame);
+    };
+    this.storyboardFrame=requestAnimationFrame(frame);
+  }
+  previewTime(time){
+    if(!this.brief)return;
+    const scene=this.brief.scenes.find(item=>time>=item.start&&time<item.start+item.duration)||this.brief.scenes.at(-1);
+    const index=this.brief.scenes.indexOf(scene),preview=this.$('[data-timeline-preview]'),brand=this.brief.brand;
+    preview.dataset.backgroundStyle=scene.background_style||'brand-gradient';
+    preview.style.setProperty('--vbf-primary',brand.primary_hex);preview.style.setProperty('--vbf-accent',brand.secondary_hex);
+    this.$('[data-preview-overlay]').textContent=scene.overlay_text;this.$('[data-preview-script]').textContent=scene.voiceover;
+    preview.dir=this.brief.request.language==='ar'?'rtl':'ltr';
+    this.$('[data-playhead-time]').textContent=`${time.toFixed(1)}s / ${(+this.$('[data-playhead]').max).toFixed(1)}s · Scene ${index+1}`;
+    this.$('[data-timeline-scenes]').querySelectorAll('button').forEach((button,i)=>button.setAttribute('aria-pressed',String(i===index)));
+    let picture=preview.querySelector('img');const asset=this.studio.assets.find(item=>item.id===scene.asset_id);
+    if(asset){if(!picture){picture=document.createElement('img');picture.alt='Selected storyboard image';preview.prepend(picture);}picture.src=asset.url;}
+    else picture?.remove();
+  }
+  updateTimeline(){
+    if(!this.brief)return;
+    const bar=this.$('[data-timeline-scenes]'),range=this.$('[data-playhead]');bar.replaceChildren();
+    let total=0;this.brief.scenes.forEach((scene,index)=>{
+      const length=Number.isFinite(scene.duration)&&scene.duration>0?scene.duration:0;
+      scene.start=+total.toFixed(3);total+=length;
+      const button=document.createElement('button');button.type='button';button.style.flexGrow=Math.max(.1,length);
+      button.textContent=`Scene ${index+1} · ${length.toFixed(1)}s`;button.setAttribute('aria-label',`Preview scene ${index+1}`);
+      button.onclick=()=>{this.stopStoryboard();range.value=scene.start;this.previewTime(scene.start);};bar.append(button);
+      const card=this.$('[data-scenes]').children[index];if(card)card.querySelector('h4').textContent=`Scene ${index+1} · ${scene.start.toFixed(2)}–${(scene.start+length).toFixed(2)}s`;
+    });
+    range.max=total||1;range.value=Math.min(+range.value,total);
+    this.timingsValid=total>0&&Math.abs(total-this.brief.request.duration)<=.02;
+    this.$('[data-timing-status]').textContent=this.timingsValid?`Storyboard duration: ${total.toFixed(2)} seconds.`:`Scenes total ${total.toFixed(2)}s; target ${this.brief.request.duration}s. Adjust scene durations before rendering.`;
+    this.$('[data-render]').disabled=this.busy||!this.timingsValid;
+    const hooks=this.$('[data-hook]');hooks.replaceChildren();
+    const choices=[...new Set([this.brief.scenes[0].overlay_text,...(this.brief.hook_variations||this.brief.scenes[0].hook_variations||[])])];
+    for(const hook of choices)hooks.add(new Option(hook,hook));hooks.value=this.brief.scenes[0].overlay_text;
+    this.previewTime(+range.value);
+  }
   drawScenes(){
+    this.stopStoryboard();
     this.$('[data-source]').textContent=(this.brief.planning_source==='ai-model'?'AI-generated storyboard.':'Local template storyboard.')+' '+this.brief.warnings.join(' ');
     const host=this.$('[data-scenes]');host.replaceChildren();
     this.brief.scenes.forEach((scene,index)=>{
@@ -198,22 +293,26 @@ export class VideoBriefWizard {
         <label>Voiceover script<textarea data-edit="voiceover" maxlength="450" dir="${this.brief.request.language==='ar'?'rtl':'ltr'}">${esc(scene.voiceover)}</textarea></label>
         <div class="vs-pair"><label>Duration (seconds)<input data-edit="duration" type="number" min="1" max="60" step=".001" value="${scene.duration}"></label>
         <label>Camera movement<select data-edit="motion">${['zoom-in','zoom-out','pan','still'].map(move=>`<option>${move}</option>`).join('')}</select></label></div>
+        <label>Background style<select data-edit="background_style"><option value="brand-gradient">Brand gradient</option><option value="minimal">Minimal</option><option value="geometric">Geometric</option></select></label>
         <label>Scene image<select data-scene-image><option value="">Branded motion artwork</option></select></label>`;
       card.querySelector('[data-edit=motion]').value=scene.motion;
+      card.querySelector('[data-edit=background_style]').value=scene.background_style||'brand-gradient';
       const placeholder=card.querySelector('.vbf-placeholder');placeholder.style.background=this.brief.brand.primary_hex;placeholder.style.borderColor=this.brief.brand.secondary_hex;placeholder.textContent='Scene '+(index+1)+' · '+scene.overlay_text;
       card.querySelectorAll('[data-edit]').forEach(el=>el.oninput=()=>{
+        this.stopStoryboard();
         scene[el.dataset.edit]=el.dataset.edit==='duration'?+el.value:el.value;
-        let cursor=0;for(const item of this.brief.scenes){item.start=+cursor.toFixed(3);cursor+=item.duration;}
-        this.brief.scenes.forEach((item,i)=>host.children[i].querySelector('h4').textContent=`Scene ${i+1} · ${item.start.toFixed(2)}–${(item.start+item.duration).toFixed(2)}s`);
+        if(el.dataset.edit==='background_style'){scene.asset_id=null;card.querySelector('[data-scene-image]').value='';}
         if(el.dataset.edit==='overlay_text')placeholder.textContent='Scene '+(index+1)+' · '+scene.overlay_text;
+        this.updateTimeline();
         this.persist();
       });
-      card.querySelector('[data-scene-image]').onchange=event=>{scene.asset_id=event.target.value||null;this.persist();};
+      card.querySelector('[data-scene-image]').onchange=event=>{scene.asset_id=event.target.value||null;this.updateTimeline();this.persist();};
       host.append(card);
     });
     this.labelControls(host);this.refreshAssets();this.brief.scenes.forEach((scene,i)=>host.children[i].querySelector('[data-scene-image]').value=scene.asset_id||'');
+    this.updateTimeline();
   }
-  setBusy(value){this.busy=value;this.root.querySelectorAll('input,select,textarea,[data-back],[data-next],[data-plan],[data-render],[data-upload],[data-guideline-upload],[data-guideline-refresh],[data-use-suggestion],[data-assist]').forEach(el=>el.disabled=value||this.assisting&&el.hasAttribute('data-assist'));this.unlock(!!this.brief);}
+  setBusy(value){if(value)this.stopStoryboard();this.busy=value;this.root.querySelectorAll('input,select,textarea,[data-back],[data-next],[data-plan],[data-render],[data-upload],[data-guideline-upload],[data-guideline-refresh],[data-use-suggestion],[data-assist],[data-play-storyboard]').forEach(el=>el.disabled=value||this.assisting&&el.hasAttribute('data-assist'));this.unlock(!!this.brief);if(this.brief)this.$('[data-render]').disabled=value||!this.timingsValid;}
   async plan(){
     if(this.busy||!this.valid(0)||!this.valid(1))return;
     this.setBusy(true);this.notice('Preparing your brand-guided storyboard…');
@@ -222,10 +321,14 @@ export class VideoBriefWizard {
   }
   async render(){
     if(this.busy||!this.brief||!this.valid(2))return;
+    if(!this.timingsValid){this.notice('Adjust scene durations to match the target before rendering.');return;}
+    const selected=context(),expected=selected.client_id&&selected.campaign_id?selected:{},recorded=this.brief.agency_context||{};
+    if((expected.client_id||'')!==(recorded.client_id||'')||(expected.campaign_id||'')!==(recorded.campaign_id||'')){this.notice('The selected campaign changed. Generate a new storyboard for the current campaign.');return;}
     this.setBusy(true);this.notice('Queueing your reviewed storyboard…');
     try{
       const audio=Object.fromEntries([...this.root.querySelectorAll('[data-audio]')].map(el=>[el.dataset.audio,el.value||null]));
-      const job=await post('/render-sequence',{brief_id:this.brief.brief_id,scenes:this.brief.scenes,burn_subtitles:this.$('[data-subtitles]').checked,...audio});
+      const levels=Object.fromEntries([...this.root.querySelectorAll('[data-gain]')].map(el=>[el.dataset.gain,+el.value]));
+      const job=await post('/render-sequence',{brief_id:this.brief.brief_id,scenes:this.brief.scenes,burn_subtitles:this.$('[data-subtitles]').checked,...audio,...levels});
       this.watch(job);
     }catch(error){this.notice(error.message);this.setBusy(false);}
   }

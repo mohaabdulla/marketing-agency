@@ -64,6 +64,23 @@ class MessageAssistantTests(unittest.TestCase):
         self.assertFalse(result['ai_used']);self.assertTrue(result['questions'])
         self.assertLessEqual(len(result['message']),2000)
 
+    def test_company_introduction_draft_and_native_storyboard(self):
+        details=dict(company_overview='Acme is a workflow planning company.',company_services='Workflow tools and automation support.',
+                     company_values='Clear communication and practical delivery.',target_audience='Operations managers')
+        for language in ('en','ar'):
+            result=self.suggest({**self.payload,**details,'campaign_type':'company_intro','language':language})
+            self.assertIn('Acme' if language=='en' else 'أكمي',result['message'])
+            self.assertIn(details['company_services'],result['message'])
+            with patch('campaign_generator.LexnisCampaignStudio._chat',side_effect=RuntimeError('Offline storyboard test')):
+                response=self.client.post('/api/video/generate-brief',json={**details,'brand_id':self.brand_id,'campaign_goal':'Introduce the Company',
+                    'core_message':result['message'],'language':language,'duration':8})
+            self.assertEqual(response.status_code,200,response.text)
+            board=response.json();self.assertEqual(len(board['scenes']),4)
+            self.assertEqual(board['scenes'][0]['voiceover'],details['company_overview'])
+            self.assertIn(details['company_services'],board['scenes'][1]['overlay_text'])
+            self.assertIn(details['target_audience'],board['scenes'][2]['overlay_text'])
+            self.assertEqual(board['timeline']['scenes'][-1]['end'],8)
+
     def test_enhancement_reuses_sources_and_preserves_original(self):
         result=self.suggest()
         with patch('agency.research.fetch',side_effect=AssertionError('Enhancement must reuse captured sources')),patch.object(assistant,'model_message',side_effect=ValueError('Offline')):

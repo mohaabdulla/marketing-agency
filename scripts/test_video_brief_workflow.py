@@ -47,7 +47,7 @@ class VideoBriefWorkflow(unittest.TestCase):
         uploaded=cls.client.post('/api/upload-logo',files={'file':('brief-logo.png',logo.getvalue(),'image/png')})
         assert uploaded.status_code==200,uploaded.text
         brand=cls.client.post('/api/brands',json=dict(brand_name='Brief Test Company',brand_name_ar='شركة الاختبار',
-            primary_hex='#142332',secondary_hex='#e8b34a',font_preferences=['Arial'],tagline='Practical ideas for teams.',logo_path=uploaded.json()['file_url']))
+            primary_hex='#142332',secondary_hex='#e8b34a',font_preferences=['Arial'],font_preferences_ar=['Cairo'],tagline='Practical ideas for teams.',logo_path=uploaded.json()['file_url']))
         assert brand.status_code==201,brand.text
         cls.brand=brand.json()['brand']
         cls.payload=dict(brand_id=cls.brand['id'],core_message='نعلن إطلاق مخطط عمل جديد للفرق. تواصل معنا لاكتشاف التفاصيل.',
@@ -103,7 +103,74 @@ class VideoBriefWorkflow(unittest.TestCase):
         self.assertAlmostEqual(cursor,6,places=2)
         self.assertEqual(self.brief['brand']['primary_hex'],self.brand['primary_hex'])
         self.assertEqual(self.brief['brand']['secondary_hex'],self.brand['accent_hex'])
-        self.assertEqual(self.brief['brand']['font_family'],'Arial')
+        self.assertEqual(self.brief['brand']['font_family'],'Cairo')
+        self.assertEqual(len(self.brief['hook_variations']),3)
+        self.assertEqual(self.brief['timeline']['fps'],30)
+        self.assertEqual(self.brief['timeline']['scenes'][0]['text_overlays'][0]['text'],self.brief['scenes'][0]['overlay_text'])
+
+    def test_goal_aspect_aliases_audience_job_details_and_conflicts(self):
+        for goal,canonical in [('Product Launch','product_launch'),('Hiring & Recruitment','hiring'),('Social Brand Awareness','brand_announcement'),('Service Explainer','explainer')]:
+            request=VideoBriefRequest(brand_id=self.brand['id'],campaign_goal=goal,aspect_ratio='9:16 (Reels/TikTok)',
+                core_objective='Create a clear campaign video.',target_audience='Operations managers',job_opening_details='AI Engineer in Bahrain',language='English')
+            self.assertEqual(request.campaign_type,canonical);self.assertEqual(request.platform_target,'9:16')
+        body={**self.payload,'campaign_goal':'Hiring & Recruitment','aspect_ratio':'16:9 (Landscape)','target_audience':'Experienced engineers','job_details':'مهندس ذكاء اصطناعي في البحرين'}
+        del body['campaign_type'];del body['platform_target']
+        response=self.client.post('/api/video/generate-brief',json=body)
+        self.assertEqual(response.status_code,200,response.text)
+        result=response.json();self.assertEqual(result['timeline']['width'],1280)
+        self.assertEqual(result['request']['target_audience'],'Experienced engineers')
+        self.assertIn('مهندس',result['scenes'][1]['overlay_text'])
+        self.assertEqual(self.client.post('/api/video/generate-brief',json={**self.payload,'campaign_goal':'Service Explainer'}).status_code,422)
+
+    def test_compiled_edited_scenes_and_distinct_background_artwork(self):
+        from video_engine import prepare_sequence,sequence_backdrop
+        from video_director import RenderSequenceRequest
+        from video_projects import Canvas
+        import hashlib
+        scenes=json.loads(json.dumps(self.brief['scenes']))
+        scenes[0].update(duration=2.5,overlay_text=self.brief['hook_variations'][1],background_style='minimal')
+        scenes[1].update(start=2.5,duration=1.5,background_style='geometric')
+        token=_guest.set(self.workspace)
+        try:compiled=prepare_sequence(RenderSequenceRequest(brief_id=self.brief['brief_id'],scenes=scenes))['timeline']
+        finally:_guest.reset(token)
+        self.assertEqual(compiled['scenes'][0]['end'],2.5)
+        self.assertEqual(compiled['scenes'][1]['start'],2.5)
+        self.assertEqual(compiled['scenes'][0]['background']['style'],'minimal')
+        self.assertEqual(compiled['scenes'][0]['text_overlays'][0]['text'],self.brief['hook_variations'][1])
+        hashes=[]
+        with tempfile.TemporaryDirectory() as directory:
+            for style in ('brand-gradient','minimal','geometric'):
+                path=Path(directory)/(style+'.png');sequence_backdrop(path,Canvas(width=320,height=180),self.brief['brand'],0,style)
+                hashes.append(hashlib.sha256(path.read_bytes()).hexdigest())
+        self.assertEqual(len(set(hashes)),3)
+
+    def test_agency_campaign_production_routes_enforce_context(self):
+        import video_api
+        client=self.client.post('/api/agency/clients',json={'name':'Video production owner'}).json()
+        prefix='/api/agency/clients/'+client['id']
+        campaigns=[]
+        for name in ('Video launch','Other launch'):
+            response=self.client.post(prefix+'/records/campaigns',json={'name':name,'data':{'objective':'Launch'}})
+            self.assertEqual(response.status_code,201,response.text);campaigns.append(response.json()['id'])
+        base=prefix+'/campaigns/'+campaigns[0]
+        response=self.client.post(base+'/video-brief',json=self.payload)
+        self.assertEqual(response.status_code,200,response.text)
+        brief=response.json();self.assertEqual(brief['agency_context'],dict(client_id=client['id'],campaign_id=campaigns[0]))
+        with patch.object(video_api.jobs,'submit',return_value=dict(id='0'*32,state='queued',kind='storyboard-sequence')):
+            response=self.client.post(base+'/video-render',json=dict(brief_id=brief['brief_id']))
+        self.assertEqual(response.status_code,202,response.text)
+        self.assertEqual(self.client.post(prefix+'/campaigns/'+campaigns[1]+'/video-render',json=dict(brief_id=brief['brief_id'])).status_code,409)
+        self.assertEqual(self.other.post(base+'/video-brief',json=self.payload).status_code,404)
+
+    def test_arabic_typography_preferences_are_resolved_and_reported(self):
+        updated={**self.brand,'font_preferences_ar':['Almarai','Cairo','Arial']}
+        self.assertEqual(self.client.post('/api/brands',json=updated).status_code,200)
+        try:
+            with patch('video_fonts.path',side_effect=lambda name:'/registered/Cairo.ttf' if name=='Cairo' else None):
+                result=self.client.post('/api/video/generate-brief',json=self.payload)
+            self.assertEqual(result.status_code,200,result.text)
+            self.assertEqual(result.json()['timeline']['typography']['font_family'],'Cairo')
+        finally:self.client.post('/api/brands',json=self.brand)
 
     def test_mocked_ai_storyboard_and_malformed_provider_fallback(self):
         request=VideoBriefRequest(**{**self.payload,'language':'English'})
@@ -136,7 +203,7 @@ class VideoBriefWorkflow(unittest.TestCase):
         for index,result in enumerate(self.renders):
             project=self.stored('projects',result['project_id'])
             self.assertEqual(project['caption_tracks'][0]['burn_in'],index==0)
-            style=project['caption_tracks'][0]['brand_style'];self.assertEqual(style['font_name'],'Arial')
+            style=project['caption_tracks'][0]['brand_style'];self.assertEqual(style['font_name'],'Cairo')
             self.assertEqual(style['stroke'],self.brand['primary_hex'])
             lower=next(c for c in project['clips'] if c['text_role']=='lower_third')
             self.assertEqual(lower['graphic_style']['fill'],self.brand['accent_hex'])
@@ -235,10 +302,26 @@ class VideoBriefWorkflow(unittest.TestCase):
             wizard.get_by_role('button',name='Generate storyboard',exact=True).click()
             wizard.locator('.vbf-scene').first.wait_for()
             self.assertEqual(wizard.locator('.vbf-scene').count(),3)
+            wizard.get_by_label('Opening hook',exact=True).select_option(index=1)
+            self.assertEqual(wizard.get_by_label('Text overlay',exact=True).first.input_value(),wizard.get_by_label('Opening hook',exact=True).input_value())
+            wizard.get_by_label('Background style',exact=True).first.select_option('minimal')
+            wizard.get_by_label('Background style',exact=True).nth(1).select_option('geometric')
+            wizard.get_by_role('button',name='Preview scene 2',exact=True).click()
+            self.assertEqual(wizard.locator('[data-timeline-preview]').get_attribute('data-background-style'),'geometric')
+            wizard.get_by_role('button',name='Play storyboard',exact=True).click()
+            page.wait_for_function("+document.querySelector('[data-playhead]').value>2.1")
+            wizard.get_by_role('button',name='Pause storyboard',exact=True).click()
+            wizard.get_by_label('Duration (seconds)',exact=True).first.fill('3')
+            self.assertTrue(wizard.get_by_role('button',name='Render complete video',exact=True,include_hidden=True).is_disabled())
+            wizard.get_by_role('button',name='Next: Render & Export').click()
+            self.assertTrue(wizard.locator('[data-panel="2"]').is_visible())
+            self.assertIn('Adjust scene durations',wizard.locator('[data-notice]').inner_text())
+            wizard.get_by_label('Duration (seconds)',exact=True).first.fill('2')
             wizard.get_by_label('Text overlay',exact=True).first.fill('Your next planning chapter')
             wizard.get_by_label('Voiceover script',exact=True).first.fill('Plan the next chapter with our team.')
             wizard.get_by_label('Recorded voiceover',exact=True).select_option(self.audio)
             wizard.get_by_label('Licensed music track',exact=True).select_option(self.audio)
+            wizard.get_by_label('Music volume',exact=True).evaluate("el=>{el.value=.3;el.dispatchEvent(new Event('input',{bubbles:true}));}")
             wizard.get_by_role('button',name='Next: Render & Export').click()
             wizard.get_by_label('Burn subtitles into the video').uncheck()
             with page.expect_response(lambda response:'/api/video/render-sequence' in response.url and response.request.method=='POST') as submitted:
@@ -247,11 +330,17 @@ class VideoBriefWorkflow(unittest.TestCase):
             posted=submitted.value.request.post_data_json
             self.assertFalse(posted['burn_subtitles'])
             self.assertEqual(posted['scenes'][0]['overlay_text'],'Your next planning chapter')
+            self.assertEqual(posted['scenes'][0]['background_style'],'minimal')
+            self.assertEqual(posted['scenes'][1]['background_style'],'geometric')
             wizard.get_by_role('link',name='Download MP4',exact=True).wait_for(timeout=120000)
             self.assertEqual(wizard.get_by_label('Video render progress').get_attribute('value'),'100')
             self.assertEqual(wizard.get_by_label('Storyboard video preview').count(),1)
             with page.expect_download() as download:wizard.get_by_role('link',name='Download Full Video Kit (.ZIP)',exact=True).click()
-            with zipfile.ZipFile(download.value.path()) as archive:self.assertIsNone(archive.testzip())
+            with zipfile.ZipFile(download.value.path()) as archive:
+                self.assertIsNone(archive.testzip())
+                project=json.loads(archive.read('project.json'))
+                self.assertEqual(next(clip for clip in project['clips'] if clip['kind']=='audio' and clip['audio_role']=='music')['volume'],.3)
+                self.assertEqual(json.loads(archive.read('storyboard.json'))['timeline']['scenes'][0]['background']['style'],'minimal')
             wizard.screenshot(path=str(self.evidence/'wizard-desktop.png'))
             page.reload(wait_until='domcontentloaded');page.get_by_role('button',name='Video Generator',exact=True).click()
             page.wait_for_function("document.querySelector('[data-field=brand_id]')?.value!=='' && document.querySelector('[data-step=\"3\"]')?.disabled===false")

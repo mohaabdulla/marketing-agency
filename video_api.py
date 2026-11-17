@@ -28,6 +28,7 @@ from video_review import ReviewRequest, review_record, set_review,RubricRequest,
 from video_director import VideoBriefRequest,RenderSequenceRequest,generate_video_brief
 from video_engine import prepare_sequence,render_sequence
 from video_brief_assistant import MessageRequest,suggest_message
+import video_company_intro as company_intro
 
 
 def trusted_origin(request: Request):
@@ -76,6 +77,36 @@ def video_render_sequence(body: RenderSequenceRequest):
         raise HTTPException(503,'Install FFmpeg and FFprobe before rendering a storyboard')
     brief=guard(prepare_sequence,body)
     return guard(jobs.submit,'storyboard-sequence',lambda job:render_sequence(brief,body,job))
+
+
+@router.post('/company-intro/research',status_code=202)
+def video_company_research(body: company_intro.CompanyResearchRequest):
+    """Research the company website (and optionally the web) in the background; the job result is the proposal."""
+    return guard(jobs.submit,'company-research',lambda job:company_intro.research_company(body,job))
+
+
+@router.get('/company-intro/{proposal_id}')
+def video_company_proposal(proposal_id: str):
+    return guard(company_intro.get_proposal,proposal_id)
+
+
+@router.get('/company-intro/{proposal_id}/images/{index}')
+def video_company_image(proposal_id: str, index: int):
+    return FileResponse(guard(company_intro.image_path,proposal_id,index),media_type='image/jpeg')
+
+
+@router.post('/company-intro/{proposal_id}/approve',status_code=202)
+def video_company_approve(proposal_id: str, body: company_intro.CompanyIntroApproval):
+    """The person approved the proposal: store the storyboard and render the finished video."""
+    if not binary('ffmpeg') or not binary('ffprobe'):
+        raise HTTPException(503,'Install FFmpeg and FFprobe before rendering a video')
+    brief=guard(company_intro.approve,proposal_id,body)
+    render_body=RenderSequenceRequest(brief_id=brief['brief_id'],burn_subtitles=body.burn_subtitles,music_asset_id=body.music_asset_id,
+        voiceover_asset_id=body.voiceover_asset_id,voiceover_volume=body.voiceover_volume,music_volume=body.music_volume)
+    prepared=guard(prepare_sequence,render_body)
+    job=guard(jobs.submit,'company-intro-video',lambda job:render_sequence(prepared,render_body,job))
+    guard(company_intro.record_render,proposal_id,job['id'])
+    return dict(brief=brief,job=job)
 
 
 @router.get('/sequences/{sequence_id}/bundle')

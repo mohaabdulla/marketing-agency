@@ -21,10 +21,15 @@ class MessageRequest(Strict):
     guideline_id: str | None = Field(None,pattern=r'^[a-f0-9]{32}$')
     guideline_notes: str = Field('',max_length=4000)
     context_id: str | None = Field(None,pattern=r'^[a-f0-9]{32}$')
-    campaign_type: Literal['product_launch','hiring','brand_announcement','explainer'] = 'product_launch'
+    campaign_type: Literal['product_launch','hiring','brand_announcement','explainer','company_intro'] = 'product_launch'
     language: Literal['en','ar'] = 'en'
     tone: Literal['professional','energetic','warm'] = 'professional'
     core_message: str = Field('',max_length=2000)
+    target_audience: str = Field('',max_length=500)
+    job_details: str = Field('',max_length=1000)
+    company_overview: str = Field('',max_length=1000)
+    company_services: str = Field('',max_length=1000)
+    company_values: str = Field('',max_length=700)
     action: Literal['draft','enhance'] = 'draft'
 
     @model_validator(mode='after')
@@ -134,6 +139,8 @@ def suggest_message(body):
     context=collect_context(body);ar=body.language=='ar'
     name=(brand.get('brand_name_ar') or brand['brand_name']) if ar else brand['brand_name']
     templates={
+        'company_intro':(f'Create a company introduction video for {name}. Tell viewers who we are, what we do, who we help, and what matters to us. Close by inviting viewers to explore our work or get in touch.',
+                         f'أنشئ فيديو تعريفياً بشركة {name}. عرّف المشاهدين بمن نحن، وماذا نقدّم، ومن نخدم، وما يهمنا. اختم بدعوة لاكتشاف أعمالنا أو التواصل معنا.'),
         'product_launch':(f'Create a product launch video for {name}. Introduce [product or service name] to [target audience]. Explain [main benefit] and invite viewers to learn more.',
                           f'أنشئ فيديو إطلاق لصالح {name}. قدّم [اسم المنتج أو الخدمة] إلى [الجمهور المستهدف]، واشرح [الفائدة الرئيسية]، ثم ادعُ المشاهدين لمعرفة التفاصيل.'),
         'hiring':(f'Create a recruitment video for {name}. Introduce the [job title] opportunity, describe [approved responsibilities], and invite candidates to [application method].',
@@ -144,6 +151,11 @@ def suggest_message(body):
                      f'أنشئ فيديو شرح لصالح {name}. وضّح طريقة عمل [الخدمة أو العملية]، ومن يستفيد منها، والخطوة التالية للمهتمين.')}
     base=body.core_message.strip() if body.action=='enhance' else templates[body.campaign_type][int(ar)]
     lines=[base]
+    if body.campaign_type=='company_intro':
+        for value,en,arabic in [(body.company_overview,'Who we are','من نحن'),(body.company_services,'What we do','ماذا نقدّم'),(body.company_values,'What matters to us','ما يهمنا')]:
+            if value.strip():lines.append((arabic if ar else en)+': '+value.strip())
+    if body.target_audience:lines.append(('الجمهور المستهدف: ' if ar else 'Target audience: ')+body.target_audience)
+    if body.job_details and body.campaign_type=='hiring':lines.append(('تفاصيل الوظيفة: ' if ar else 'Job opening details: ')+body.job_details)
     if context['sources']:
         lines.append(('سياق من موقع الشركة: ' if ar else 'Company website context: ')+context['sources'][0]['excerpt'][:500])
     guideline=context.get('guideline') or {}
@@ -157,7 +169,8 @@ def suggest_message(body):
     if body.action=='enhance':lines.append('حافظ على رسالة واحدة واضحة، وتسلسل افتتاحية ثم فائدة ثم دعوة إلى الإجراء، مع نص مقروء.' if ar else 'Keep one clear message: opening hook, benefit, then a call to action. Use readable on-screen text.')
     message='\n\n'.join(lines)[:2000];engine='template'
     questions=(['ما اسم المنتج أو الوظيفة؟','من الجمهور المستهدف وما الخطوة التالية؟'] if ar else ['What is the product or role name?','Who is the target audience, and what should they do next?']) if '[' in message else []
-    evidence=dict(action=body.action,campaign_type=body.campaign_type,language=body.language,tone=body.tone,
+    evidence=dict(action=body.action,campaign_type=body.campaign_type,language=body.language,tone=body.tone,target_audience=body.target_audience,job_details=body.job_details,
+        company_overview=body.company_overview,company_services=body.company_services,company_values=body.company_values,
         current_message=body.core_message,brand={key:brand.get(key) for key in ('brand_name','brand_name_ar','tagline','primary_hex','accent_hex')},
         website_excerpts=[dict(url=page['url'],text=page['excerpt'][:1800]) for page in context['sources']],
         guidelines=guideline.get('text','')[:2200],guideline_rules=rules,company_notes=context['notes'][:1500])
