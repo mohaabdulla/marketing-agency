@@ -19,6 +19,30 @@ LOOKS = {
     'cinematic-brand': dict(intent='Restrained highlight roll-off and defined subject; no cinema color-management claim',face_range=[.42,.60],strength=.7,saturation_floor=.90),
 }
 
+UNIFIED_GRADE_PROFILES = {
+    'organic': dict(gamma=1.0, contrast=1.02, saturation=0.98, temperature=0.0, denoise=0.0),
+    'polished-organic': dict(gamma=1.02, contrast=1.05, saturation=1.04, temperature=0.01, shadows=0.05, highlights=0.05, denoise=0.0),
+    'corporate-clean': dict(gamma=1.04, contrast=1.08, saturation=1.02, temperature=-0.02, shadows=0.04, highlights=0.08, denoise=0.0),
+    'warm-lifestyle': dict(gamma=1.03, contrast=1.04, saturation=1.08, temperature=0.06, shadows=0.06, highlights=0.04, denoise=0.0),
+    'high-energy': dict(gamma=1.05, contrast=1.12, saturation=1.12, temperature=0.02, shadows=0.08, highlights=0.06, denoise=0.0),
+    'cinematic-brand': dict(gamma=0.98, contrast=1.10, saturation=0.95, temperature=0.03, shadows=0.08, highlights=0.12, vignette=0.08, denoise=0.0),
+}
+
+
+def unified_grade_filters(look_name, global_denoise=0.0):
+    """Generate uniform color grade and denoise filter chain across timeline clips."""
+    if not look_name or look_name not in UNIFIED_GRADE_PROFILES:
+        if global_denoise > 0:
+            return filters({'denoise': global_denoise})
+        return []
+    profile = dict(UNIFIED_GRADE_PROFILES[look_name])
+    if global_denoise > 0:
+        profile['denoise'] = max(profile.get('denoise', 0.0), global_denoise)
+    res = filters(profile)
+    if profile.get('contrast', 1) != 1 or profile.get('saturation', 1) != 1:
+        res.append(f'eq=contrast={profile.get("contrast", 1):.3f}:saturation={profile.get("saturation", 1):.3f}')
+    return res
+
 
 def regional_filters(settings):
     values=settings.model_dump() if hasattr(settings,'model_dump') else settings

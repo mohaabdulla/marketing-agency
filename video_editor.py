@@ -176,6 +176,12 @@ def render(project, job, container='mp4', audio=True, preview=False):
             filters += [f'eq=brightness={c.brightness}:contrast={c.contrast}:saturation={c.saturation}']
             from video_grade import filters as grade_filters
             filters += grade_filters(c)
+            if getattr(project, 'unified_grade', None) or getattr(project, 'global_denoise', 0.0) > 0:
+                from video_grade import unified_grade_filters
+                filters += unified_grade_filters(getattr(project, 'unified_grade', None), getattr(project, 'global_denoise', 0.0))
+            if getattr(c, 'smooth_motion', False) or getattr(project, 'frame_interpolation', False):
+                mi_mode = 'blend' if preview or not high else 'mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1'
+                filters += [f'minterpolate=fps={fps_arg}:mi_mode={mi_mode}']
             if c.fade_in:
                 filters += [f'fade=t=in:st=0:d={c.fade_in}']
             if c.fade_out:
@@ -257,7 +263,10 @@ def render(project, job, container='mp4', audio=True, preview=False):
             c, _, overlap = layout[i]
             nv, na = f'v{i}', f'a{i}'
             if overlap:
-                graph += [f'[{vlabel}][{i}:v]xfade=transition=fade:duration={overlap}:offset={elapsed-overlap}[{nv}]',
+                t_type = getattr(c, 'transition_type', 'fade') or 'fade'
+                if t_type == 'smooth':
+                    t_type = 'smoothleft'
+                graph += [f'[{vlabel}][{i}:v]xfade=transition={t_type}:duration={overlap}:offset={elapsed-overlap}[{nv}]',
                           f'[{alabel}][{i}:a]acrossfade=d={overlap}[{na}]']
             else:
                 graph += [f'[{vlabel}][{alabel}][{i}:v][{i}:a]concat=n=2:v=1:a=1[{nv}][{na}]']

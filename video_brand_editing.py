@@ -18,6 +18,8 @@ SUPPORTED = {
     'SET_DURATION': {'duration'}, 'TRIM_CLIP': {'trim','duration'}, 'SET_SPEED': {'speed'},
     'REMOVE_CLIP': set(), 'SET_VOLUME': {'volume'}, 'SET_POSITION': {'x','y'}, 'SET_SCALE': {'scale'},
     'SET_FADE': {'fade_in','fade_out'}, 'SET_TRANSITION': {'transition'},
+    'SET_TRANSITION_TYPE': {'transition_type'}, 'GENERATIVE_EXTEND': {'min_duration', 'pad_duration'},
+    'SET_MOTION_SMOOTHING': {'enabled'}, 'SET_UNIFIED_GRADE': {'unified_grade', 'global_denoise'},
     'SET_COLOR': {'brightness','contrast','saturation'},
     'SET_CANVAS': {'width','height'}, 'SET_SAFE_ZONE_PROFILE': {'profile'},
     'UPDATE_TITLE': {'text','color','font','font_family','font_size','x','y','start','duration','text_role','motion'},
@@ -172,7 +174,10 @@ def polish(project, instruction, rules, repair_only=False):
                for w in ('smooth','subtle','professional','premium','fade'))
     for clip in project.clips:
         if clip.kind == 'title':
-            params = dict(x=min(.85,max(.15,clip.x)),y=min(.75,max(.15,clip.y)))
+            y_pos = min(.85, max(.15, clip.y))
+            if clip.text_role in {'caption', 'lower_third', 'disclosure'}:
+                y_pos = 0.82
+            params = dict(x=0.5 if clip.text_role in {'caption', 'lower_third', 'disclosure', 'cta'} else min(.85, max(.15, clip.x)), y=y_pos)
             if color: params['color'] = color
             if font: params['font_family'] = font
             if rules.caption_size: params['font_size'] = rules.caption_size
@@ -231,12 +236,91 @@ def polish(project, instruction, rules, repair_only=False):
             placement = rules.logo_placement or ('top-left' if 'top left' in inst else 'top-right')
             margin = max(.15,rules.logo_clear_space or .15)
             add('SET_POSITION',dict(x=margin if placement.endswith('left') else 1-margin,y=margin if placement.startswith('top') else 1-margin),clip.id)
+    if getattr(project, 'unified_grade', None) is None and not repair_only:
+        add('SET_UNIFIED_GRADE', dict(unified_grade='polished-organic', global_denoise=0.08),
+            reason='Apply unified brand color grade and subtle denoising across clips')
     if any(w in inst for w in ('caption','subtitle')) and not any(c.text_role=='caption' for c in project.clips):
         unfulfilled.append('No transcript was supplied. Add reviewed captions manually or run optional local transcription; no speech text was invented.')
     if rules.visual_style:
         warnings.append('Visual style is interpreted through supported typography, pacing and overlays; footage meaning and cinematography are not inferred.')
     return EditPlan(intent='Guideline-based deterministic edit',operations=ops,warnings=warnings,
                     unfulfilled_requests=unfulfilled,requires_approval=True)
+
+
+def optimize_pacing_and_transitions(
+    project: Project,
+    pacing_mode: str = 'rollercoaster',
+    default_transition: float = 0.5,
+    transition_type: str = 'dissolve'
+) -> EditPlan:
+    """Calculates varied professional cut pacing (hook, body, climax, CTA) and smooth transitions.
+    Applies GENERATIVE_EXTEND if clips are too short for transitions.
+    """
+    ops, warnings, unfulfilled = [], [], []
+    video_clips = [c for c in project.clips if c.kind == 'video']
+    if not video_clips:
+        raise ValueError('No video clips found on timeline to optimize pacing')
+
+    n = len(video_clips)
+    target_pacing = []
+    if n == 1:
+        target_pacing = [video_clips[0].duration]
+    elif n == 2:
+        target_pacing = [2.5, 3.5]
+    elif n == 3:
+        target_pacing = [2.2, 3.8, 3.5]
+    elif n == 4:
+        target_pacing = [2.0, 3.5, 2.2, 4.0]
+    else:
+        target_pacing = [2.0]
+        remaining = n - 2
+        for i in range(remaining):
+            target_pacing.append(3.5 if i % 2 == 0 else 2.2)
+        target_pacing.append(4.0)
+
+    for i, clip in enumerate(video_clips):
+        target_dur = target_pacing[i]
+        # Pad clip if too short for pacing or transition
+        if clip.duration < target_dur or clip.duration < default_transition * 2.2:
+            ops.append(EditOperation(
+                operation_type='GENERATIVE_EXTEND',
+                target_id=clip.id,
+                parameters={'min_duration': target_dur, 'pad_duration': max(0.0, target_dur - clip.duration)},
+                reason=f"Extend clip {i+1} for professional pacing and smooth transition clearance",
+                source='rule_engine'
+            ))
+        elif clip.duration > target_dur * 1.6 and pacing_mode == 'rollercoaster':
+            ops.append(EditOperation(
+                operation_type='SET_DURATION',
+                target_id=clip.id,
+                parameters={'duration': target_dur},
+                reason=f"Pace clip {i+1} dynamically to match {pacing_mode} marketing rhythm",
+                source='rule_engine'
+            ))
+
+        # Add transition to all except the first clip
+        if i > 0:
+            ops.append(EditOperation(
+                operation_type='SET_TRANSITION',
+                target_id=clip.id,
+                parameters={'transition': default_transition},
+                reason=f"Add {default_transition}s crossfade transition",
+                source='rule_engine'
+            ))
+            ops.append(EditOperation(
+                operation_type='SET_TRANSITION_TYPE',
+                target_id=clip.id,
+                parameters={'transition_type': transition_type},
+                reason=f"Use professional {transition_type} transition",
+                source='rule_engine'
+            ))
+
+    return EditPlan(
+        intent=f"Optimize pacing ({pacing_mode}) and transitions ({transition_type})",
+        operations=ops,
+        warnings=warnings,
+        requires_approval=True
+    )
 
 
 def compliance(project):

@@ -47,6 +47,8 @@ class Clip(Strict):
     fade_out: float = Field(0, ge=0, le=5)
     motion: Literal['none','fade','slide-up','masked-reveal','soft-scale','word-emphasis'] = 'none'
     transition: float = Field(0, ge=0, le=2)
+    transition_type: Literal['fade', 'dissolve', 'fadeblack', 'fadewhite', 'wipeleft', 'wiperight', 'slideup', 'slidedown', 'smooth'] = 'fade'
+    smooth_motion: bool = False
     # Lighting correction actually rendered by video_grade.filters (neutral values change nothing).
     exposure: float = Field(0, ge=-1, le=1)
     gamma: float = Field(1, ge=.6, le=1.6)
@@ -192,6 +194,11 @@ class Project(Strict):
     status: Literal['draft', 'review', 'approved', 'rejected'] = 'draft'
     caption_tracks: list[Dict[str, Any]] = Field(default_factory=list)
 
+    # Frame interpolation & studio look
+    frame_interpolation: bool = False
+    unified_grade: Literal['organic', 'polished-organic', 'corporate-clean', 'warm-lifestyle', 'high-energy', 'cinematic-brand'] | None = None
+    global_denoise: float = Field(0.0, ge=0.0, le=1.0)
+
     @model_validator(mode='after')
     def unique_clips(self):
         if len({c.id for c in self.clips}) != len(self.clips):
@@ -202,6 +209,9 @@ class Project(Strict):
 def migrate_project(data: Dict[str, Any]) -> Dict[str, Any]:
     """Non-destructive migration of legacy (version 1 or unversioned) project dictionaries."""
     data = dict(data)
+    data.setdefault('frame_interpolation', False)
+    data.setdefault('unified_grade', None)
+    data.setdefault('global_denoise', 0.0)
     if 'schema_version' not in data or data['schema_version'] < 2:
         data['schema_version'] = 2
         data.setdefault('master_project_id', None)
@@ -210,21 +220,23 @@ def migrate_project(data: Dict[str, Any]) -> Dict[str, Any]:
         data.setdefault('status', 'draft')
         data.setdefault('caption_tracks', [])
 
-        migrated_clips = []
-        for c in data.get('clips', []):
-            cd = dict(c)
-            cd.setdefault('track', 1)
-            cd.setdefault('audio_role', 'dialogue' if cd.get('kind') != 'audio' else 'music')
-            cd.setdefault('ducking_priority', 0)
-            cd.setdefault('z_index', 0)
-            cd.setdefault('locked', False)
-            cd.setdefault('muted', False)
-            cd.setdefault('blend_mode', 'normal')
-            cd.setdefault('text_role', 'title')
-            cd.setdefault('caption_style_id', None)
-            cd.setdefault('ai_operation_id', None)
-            migrated_clips.append(cd)
-        data['clips'] = migrated_clips
+    migrated_clips = []
+    for c in data.get('clips', []):
+        cd = dict(c)
+        cd.setdefault('track', 1)
+        cd.setdefault('audio_role', 'dialogue' if cd.get('kind') != 'audio' else 'music')
+        cd.setdefault('ducking_priority', 0)
+        cd.setdefault('z_index', 0)
+        cd.setdefault('locked', False)
+        cd.setdefault('muted', False)
+        cd.setdefault('blend_mode', 'normal')
+        cd.setdefault('text_role', 'title')
+        cd.setdefault('caption_style_id', None)
+        cd.setdefault('ai_operation_id', None)
+        cd.setdefault('transition_type', 'fade')
+        cd.setdefault('smooth_motion', False)
+        migrated_clips.append(cd)
+    data['clips'] = migrated_clips
     return data
 
 

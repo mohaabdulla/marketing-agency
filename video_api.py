@@ -148,6 +148,30 @@ class TranscribeRequest(Strict):
     language: str = Field('en', pattern=r'^(en|ar|auto)$')
 
 
+class VoiceoverRequest(Strict):
+    text: str = Field(min_length=1, max_length=1000)
+    voice_id: str = Field('af_sarah', max_length=50)
+    speed: float = Field(1.0, ge=0.5, le=2.0)
+    start: float = Field(0.0, ge=0.0, le=300.0)
+    ducking_priority: int = Field(1, ge=0, le=5)
+    add_to_timeline: bool = True
+    create_captions: bool = True
+
+
+class BackgroundMusicRequest(Strict):
+    prompt: str = Field('Corporate ambient inspiring track', max_length=300)
+    genre: str = Field('Corporate Ambient', max_length=100)
+    duration_seconds: Optional[float] = Field(None, ge=1.0, le=300.0)
+    volume: float = Field(0.25, ge=0.0, le=2.0)
+    ducking_priority: int = Field(1, ge=0, le=5)
+
+
+class OptimizePacingRequest(Strict):
+    pacing_mode: Literal['rollercoaster', 'even', 'dynamic'] = 'rollercoaster'
+    default_transition: float = Field(0.5, ge=0.1, le=2.0)
+    transition_type: Literal['fade', 'dissolve', 'fadeblack', 'fadewhite', 'wipeleft', 'wiperight', 'slideup', 'slidedown', 'smooth'] = 'dissolve'
+
+
 @router.get('/health')
 def health():
     return dict(ffmpeg=bool(binary('ffmpeg')), ffprobe=bool(binary('ffprobe')), hardware=hardware(),
@@ -580,6 +604,122 @@ def create_variant_endpoint(project_id: str, body: VariantRequest):
     # Save as new independent project
     new_proj = save(variant_proj, actor='user', instruction=f"Created {body.target_aspect} variant from {project_id}")
     return new_proj
+
+
+@router.post('/projects/{project_id}/generate-voiceover')
+def generate_voiceover_endpoint(project_id: str, body: VoiceoverRequest):
+    proj_data = migrate_project(guard(read, 'projects', project_id))
+    project = Project.model_validate({k: v for k, v in proj_data.items() if k in Project.model_fields})
+
+    from agency.tts import tts_engine
+    tts_result = guard(tts_engine.generate_voiceover, text=body.text, voice_id=body.voice_id, speed=body.speed)
+
+    wav_path = Path(tts_result['file_path'])
+    asset = guard(ingest, wav_path, tts_result['filename'])
+
+    if body.add_to_timeline:
+        from video_projects import Clip
+        dur = float(tts_result['duration_seconds'])
+        audio_clip = Clip(
+            asset_id=asset['id'],
+            kind='audio',
+            start=body.start,
+            duration=dur,
+            volume=1.0,
+            track=4,
+            audio_role='voiceover',
+            ducking_priority=body.ducking_priority,
+            fade_in=0.1,
+            fade_out=0.1
+        )
+        project.clips.append(audio_clip)
+
+        if body.create_captions:
+            title_clip = Clip(
+                kind='title',
+                text=body.text,
+                start=body.start,
+                duration=dur,
+                x=0.5,
+                y=0.82,
+                track=2,
+                text_role='caption',
+                font='arabic' if any('\u0600' <= c <= '\u06ff' for c in body.text) else 'sans',
+                fade_in=0.2,
+                fade_out=0.2
+            )
+            project.clips.append(title_clip)
+
+    saved = save(
+        project, project_id, actor='user',
+        instruction=f"Generated voiceover with {body.voice_id}",
+        reason="Local broadcast-grade speech synthesis"
+    )
+    return {'project': saved, 'asset': asset, 'voiceover': tts_result}
+
+
+@router.post('/projects/{project_id}/add-music')
+def add_music_endpoint(project_id: str, body: BackgroundMusicRequest):
+    proj_data = migrate_project(guard(read, 'projects', project_id))
+    project = Project.model_validate({k: v for k, v in proj_data.items() if k in Project.model_fields})
+
+    from video_editor import primary_layout
+    _, total_dur = primary_layout(project)
+    track_dur = body.duration_seconds or max(5.0, total_dur)
+
+    from agency.music import music_engine
+    music_res = guard(music_engine.generate_soundtrack, prompt=body.prompt, genre=body.genre, duration_seconds=track_dur)
+
+    track_meta = music_res.get('track', music_res)
+    wav_path = Path(track_meta['file_path'])
+    asset = guard(ingest, wav_path, track_meta['filename'])
+
+    from video_projects import Clip
+    music_clip = Clip(
+        asset_id=asset['id'],
+        kind='audio',
+        start=0.0,
+        duration=track_dur,
+        volume=body.volume,
+        track=5,
+        audio_role='music',
+        ducking_priority=body.ducking_priority,
+        fade_in=0.5,
+        fade_out=0.8
+    )
+    project.clips.append(music_clip)
+
+    saved = save(
+        project, project_id, actor='user',
+        instruction=f"Added background music track: {body.genre}",
+        reason="Offline ambient background music"
+    )
+    return {'project': saved, 'asset': asset, 'soundtrack': music_res}
+
+
+@router.post('/projects/{project_id}/optimize-pacing')
+def optimize_pacing_endpoint(project_id: str, body: OptimizePacingRequest):
+    proj_data = migrate_project(guard(read, 'projects', project_id))
+    project = Project.model_validate({k: v for k, v in proj_data.items() if k in Project.model_fields})
+
+    import video_brand_editing as branded
+    plan = guard(
+        branded.optimize_pacing_and_transitions,
+        project=project,
+        pacing_mode=body.pacing_mode,
+        default_transition=body.default_transition,
+        transition_type=body.transition_type
+    )
+
+    updated_project, warnings = OperationExecutor.apply_plan(project, plan)
+    saved = save(
+        updated_project, project_id, actor='rule_engine',
+        instruction=f"Optimized pacing ({body.pacing_mode}) and transitions ({body.transition_type})",
+        reason='; '.join(op.reason for op in plan.operations if op.reason),
+        operation_ids=[op.operation_id for op in plan.operations],
+        label='Pacing & Transitions'
+    )
+    return {'project': saved, 'plan': plan.model_dump(mode='json'), 'warnings': warnings}
 
 
 # ==========================================

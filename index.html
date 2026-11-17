@@ -1345,6 +1345,17 @@
               <span>Export Bilingual Package to Disk</span>
             </button>
 
+            <!-- Send to Video Studio Bridge -->
+            <button 
+              type="button" 
+              id="send-to-video-studio-btn" 
+              class="w-full px-3 py-2 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-emerald-500/30 text-emerald-300 hover:text-white text-xs font-mono transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+              title="Send campaign visual assets directly to Video Studio for timeline editing, animation, and voiceover"
+            >
+              <i data-lucide="film" class="w-3.5 h-3.5 text-emerald-400"></i>
+              <span>Send to Video Studio</span>
+            </button>
+
             <!-- AI Vision Art Director (Image-Aware Typography) -->
             <div id="vision-typographer-box" class="bg-obsidian-950/90 border border-cyan-500/30 rounded-xl p-3.5 space-y-2.5 text-xs font-mono shadow-md">
               <div class="flex items-center justify-between pb-1.5 border-b border-obsidian-800">
@@ -5727,6 +5738,26 @@
           exportDiskBtn.innerHTML = '<i data-lucide="hard-drive" class="w-3.5 h-3.5 text-cyan-accent"></i><span>Export Package to Disk</span>';
           lucide.createIcons();
         }
+      });
+    }
+
+    // --- Send to Video Studio Bridge ---
+    const sendToVideoStudioBtn = document.getElementById('send-to-video-studio-btn');
+    if (sendToVideoStudioBtn) {
+      sendToVideoStudioBtn.addEventListener('click', () => {
+        const targetUrl = currentEnglishImageUrl || currentImageUrl || currentArabicImageUrl;
+        if (!targetUrl) {
+          showToast('No active campaign visual to send. Generate an image or GIF first.', false);
+          return;
+        }
+        window.dispatchEvent(new CustomEvent('lexnis:video', {
+          detail: {
+            source_url: targetUrl,
+            mode: 'editor',
+            brand_id: (brandInput?.value || '').trim() || null
+          }
+        }));
+        showToast('Transferred visual asset to Video Studio!');
       });
     }
 

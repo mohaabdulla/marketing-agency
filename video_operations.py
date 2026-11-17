@@ -9,14 +9,15 @@ OperationType = Literal[
     'ADD_CLIP', 'REMOVE_CLIP', 'MOVE_CLIP', 'SPLIT_CLIP', 'TRIM_CLIP',
     'SET_DURATION', 'SET_SPEED', 'SET_VOLUME', 'SET_START', 'SET_OPACITY',
     'SET_POSITION', 'SET_SCALE', 'SET_ROTATION', 'SET_CROP', 'SET_COLOR',
-    'SET_FADE', 'SET_TRANSITION',
+    'SET_FADE', 'SET_TRANSITION', 'SET_TRANSITION_TYPE', 'GENERATIVE_EXTEND',
     'ADD_TITLE', 'UPDATE_TITLE', 'REMOVE_TITLE',
     'ADD_OVERLAY', 'UPDATE_OVERLAY', 'REMOVE_OVERLAY',
     'ADD_AUDIO', 'UPDATE_AUDIO', 'REMOVE_AUDIO',
     'SET_AUDIO_ROLE', 'SET_DUCKING', 'SET_AUDIO_NORMALIZATION',
     'SET_CANVAS', 'SET_FPS', 'SET_SAFE_ZONE_PROFILE',
     'ADD_END_CARD', 'UPDATE_END_CARD', 'APPLY_BRAND_PRESET',
-    'ADD_CAPTION_TRACK', 'UPDATE_CAPTION_SEGMENT', 'REMOVE_CAPTION_TRACK'
+    'ADD_CAPTION_TRACK', 'UPDATE_CAPTION_SEGMENT', 'REMOVE_CAPTION_TRACK',
+    'SET_MOTION_SMOOTHING', 'SET_UNIFIED_GRADE'
 ]
 
 
@@ -63,6 +64,7 @@ class OperationExecutor:
             'SET_DURATION', 'SET_SPEED', 'SET_VOLUME', 'SET_START',
             'SET_OPACITY', 'SET_POSITION', 'SET_SCALE', 'SET_ROTATION',
             'SET_CROP', 'SET_COLOR', 'SET_FADE', 'SET_TRANSITION',
+            'SET_TRANSITION_TYPE', 'GENERATIVE_EXTEND',
             'UPDATE_TITLE', 'REMOVE_TITLE', 'UPDATE_OVERLAY',
             'REMOVE_OVERLAY', 'UPDATE_AUDIO', 'REMOVE_AUDIO',
             'SET_AUDIO_ROLE'
@@ -71,11 +73,26 @@ class OperationExecutor:
             if not target or target not in clip_ids:
                 errors.append(f"Operation {op_t} references nonexistent clip '{target}'")
 
+        if op_t == 'SET_MOTION_SMOOTHING':
+            target = op.target_id or params.get('clip_id')
+            if target and target not in clip_ids:
+                errors.append(f"Operation SET_MOTION_SMOOTHING references nonexistent clip '{target}'")
+
         # 2. Parameter sanity checks
         if op_t in {'SET_DURATION', 'TRIM_CLIP'}:
             dur = params.get('duration')
             if dur is not None and (dur < 0.1 or dur > 300):
                 errors.append(f"Duration {dur}s must be between 0.1 and 300 seconds")
+
+        if op_t == 'SET_TRANSITION_TYPE':
+            t_type = params.get('transition_type')
+            if t_type and t_type not in {'fade', 'dissolve', 'fadeblack', 'fadewhite', 'wipeleft', 'wiperight', 'slideup', 'slidedown', 'smooth'}:
+                errors.append(f"Invalid transition type: {t_type}")
+
+        if op_t == 'SET_UNIFIED_GRADE':
+            u_grade = params.get('unified_grade')
+            if u_grade is not None and u_grade not in {'organic', 'polished-organic', 'corporate-clean', 'warm-lifestyle', 'high-energy', 'cinematic-brand'}:
+                errors.append(f"Invalid unified grade: {u_grade}")
 
         if op_t == 'SET_SPEED':
             speed = params.get('speed')
@@ -226,6 +243,30 @@ class OperationExecutor:
         elif op_t == 'SET_TRANSITION':
             if clip and 'transition' in params:
                 clip.transition = max(0.0, min(2.0, float(params['transition'])))
+
+        elif op_t == 'SET_TRANSITION_TYPE':
+            if clip and 'transition_type' in params:
+                clip.transition_type = params['transition_type']
+
+        elif op_t == 'GENERATIVE_EXTEND':
+            if clip:
+                min_d = float(params.get('min_duration', 2.5))
+                pad_d = float(params.get('pad_duration', 0.0))
+                safe_dur = max(clip.duration + pad_d, min_d, clip.transition * 2.2)
+                clip.duration = round(safe_dur, 2)
+
+        elif op_t == 'SET_MOTION_SMOOTHING':
+            enabled = bool(params.get('enabled', True))
+            if clip:
+                clip.smooth_motion = enabled
+            else:
+                project.frame_interpolation = enabled
+
+        elif op_t == 'SET_UNIFIED_GRADE':
+            if 'unified_grade' in params:
+                project.unified_grade = params['unified_grade']
+            if 'global_denoise' in params:
+                project.global_denoise = max(0.0, min(1.0, float(params['global_denoise'])))
 
         elif op_t == 'ADD_TITLE':
             new_title = Clip(
