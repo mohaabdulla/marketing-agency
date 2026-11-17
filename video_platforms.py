@@ -18,7 +18,9 @@ def config():
 def profile(name):
     data = config()
     key = name if name in data['profiles'] else 'generic-vertical'
-    return dict(data['profiles'][key], id=key, basis=data['basis'], version=data['version'], notice=data['notice'])
+    entry = data['profiles'][key]
+    notice = entry.get('source') or data['notice']
+    return dict(entry, id=key, basis=entry.get('basis', data['basis']), version=data['version'], notice=notice)
 
 
 def choose(instruction, width, height, language='en'):
@@ -27,6 +29,9 @@ def choose(instruction, width, height, language='en'):
     vertical = height >= width
     if 'tiktok' in text and vertical:
         return 'tiktok-rtl' if language.startswith('ar') else 'tiktok-ltr'
+    paid = re.search(r'\b(?:ads?|advert\w*|paid|sponsored|boosted|promoted)\b', text)
+    if paid and vertical and re.search(r'instagram|facebook|\bmeta\b|reels?\b', text):
+        return 'meta-reels-ads'
     if re.search(r'\bstor(y|ies)\b', text) and vertical:
         return 'instagram-stories'
     if re.search(r'instagram|reels?\b', text) and vertical:

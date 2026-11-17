@@ -1,5 +1,14 @@
 /* Campaign delivery presentation; generation and video editing remain separate workspaces. */
 (() => {
+  window.hydrateCampaignResult = async data => {
+    if (!data || typeof data !== 'object') throw new Error('The server returned an empty campaign response. Generate the campaign again.');
+    if (data.status !== 'success' || !data.assets || !data.campaign_id) return data;
+    const response = await fetch('/api/campaign/' + encodeURIComponent(data.campaign_id) + '/deliverables');
+    if (!response.ok) throw new Error('Unable to load the completed campaign kit (' + response.status + ').');
+    const kit = await response.json().catch(() => null);
+    if (!kit || typeof kit !== 'object') throw new Error('The completed campaign kit could not be read. Generate the campaign again.');
+    return kit;
+  };
   let sequence = 0;
   const element = (tag, text, className) => {
     const node = document.createElement(tag);

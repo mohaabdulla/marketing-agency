@@ -308,6 +308,17 @@ class AgencyMasterSuiteTests(unittest.TestCase):
         self.assertEqual(kpis["cpa"], 20.0)          # 500 / 25
         self.assertEqual(kpis["cvr_percent"], 10.0)  # 25 / 250 * 100
         self.assertEqual(kpis["roas"], 5.0)          # 2500 / 500
+        # Undefined ratios are reported as undefined, not as a misleading zero.
+        empty = calculate_canonical_kpis(impressions=1000, clicks=0, spend=0.0)
+        self.assertEqual((empty["ctr_percent"], empty["cpc"], empty["roas"]), (0.0, None, None))
+        tagged = UTMParameters(source="LinkedIn", medium="Paid Social", campaign="Spring Sale", id="q2-042", source_platform="Google Ads")
+        url = tagged.build_url("https://lexnis.com/p?ref=a&utm_source=old")
+        self.assertEqual(url, "https://lexnis.com/p?ref=a&utm_source=linkedin&utm_medium=paid-social&utm_campaign=spring-sale"
+                              "&utm_id=q2-042&utm_source_platform=google-ads")
+        with self.assertRaisesRegex(ValueError, "email address"):
+            UTMParameters(source="newsletter", medium="email", campaign="x", content="jane@example.com").build_url("https://lexnis.com")
+        with self.assertRaisesRegex(ValueError, "absolute http"):
+            tagged.build_url("lexnis.com/p")
 
     def test_12_csv_analytics_import(self):
         sample_csv = (
@@ -321,6 +332,12 @@ class AgencyMasterSuiteTests(unittest.TestCase):
         self.assertEqual(parsed["summary"]["clicks"], 260)
         self.assertEqual(parsed["summary"]["spend"], 440.0)
         self.assertAlmostEqual(parsed["summary"]["roas"], 5.0, places=1)
+        # Real exports: header case, thousands separators, currency symbols, blank optional cells.
+        exported = parse_analytics_csv('Date,Channel,Impressions,Clicks,Spend,Conversions\n'
+                                       '2026-11-03,meta,"1,200",30,"$45.50",\n')
+        self.assertEqual((exported["summary"]["impressions"], exported["summary"]["spend"], exported["summary"]["cpa"]), (1200, 45.5, None))
+        with self.assertRaisesRegex(ValueError, "Line 2: clicks"):
+            parse_analytics_csv("date,channel,impressions,clicks,spend\n2026-11-01,meta,100,-3,5\n")
 
     # 8. CLIENT REVIEW PORTAL & BILLING
     def test_13_client_review_portal_and_billing(self):
@@ -348,11 +365,47 @@ class AgencyMasterSuiteTests(unittest.TestCase):
         self.assertTrue(dec["success"])
         self.assertEqual(dec["decision"], "APPROVED")
 
-        # Billing summary
+        # The link survives a restart (stored as a digest only) and binds decisions to the shared version.
+        import agency.portal as portal
+        store = portal._store_path().read_text(encoding="utf-8")
+        self.assertNotIn(token, store)
+        self.assertIn(portal._digest(token), store)
+        with self.assertRaises(ValueError):
+            create_client_review_link(self.client_id, self.campaign_id, [], expires_in_days=365)
+        with self.assertRaises(ValueError):
+            submit_review_decision(token, reviewer_name="Elena", decision="CHANGES_REQUESTED", comments="")
+        portal.revoke_review_link(self.client_id, token)
+        from agency.database import Conflict
+        with self.assertRaises(Conflict):           # a revoked link can no longer approve
+            submit_review_decision(token, reviewer_name="Elena", decision="APPROVED")
+        with self.assertRaises(Conflict):
+            get_review_portal_data(token)
+
+        # Billing is an editable estimate in the campaign's currency, with the agency country's VAT rate.
         billing = generate_billing_summary(self.client_id, self.campaign_id)
+        self.assertEqual(billing["document_type"], "ESTIMATE")
         self.assertGreater(billing["total"], 0)
-        self.assertEqual(billing["currency"], "USD")
+        from agency.services import service
+        self.assertEqual(billing["currency"], service.get(self.client_id, self.campaign_id, "campaigns")["data"]["currency"])
+        self.assertEqual((billing["vat_country"], billing["vat_rate"]), ("BH", 0.10))
+        self.assertAlmostEqual(billing["tax"], billing["subtotal"] * 0.10, places=3)
         self.assertGreater(len(billing["line_items"]), 0)
+
+    def test_13b_review_revocation_and_utm_over_http(self):
+        prefix = "/api/agency"
+        link = self.client.post(f"{prefix}/clients/{self.client_id}/review-links",
+                                json={"campaign_id": self.campaign_id, "asset_ids": [], "expires_in_days": 2}).json()
+        self.assertEqual(self.client.get(f"{prefix}/review-links/{link['token']}").status_code, 200)
+        revoked = self.client.post(f"{prefix}/clients/{self.client_id}/review-links/revoke", json={"token": link["token"]})
+        self.assertEqual((revoked.status_code, revoked.json()["status"]), (200, "REVOKED"))
+        self.assertEqual(self.client.get(f"{prefix}/review-links/{link['token']}").status_code, 409)
+        built = self.client.post(f"{prefix}/tracking/build-utm", json={"base_url": "https://lexnis.com/p", "source": "LinkedIn",
+                                                                       "medium": "Paid Social", "campaign": "Q4 Launch", "id": "q4-001"}).json()
+        self.assertEqual(built["url"], "https://lexnis.com/p?utm_source=linkedin&utm_medium=paid-social&utm_campaign=q4-launch&utm_id=q4-001")
+        self.assertTrue(built["warnings"])
+        refused = self.client.post(f"{prefix}/tracking/build-utm", json={"base_url": "https://lexnis.com", "source": "x", "medium": "email",
+                                                                         "campaign": "y", "content": "jane@example.com"})
+        self.assertEqual(refused.status_code, 400)
 
     # 9. REST API ENDPOINTS INTEGRATION
     def test_14_fastapi_rest_endpoints(self):
@@ -360,6 +413,36 @@ class AgencyMasterSuiteTests(unittest.TestCase):
         r = self.client.get("/api/system/capabilities")
         self.assertEqual(r.status_code, 200)
         self.assertIn("cpu_count", r.json())
+
+        # Baseline security headers on pages, APIs and errors; a route's own stricter policy is kept.
+        for response in (self.client.get("/"), r, self.client.get("/api/agency/review-links/" + "x" * 30)):
+            self.assertEqual(response.headers["x-content-type-options"], "nosniff")
+            self.assertEqual(response.headers["x-frame-options"], "SAMEORIGIN")
+            self.assertEqual(response.headers["referrer-policy"], "same-origin")
+            self.assertIn("frame-ancestors 'self'", response.headers["content-security-policy"])
+            self.assertIn("camera=()", response.headers["permissions-policy"])
+            self.assertNotIn("strict-transport-security", response.headers)       # plain HTTP: no HSTS
+
+        # Invalid requests answer 422 without echoing the rejected body, even when it is binary.
+        r = self.client.post("/api/brands", files={"file": ("f.csv", b"\xff\xfe\x00secret-body", "text/csv")}, data={"name": "x"})
+        self.assertEqual(r.status_code, 422)
+        self.assertNotIn("secret-body", r.text)
+        r = self.client.post("/api/agency/tracking/build-utm", json={"base_url": "https://x.example", "source": 5, "private": "secret-body"})
+        self.assertEqual(r.status_code, 422)
+        self.assertNotIn("secret-body", r.text)
+        self.assertTrue(all({"type", "loc", "msg"} == set(e) for e in r.json()["detail"]))
+        # Studio routes refuse oversized bodies before reading them.
+        r = self.client.post("/api/brands", content=b"{}", headers={"content-type": "application/json", "content-length": str(65 * 1024**2)})
+        self.assertEqual(r.status_code, 413)
+        # Uploads must be real images, and the slot (part of the stored file name) cannot leave the uploads folder.
+        junk = ("photo.png", b"print('not an image')", "image/png")
+        r = self.client.post("/api/upload-visual", files={"file": junk}, data={"slot": "logo"})
+        self.assertEqual(r.status_code, 400)
+        r = self.client.post("/api/upload-visual", files={"file": junk}, data={"slot": "../escape"})
+        self.assertEqual((r.status_code, r.json()["detail"]), (400, "Invalid visual slot"))
+        r = self.client.post("/api/template-swap", files={"template_file": junk, "subject_file": junk})
+        self.assertEqual(r.status_code, 400)
+        self.assertNotIn("OpenCV", r.text)
 
         # Models catalog
         r = self.client.get("/api/agency/models")

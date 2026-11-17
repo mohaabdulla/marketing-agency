@@ -35,7 +35,7 @@ class AgencySuiteTests(unittest.TestCase):
                          post_type="hiring", person_name="AI Engineer", language=language, use_search=False, use_local_sdxl=False))
             if result.status_code != 200:
                 raise AssertionError(result.text)
-            cls.results.append(("campaign", language, result.json()))
+            cls.results.append(("campaign", language, cls.client.get("/api/campaign/"+result.json()["campaign_id"]+"/deliverables").json()))
             result = cls.client.post("/api/template/swap", files={
                 "subject_file": ("employee.jpg", (ROOT/"test_assets/raw_subject.jpg").read_bytes(), "image/jpeg"),
                 "template_file": ("template.jpg", (ROOT/"test_assets/template_reference.jpg").read_bytes(), "image/jpeg")},
@@ -94,7 +94,7 @@ class AgencySuiteTests(unittest.TestCase):
                 self.assertIsNone(archive.testzip())
                 for name in ("01_primary_feed_1080x1350.jpg", "02_companion_feed_1080x1350.jpg", "03_animated_companion.gif",
                              "04_story_9x16_1080x1920.jpg", "05_landscape_1200x628.jpg", "campaign_copy_and_strategy.txt"):
-                    self.assertIn(name, archive.namelist())
+                    self.assertIn(("motion/" if name.endswith(".gif") else "images/")+data["language"]+"/"+name if data.get("schema_version")==1 and name.endswith((".jpg",".gif")) else name, archive.namelist())
                 self.assertIn(data["copywriting"]["x_post"], archive.read("campaign_copy_and_strategy.txt").decode("utf-8"))
         data = self.results[0][2]
         response = self.client.post("/api/campaign/bundle", json=dict(deliverables={key:data.get(key, "") for key in

@@ -84,67 +84,64 @@ DEFAULT_CAPTION_STYLES: Dict[str, CaptionStyle] = {
 }
 
 
+TIMING = re.compile(r'^\s*(\d{1,3}):(\d{2}):(\d{2})[,.](\d{3})\s*-->\s*(\d{1,3}):(\d{2}):(\d{2})[,.](\d{3})(?:\s+.*)?$')
+
+
 def parse_srt(srt_text: str) -> List[CaptionSegment]:
-    """Parse SubRip (.srt) string into structured CaptionSegments."""
+    """Parse SubRip (.srt) into CaptionSegments, one blank-line separated block at a time.
+
+    A block is an optional counter, a timing line and the text. Text lines that are only digits
+    stay text, a UTF-8 byte-order mark and CRLF line ends are accepted, and anything after the end
+    time on the timing line (legacy X1/Y1 position coordinates) is ignored.
+    """
+    text = srt_text.lstrip('\ufeff').replace('\r\n', '\n').replace('\r', '\n')
     segments = []
-    pattern = re.compile(
-        r'(\d+)\s*\n'
-        r'(\d{2}:\d{2}:\d{2}[,\.]\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}[,\.]\d{3})\s*\n'
-        r'([\s\S]*?)(?=\n\s*\d+\s*\n|\Z)',
-        re.MULTILINE
-    )
-
-    def to_secs(t_str: str) -> float:
-        parts = re.split(r'[:,.]', t_str)
-        return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2]) + int(parts[3]) / 1000.0
-
-    for match in pattern.finditer(srt_text.strip()):
-        s_time = to_secs(match.group(2))
-        e_time = to_secs(match.group(3))
-        text = match.group(4).strip().replace('\r', '')
-        if text:
-            segments.append(CaptionSegment(
-                id=uid(),
-                start=round(s_time, 3),
-                end=round(e_time, 3),
-                text=text
-            ))
+    for block in re.split(r'\n[ \t]*\n', text.strip()):
+        lines = block.split('\n')
+        index = next((i for i, line in enumerate(lines[:2]) if TIMING.match(line)), None)
+        if index is None:
+            continue
+        g = TIMING.match(lines[index]).groups()
+        start = int(g[0]) * 3600 + int(g[1]) * 60 + int(g[2]) + int(g[3]) / 1000.0
+        stop = int(g[4]) * 3600 + int(g[5]) * 60 + int(g[6]) + int(g[7]) / 1000.0
+        body = '\n'.join(line.rstrip() for line in lines[index + 1:]).strip()
+        if body and stop > start:
+            segments.append(CaptionSegment(id=uid(), start=round(start, 3), end=round(stop, 3), text=body))
     return segments
 
 
-def to_srt(segments: List[CaptionSegment]) -> str:
-    """Format CaptionSegments into standard SubRip (.srt) string."""
-    def stamp(seconds: float) -> str:
-        ms = round(seconds * 1000)
-        h, ms = divmod(ms, 3600000)
-        m, ms = divmod(ms, 60000)
-        s, ms = divmod(ms, 1000)
-        return f"{h:02}:{m:02}:{s:02},{ms:03}"
+def _clock(seconds: float, separator: str) -> str:
+    ms = max(0, round(seconds * 1000))
+    h, ms = divmod(ms, 3600000)
+    m, ms = divmod(ms, 60000)
+    s, ms = divmod(ms, 1000)
+    return f"{h:02}:{m:02}:{s:02}{separator}{ms:03}"
 
+
+def _cue_text(text: str) -> str:
+    """Cue text without blank lines (a blank line ends a cue) and without the timing arrow."""
+    lines = [line.strip() for line in text.replace('\r', '').split('\n')]
+    return '\n'.join(line for line in lines if line).replace('-->', '->')
+
+
+def to_srt(segments: List[CaptionSegment]) -> str:
+    """Format CaptionSegments into standard SubRip (.srt): comma milliseconds, CRLF-safe blocks."""
     lines = []
     for i, seg in enumerate(sorted(segments, key=lambda s: s.start), 1):
-        lines.append(str(i))
-        lines.append(f"{stamp(seg.start)} --> {stamp(seg.end)}")
-        lines.append(seg.text.strip())
-        lines.append("")
+        lines += [str(i), f"{_clock(seg.start, ',')} --> {_clock(seg.end, ',')}", _cue_text(seg.text), ""]
     return "\n".join(lines)
 
 
 def to_vtt(segments: List[CaptionSegment]) -> str:
-    """Format CaptionSegments into WebVTT string."""
-    def stamp(seconds: float) -> str:
-        ms = round(seconds * 1000)
-        h, ms = divmod(ms, 3600000)
-        m, ms = divmod(ms, 60000)
-        s, ms = divmod(ms, 1000)
-        return f"{h:02}:{m:02}:{s:02}.{ms:03}"
+    """Format CaptionSegments into WebVTT (W3C): '.' milliseconds and escaped cue text.
 
+    WebVTT cue text is markup, so &, < and > are written as character references; otherwise
+    "R&D" or "<10 ms" is read as an entity or a tag by players.
+    """
     lines = ["WEBVTT", ""]
     for i, seg in enumerate(sorted(segments, key=lambda s: s.start), 1):
-        lines.append(str(i))
-        lines.append(f"{stamp(seg.start)} --> {stamp(seg.end)}")
-        lines.append(seg.text.strip())
-        lines.append("")
+        body = _cue_text(seg.text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        lines += [str(i), f"{_clock(seg.start, '.')} --> {_clock(seg.end, '.')}", body, ""]
     return "\n".join(lines)
 
 

@@ -14,6 +14,7 @@ from starlette.responses import JSONResponse, FileResponse
 ROOT = Path(__file__).resolve().parent
 _guest = contextvars.ContextVar('lexnis_guest', default=None)
 _origin = contextvars.ContextVar('lexnis_request_origin', default=None)
+_render_destination = contextvars.ContextVar('lexnis_render_destination', default=None)
 _lock = threading.RLock()
 COOKIE = 'lexnis_guest'
 TTL = 7 * 86400
@@ -42,6 +43,10 @@ class ScopedPath(os.PathLike):
     def __init__(self, default, name):
         self.default, self.name = Path(default), name
     def path(self):
+        if self.name == 'renders' and _render_destination.get() is not None:
+            return _render_destination.get()
+        return folder(self.name) if guest() else self.default
+    def published(self):
         return folder(self.name) if guest() else self.default
     def __fspath__(self):
         return str(self.path())
@@ -55,6 +60,20 @@ class ScopedPath(os.PathLike):
 
 def scoped(default, name):
     return ScopedPath(default, name)
+
+
+def managed_render(root, leaf):
+    """Legacy flat media and atomically committed UUID campaign directories only."""
+    parts = leaf.split('/')
+    if len(parts) not in {1,2} or any(not part or part in {'.','..'} or '\\' in part or ':' in part for part in parts):
+        raise ValueError('Invalid render path')
+    base = Path(root).resolve()
+    path = (base / leaf).resolve()
+    if not path.is_relative_to(base) or not path.is_file():
+        raise ValueError('Render not found')
+    if len(parts)==2 and (not re.fullmatch(r'[a-f0-9]{32}',parts[0]) or not (base/parts[0]/'_complete.json').is_file()):
+        raise ValueError('Campaign has not committed')
+    return path
 
 
 def validate_visual(raw, filename):
@@ -107,6 +126,11 @@ def media_path(url):
     for prefix, name in [('/renders/', 'renders'), ('/uploads/', 'uploads'), ('/creative-renders/', 'creative_renders')]:
         if value.startswith(prefix):
             leaf = value[len(prefix):]
+            if name=='renders':
+                if _render_destination.get() is not None:
+                    try:return managed_render(_render_destination.get(),leaf)
+                    except ValueError:pass
+                return managed_render(folder(name),leaf)
             if not leaf or '/' in leaf or '..' in leaf:
                 break
             base = folder(name).resolve()
@@ -320,7 +344,8 @@ class PublicTestingMiddleware:
                         return message
                     receive = upload_receive
                 if path.startswith(('/api/generate', '/api/campaign/generate', '/api/template', '/api/creative/render', '/api/render',
-                                    '/api/guidelines', '/api/upload-guidelines', '/api/analyze-brand')) or path.endswith('/documents/upload'):
+                                    '/api/guidelines', '/api/upload-guidelines', '/api/analyze-brand')) or path.endswith('/documents/upload') or (
+                                        path.startswith('/api/agency/clients/') and path.endswith('/generate')):
                     import asyncio
                     deadline = time.monotonic() + 60
                     while not self.render_slots.acquire(blocking=False):

@@ -68,13 +68,34 @@ UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 TEST_ASSETS_DIR = BASE_DIR / "test_assets"
 TEST_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 
-app.mount("/renders", StaticFiles(directory=RENDERS_DIR), name="renders")
+from ui_assets import CampaignStaticFiles
+app.mount("/renders", CampaignStaticFiles(directory=RENDERS_DIR), name="renders")
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 app.mount("/test_assets", StaticFiles(directory=TEST_ASSETS_DIR), name="test_assets")
 from ui_assets import StudioStaticFiles
 app.mount("/static", StudioStaticFiles(directory=BASE_DIR / "static"), name="static")
 app.add_middleware(PublicTestingMiddleware)
+from security_headers import SecurityHeaders, StudioRequestLimits, install_validation_handler
+install_validation_handler(app)
+app.add_middleware(StudioRequestLimits)
+app.add_middleware(SecurityHeaders)         # outermost: also covers errors raised by the middleware above
 from guideline_api import router as guideline_router
+
+def failure(error: Exception) -> HTTPException:
+    """Turn a handler exception into its response: 4xx errors pass through unchanged, and guests never see internals."""
+    if isinstance(error, HTTPException):
+        return error
+    import logging
+    logging.getLogger("studio").exception("Request failed", exc_info=error)
+    return HTTPException(500, "The request could not be completed. Try again." if guest() else str(error) or type(error).__name__)
+
+
+def require_image(data: Optional[bytes], label: str) -> None:
+    """Reject an upload that is not a decodable image before any rendering starts."""
+    if data is not None and b'<svg' not in data[:2048].lower() and cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_UNCHANGED) is None:
+        raise HTTPException(400, f"The {label} could not be read as an image. Upload a PNG, JPG or WebP file.")
+
+
 app.include_router(guideline_router)
 from prompt_assistant import router as prompt_assistant_router
 app.include_router(prompt_assistant_router)
@@ -89,6 +110,13 @@ def render_url(path: str) -> str:
     if not path:
         return ""
     p = Path(path)
+    published = RENDERS_DIR.published() if hasattr(RENDERS_DIR,'published') else RENDERS_DIR
+    try:
+        relative = p.resolve().relative_to(Path(published).resolve())
+        if len(relative.parts)==2 and re.fullmatch(r'[a-f0-9]{32}',relative.parts[0]):
+            return '/renders/'+relative.as_posix()
+    except (ValueError,OSError):
+        pass
     if "uploads" in p.parts:
         return f"/uploads/{p.name}"
     if "test_assets" in p.parts:
@@ -107,9 +135,12 @@ def render_path(url: str) -> str:
             return ""
     path = urlsplit(url).path if url else ""
     if path.startswith("/renders/"):
-        p = RENDERS_DIR / Path(path).name
-        if p.exists():
-            return str(p)
+        from public_access import managed_render
+        roots=[RENDERS_DIR]
+        if hasattr(RENDERS_DIR,'published'):roots.append(RENDERS_DIR.published())
+        for root in roots:
+            try:return str(managed_render(root,path[len('/renders/'):]))
+            except ValueError:pass
     elif path.startswith("/uploads/"):
         p = UPLOADS_DIR / Path(path).name
         if p.exists():
@@ -352,13 +383,13 @@ def campaign_bundle(req: CampaignBundleRequest):
         if not url and key == "animation_mp4_url":
             continue
         parsed = urlsplit(url)
-        if parsed.query or parsed.fragment or not re.fullmatch(r"/(?:renders|static/assets)/[^/\\]+\.(?:jpg|gif|mp4)", parsed.path, re.I):
+        if parsed.query or parsed.fragment or not re.fullmatch(r"/(?:renders/(?:[a-f0-9]{32}/)?|static/assets/)[^/\\]+\.(?:jpg|gif|mp4)", parsed.path, re.I):
             raise HTTPException(400, "Expected a generated deliverable URL")
         expected = ".gif" if key == "animation_url" else ".mp4" if key == "animation_mp4_url" else ".jpg"
         if Path(parsed.path).suffix.lower() != expected:
             raise HTTPException(400, f"Incorrect format for {key}")
         paths[key] = render_path(url)
-        if paths[key] and Path(paths[key]).resolve().parent not in (RENDERS_DIR.resolve(), (BASE_DIR/"static/assets").resolve()):
+        if paths[key] and not any(Path(paths[key]).resolve().is_relative_to(root) for root in (RENDERS_DIR.resolve(), (BASE_DIR/"static/assets").resolve())):
             raise HTTPException(400, "Deliverables must be public generated media")
     output = AGENCY_BUNDLES_DIR / f"campaign_{uuid.uuid4().hex[:12]}_agency_kit.zip"
     try:
@@ -538,7 +569,7 @@ def search_endpoint(q: str):
         results = LexnisCampaignStudio.search_google(q, max_results=5)
         return {"query": q, "results": results}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise failure(e)
 
 
 @app.post("/api/enhance-prompt")
@@ -574,7 +605,7 @@ def enhance_prompt_endpoint(req: EnhancePromptRequest):
             "suggested_theme": result.get("suggested_theme", "Cinematic lifestyle photography")
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise failure(e)
 
 
 @app.post("/api/generate")
@@ -721,31 +752,43 @@ def generate_campaign_endpoint(req: GenerateRequest):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise failure(e)
 
 
-@app.post('/api/campaign/generate')
-def unified_campaign_endpoint(req: GenerateRequest, request: Request):
-    """Return only after the bilingual visuals, native 30 fps motion, copy and master ZIP exist.
-    FastAPI runs this synchronous orchestration in its worker pool, leaving the event loop free.
-    """
+from agency.enterprise_pipeline import EnterpriseCampaignResult
+
+
+async def run_enterprise_campaign(req: GenerateRequest, request: Request, agency_context=None):
     from agency_suite import _ffmpeg_executable
-    from campaign_generator import assemble_enterprise_campaign
+    from agency.enterprise_pipeline import execute_campaign
     if not req.prompt.strip():
         raise HTTPException(422,'A campaign brief is required')
     if not _ffmpeg_executable():
         raise HTTPException(503,'FFmpeg is required for the complete GIF and MP4 motion kit')
-    selected_language = req.language
-    complete = req.model_copy(update=dict(generate_companion=True,output_format='portrait',language='both',motion_fps=30))
-    data = generate_campaign_endpoint(complete)
-    def public_url(path):
-        url = path if str(path).startswith(('/renders/','/uploads/','/static/assets/')) else render_url(str(path))
-        return str(request.base_url).rstrip('/') + url
     try:
-        return assemble_enterprise_campaign(data,language=selected_language,resolve_path=render_path,
-            public_url=public_url,bundle_dir=AGENCY_BUNDLES_DIR)
-    except ValueError as exc:
-        raise HTTPException(502,str(exc)) from exc
+        return await execute_campaign(req,origin=str(request.base_url).rstrip('/'),
+            published_root=RENDERS_DIR.published(),base_renderer=generate_campaign_endpoint,
+            resolve_path=render_path,agency_context=agency_context)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).exception('Campaign transaction failed')
+        raise HTTPException(502,'Campaign generation failed; no incomplete kit was published. Please retry.') from exc
+
+
+@app.post('/api/campaign/generate',response_model=EnterpriseCampaignResult)
+async def unified_campaign_endpoint(req: GenerateRequest, request: Request):
+    return await run_enterprise_campaign(req,request)
+
+
+@app.get('/api/campaign/{campaign_id}/deliverables')
+def campaign_deliverables(campaign_id: str):
+    from agency.enterprise_pipeline import presentation_for
+    try:
+        return presentation_for(RENDERS_DIR.published(),campaign_id)
+    except (FileNotFoundError,ValueError):
+        raise HTTPException(404,'Campaign not found')
 
 
 @app.post("/api/analyze-website")
@@ -756,7 +799,7 @@ def analyze_website_endpoint(req: AnalyzeWebsiteRequest):
         dna = studio.analyze_company_website(req.url, brand=req.brand)
         return dna
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise failure(e)
 
 
 def extract_logo_from_pdf_stream(pdf_bytes: bytes, uploads_dir: Path) -> Optional[Tuple[str, str]]:
@@ -889,7 +932,7 @@ async def analyze_brand_endpoint(
             "guidelines": profile.get("guideline_summary", "")
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise failure(e)
 
 
 @app.post("/api/suggest-prompt")
@@ -908,7 +951,7 @@ def suggest_prompt_endpoint(req: SuggestPromptRequest):
         )
         return res
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise failure(e)
 
 
 @app.post("/api/generate-guidelines")
@@ -933,7 +976,7 @@ def generate_guidelines_endpoint(req: GenerateGuidelinesRequest):
             "preview": guidelines[:350] + ("..." if len(guidelines) > 350 else "")
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise failure(e)
 
 
 @app.post("/api/upload-visual")
@@ -956,10 +999,13 @@ async def upload_visual_endpoint(
                 validate_visual(content_bytes,file.filename or "visual.jpg")
             except Exception:
                 raise HTTPException(400,"Upload a valid raster image or self-contained safe SVG (16 MB maximum)")
-            if slot not in {"subject","template","logo","product","reference"}:
-                raise HTTPException(400,"Invalid visual slot")
+        if not re.fullmatch(r"[a-z][a-z0-9_-]{0,23}", slot or "") or (guest() and slot not in {"subject","template","logo","product","reference"}):
+            raise HTTPException(400,"Invalid visual slot")       # the slot becomes part of the stored file name
         if not content_bytes:
             raise HTTPException(status_code=400, detail="Empty visual file uploaded.")
+        if len(content_bytes) > 16 * 1024**2:
+            raise HTTPException(413, "Visual files can be at most 16 MB")
+        require_image(content_bytes, "uploaded file")
 
         fname = file.filename or "visual_asset.jpg"
         ext = Path(fname).suffix.lower()
@@ -1015,7 +1061,7 @@ async def upload_visual_endpoint(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise failure(e)
 
 
 @app.post("/api/upload-logo")
@@ -1318,7 +1364,7 @@ async def analyze_layout_endpoint(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise failure(e)
 
 
 @app.post("/api/template/swap")
@@ -1391,10 +1437,13 @@ async def template_swap_endpoint(
 
         if not t_bytes or not s_bytes:
             raise HTTPException(status_code=400, detail="Both template and subject images are required.")
+        require_image(t_bytes, "template image")
+        require_image(s_bytes, "subject image")
 
         logo_image_param = None
         if logo_file:
             logo_image_param = await logo_file.read()
+            require_image(logo_image_param or None, "logo")
         elif logo_url:
             p = render_path(logo_url)
             if p and Path(p).exists():
@@ -1578,7 +1627,7 @@ async def template_swap_endpoint(
                                              headline=headline_text, logo_image=logo_image_param,
                                              tagline=bp.get("tagline", ""), brand_name_ar=bp.get("brand_name_ar", "")), brand_theme)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise failure(e)
 
 
 @app.post("/api/render")
@@ -1653,7 +1702,7 @@ def render_endpoint(req: RenderRequest):
             "watermark_free": False, "warnings": [str(e)], "seed": req.seed,
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise failure(e)
 
 
 class CarouselDownloadRequest(BaseModel):
@@ -1724,7 +1773,7 @@ def export_campaign_endpoint(req: ExportRequest):
             "files": saved_files
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise failure(e)
 
 
 if __name__ == "__main__":

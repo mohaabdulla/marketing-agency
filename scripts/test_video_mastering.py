@@ -182,10 +182,10 @@ class EditorialTests(unittest.TestCase):
         self.assertEqual(video_presets.canvas_for(1920, 1080, '1:1', 1080), (1080, 1080))
         ebu, web, master = (video_presets.preset(x) for x in ('broadcast-ebu', 'web-youtube', 'source-master'))
         self.assertEqual(ebu['loudness']['integrated'], -23.0)
-        self.assertEqual(web['loudness']['integrated'], -16.0)
+        self.assertEqual(web['loudness']['integrated'], -14.0)
         self.assertNotIn('EBU', web['label'])
         self.assertIsNone(video_presets.loudnorm_filter(master))
-        self.assertEqual(video_presets.loudnorm_filter(web), 'loudnorm=I=-16.0:TP=-1.5:LRA=11.0')
+        self.assertEqual(video_presets.loudnorm_filter(web), 'loudnorm=I=-14.0:TP=-1.5:LRA=11.0')
         args = video_presets.video_encode_args(web)
         for pair in (('-profile:v', 'high'), ('-pix_fmt', 'yuv420p'), ('-color_primaries', 'bt709'), ('-color_trc', 'bt709'), ('-colorspace', 'bt709'), ('-movflags', '+faststart')):
             self.assertEqual(args[args.index(pair[0]) + 1], pair[1])

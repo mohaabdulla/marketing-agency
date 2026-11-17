@@ -139,6 +139,43 @@ class SemanticHTTPTests(unittest.TestCase):
         self.assertTrue(plan['candidates'][0]['requires_approval'])
 
 
+class StandardsTests(unittest.TestCase):
+    def test_caption_events_follow_timed_text_limits(self):
+        from video_caption_timing import PROFILES, GAP
+        self.assertEqual((round(PROFILES['en']['min_duration'], 3), PROFILES['en']['max_duration'], PROFILES['en']['max_cps']), (.833, 7., 20.))
+        words = [word(i * .4, i * .4 + .3, f'word{i}.' if i % 4 == 3 else f'word{i}') for i in range(24)]
+        cues, _ = optimize(words, 10.)
+        self.assertTrue(all(b['start'] - a['end'] >= GAP - 1e-6 for a, b in zip(cues, cues[1:])), [(c['start'], c['end']) for c in cues])
+        self.assertTrue(all(c['end'] - c['start'] <= 7. + 1e-6 for c in cues))
+
+    def test_paid_meta_placements_use_the_published_ad_margins(self):
+        from video_platforms import choose, profile, safe_area
+        self.assertEqual(choose('Sponsored Instagram Reels ad', 1080, 1920), 'meta-reels-ads')
+        self.assertEqual(choose('Instagram reels, organic', 1080, 1920), 'instagram-reels')
+        spec = profile('meta-reels-ads')
+        self.assertEqual(spec['basis'], 'PUBLISHED AD GUIDANCE')
+        self.assertEqual(safe_area(spec, 1080, 1920), (65, 269, 1015, 1248))     # 6% sides, 14% top, 35% bottom
+        self.assertEqual(profile('tiktok-ltr')['basis'], 'PRODUCT DEFAULT')
+
+    def test_subtitle_files_follow_srt_and_webvtt_rules(self):
+        from video_captions import parse_srt, to_srt, to_vtt
+        srt = (chr(0xFEFF) + '1\r\n00:00:01,000 --> 00:00:02,500 X1:10 X2:20 Y1:5 Y2:9\r\nWe launch in\r\n2026\r\n\r\n'
+               '2\r\n00:00:03,000 --> 00:00:04,000\r\nR&D under <10 ms\r\n')
+        segments = parse_srt(srt)
+        self.assertEqual([(s.start, s.end, s.text) for s in segments], [(1., 2.5, 'We launch in\n2026'), (3., 4., 'R&D under <10 ms')])
+        vtt = to_vtt(segments)
+        self.assertTrue(vtt.startswith('WEBVTT\n\n'))
+        self.assertIn('00:00:03.000 --> 00:00:04.000\nR&amp;D under &lt;10 ms\n', vtt)
+        self.assertIn('00:00:01,000 --> 00:00:02,500\nWe launch in\n2026\n', to_srt(segments))
+        self.assertEqual([s.text for s in parse_srt(to_srt(segments))], [s.text for s in segments])     # round trip
+
+    def test_social_delivery_targets_minus_14_lufs(self):
+        import video_presets
+        for key in ('web-youtube', 'vertical-social', 'square-social', 'portrait-feed'):
+            self.assertEqual(video_presets.preset(key)['loudness']['integrated'], -14.0, key)
+        self.assertEqual(video_presets.preset('broadcast-ebu')['loudness']['integrated'], -23.0)
+
+
 class FinishingTests(unittest.TestCase):
     def test_authored_line_break_is_kept_for_name_and_role(self):
         style=CaptionStyle(id='lt',name='Lower third',max_lines=2)

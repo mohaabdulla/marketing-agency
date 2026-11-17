@@ -2,10 +2,13 @@
 import math
 import re
 
+# Netflix timed-text limits: at least 5/6 s and at most 7 s per event, 20 characters per second for
+# adult English, and a 2-frame gap between consecutive events (0.083 s at 24 fps).
 PROFILES = {
-    'en': dict(max_cps=20., min_duration=.85, max_duration=6.5, max_lag=.75, max_lead=.18),
-    'ar': dict(max_cps=17., min_duration=1., max_duration=6.5, max_lag=.85, max_lead=.18),
+    'en': dict(max_cps=20., min_duration=5 / 6, max_duration=7., max_lag=.75, max_lead=.18),
+    'ar': dict(max_cps=17., min_duration=1., max_duration=7., max_lag=.85, max_lead=.18),
 }
+GAP = 2 / 24
 
 
 def optimize(words, duration, language='en', max_cps=None, shot_boundaries=(), fits=None):
@@ -36,8 +39,8 @@ def optimize(words, duration, language='en', max_cps=None, shot_boundaries=(), f
                 continue # a long pause is a new caption event, not free reading time inside one phrase
             if any(group[0]['start'] + .1 < cut < group[-1]['end'] - .1 for cut in shot_boundaries):
                 continue
-            available_end = min(duration, group[-1]['end'] + spec['max_lag'], ordered[end]['start'] - .02 if end < n else duration)
-            available_start = max(0., group[0]['start'] - spec['max_lead'], ordered[start - 1]['end'] + .02 if start else 0.)
+            available_end = min(duration, group[-1]['end'] + spec['max_lag'], ordered[end]['start'] - GAP if end < n else duration)
+            available_start = max(0., group[0]['start'] - spec['max_lead'], ordered[start - 1]['end'] + GAP if start else 0.)
             available = max(.05, available_end - available_start)
             needed = max(spec['min_duration'], len(text) / spec['max_cps']+.015)
             excess = max(0., needed - available)
@@ -68,8 +71,8 @@ def optimize(words, duration, language='en', max_cps=None, shot_boundaries=(), f
         group = ordered[a:b]
         text = ' '.join(w['word'] for w in group)
         start, spoken_end = group[0]['start'], group[-1]['end']
-        earliest = max(0., start - spec['max_lead'], cues[-1]['end'] + .02 if cues else 0.)
-        latest = min(duration, spoken_end + spec['max_lag'], ordered[b]['start'] - .02 if b < n else duration)
+        earliest = max(0., start - spec['max_lead'], cues[-1]['end'] + GAP if cues else 0.)
+        latest = min(duration, spoken_end + spec['max_lag'], ordered[b]['start'] - GAP if b < n else duration)
         need = max(spec['min_duration'], len(text) / spec['max_cps']+.015)
         cue_start = max(earliest, min(start, latest - need))
         cue_end = min(latest, max(spoken_end, cue_start + need))

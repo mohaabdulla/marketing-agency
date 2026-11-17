@@ -78,8 +78,8 @@ def main():
                     assert generated.value.ok,generated.value.text()[:2000];kit=generated.value.json()
                     posted=generated.value.request.post_data_json;assert 'Noor Solar' in posted['prompt']
                     assert all('/test_assets/' not in value for value in posted['uploaded_image_urls'])
-                    page.locator('#carousel-preview img').first.wait_for();assert kit['animation_url']
-                    with page.expect_download() as static:page.locator('#carousel-preview').get_by_role('button',name='Download Static Card 1',exact=True).first.click()
+                    page.locator('#carousel-preview img').first.wait_for();assert kit['assets']['animation_gif']
+                    with page.expect_download() as static:page.locator('#carousel-preview').get_by_role('button',name='Download Primary Feed',exact=True).first.click()
                     with Image.open(static.value.path()) as card:assert card.width>100 and card.format in {'JPEG','PNG'}
                     # Generate again with the accepted GIF-specific instructions, then download that new loop.
                     page.locator('#creative-output-kind').select_option('gif');assistant.locator('[data-assist=generate]').click();assistant.locator('[data-use]').wait_for()
@@ -91,7 +91,8 @@ def main():
                     assert animated.value.ok,animated.value.text()[:2000]
                     assert animated.value.request.post_data_json['prompt']==gif_prompt
                     gif_kit=animated.value.json()
-                    page.wait_for_function("url=>[...document.querySelectorAll('#carousel-preview img')].some(img=>img.src.endsWith(url))",arg=gif_kit['animation_url'])
+                    page.wait_for_function("url=>[...document.querySelectorAll('#carousel-preview img')].some(img=>img.src.endsWith(url))",arg=gif_kit['assets']['animation_gif'])
+                    page.locator('#carousel-preview').get_by_role('tab',name='Motion Preview').click()
                     with page.expect_download() as gif:page.locator('#carousel-preview').get_by_role('button',name='Download GIF',exact=True).first.click()
                     with Image.open(gif.value.path()) as animation:assert animation.is_animated and animation.info['loop']==0
                     print('PASS: real Image/GIF generation, assistant handoff, downloads and step navigation',flush=True)

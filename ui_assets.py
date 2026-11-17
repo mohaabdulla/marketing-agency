@@ -4,8 +4,19 @@ import re
 from pathlib import Path
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException
 
 ROOT=Path(__file__).resolve().parent
+
+
+class CampaignStaticFiles(StaticFiles):
+    async def get_response(self,path,scope):
+        parts=path.replace('\\','/').split('/')
+        if len(parts)>1:
+            base=Path(self.directory)
+            if not re.fullmatch(r'[a-f0-9]{32}',parts[0]) or not (base/parts[0]/'_complete.json').is_file():
+                raise HTTPException(404)
+        return await super().get_response(path,scope)
 
 
 def revision():

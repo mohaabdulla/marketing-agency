@@ -249,7 +249,7 @@ class DualSocialImagesTests(unittest.TestCase):
             for enabled in (True, False):
                 data = dict(prompt="Hiring a Computer Vision Engineer for Lexnis", brand="Lexnis", post_type="hiring",
                             person_name="Computer Vision Engineer", use_search=False, generate_companion=enabled, use_local_sdxl=False)
-                response = client.post("/api/campaign/generate", json=data)
+                response = client.post("/api/generate", json=data)
                 self.assertEqual(response.status_code, 200, response.text)
                 result = response.json()
                 self.assertEqual(len(result["carousel_urls"]), 3 if enabled else 1)

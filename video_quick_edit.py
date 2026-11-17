@@ -58,7 +58,7 @@ class QuickEdit(Strict):
     lighting: str = Field('auto', pattern=r'^(auto|off)$')
     background: str = Field('auto', pattern=r'^(auto|none|blur-dim|replace)$')
     background_asset_id: str | None = Field(None, pattern=r'^[a-f0-9]{32}$')
-    platform_profile: str = Field('auto', pattern=r'^(auto|tiktok-ltr|tiktok-rtl|instagram-reels|instagram-stories|youtube-shorts|youtube-standard|generic-vertical|generic-horizontal)$')
+    platform_profile: str = Field('auto', pattern=r'^(auto|tiktok-ltr|tiktok-rtl|instagram-reels|instagram-stories|meta-reels-ads|youtube-shorts|youtube-standard|generic-vertical|generic-horizontal)$')
     canvas_mode: str = Field('native', pattern=r'^(native|platform)$')
     dialogue_polish: bool = False
     approved_cuts: list[Annotated[str, Field(pattern=r'^[a-f0-9]{10}$')]] = Field(default_factory=list, max_length=40)

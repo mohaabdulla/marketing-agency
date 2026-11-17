@@ -26,3 +26,13 @@
   #image-model-select{max-width:min(200px,52vw)}
   #dna-logo-badge{min-width:0;max-width:130px;white-space:normal;overflow-wrap:anywhere}
 }
+.ccc-generation > h2 {font-size:1.2rem;font-weight:750;margin:0 0 .5rem;color:#f8fafc;}
+.ccc-generation > p {color:#b9c9da;line-height:1.5;margin:.5rem 0 1rem;}
+.ccc-generation > label {font-size:.9rem;font-weight:600;}
+.ccc-generation > label[for="ccc-generation-brief"] {display:block;}
+.ccc-generation > textarea {font:inherit;line-height:1.5;}
+.ccc-generation > select {background:#17283a;color:#e2f4f8;border:1px solid #405b70;border-radius:7px;min-height:44px;margin:.5rem;}
+.ccc-generation > button {min-height:44px;padding:.65rem 1rem;margin:.5rem .25rem;border:1px solid #405b70;border-radius:7px;background:#17283a;color:#e2f4f8;font-size:.9rem;font-weight:650;cursor:pointer;}
+.ccc-generation > #ccc-generate-kit {background:#4ad5b6;color:#052c2d;border-color:#4ad5b6;}
+.ccc-generation > button:disabled,.ccc-generation > select:disabled {opacity:.55;cursor:wait;}
+.ccc-generation > button:focus-visible,.ccc-generation > select:focus-visible,.ccc-generation > textarea:focus-visible {outline:2px solid #67e8f9;outline-offset:3px;}

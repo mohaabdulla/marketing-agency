@@ -12,12 +12,18 @@ def paid_scenario(data):
     conversions = clicks * data['assumed_conversion_percent'] / 100 if clicks is not None and data['assumed_conversion_percent'] is not None else None
     url = ''
     if data['destination_url']:
+        from .tracking import normalize_utm_value
+        # Same conventions as the UTM builder: lower case and hyphens, so one campaign is one row in analytics.
         parsed = urlsplit(data['destination_url'])
         parameters = [(k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=True) if not k.lower().startswith('utm_')]
-        parameters += [('utm_' + key, data['utm_' + key]) for key in ('source', 'medium', 'campaign', 'content') if data['utm_' + key]]
+        parameters += [('utm_' + key, normalize_utm_value(data['utm_' + key])) for key in ('source', 'medium', 'campaign', 'content')
+                       if data['utm_' + key] and normalize_utm_value(data['utm_' + key])]
         url = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(parameters), parsed.fragment))
-    return dict(planned_external_ad_spend=round(spend, 3), currency=data['currency'], scenario_clicks=clicks,
-                scenario_conversions=conversions, tracked_url=url,
+    return dict(planned_external_ad_spend=round(spend, 3), currency=data['currency'],
+                scenario_clicks=round(clicks) if clicks is not None else None,
+                scenario_conversions=round(conversions, 1) if conversions is not None else None,
+                scenario_cost_per_conversion=round(spend / conversions, 3) if conversions else None,
+                tracked_url=url,
                 notice='AD SPEND IS EXTERNAL. Planning only: no advertising account is connected and no budget is authorized. '
                        'Clicks/conversions are arithmetic from your assumptions, not measured performance or a forecast.')
 

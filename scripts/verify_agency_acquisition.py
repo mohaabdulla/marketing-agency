@@ -63,6 +63,16 @@ class AcquisitionTests(unittest.TestCase):
         comparison = self.get('/seo/compare').json()
         self.assertEqual(len(comparison['duplicates']['title'][0]), 2)
         self.assertNotIn('score', result)
+        # Advisories follow published guidance and stay separate from the hard findings.
+        self.assertIn('No lang attribute on <html>; screen readers and translation tools rely on it', result['advisories'])
+        self.assertTrue(any(a.startswith('No og:image') for a in result['advisories']))
+        long_page = ('<html lang="en"><head><title>' + 'Solar battery storage for villas in Bahrain with fast installation' + '</title>'
+                     '<meta property="og:image" content="https://example.com/i.jpg"><link rel="alternate" hreflang="en" href="/en">'
+                     '<link rel="alternate" hreflang="ar" href="/ar"></head><body><h1>x</h1></body></html>')
+        advisories = self.get('/seo/audits/' + self.record('seo-audits', dict(page_url='https://example.com/c', html=long_page))['id'] + '/inspect').json()['advisories']
+        self.assertTrue(any(a.startswith('Title is 66 characters') for a in advisories), advisories)
+        self.assertIn('Language alternates declared without an x-default fallback', advisories)
+        self.assertFalse(any(a.startswith(('No lang', 'No og:image')) for a in advisories))
 
     def test_landing_is_offline_rtl_escaped_and_preview_forms_cannot_send(self):
         item = self.record('landing-pages', dict(title='مرحبا', language='ar', canonical_url='https://example.com/مرحبا',
@@ -167,6 +177,17 @@ class AcquisitionTests(unittest.TestCase):
             checks = json.loads(archive.read('checks.json'))['checks']
             self.assertIn('Missing unsubscribe URL', checks)
             self.assertEqual(json.loads(archive.read('recipient-snapshot.json'))['eligible'], 1)
+        # One-click unsubscribe (RFC 8058) headers are exported only for an HTTPS endpoint.
+        secure = self.record('email-templates', dict(subject='Hello', body='Welcome', unsubscribe_url='https://example.com/u?t=1'))
+        with zipfile.ZipFile(io.BytesIO(self.http.post(self.prefix + '/email-templates/' + secure['id'] + '/export').content)) as archive:
+            headers = archive.read('headers.txt').decode()
+            self.assertIn('List-Unsubscribe: <https://example.com/u?t=1>\r\n', headers)
+            self.assertIn('List-Unsubscribe-Post: List-Unsubscribe=One-Click\r\n', headers)
+            self.assertIn('DKIM', archive.read('README.txt').decode())
+        plain = self.record('email-templates', dict(subject='Hello', body='Welcome', unsubscribe_url='http://example.com/u'))
+        with zipfile.ZipFile(io.BytesIO(self.http.post(self.prefix + '/email-templates/' + plain['id'] + '/export').content)) as archive:
+            self.assertNotIn('List-Unsubscribe-Post', archive.read('headers.txt').decode())
+            self.assertTrue(any('not HTTPS' in c for c in json.loads(archive.read('checks.json'))['checks']))
         self.update(contact, unsubscribed=True)
         with zipfile.ZipFile(io.BytesIO(self.http.post(path).content)) as archive:
             self.assertEqual(json.loads(archive.read('recipient-snapshot.json'))['contacts'], [])

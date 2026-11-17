@@ -59,7 +59,7 @@ class EnterpriseSuite(unittest.TestCase):
         response=cls.client.post('/api/brands',json=cls.brand)
         assert response.status_code==201,response.text
         cls.brand_id=response.json()['brand']['id']
-        cls.results=[]
+        cls.results=[];cls.contracts=[]
         cls.payload=dict(prompt='Hiring an AI Engineer at Enterprise Test Works. Help us build useful tools.',post_type='hiring',
                          brand_id=cls.brand_id,language='both',use_search=False,use_local_sdxl=False,seed=712,
                          generate_companion=False,output_format='landscape',
@@ -74,24 +74,38 @@ class EnterpriseSuite(unittest.TestCase):
         cls.evidence=ROOT/'output/enterprise-verification';cls.evidence.mkdir(parents=True,exist_ok=True)
         archive=cls.client.get(cls.results[-1]['bundle_zip_url'])
         (cls.evidence/'full-client-agency-kit.zip').write_bytes(archive.content)
-        (cls.evidence/'response.json').write_text(json.dumps(cls.results[-1],ensure_ascii=False,indent=2),encoding='utf-8')
+        (cls.evidence/'response.json').write_text(json.dumps(cls.contracts[-1],ensure_ascii=False,indent=2),encoding='utf-8')
+        (cls.evidence/'deliverables.json').write_text(json.dumps(cls.results[-1],ensure_ascii=False,indent=2),encoding='utf-8')
 
     @classmethod
     def generate(cls,payload):
         response=cls.client.post('/api/campaign/generate',json=payload)
         assert response.status_code==200,response.text[:2000]
-        return response.json()
+        result=response.json()
+        cls.contracts.append(result)
+        assert set(result)=={'status','campaign_id','assets','copywriting'},result.keys()
+        assert result['status']=='success'
+        assert set(result['assets'])=={'primary_image','companion_image','story_image','landscape_banner','animation_gif','animation_mp4','zip_bundle'}
+        assert set(result['copywriting'])=={'en','ar'}
+        for copy in result['copywriting'].values():
+            assert set(copy)=={'linkedin','instagram','x'} and all(copy.values())
+        for url in result['assets'].values():
+            assert url.startswith('http://localhost/renders/'+result['campaign_id']+'/'),url
+            assert cls.client.get(url).status_code==200,url
+        details=cls.client.get('/api/campaign/'+result['campaign_id']+'/deliverables')
+        assert details.status_code==200,details.text
+        return details.json()
 
     @classmethod
     def tearDownClass(cls):
         cls.stack.close();cls.client.close();cls.other.close();TEMP.cleanup()
 
     def disk_path(self,url):
-        return Path(TEMP.name)/'guests'/self.workspace/'renders'/Path(urlsplit(url).path).name
+        return Path(TEMP.name)/'guests'/self.workspace/'renders'/urlsplit(url).path.split('/renders/',1)[1]
 
     def test_complete_contract_urls_disk_and_canvas_sizes(self):
         for data in self.results:
-            self.assertEqual(data['status'],'completed')
+            self.assertEqual(data['status'],'success')
             self.assertEqual(data['primary_image_url'],data['image_url'])
             self.assertFalse(any(key.endswith('_path') for key in data))
             for language,kit in data['agency_kits'].items():
@@ -152,6 +166,7 @@ class EnterpriseSuite(unittest.TestCase):
                 for language,files in manifest['deliverables'].items():
                     for key,entry in files.items():
                         raw=archive.read(entry['file'])
+                        self.assertTrue(entry['file'].startswith(('images/'+language+'/', 'motion/'+language+'/')))
                         self.assertEqual(len(raw),entry['size'])
                         self.assertEqual(hashlib.sha256(raw).hexdigest(),entry['sha256'])
                         self.assertEqual(raw,self.client.get(data['agency_kits'][language][key]).content)
@@ -176,7 +191,7 @@ class EnterpriseSuite(unittest.TestCase):
         self.assertEqual(self.client.post('/api/brands',json={**self.brand,'secondary_hex':'green'}).status_code,422)
         for key in ('primary_image_url','bundle_zip_url'):
             self.assertEqual(self.other.get(self.results[0][key]).status_code,404)
-        with patch.object(server,'generate_campaign_endpoint',return_value={'agency_kits':{}}):
+        with self.assertLogs('server',level='ERROR'),patch('agency.enterprise_pipeline.motion',side_effect=RuntimeError('Injected encoder failure')):
             self.assertEqual(self.client.post('/api/campaign/generate',json=self.payload).status_code,502)
 
     def test_absolute_urls_survive_redaction_but_filesystem_paths_do_not(self):
@@ -217,6 +232,163 @@ class EnterpriseSuite(unittest.TestCase):
             frames.append(np.array(image));themes.append(theme)
         self.assertGreater(np.abs(frames[0][122:].astype(float)-frames[1][122:].astype(float)).sum(),100)
         self.assertNotEqual(campaign._brand_theme_fingerprint(themes[0]),campaign._brand_theme_fingerprint(themes[1]))
+
+    def fast_pipeline(self):
+        """Reuse already verified real media when testing scheduling and transaction faults."""
+        import shutil
+        stack=ExitStack()
+        originals=self.results[0]['agency_kits']
+        def copy_source(request,theme,stage,*unused):
+            paths={}
+            for lang in ('en','ar'):
+                target=stage/f'primary-{lang}.jpg';shutil.copyfile(self.disk_path(originals[lang]['image_url']),target);paths[lang]=str(target)
+            return paths,{},'verification-fixtures'
+        def companion(data,theme,target):
+            shutil.copyfile(self.disk_path(originals[data['language']]['companion_image_url']),target);return str(target)
+        def formats(primary,data,theme):
+            result={}
+            for key,source in [('story_path','story_url'),('landscape_path','landscape_url')]:
+                target=Path(primary).with_name(Path(primary).stem+'_'+key+'.jpg')
+                shutil.copyfile(self.disk_path(originals[data['language']][source]),target);result[key]=str(target)
+            return result
+        def motion(target,request,theme,language):
+            for key,destination in [('animation_url',target),('animation_mp4_url',target.with_suffix('.mp4'))]:
+                shutil.copyfile(self.disk_path(originals[language][key]),destination)
+            return str(target)
+        stack.enter_context(patch('agency.enterprise_pipeline.primary_sources',side_effect=copy_source))
+        stack.enter_context(patch.object(campaign,'generate_companion_image',side_effect=companion))
+        stack.enter_context(patch.object(campaign,'render_omnichannel_variants',side_effect=formats))
+        stack.enter_context(patch('agency.enterprise_pipeline.motion',side_effect=motion))
+        return stack,copy_source
+
+    def published_root(self):
+        return Path(TEMP.name)/'guests'/self.workspace/'renders'
+
+    def test_transaction_rollback_and_hidden_incomplete_assets(self):
+        from agency.enterprise_pipeline import RenderTransaction
+        root=self.published_root();before=set(root.iterdir())
+        with self.assertLogs('server',level='ERROR'),patch('agency_suite.bundle_enterprise_campaign',side_effect=OSError('Disk failure')):
+            stack,_=self.fast_pipeline()
+            with stack:
+                response=self.client.post('/api/campaign/generate',json=self.payload)
+        self.assertEqual(response.status_code,502)
+        self.assertEqual(set(root.iterdir()),before)
+        self.assertFalse(list((root.parent/'.campaign-staging').iterdir()))
+        with RenderTransaction(root) as tx:
+            (tx.stage/'private.jpg').write_bytes(b'private')
+            self.assertEqual(self.client.get('/renders/'+tx.campaign_id+'/private.jpg').status_code,404)
+            self.assertEqual(self.client.get('/api/campaign/'+tx.campaign_id+'/deliverables').status_code,404)
+        self.assertFalse(tx.stage.exists())
+
+    def test_parallel_branches_and_responsive_api(self):
+        import asyncio,time,threading,httpx
+        import agency.enterprise_pipeline as pipeline
+        stack,source=self.fast_pipeline();barrier=threading.Barrier(3,timeout=2)
+        copy=campaign.generate_enterprise_copy
+        def blocking_source(*args):
+            barrier.wait();time.sleep(.15);return source(*args)
+        def parallel_copy(*args):barrier.wait();return copy(*args)
+        async def run():
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app),base_url='http://localhost',cookies=self.client.cookies) as client:
+                start=time.monotonic()
+                task=asyncio.create_task(client.post('/api/campaign/generate',json=self.payload))
+                await asyncio.sleep(.04)
+                self.assertLess(time.monotonic()-start,.5,'Generation blocked the event loop')
+                self.assertFalse(task.done())
+                response=await asyncio.wait_for(client.get('/api/brands'),timeout=.5)
+                self.assertEqual(response.status_code,200)
+                result=await task
+                self.assertEqual(result.status_code,200,result.text[:500])
+        with stack,patch.object(pipeline,'primary_sources',side_effect=blocking_source),patch.object(campaign,'generate_enterprise_copy',side_effect=parallel_copy):
+            asyncio.run(run())
+
+    def test_cancellation_waits_for_workers_before_cleanup(self):
+        import asyncio,threading,time
+        from agency.enterprise_pipeline import RenderTransaction,offload
+        started=threading.Event();finished=threading.Event();root=self.published_root()
+        def worker(stage):
+            started.set();time.sleep(.12);(stage/'late.txt').write_text('finished');finished.set()
+        async def run():
+            async def job():
+                with RenderTransaction(root) as tx:
+                    await offload(worker,tx.stage)
+            task=asyncio.create_task(job())
+            while not started.is_set():await asyncio.sleep(.005)
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):await task
+            self.assertTrue(finished.is_set())
+            self.assertFalse(list((root.parent/'.campaign-staging').iterdir()))
+        asyncio.run(run())
+
+    def test_cloud_throttling_uses_local_worker_then_cpu_fallback(self):
+        from agency.enterprise_pipeline import primary_sources
+        from fastapi import HTTPException
+        theme=visual.resolve_brand_theme(brand_name='Offline Brand')
+        raw=io.BytesIO();Image.new('RGB',(1080,1350),'#223344').save(raw,'JPEG')
+        req=server.GenerateRequest(prompt='Launch a workflow planner',use_local_sdxl=True,image_model='gemini-image')
+        with tempfile.TemporaryDirectory() as directory,patch.object(visual,'model_setup',return_value={'configured':True}),patch.object(visual,'preferred_local_model',return_value='local-model'),patch.object(visual,'local_image',return_value=(raw.getvalue(),True)) as worker:
+            paths,_,source=primary_sources(req,theme,Path(directory),lambda request:(_ for _ in ()).throw(HTTPException(429,'Rate limit')),lambda path:path)
+            self.assertEqual(source,'local-image-worker');worker.assert_called_once()
+            for path in paths.values():
+                with Image.open(path) as image:self.assertEqual(image.size,(1080,1350))
+            with patch.object(visual,'local_image',side_effect=RuntimeError('GPU unavailable')):
+                paths,_,source=primary_sources(req,theme,Path(directory),lambda request:(_ for _ in ()).throw(HTTPException(503,'Unavailable')),lambda path:path)
+            self.assertEqual(source,'local-cpu-artboard')
+
+    def test_native_model_copy_validation_and_offline_fallback(self):
+        theme=visual.resolve_brand_theme(brand_name='Test Works')
+        payload={**self.payload,'brand_profile':{'brand_name_ar':self.brand['brand_name_ar']}}
+        with patch.object(campaign,'LexnisCampaignStudio') as studio:
+            studio.return_value.text_engine='custom'
+            for language in ('en','ar'):
+                text='A practical planner for teams.' if language=='en' else '\u0645\u062e\u0637\u0637 \u0639\u0645\u0644\u064a \u0644\u0644\u0641\u0631\u0642.'
+                studio.return_value._chat.return_value=json.dumps(dict(linkedin=text,instagram=text,x_thread=[text]))
+                result=campaign.generate_enterprise_copy(payload,theme,language)
+                self.assertEqual(result['copy_source'],'model');self.assertEqual(result['linkedin_post'],text)
+            studio.return_value._chat.return_value=json.dumps(dict(linkedin='English only',instagram='English only',x_thread=['English only']))
+            fallback=campaign.generate_enterprise_copy(payload,theme,'ar')
+            self.assertEqual(fallback['copy_source'],'template')
+            self.assertIn(self.brand['brand_name_ar'],fallback['linkedin_post'])
+            self.assertNotIn(payload['prompt'],fallback['linkedin_post'])
+
+    def test_active_brand_snapshot_survives_mid_generation_edit(self):
+        import threading,concurrent.futures
+        import agency.enterprise_pipeline as pipeline
+        before=self.client.get('/api/brands/'+self.brand_id).json()['brand']
+        started=threading.Event();release=threading.Event();captured=[]
+        stack,source=self.fast_pipeline()
+        def blocked(request,theme,*args):
+            captured.append(theme.tagline);started.set()
+            if not release.wait(3):raise RuntimeError('Snapshot synchronization timed out')
+            return source(request,theme,*args)
+        try:
+            with stack,patch.object(pipeline,'primary_sources',side_effect=blocked),concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                pending=executor.submit(self.client.post,'/api/campaign/generate',json=self.payload)
+                self.assertTrue(started.wait(2))
+                edited={**before,'tagline':'Edited while an existing campaign was rendering.'}
+                self.assertEqual(self.client.post('/api/brands',json=edited).status_code,200)
+                release.set();response=pending.result(timeout=10)
+                self.assertEqual(response.status_code,200,response.text[:500])
+            data=self.client.get('/api/campaign/'+response.json()['campaign_id']+'/deliverables').json()
+            self.assertEqual(data['brand_snapshot']['profile']['tagline'],before['tagline'])
+            self.assertEqual(captured,[before['tagline']])
+        finally:
+            release.set();self.client.post('/api/brands',json=before)
+
+    def test_agency_scoped_generation_ownership_and_persisted_run(self):
+        client=self.client.post('/api/agency/clients',json={'name':'Generation owner'}).json()
+        record=self.client.post('/api/agency/clients/'+client['id']+'/records/campaigns',json={'name':'Workflow launch','data':{'objective':'Launch'}})
+        self.assertEqual(record.status_code,201,record.text)
+        campaign_id=record.json()['id'];base='/api/agency/clients/'+client['id']+'/campaigns/'+campaign_id
+        stack,_=self.fast_pipeline()
+        with stack:
+            response=self.client.post(base+'/generate',json=self.payload)
+        self.assertEqual(response.status_code,200,response.text[:500]);run=response.json()
+        center=self.client.get(base+'/command-center')
+        self.assertEqual(center.status_code,200,center.text[:300])
+        self.assertEqual(center.json()['generated_campaigns'][0]['campaign_id'],run['campaign_id'])
+        self.assertEqual(self.other.post(base+'/generate',json=self.payload).status_code,404)
+        self.assertEqual(self.other.get('/api/campaign/'+run['campaign_id']+'/deliverables').status_code,404)
 
     @unittest.skipUnless(BROWSER,'Pass --browser for the real Chromium dashboard checks')
     def test_results_dashboard_tabs_bilingual_clipboard_and_download(self):
@@ -266,6 +438,37 @@ class EnterpriseSuite(unittest.TestCase):
             overflow=page.evaluate("[...document.querySelectorAll('body *')].filter(el=>el.getClientRects().length&&el.getBoundingClientRect().right>innerWidth+1).slice(0,8).map(el=>({tag:el.tagName,id:el.id,classes:el.className,right:el.getBoundingClientRect().right}))")
             self.assertTrue(page.evaluate('document.documentElement.scrollWidth<=innerWidth'),overflow)
             root.screenshot(path=str(self.evidence/'delivery-mobile.png'))
+            # Click the real Command Center generation action, then reopen its saved run.
+            page.set_viewport_size({'width':1440,'height':1000})
+            client=self.client.post('/api/agency/clients',json={'name':'Browser generation client'}).json()
+            record=self.client.post('/api/agency/clients/'+client['id']+'/records/campaigns',json={'name':'Browser launch','data':{'objective':'Introduce a workflow planner'}}).json()
+            page.evaluate("""async record=>{
+                const context=await import('/static/js/app-context.js?v='+window.lexnisUiVersion);
+                await context.setCampaign(record);
+                const root=document.getElementById('agency-command-center-workspace');
+                for(let node=root;node;node=node.parentElement){node.hidden=false;node.classList.remove('hidden');}
+                const module=await import('/static/js/campaign-command-center.js?v='+window.lexnisUiVersion);
+                await module.mountCommandCenter(root);
+            }""",record)
+            center=page.locator('#agency-command-center-workspace')
+            page.wait_for_function("!document.getElementById('ccc-generate-kit').disabled")
+            center.get_by_label('Active brand kit').select_option(self.brand_id)
+            center.get_by_label('Campaign brief').fill('Introduce a workflow planner for growing teams.')
+            stack,_=self.fast_pipeline()
+            with stack:
+                center.get_by_role('button',name='Generate full campaign kit',exact=True).click()
+                center.locator('[data-campaign-delivery]').wait_for()
+                page.wait_for_function("document.getElementById('ccc-generation-status').textContent.includes('Campaign kit ready')")
+            self.assertEqual(center.locator('.campaign-format-card').count(),4)
+            with page.expect_download() as feed:
+                center.get_by_role('button',name='Download Primary Feed',exact=True).click()
+            self.assertTrue(feed.value.suggested_filename.endswith('.jpg'))
+            center.get_by_role('button',name='Open latest completed kit',exact=True).click()
+            page.wait_for_function("!document.getElementById('ccc-open-kit').disabled")
+            self.assertEqual(center.locator('[data-campaign-delivery]').count(),1)
+            center.get_by_role('tab',name='Motion Preview').click()
+            self.assertEqual(center.locator('video').count(),1)
+            center.screenshot(path=str(self.evidence/'command-center.png'))
             self.assertFalse(errors,errors)
             context.unroute_all(behavior='ignoreErrors');browser.close()
 

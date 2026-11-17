@@ -139,6 +139,19 @@ function renderCommandCenter(container, data, clientId, campaignId) {
         </div>
       </div>
 
+      <section class="ccc-generation" style="background:#0f172a;border:1px solid #334155;border-radius:12px;padding:1.5rem;margin-bottom:1.5rem;">
+        <h2>Generate a complete campaign kit</h2>
+        <p>Four visual formats, smooth GIF and MP4 loops, and English and Arabic copy in one client archive.</p>
+        <label for="ccc-generation-brief">Campaign brief</label>
+        <textarea id="ccc-generation-brief" rows="4" style="display:block;width:100%;box-sizing:border-box;margin:0.5rem 0;padding:0.75rem;background:#1e293b;color:#fff;border:1px solid #475569;border-radius:6px;">${escape([camp.name,camp.objective].filter(Boolean).join('. '))}</textarea>
+        <label for="ccc-generation-brand">Active brand kit</label>
+        <select id="ccc-generation-brand" disabled style="padding:0.5rem;max-width:100%;"><option value="">Loading brands...</option></select>
+        <button type="button" id="ccc-generate-kit" class="btn-primary" disabled>Generate full campaign kit</button>
+        <button type="button" id="ccc-open-kit" ${data.generated_campaigns?.length ? '' : 'hidden'}>Open latest completed kit</button>
+        <p id="ccc-generation-status" role="status" aria-live="polite"></p>
+        <div id="ccc-generated-result"></div>
+      </section>
+
       <!-- STAGE PROGRESS RAIL -->
       <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; overflow-x: auto;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
@@ -245,6 +258,62 @@ function renderCommandCenter(container, data, clientId, campaignId) {
       </div>
     </div>
   `;
+
+  const generationVersion=requests.get(container);
+  const current=()=>requests.get(container)===generationVersion;
+  const generate=container.querySelector('#ccc-generate-kit');
+  const brands=container.querySelector('#ccc-generation-brand');
+  const notice=container.querySelector('#ccc-generation-status');
+  const output=container.querySelector('#ccc-generated-result');
+  const open=container.querySelector('#ccc-open-kit');
+  let latest=data.generated_campaigns?.[0]?.campaign_id;
+  async function showKit(result) {
+    const kit=await window.hydrateCampaignResult(result);
+    if(!current())return;
+    output.querySelectorAll('video').forEach(video=>video.pause());
+    output.replaceChildren();
+    window.renderCampaignDeliverables(output,kit,kit.language,{
+      download:async(url,name)=>{
+        const response=await fetch(url);
+        if(!response.ok)throw new Error('Download failed ('+response.status+').');
+        const link=document.createElement('a'),blob=URL.createObjectURL(await response.blob());
+        const extension=new URL(url,location.href).pathname.match(/\.[a-z0-9]+$/i)?.[0]||'';
+        link.href=blob;link.download=/\.[a-z0-9]+$/i.test(name)?name:name+extension;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(blob),4000);
+      }
+    });
+  }
+  fetch('/api/brands').then(async response=>{
+    if(!response.ok)throw new Error('Unable to load brand kits.');
+    const result=await response.json();if(!current())return;
+    brands.replaceChildren(new Option('Campaign brand',''));
+    for(const brand of result.brands||[])brands.add(new Option(brand.brand_name,brand.id));
+    brands.disabled=false;generate.disabled=false;
+  }).catch(error=>{if(current())notice.textContent=error.message;});
+  open.onclick=async()=>{
+    open.disabled=true;
+    try {await showKit({status:'success',campaign_id:latest,assets:{}});}
+    catch(error){if(current())notice.textContent=error.message;}
+    finally{if(current())open.disabled=false;}
+  };
+  generate.onclick=async()=>{
+    const brief=container.querySelector('#ccc-generation-brief').value.trim();
+    if(!brief){notice.textContent='Enter a campaign brief.';return;}
+    generate.disabled=true;open.disabled=true;brands.disabled=true;
+    notice.textContent='Generating bilingual visuals, motion and copy. The complete kit will appear here when ready.';
+    try {
+      const response=await fetch(`/api/agency/clients/${clientId}/campaigns/${campaignId}/generate`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({prompt:brief,brand_id:brands.value||null,brand:camp.client_name||camp.name,language:'both',use_search:false})
+      });
+      const result=await response.json();
+      if(!response.ok)throw new Error(typeof result.detail==='string'?result.detail:JSON.stringify(result.detail||'Generation failed.'));
+      if(!current())return;
+      latest=result.campaign_id;open.hidden=false;
+      await showKit(result);
+      if(current())notice.textContent='Campaign kit ready. Download individual assets or the full client ZIP below.';
+    }catch(error){if(current())notice.textContent=error.message;}
+    finally{if(current()){generate.disabled=false;open.disabled=false;brands.disabled=false;}}
+  };
 
   // Attach event handlers
   const exportBtn = container.querySelector('#ccc-export-pkg-btn');

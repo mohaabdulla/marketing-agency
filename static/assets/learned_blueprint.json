@@ -157,7 +157,7 @@
       "overlaps_element": "headline",
       "clip_bottom_to": "nameplate_top",
       "clip_sides_to": "inner_window",
-      "grayscale": false,
+      "grayscale": true,
       "z_index": 30
     },
     "nameplate_title": {

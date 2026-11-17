@@ -424,7 +424,7 @@ class GuidedEditTests(unittest.TestCase):
         self.assertFalse(capabilities['generative_background']['available'])
         self.assertEqual(capabilities['platforms']['basis'], 'PRODUCT DEFAULT')
         self.assertEqual({p['id'] for p in capabilities['platforms']['profiles']},
-                         {'tiktok-ltr', 'tiktok-rtl', 'instagram-reels', 'instagram-stories', 'youtube-shorts', 'youtube-standard', 'generic-vertical', 'generic-horizontal'})
+                         {'tiktok-ltr', 'tiktok-rtl', 'instagram-reels', 'instagram-stories', 'meta-reels-ads', 'youtube-shorts', 'youtube-standard', 'generic-vertical', 'generic-horizontal'})
         self.assertEqual(len(capabilities['styles']), 4)
 
 

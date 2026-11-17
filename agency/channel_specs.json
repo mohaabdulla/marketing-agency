@@ -1,32 +1,158 @@
 {
-  "notice": "Editable configuration. Platform limits change; these defaults were entered from general platform documentation knowledge and have not been re-verified against each platform on a specific date. Check the platform before relying on a limit. 'hard' limits are flagged as errors, 'recommended' ones as review notes.",
-  "speech_words_per_minute": {"en": 150, "ar": 120},
+  "notice": "Editable configuration, reviewed 2026-11-16. Platform limits change without notice; check the platform before relying on a limit. 'hard' limits are flagged as errors, 'recommended' ones as review notes. Sources are secondary industry reporting unless a note says otherwise.",
+  "speech_words_per_minute": {
+    "en": 150,
+    "ar": 120
+  },
   "formats": {
-    "short_social_post": {"label": "Short social post", "max_chars": 280, "limit_type": "recommended"},
-    "linkedin_post": {"label": "LinkedIn post", "max_chars": 3000, "limit_type": "hard", "max_hashtags": 5, "hashtag_limit_type": "recommended"},
-    "instagram_caption": {"label": "Instagram caption", "max_chars": 2200, "limit_type": "hard", "max_hashtags": 30, "hashtag_limit_type": "hard"},
-    "x_post": {"label": "X post", "max_chars": 280, "limit_type": "hard"},
-    "tiktok_caption": {"label": "TikTok caption", "max_chars": 2200, "limit_type": "recommended"},
-    "facebook_post": {"label": "Facebook post", "max_chars": 63206, "limit_type": "hard"},
-    "youtube_title": {"label": "YouTube title", "max_chars": 100, "limit_type": "hard"},
-    "youtube_description": {"label": "YouTube description", "max_chars": 5000, "limit_type": "hard"},
-    "ad_headline": {"label": "Ad headline", "max_chars": 40, "limit_type": "recommended"},
-    "ad_primary_text": {"label": "Ad primary text", "max_chars": 125, "limit_type": "recommended"},
-    "search_ad_headline": {"label": "Search ad headline", "max_chars": 30, "limit_type": "hard"},
-    "search_ad_description": {"label": "Search ad description", "max_chars": 90, "limit_type": "hard"},
-    "cta": {"label": "Call to action", "max_chars": 40, "limit_type": "recommended"},
-    "email_subject": {"label": "Email subject", "max_chars": 60, "limit_type": "recommended"},
-    "email_preheader": {"label": "Email preheader", "max_chars": 100, "limit_type": "recommended"},
-    "email_body": {"label": "Email body", "max_chars": 30000, "limit_type": "hard"},
-    "landing_hero": {"label": "Landing page hero", "max_chars": 300, "limit_type": "recommended"},
-    "landing_section": {"label": "Landing page section", "max_chars": 3000, "limit_type": "recommended"},
-    "blog_outline": {"label": "Blog outline", "max_chars": 6000, "limit_type": "recommended"},
-    "article_draft": {"label": "Article draft", "max_chars": 30000, "limit_type": "hard"},
-    "product_description": {"label": "Product description", "max_chars": 2000, "limit_type": "recommended"},
-    "brochure_copy": {"label": "Brochure copy", "max_chars": 6000, "limit_type": "recommended"},
-    "press_announcement": {"label": "Press-style announcement", "max_chars": 6000, "limit_type": "recommended"},
-    "sms": {"label": "SMS draft", "max_chars": 160, "max_chars_non_latin": 70, "limit_type": "recommended"},
-    "whatsapp_message": {"label": "WhatsApp-style marketing draft", "max_chars": 1024, "limit_type": "recommended"},
-    "internal_sales_copy": {"label": "Internal sales copy", "max_chars": 6000, "limit_type": "recommended"}
-  }
+    "short_social_post": {
+      "label": "Short social post",
+      "max_chars": 280,
+      "limit_type": "recommended"
+    },
+    "linkedin_post": {
+      "label": "LinkedIn post",
+      "max_chars": 3000,
+      "limit_type": "hard",
+      "max_hashtags": 5,
+      "hashtag_limit_type": "recommended"
+    },
+    "instagram_caption": {
+      "label": "Instagram caption",
+      "max_chars": 2200,
+      "limit_type": "hard",
+      "max_hashtags": 5,
+      "hashtag_limit_type": "hard",
+      "note": "Instagram began limiting posts to 5 hashtags in December 2025 (caption and comments combined, feed, carousel and Reels), as widely reported; earlier guidance allowed 30."
+    },
+    "x_post": {
+      "label": "X post",
+      "max_chars": 280,
+      "limit_type": "hard"
+    },
+    "tiktok_caption": {
+      "label": "TikTok caption",
+      "max_chars": 2200,
+      "limit_type": "recommended",
+      "note": "2,200 characters is the Content Posting API cap; the app is reported to accept up to 4,000. Kept at the lower figure so exported captions also work through the API."
+    },
+    "facebook_post": {
+      "label": "Facebook post",
+      "max_chars": 63206,
+      "limit_type": "hard"
+    },
+    "youtube_title": {
+      "label": "YouTube title",
+      "max_chars": 100,
+      "limit_type": "hard"
+    },
+    "youtube_description": {
+      "label": "YouTube description",
+      "max_chars": 5000,
+      "limit_type": "hard"
+    },
+    "ad_headline": {
+      "label": "Ad headline",
+      "max_chars": 40,
+      "limit_type": "recommended"
+    },
+    "ad_primary_text": {
+      "label": "Ad primary text",
+      "max_chars": 125,
+      "limit_type": "recommended"
+    },
+    "search_ad_headline": {
+      "label": "Search ad headline",
+      "max_chars": 30,
+      "limit_type": "hard"
+    },
+    "search_ad_description": {
+      "label": "Search ad description",
+      "max_chars": 90,
+      "limit_type": "hard"
+    },
+    "cta": {
+      "label": "Call to action",
+      "max_chars": 40,
+      "limit_type": "recommended"
+    },
+    "email_subject": {
+      "label": "Email subject",
+      "max_chars": 60,
+      "limit_type": "recommended"
+    },
+    "email_preheader": {
+      "label": "Email preheader",
+      "max_chars": 100,
+      "limit_type": "recommended"
+    },
+    "email_body": {
+      "label": "Email body",
+      "max_chars": 30000,
+      "limit_type": "hard"
+    },
+    "landing_hero": {
+      "label": "Landing page hero",
+      "max_chars": 300,
+      "limit_type": "recommended"
+    },
+    "landing_section": {
+      "label": "Landing page section",
+      "max_chars": 3000,
+      "limit_type": "recommended"
+    },
+    "blog_outline": {
+      "label": "Blog outline",
+      "max_chars": 6000,
+      "limit_type": "recommended"
+    },
+    "article_draft": {
+      "label": "Article draft",
+      "max_chars": 30000,
+      "limit_type": "hard"
+    },
+    "product_description": {
+      "label": "Product description",
+      "max_chars": 2000,
+      "limit_type": "recommended"
+    },
+    "brochure_copy": {
+      "label": "Brochure copy",
+      "max_chars": 6000,
+      "limit_type": "recommended"
+    },
+    "press_announcement": {
+      "label": "Press-style announcement",
+      "max_chars": 6000,
+      "limit_type": "recommended"
+    },
+    "sms": {
+      "label": "SMS draft",
+      "max_chars": 160,
+      "limit_type": "recommended",
+      "encoding": "gsm7-or-ucs2",
+      "segments": {
+        "gsm7": {
+          "single": 160,
+          "per_part": 153
+        },
+        "ucs2": {
+          "single": 70,
+          "per_part": 67
+        }
+      },
+      "note": "3GPP TS 23.038: GSM 03.38 text fits 160 characters in one message (153 per part when split); any other character switches the whole message to UCS-2 (70, or 67 per part). Characters from the extension table count twice."
+    },
+    "whatsapp_message": {
+      "label": "WhatsApp-style marketing draft",
+      "max_chars": 1024,
+      "limit_type": "recommended"
+    },
+    "internal_sales_copy": {
+      "label": "Internal sales copy",
+      "max_chars": 6000,
+      "limit_type": "recommended"
+    }
+  },
+  "reviewed": "2026-11-16"
 }

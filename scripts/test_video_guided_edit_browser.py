@@ -74,7 +74,7 @@ def main():
                     assert presets == ['source-master', 'web-youtube', 'vertical-social', 'square-social', 'portrait-feed', 'broadcast-ebu'], presets
                     assert quick.locator('[data-quick-delivery]').input_value() == 'web-youtube'
                     note = quick.locator('[data-quick-preset-note]').inner_text()
-                    assert 'H.264 High' in note and '-16 LUFS' in note and 'BS.1770' in note, note
+                    assert 'H.264 High' in note and '-14 LUFS' in note and 'BS.1770' in note, note
 
                     # Brand step: guideline text and logo, both visible controls.
                     guide = tmp / 'brand.md'

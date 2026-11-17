@@ -30,8 +30,11 @@ with sync_playwright() as pw:
         elif url.endswith("/api/health"):
             route.fulfill(json={"status": "online", "image_models": {"cf:flux-schnell": "FLUX Schnell"},
                                 "default_image_model": "cf:flux-schnell", "image_model_setup": {"cf:flux-schnell": {"configured": True}}})
-        elif url.endswith("/api/campaign/generate"):
+        elif url.endswith("/api/campaign/generate") or ("/api/campaign/" in url and url.endswith("/deliverables")):
             route.fulfill(json=campaign)
+        elif "/static/js/campaign-deliverables.js" in url or "/static/css/campaign-deliverables.css" in url:
+            path = ROOT / url.split("agency.test/", 1)[1].split("?")[0]
+            route.fulfill(body=path.read_text(encoding="utf-8"), content_type="application/javascript" if path.suffix == ".js" else "text/css")
         elif url.endswith("/api/carousel/download"):
             urls = route.request.post_data_json["urls"]
             assert len(urls) == 3 and all("_ar" in u for u in urls)

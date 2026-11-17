@@ -17,3 +17,7 @@
 .ve-gates{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:10px 0}.ve-gate{border:1px solid #2b405a;border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:6px}.ve-gate small{color:#9db1ce}
 .ve-request summary,.ve-category summary{display:flex;justify-content:space-between;gap:12px;align-items:center;cursor:pointer;padding:7px 0;border-bottom:1px solid #26354c}.ve-request p{margin:8px 0;color:#c9d8ec}
 .ve-approve{display:block;border:1px solid #3a516d;border-radius:8px;padding:10px;margin:8px 0}.ve-approve input[maxlength]{display:block;width:100%;margin-top:6px}
+
+/* Shared guideline picker: a dark field like every other control (pale inherited text on the default white field was 1.8:1). */
+select[data-shared-guidelines]{background:#0b1626;color:#e2edfa;border:1px solid #2d425e;border-radius:7px;padding:6px 8px;min-height:36px}
+select[data-shared-guidelines]:focus-visible{outline:2px solid #67e8f9;outline-offset:2px}

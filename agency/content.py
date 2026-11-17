@@ -39,6 +39,23 @@ def concept_matrix(client_id, campaign_id, axes, brief_id=None, audience_id=None
     return dict(created=created, combinations=len(combos), axes=list(axes))
 
 
+# GSM 03.38 default alphabet (3GPP TS 23.038) and its extension table; extension characters cost two septets.
+GSM7_BASIC = set("@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà")
+GSM7_EXTENDED = set("^{}\\[~]|€\f")
+
+
+def sms_encoding(text):
+    """Encoding, billable length and number of message parts for one SMS body."""
+    if all(c in GSM7_BASIC or c in GSM7_EXTENDED for c in text):
+        units = sum(2 if c in GSM7_EXTENDED else 1 for c in text)
+        single, per_part, name = 160, 153, 'GSM-7'
+    else:
+        units = sum(2 if ord(c) > 0xFFFF else 1 for c in text)       # UTF-16 code units
+        single, per_part, name = 70, 67, 'UCS-2'
+    parts = 1 if units <= single else -(-units // per_part)
+    return dict(encoding=name, units=units, single_limit=single, per_part=per_part, parts=parts)
+
+
 def copy_checks(client_id, campaign_id, fmt, text, headline='', cta='', hashtags=(), language='en', claim_ids=(),
                 exclude_id=None, agency=service):
     """Deterministic review flags for one copy variant. Flags, not scores; a person still decides."""
@@ -50,12 +67,18 @@ def copy_checks(client_id, campaign_id, fmt, text, headline='', cta='', hashtags
     result = scan(client_id, '\n'.join(x for x in (headline, text) if x), list(claim_ids), campaign['data']['brand_id'],
                   cta if fmt != 'cta' else text, language)
     flags = result['flags']
-    non_latin = bool(re.search(r'[^\x00-\x7f]', text))
-    limit = spec.get('max_chars_non_latin', spec['max_chars']) if non_latin else spec['max_chars']
-    if len(text) > limit:
+    sms = sms_encoding(text) if spec.get('encoding') == 'gsm7-or-ucs2' else None
+    limit = sms['single_limit'] if sms else spec['max_chars']
+    length = sms['units'] if sms else len(text)
+    if length > limit:
         hard = spec['limit_type'] == 'hard'
+        detail = (f' ({sms["encoding"]}: sent as {sms["parts"]} billed parts of up to {sms["per_part"]})' if sms else '')
         flags.append(dict(code='length', severity='block' if hard else 'review',
-                          message=f'{spec["label"]}: {len(text)} characters, {"limit" if hard else "recommended maximum"} {limit}'))
+                          message=f'{spec["label"]}: {length} characters, {"limit" if hard else "recommended maximum"} {limit}{detail}'))
+    if sms and sms['encoding'] == 'UCS-2' and not re.search(r'[\u0600-\u06ff]', text) and len(text) > 70:
+        unusual = sorted({c for c in text if c not in GSM7_BASIC and c not in GSM7_EXTENDED})[:8]
+        flags.append(dict(code='sms_encoding', severity='review',
+                          message='These characters switch the whole SMS to UCS-2 (70 characters per message): ' + ' '.join(unusual)))
     tags = [t for t in hashtags if t.strip()] or re.findall(r'(?<!\w)#\w+', text)
     if spec.get('max_hashtags') is not None and len(tags) > spec['max_hashtags']:
         flags.append(dict(code='hashtags', severity='block' if spec.get('hashtag_limit_type') == 'hard' else 'review',
@@ -77,7 +100,7 @@ def copy_checks(client_id, campaign_id, fmt, text, headline='', cta='', hashtags
         elif ratio >= 0.75:
             flags.append(dict(code='similar', severity='review', record_id=other['id'],
                               message=f'Similar to "{other["name"]}" ({ratio:.0%}); make sure the variants test something different'))
-    return dict(flags=flags, characters=len(text), limit=limit, limit_type=spec['limit_type'], format=spec['label'],
+    return dict(flags=flags, characters=len(text), limit=limit, limit_type=spec['limit_type'], format=spec['label'], sms=sms,
                 export_state='review-required' if flags else 'checks-passed', limits_notice=specs['notice'],
                 scope='Deterministic checks only. Tone, accuracy and cultural fit need a human reviewer.')
 
@@ -219,7 +242,9 @@ def storyboard_captions(client_id, storyboard_id, fmt='srt', agency=service, rep
     if not cues:
         raise ValueError('No voiceover or dialogue text in this storyboard to caption')
     if fmt == 'vtt':
-        body = 'WEBVTT\n\n' + '\n\n'.join(f'{_clock(a, False)} --> {_clock(b, False)}\n{t}' for a, b, t in cues) + '\n'
+        # WebVTT cue text is markup: escape it so "R&D" or "<10 ms" stays literal text.
+        escape = lambda t: t.replace('-->', '->').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        body = 'WEBVTT\n\n' + '\n\n'.join(f'{_clock(a, False)} --> {_clock(b, False)}\n{escape(t)}' for a, b, t in cues) + '\n'
     else:
         body = '\n\n'.join(f'{i}\n{_clock(a, True)} --> {_clock(b, True)}\n{t}' for i, (a, b, t) in enumerate(cues, 1)) + '\n'
     return body, len(cues), round(start, 3)

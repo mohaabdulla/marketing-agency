@@ -4,9 +4,9 @@ Creative Evaluation, Audio Studio, Connectors, and Client Review Portal.
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
-from fastapi import HTTPException, Query, File, UploadFile, Body
+from fastapi import HTTPException, Query, File, UploadFile, Body, Request
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .api import router, guard
 from .schemas import Id
@@ -22,6 +22,7 @@ from .portal import (
     create_client_review_link,
     get_review_portal_data,
     submit_review_decision,
+    revoke_review_link,
     generate_billing_summary,
 )
 
@@ -64,18 +65,26 @@ class ConnectorTestRequest(BaseModel):
 
 
 class UTMBuildRequest(BaseModel):
-    base_url: str
-    source: str
-    medium: str
-    campaign: str
-    content: Optional[str] = None
-    term: Optional[str] = None
+    base_url: str = Field(max_length=2000)
+    source: str = Field(max_length=200)
+    medium: str = Field(max_length=200)
+    campaign: str = Field(max_length=200)
+    content: Optional[str] = Field(None, max_length=200)
+    term: Optional[str] = Field(None, max_length=200)
+    id: Optional[str] = Field(None, max_length=100)
+    source_platform: Optional[str] = Field(None, max_length=100)
+    creative_format: Optional[str] = Field(None, max_length=100)
+    marketing_tactic: Optional[str] = Field(None, max_length=100)
 
 
 class ReviewLinkCreateRequest(BaseModel):
     campaign_id: str
     asset_ids: List[str]
     expires_in_days: int = 7
+
+
+class ReviewLinkRevokeRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=100)
 
 
 class ReviewDecisionRequest(BaseModel):
@@ -104,7 +113,28 @@ def check_model_gate(model_id: str, mode: str = Query("commercial")):
 # 2. CAMPAIGN COMMAND CENTER
 @router.get("/clients/{client_id}/campaigns/{campaign_id}/command-center")
 def get_campaign_command_center(client_id: Id, campaign_id: Id):
-    return guard(lambda: orchestrator.get_campaign_command_center(client_id, campaign_id))
+    def run():
+        from server import RENDERS_DIR
+        from .enterprise_pipeline import completed_runs
+        data=orchestrator.get_campaign_command_center(client_id,campaign_id)
+        data['generated_campaigns']=completed_runs(RENDERS_DIR.published(),client_id,campaign_id)
+        return data
+    return guard(run)
+
+
+@router.post('/clients/{client_id}/campaigns/{campaign_id}/generate')
+async def generate_campaign_kit(client_id: Id, campaign_id: Id, request: Request, payload: dict=Body(...)):
+    from starlette.concurrency import run_in_threadpool
+    from pydantic import ValidationError
+    from .services import service
+    from server import GenerateRequest,run_enterprise_campaign
+    # Resolve ownership before starting any production work.
+    await run_in_threadpool(lambda:guard(lambda:service.get(client_id,campaign_id,'campaigns')))
+    try:
+        req=GenerateRequest.model_validate(payload)
+    except ValidationError as exc:
+        raise HTTPException(422,exc.errors(include_context=False)) from exc
+    return await run_enterprise_campaign(req,request,dict(client_id=client_id,campaign_id=campaign_id))
 
 
 @router.get("/clients/{client_id}/campaigns/{campaign_id}/readiness")
@@ -228,14 +258,9 @@ def export_publication_package(client_id: Id, campaign_id: Id):
 @router.post("/tracking/build-utm")
 def build_utm_url(req: UTMBuildRequest):
     def run():
-        utm = UTMParameters(
-            source=req.source,
-            medium=req.medium,
-            campaign=req.campaign,
-            content=req.content,
-            term=req.term,
-        )
-        return {"url": utm.build_url(req.base_url), "parameters": utm.__dict__}
+        utm = UTMParameters(**req.model_dump(exclude={'base_url'}))
+        url = utm.build_url(req.base_url)
+        return {"url": url, "parameters": utm.normalized(), "warnings": utm.warnings()}
     return guard(run)
 
 
@@ -269,6 +294,11 @@ def submit_portal_review(token: str, req: ReviewDecisionRequest):
         comments=req.comments,
         asset_id=req.asset_id,
     ))
+
+
+@router.post("/clients/{client_id}/review-links/revoke")
+def revoke_review(client_id: Id, req: ReviewLinkRevokeRequest):
+    return guard(lambda: revoke_review_link(client_id, req.token))
 
 
 @router.get("/clients/{client_id}/campaigns/{campaign_id}/billing")

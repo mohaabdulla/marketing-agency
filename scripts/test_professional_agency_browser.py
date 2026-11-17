@@ -30,11 +30,13 @@ with sync_playwright() as pw:
         elif path == "/api/brands" and route.request.method == "POST":
             brand = {"id":"browser-client",**route.request.post_data_json}; brands.append(brand)
             route.fulfill(json={"brand":brand},status=201)
+        elif path.startswith("/api/campaign/") and path.endswith("/deliverables"):
+            route.fulfill(json=campaign)          # the page hydrates a finished campaign from its stored kit
         elif path in {"/api/generate","/api/campaign/generate"}:
             assert route.request.post_data_json["brand_id"] == "lexnis-technologies"
             route.fulfill(json=campaign)
         elif path.startswith("/renders/"):
-            file = ROOT/"output/renders"/Path(path).name
+            file = ROOT/"output/renders"/path.split("/renders/",1)[1]
             types={".gif":"image/gif",".mp4":"video/mp4",".zip":"application/zip",".jpg":"image/jpeg"}
             route.fulfill(body=file.read_bytes(),content_type=types.get(file.suffix,"application/octet-stream"))
         elif path.startswith("/static/assets/"):
@@ -76,7 +78,7 @@ with sync_playwright() as pw:
     panel.get_by_label('Campaign delivery language').select_option('ar')
     content=panel.locator('.campaign-copy-card pre').first
     assert content.get_attribute('dir')=='rtl'
-    assert content.inner_text()==campaign['arabic_copywriting']['linkedin_post']
+    assert content.inner_text()==(campaign.get('arabic_copywriting') or campaign['copywriting_by_language']['ar'])['linkedin_post']
     if campaign.get("animation_mp4_url"):
         assert panel.locator("video").count() == 1
         assert panel.locator("video").evaluate("v=>v.muted && v.loop && v.playsInline")

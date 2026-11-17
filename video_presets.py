@@ -4,7 +4,9 @@ What is a formal reference and what is a product choice is stated per preset:
 - loudness and true peak are *measured* per ITU-R BS.1770 (FFmpeg ebur128) for every preset;
 - only "broadcast-ebu" uses the EBU R128 programme target (-23 LUFS). It is a mastering
   profile, not a station delivery certification;
-- the social/web targets are product delivery choices and are never labelled EBU compliant;
+- the social/web presets target -14 LUFS, the level YouTube, TikTok and Instagram are widely reported to
+  normalise playback to (platforms do not publish a formal delivery spec), with a -1.5 dBTP ceiling that
+  leaves room for the lossy AAC encode. They are never labelled EBU compliant;
 - SDR output is encoded and tagged as ITU-R BT.709 limited range.
 """
 
@@ -17,18 +19,18 @@ PRESETS = {
         note='Keeps source framing, frame rate and dynamics. Loudness is not normalised; peaks above the ceiling are lowered.'),
     'web-youtube': dict(
         label='Web / YouTube', aspect=None, max_edge=1920, crf=18, x264_preset='medium', audio_bitrate='192k',
-        loudness=dict(integrated=-16.0, range=11.0), true_peak_ceiling=-1.5,
-        note='MP4, H.264 High, yuv420p, progressive, fast start, AAC-LC 48 kHz, source frame rate. -16 LUFS is a product web target.'),
+        loudness=dict(integrated=-14.0, range=11.0), true_peak_ceiling=-1.5,
+        note='MP4, H.264 High, yuv420p, progressive, fast start, AAC-LC 48 kHz, source frame rate. -14 LUFS matches the level these platforms normalise to.'),
     'vertical-social': dict(
         label='Vertical social · 9:16', aspect='9:16', max_edge=1920, crf=18, x264_preset='medium', audio_bitrate='192k',
-        loudness=dict(integrated=-16.0, range=9.0), true_peak_ceiling=-1.5,
+        loudness=dict(integrated=-14.0, range=9.0), true_peak_ceiling=-1.5,
         note='Full-screen 9:16 for Reels/TikTok/Shorts. The canvas never exceeds the source resolution, so no detail is invented.'),
     'square-social': dict(
         label='Square social · 1:1', aspect='1:1', max_edge=1080, crf=18, x264_preset='medium', audio_bitrate='192k',
-        loudness=dict(integrated=-16.0, range=9.0), true_peak_ceiling=-1.5, note='1:1 feed placement.'),
+        loudness=dict(integrated=-14.0, range=9.0), true_peak_ceiling=-1.5, note='1:1 feed placement.'),
     'portrait-feed': dict(
         label='Portrait feed · 4:5', aspect='4:5', max_edge=1350, crf=18, x264_preset='medium', audio_bitrate='192k',
-        loudness=dict(integrated=-16.0, range=9.0), true_peak_ceiling=-1.5, note='4:5 feed placement.'),
+        loudness=dict(integrated=-14.0, range=9.0), true_peak_ceiling=-1.5, note='4:5 feed placement.'),
     'broadcast-ebu': dict(
         label='Broadcast loudness · EBU R128', aspect=None, max_edge=1920, crf=16, x264_preset='slow', audio_bitrate='256k',
         loudness=dict(integrated=-23.0, range=15.0), true_peak_ceiling=-2.0,

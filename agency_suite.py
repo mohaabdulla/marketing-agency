@@ -373,7 +373,8 @@ def bundle_enterprise_campaign(paths_by_language, copy_by_language, output_path,
                         raise ValueError(f'Incorrect canvas size for {language}.{key}')
             with path.open('rb') as stream:
                 digest = hashlib.file_digest(stream,'sha256').hexdigest()
-            entry = name if language==selected else f'languages/{language}/{name}'
+            category = 'motion' if key in {'animation_url','animation_mp4_url'} else 'images'
+            entry = f'{category}/{language}/{name}'
             manifest['deliverables'][language][key] = dict(file=entry, size=path.stat().st_size, sha256=digest)
     output = Path(output_path)
     output.parent.mkdir(parents=True,exist_ok=True)
@@ -396,7 +397,7 @@ def bundle_enterprise_campaign(paths_by_language, copy_by_language, output_path,
             # Preserve the familiar selected-language export for existing clients.
             archive.writestr('campaign_copy_and_strategy.txt','\n\n'.join(f'{key.upper()}\n{value}' for key,value in copy_by_language[selected].items()))
             archive.writestr('README.md',f'# {brand or "Campaign"} — client agency kit\n\n'
-                f'The root media files use {selected.upper()}; the other language is under languages/.\n\n'
+                'Images are under images/en/ and images/ar/; GIF and MP4 loops are under motion/en/ and motion/ar/.\n\n'
                 'Copy for LinkedIn, Instagram, X threads and hashtags is under copy/en/ and copy/ar/. '
                 'campaign_manifest.json records sizes and SHA-256 hashes. MP4 motion is rendered at 30 fps; '
                 'GIF timing is quantized to its centisecond format. Review copy, rights and claims before publishing.\n')

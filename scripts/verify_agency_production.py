@@ -118,7 +118,14 @@ class ProductionTests(unittest.TestCase):
         duplicate = checks(format='linkedin_post', text=first['data']['text'] + ' ', cta='Book')
         self.assertIn('duplicate', codes(duplicate))
         self.assertNotIn('duplicate', codes(checks(format='linkedin_post', text=first['data']['text'], cta='Book', exclude_id=first['id'])))
-        self.assertIn('hashtags', codes(checks(format='instagram_caption', text='Hello ' + ' '.join(f'#t{i}' for i in range(31)), cta='Go')))
+        self.assertIn('hashtags', codes(checks(format='instagram_caption', text='Hello ' + ' '.join(f'#t{i}' for i in range(6)), cta='Go')))
+        self.assertNotIn('hashtags', codes(checks(format='instagram_caption', text='Hello ' + ' '.join(f'#t{i}' for i in range(5)), cta='Go')))
+        # GSM-7 text with accents and the euro sign still fits one 160-character SMS; an emoji switches to UCS-2.
+        latin = checks(format='sms', text='Café offer: ' + 'a' * 130 + ' €5', cta='x')
+        self.assertEqual((latin['limit'], latin['sms']['encoding'], latin['sms']['parts']), (160, 'GSM-7', 1))
+        emoji = checks(format='sms', text='Great deal today 🎉 ' + 'a' * 60, cta='x')
+        self.assertEqual((emoji['limit'], emoji['sms']['parts']), (70, 2))
+        self.assertIn('sms_encoding', codes(emoji))
         self.assertIn('language_mismatch', codes(checks(format='linkedin_post', text='English only', cta='Go', language='ar')))
         clean = checks(format='linkedin_post', text='A calm, specific line about the product.', cta='Learn more')
         self.assertEqual(clean['export_state'], 'checks-passed', clean)
@@ -446,7 +453,8 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(self.get('/api/agency/clients/' + self.b['id'] + '/overview').json()['registered_assets'], 0)
         specs = self.get('/api/agency/channel-specs').json()
         self.assertEqual(specs['formats']['x_post']['max_chars'], 280)
-        self.assertIn('not been re-verified', specs['notice'])
+        self.assertIn('check the platform before relying on a limit', specs['notice'])
+        self.assertEqual(specs['formats']['instagram_caption']['max_hashtags'], 5)
 
 
 if __name__ == '__main__':

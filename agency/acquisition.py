@@ -58,6 +58,29 @@ def audit(data):
     description = meta('description')
     robots = meta('robots')
     findings = []
+    html_tag = soup.find('html')
+    language = (html_tag.get('lang') or '').strip() if html_tag else ''
+    canonicals = soup.find_all('link', rel=lambda r: r and 'canonical' in r)
+    hreflangs = [x.get('hreflang', '').strip().casefold() for x in soup.find_all('link', hreflang=True)]
+    def og(name):
+        tag = soup.find('meta', attrs={'property': name})
+        return tag.get('content', '') if tag else ''
+    # Search engines document no fixed length for titles or descriptions; results are cut to a
+    # pixel width. The figures below are common display estimates, reported as advisories only.
+    advisories = []
+    for condition, message in [
+        (title and len(title) > 60, f'Title is {len(title)} characters; search results usually show about 50-60 before truncating'),
+        (title and len(title) < 15, 'Title is very short; a descriptive, unique title helps both people and search engines'),
+        (description and len(description) > 160, f'Meta description is {len(description)} characters; results usually show about 150-160'),
+        (not language, 'No lang attribute on <html>; screen readers and translation tools rely on it'),
+        (len(canonicals) > 1, f'{len(canonicals)} canonical links declared; search engines may ignore conflicting canonicals'),
+        (len(hreflangs) > 1 and 'x-default' not in hreflangs, 'Language alternates declared without an x-default fallback'),
+        (not og('og:image'), 'No og:image; links shared on social platforms will show no preview image'),
+        (title and description and title.strip().casefold() == description.strip().casefold(), 'Title and meta description are identical'),
+        (bool(re.search(r'(?:^|,)\s*nofollow', robots.casefold())), 'robots meta contains nofollow; links on this page will not be followed'),
+    ]:
+        if condition:
+            advisories.append(message)
     for condition, message in [
         (not title, 'Missing title'), (not description, 'Missing meta description'),
         (sum(h['level'] == 1 for h in headings) != 1, 'Expected one main H1; review heading structure'),
@@ -76,7 +99,8 @@ def audit(data):
                 hreflang=[dict(language=x.get('hreflang'), href=x.get('href')) for x in soup.find_all('link', hreflang=True)],
                 sitemap_references=[x.get('href') for x in soup.find_all('link', rel=lambda r: r and 'sitemap' in r)],
                 structured_data=jsonld, source_bytes=len(source.encode()), source_sha256=hashlib.sha256(source.encode()).hexdigest(),
-                findings=findings, method='Supplied HTML inspection; observed HTTP status is operator-entered. '
+                language=language, open_graph=dict(title=og('og:title'), description=og('og:description'), image=og('og:image')),
+                findings=findings, advisories=advisories, method='Supplied HTML inspection; observed HTTP status is operator-entered. '
                 'No live crawl, robots.txt check, rendered-page test, speed measurement or ranking score.')
 
 
@@ -259,21 +283,37 @@ def render_email(data):
 <hr><p>{e(data['footer'])}</p><p>{e(address)}</p><p>{unsubscribe}</p></td></tr></table></td></tr></table></body></html>'''
     plain = '\n\n'.join([data['subject'], data['body'], data['cta_url'], data['footer'], address, url or '[UNSUBSCRIBE_URL REQUIRED BEFORE SEND]'])
     checks = []
+    headers = {}
+    if url:
+        headers['List-Unsubscribe'] = f'<{url}>'
+        if urlsplit(url).scheme == 'https':
+            headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click'
+        else:
+            checks.append('Unsubscribe URL is not HTTPS; one-click unsubscribe (RFC 8058), which Gmail and Yahoo require from bulk senders, needs an HTTPS URL')
     if not url:
         checks.append('Missing unsubscribe URL')
     if not data['physical_address']:
         checks.append('Missing physical address')
     if data['subject'].isupper():
         checks.append('Heuristic: all-uppercase subject; review tone')
-    return dict(html=html, plain_text=plain, checks=checks, method='Template checks and tone heuristics only; no deliverability score or sending capability.')
+    if len(data['subject']) > 60:
+        checks.append(f'Subject is {len(data["subject"])} characters; many inboxes show about 40-60')
+    if not data['preheader'].strip():
+        checks.append('No preheader; inboxes will show the first line of the body instead')
+    return dict(html=html, plain_text=plain, checks=checks, headers=headers,
+                method='Template checks and tone heuristics only; no deliverability score or sending capability.')
 
 
 def email_bundle(item, recipients=None):
     rendered = render_email(item['data'])
     files = {'email.html': rendered['html'], 'email.txt': rendered['plain_text'],
              'checks.json': json.dumps(dict(checks=rendered['checks'], method=rendered['method']), indent=2),
+             'headers.txt': ''.join(f'{k}: {v}\r\n' for k, v in rendered['headers'].items()) or 'No unsubscribe URL: add one before sending.\r\n',
              'README.txt': 'TEST EXPORT. No message was sent. Configure delivery infrastructure, confirm sender identity, consent, '
-             'unsubscribe handling and physical address, and test email-client rendering before any external send.'}
+             'unsubscribe handling and physical address, and test email-client rendering before any external send.\n\n'
+             'Bulk-sender requirements (Gmail, Yahoo, Microsoft): authenticate the sending domain with SPF, DKIM and DMARC; add the '
+             'headers in headers.txt and sign them with DKIM; the unsubscribe endpoint must accept a POST without login or a '
+             'confirmation page and honour the request within two days; keep spam complaints well under 0.3%.'}
     if recipients is not None:
         buffer = io.StringIO(newline='')
         writer = csv.writer(buffer)

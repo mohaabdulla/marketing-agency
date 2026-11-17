@@ -1974,35 +1974,79 @@ def generate_campaign_copy(req_data: dict, brand_theme=None) -> dict:
     return build_copy(req_data, brand_theme)
 
 
+def enterprise_copy_context(request_data, language):
+    context = {**request_data,'topic':request_data['prompt'].rstrip('. '),'language':language,
+               'brand_name_ar':(request_data.get('brand_profile') or {}).get('brand_name_ar','')}
+    if language=='ar' and not re.search(r'[\u0600-\u06ff]',request_data['prompt']):
+        # Offline templates use native prose and supplied Arabic points; they must not
+        # present the entire untranslated English instruction as an Arabic sentence.
+        from visual_engine import ARABIC_TITLES_MAP
+        role=request_data.get('person_title') or request_data.get('person_name') or ''
+        kind=str(request_data.get('post_type') or 'general').lower()
+        subject=ARABIC_TITLES_MAP.get(role.lower())
+        if not subject:
+            subject=('فرص العمل الجديدة' if 'hiring' in kind else 'الإصدار الجديد' if 'launch' in kind
+                     else 'التعاون ضمن الفريق' if 'welcome' in kind else 'آخر أخبار الشركة ومبادراتها')
+        if not context.get('topic_ar'):context['topic_ar']=subject
+    return context
+
+
+def generate_enterprise_copy(request_data, theme, language):
+    """Native channel writing when a text model is ready; usable local copy when it is not."""
+    context = enterprise_copy_context(request_data,language)
+    result = generate_campaign_copy(context,theme)
+    try:
+        studio=LexnisCampaignStudio()
+        if studio.text_engine=='pollinations-anonymous':return result
+        raw = studio._chat(
+            'Write native '+('Arabic' if language=='ar' else 'English')+' campaign copy. Use only facts in the supplied brief. '
+            'Return JSON with linkedin (professional), instagram (engaging), and x_thread (an array of posts, each <=280 characters). '
+            'Preserve brand names, URLs and approved claims. Do not invent metrics, promises or contact details.',
+            json.dumps(dict(brief=request_data['prompt'],brand=theme.brand_name,post_type=request_data.get('post_type'),
+                key_points=request_data.get('key_points_ar' if language=='ar' else 'key_points',[])),ensure_ascii=False),temperature=.5)
+        written=extract_json(raw)
+        channels=[written.get('linkedin'),written.get('instagram')]
+        thread=written.get('x_thread')
+        if not all(isinstance(value,str) and 0<len(value.strip())<=10000 for value in channels):raise ValueError('Invalid copy')
+        if not isinstance(thread,list) or not 1<=len(thread)<=30 or not all(isinstance(value,str) and 0<len(value.strip())<=280 for value in thread):raise ValueError('Invalid thread')
+        if language=='ar' and not all(re.search(r'[\u0600-\u06ff]',value) for value in channels+thread):raise ValueError('Arabic copy required')
+        result.update(linkedin_post=channels[0].strip(),instagram_caption=channels[1].strip(),
+                      x_post=thread[0].strip(),x_thread=[post.strip() for post in thread],copy_source='model')
+    except Exception:
+        pass
+    return result
+
+
+def render_enterprise_fallback(request_data, theme, output_dir):
+    """Reuse the isolated local-image worker; retain CPU artboards when CUDA/weights are absent."""
+    import io
+    from visual_engine import preferred_local_model,local_image,render_agency_card
+    output_dir=Path(output_dir)
+    background=None
+    source='local-cpu-artboard'
+    model=preferred_local_model() if request_data.get('use_local_sdxl') is not False else None
+    if model:
+        try:
+            raw,_=local_image(request_data['prompt'],request_data.get('seed') or 42,1080,1350,model=model)
+            background=Image.open(io.BytesIO(raw)).convert('RGB')
+            source='local-image-worker'
+        except Exception:
+            background=None
+    paths={}
+    for language in ('en','ar'):
+        writing=generate_campaign_copy(enterprise_copy_context(request_data,language),theme)
+        card=dict(card_title=request_data.get('person_name') or theme.brand_name,card_subtitle=(theme.tagline_ar or theme.tagline) if language=='ar' else theme.tagline,
+            hero_hook=writing['hook'],subcopy=writing['linkedin_post'][:180],chips=request_data.get('key_points_ar' if language=='ar' else 'key_points') or [theme.brand_name],
+            cta_text=writing['cta'],cta_url='')
+        image=render_agency_card(card,theme,post_type=request_data.get('post_type') or 'general',language=language,
+                                base_image=background,logo_image=theme.logo_path,target_size=(1080,1350))
+        path=output_dir/f'primary-{language}.jpg';image.save(path,quality=95,subsampling=0);paths[language]=str(path)
+    return paths,source
+
+
 def render_omnichannel_variants(primary_card_path: str, req_data: dict, brand_theme=None) -> dict:
     from agency_suite import render_omnichannel_variants as render_variants
     return render_variants(primary_card_path, req_data, brand_theme)
-
-
-def assemble_enterprise_campaign(data, *, language, resolve_path, public_url, bundle_dir):
-    """One complete campaign contract; shared rendering remains reusable by individual studios."""
-    import uuid
-    from agency_suite import DELIVERABLE_NAMES, bundle_enterprise_campaign
-    selected = 'ar' if language=='ar' else 'en'
-    kits = data.get('agency_kits') or {}
-    if set(kits) != {'en','ar'}:
-        raise ValueError('Both English and Arabic kits must finish before delivery')
-    paths = {lang: {key:resolve_path(kits[lang].get(key,'')) for key in DELIVERABLE_NAMES} for lang in ('en','ar')}
-    copies = {lang:kits[lang]['copywriting'] for lang in ('en','ar')}
-    bundle = Path(bundle_dir) / f'campaign_{uuid.uuid4().hex}_full_agency_kit.zip'
-    bundle_enterprise_campaign(paths,copies,bundle,selected=selected,brand=data.get('brand',''))
-    result = {key:value for key,value in data.items() if not key.endswith('_path')}
-    result.update(kits[selected],language=selected,requested_language=language,status='completed',schema_version=1,
-                  primary_image_url=kits[selected]['image_url'],bundle_zip_url=public_url(str(bundle)),
-                  copywriting={**copies[selected],**copies},copywriting_by_language=copies,
-                  motion=dict(fps=30,kind='rendered-card-animation',native_frames=True))
-    def absolute(value):
-        if isinstance(value,dict):return {key:absolute(item) for key,item in value.items()}
-        if isinstance(value,list):return [absolute(item) for item in value]
-        if isinstance(value,str) and value.startswith(('/renders/','/static/assets/','/uploads/')):
-            return public_url(value)
-        return value
-    return absolute(result)
 
 
 def _save_social_animation(frames, output, rgb_frames=None, merge_identical=False, frame_ms=60, output_fps=24):

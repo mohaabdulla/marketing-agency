@@ -118,7 +118,7 @@ class CreationTests(unittest.TestCase):
         # Music is delivered at the preset level, under the true-peak ceiling.
         measured = loudness(path_for(result['id']))
         self.assertLessEqual(measured['true_peak_dbtp'], -1.0)
-        self.assertAlmostEqual(measured['integrated_lufs'], -16, delta=2.5)
+        self.assertAlmostEqual(measured['integrated_lufs'], -14, delta=2.5)
 
     def test_portrait_still_in_a_landscape_frame_is_shown_whole(self):
         portrait = still('portrait.png', seed=9, size=(720, 1280))
