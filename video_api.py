@@ -25,6 +25,9 @@ from video_compliance import VideoComplianceEngine
 from video_ai_editor import VideoAIEditor
 from video_variants import create_platform_variant
 from video_review import ReviewRequest, review_record, set_review,RubricRequest,set_rubric,RUBRIC_CATEGORIES
+from video_director import VideoBriefRequest,RenderSequenceRequest,generate_video_brief
+from video_engine import prepare_sequence,render_sequence
+from video_brief_assistant import MessageRequest,suggest_message
 
 
 def trusted_origin(request: Request):
@@ -50,6 +53,37 @@ def guard(function, *args, **kwargs):
         if '\\' in message or '/' in message:
             message = 'Invalid media operation; see local diagnostics'
         raise HTTPException(400, message)
+
+
+@router.post('/generate-brief')
+def video_generate_brief(body: VideoBriefRequest):
+    return guard(generate_video_brief,body)
+
+
+@router.post('/suggest-message')
+def video_suggest_message(body: MessageRequest):
+    return guard(suggest_message,body)
+
+
+@router.get('/briefs/{brief_id}')
+def video_get_brief(brief_id: str):
+    return guard(read,'briefs',brief_id)
+
+
+@router.post('/render-sequence',status_code=202)
+def video_render_sequence(body: RenderSequenceRequest):
+    if not binary('ffmpeg') or not binary('ffprobe'):
+        raise HTTPException(503,'Install FFmpeg and FFprobe before rendering a storyboard')
+    brief=guard(prepare_sequence,body)
+    return guard(jobs.submit,'storyboard-sequence',lambda job:render_sequence(brief,body,job))
+
+
+@router.get('/sequences/{sequence_id}/bundle')
+def video_sequence_bundle(sequence_id: str):
+    guard(read,'sequences',sequence_id)
+    path=DATA/'sequences'/(identifier(sequence_id)+'.zip')
+    if not path.is_file():raise HTTPException(404,'Bundle not found')
+    return FileResponse(path,media_type='application/zip',filename='video-client-kit.zip')
 
 
 # Request schemas for AI editing, auto-polish, variants, and transcription

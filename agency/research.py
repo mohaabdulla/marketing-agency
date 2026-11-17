@@ -134,7 +134,7 @@ def target(url, public_page=False):
     return p,host,port,sorted(addresses,key=lambda ip:(ipaddress.ip_address(ip).version,ip))[0]
 
 
-def fetch(url,path=None,max_bytes=MAX_PAGE,public_page=False):
+def fetch(url,path=None,max_bytes=MAX_PAGE,public_page=False,include_headers=False):
     parsed,host,port,address=target(url,public_page)
     cls=http.client.HTTPSConnection if parsed.scheme=='https' else http.client.HTTPConnection
     kwargs=dict(timeout=10)
@@ -164,7 +164,8 @@ def fetch(url,path=None,max_bytes=MAX_PAGE,public_page=False):
         body=b''.join(parts)
         if len(body)>max_bytes or response.getheader('Content-Encoding','identity') not in {'identity',''}:
             raise ValueError('Research response is compressed or exceeds its size limit')
-        return response.status,response.getheader('Content-Type',''),body
+        result=(response.status,response.getheader('Content-Type',''),body)
+        return (*result,dict(response.getheaders())) if include_headers else result
     except ssl.SSLCertVerificationError:
         raise ValueError('Research TLS verification failed. Configure a trusted research CA bundle; certificate checks remain enabled.')
     finally:

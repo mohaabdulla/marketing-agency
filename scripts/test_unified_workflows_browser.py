@@ -98,6 +98,7 @@ def main():
                     print('PASS: real Image/GIF generation, assistant handoff, downloads and step navigation',flush=True)
                     # Video Generation: the shared upload is visible before opening the editor.
                     page.get_by_role('button',name='Video Generator',exact=True).click();page.locator('#vg-mode').select_option('image-animation')
+                    page.locator('#vbf-advanced').evaluate('el=>el.open=true')
                     panel=page.locator('#vg-brand-guidelines');panel.locator('[data-file]').set_input_files(str(invalid))
                     page.wait_for_function("()=>document.querySelector('#vg-brand-guidelines [data-status]').textContent!=='Working…'&&document.querySelector('#vg-brand-guidelines [data-status]').textContent!=='Ready.'")
                     panel.locator('[data-file]').set_input_files(str(guide));panel.locator('[data-confirm]').wait_for();panel.locator('[data-confirm]').click()

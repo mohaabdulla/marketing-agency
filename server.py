@@ -285,6 +285,13 @@ class BrandKitRequest(BaseModel):
     tagline: str = Field("", max_length=200)
     tagline_ar: str = Field("", max_length=200)
     hashtag: str = Field("", max_length=100, pattern=r"^(?:#[\w\u0600-\u06ff]+)?$")
+    font_preferences: List[str] = Field(default_factory=list,max_length=8)
+
+    @model_validator(mode='after')
+    def valid_fonts(self):
+        if any(not re.fullmatch(r'[A-Za-z0-9 -]{1,80}',name) for name in self.font_preferences):
+            raise ValueError('Font preferences must be short font family names')
+        return self
 
     @model_validator(mode='before')
     @classmethod

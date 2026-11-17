@@ -53,6 +53,7 @@ def main():
                     assert page.locator('#image-workspace').is_visible()
                     page.locator('#prompt-input').fill('Unsaved employee welcome campaign')
                     page.get_by_role('button',name='Video Generator',exact=True).click()
+                    page.locator('#vbf-advanced > summary').click()
                     page.wait_for_selector('#vg-form')
                     assert not page.locator('#image-workspace').is_visible()
                     assert page.locator('#vg-generate').is_disabled()
@@ -187,7 +188,7 @@ def main():
                     mobile.goto(origin,wait_until='domcontentloaded');mobile.wait_for_selector('.studio-mobile-toggle')
                     mobile.locator('.studio-mobile-toggle').click()
                     assert mobile.locator('.studio-rail').evaluate("e=>e.classList.contains('drawer-open')")
-                    mobile.get_by_role('button',name='Video Generator',exact=True).click();mobile.wait_for_selector('#vg-form')
+                    mobile.get_by_role('button',name='Video Generator',exact=True).click();mobile.wait_for_selector('.vbf-wizard')
                     assert mobile.locator('.studio-mobile-toggle').get_attribute('aria-expanded')=='false'
                     assert mobile.evaluate('document.documentElement.scrollWidth <= innerWidth')
                     mobile.locator('.studio-mobile-toggle').click();mobile.keyboard.press('Escape')
