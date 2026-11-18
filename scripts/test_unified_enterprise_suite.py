@@ -161,6 +161,8 @@ class EnterpriseSuite(unittest.TestCase):
             response=self.client.get(data['bundle_zip_url'])
             with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
                 self.assertIsNone(archive.testzip())
+                self.assertEqual(json.loads(archive.read('review/campaign-quality.json')),data['quality_review'])
+                self.assertIn('copy/alt-text-draft.txt',archive.namelist())
                 manifest=json.loads(archive.read('campaign_manifest.json'))
                 self.assertEqual(set(manifest['deliverables']),{'en','ar'})
                 for language,files in manifest['deliverables'].items():

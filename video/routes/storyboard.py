@@ -19,6 +19,19 @@ from video.voice import fit_timings, preview, public_voices
 router = APIRouter()
 
 
+@router.get('/research-capabilities')
+def company_research_capabilities():
+    from video.company_research import capabilities
+    from video.script_writer import status
+    return dict(capabilities(), script_writer=status())
+
+
+@router.get('/research-contexts/{context_id}')
+def company_research_context(context_id: str):
+    context=guard(read,'message-contexts',context_id)
+    return dict(context_id=context_id,research_report=context.get('research_report',{}))
+
+
 def queue_render(body, kind='storyboard-sequence', action='rendering a storyboard'):
     """Check the tools, validate the reviewed storyboard and its media, then queue the render.
     Shared by the storyboard, company-introduction and agency campaign routes."""
@@ -35,6 +48,25 @@ def video_generate_brief(body: VideoBriefRequest):
 @router.post('/suggest-message')
 def video_suggest_message(body: MessageRequest):
     return guard(suggest_message, body)
+
+
+@router.post('/review-storyboard')
+def video_review_storyboard(body: RenderSequenceRequest):
+    from video.storyboard_coach import review_storyboard
+    brief=guard(prepare_sequence,body)
+    assets={scene['asset_id']:guard(read,'assets',scene['asset_id']) for scene in brief['scenes'] if scene.get('asset_id')}
+    return review_storyboard(brief['scenes'],brief['request'],assets)
+
+
+@router.post('/balance-storyboard')
+def video_balance_storyboard(body: RenderSequenceRequest):
+    from video.storyboard_coach import balance_timing,review_storyboard
+    # Resolve ownership before working on the edit; current timings may be invalid while editing.
+    brief=guard(read,'briefs',body.brief_id) if body.brief_id else guard(generate_video_brief,body.brief)
+    scenes=[scene.model_dump() for scene in body.scenes] if body.scenes else brief['scenes']
+    settings=brief['request']
+    balanced=guard(balance_timing,scenes,settings['duration'],settings['language'],settings['pacing'])
+    return dict(scenes=balanced,review=review_storyboard(balanced,settings))
 
 
 @router.get('/briefs/{brief_id}')
@@ -125,6 +157,12 @@ def video_company_research(body: company_intro.CompanyResearchRequest):
 @router.get('/company-intro/{proposal_id}')
 def video_company_proposal(proposal_id: str):
     return guard(company_intro.get_proposal, proposal_id)
+
+
+@router.post('/company-intro/{proposal_id}/review')
+def video_company_review(proposal_id: str, body: company_intro.CompanyIntroApproval):
+    proposal=guard(company_intro.get_proposal,proposal_id)
+    return guard(company_intro.review_edit,proposal,[scene.model_dump() for scene in body.scenes])
 
 
 @router.get('/company-intro/{proposal_id}/images/{index}')

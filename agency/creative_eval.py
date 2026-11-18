@@ -57,10 +57,14 @@ class CreativeEvaluator:
         hard_failures: List[str] = []
         warnings: List[str] = []
         channel_lower = channel.lower()
+        if channel_lower=='x':channel_lower='twitter'
         limits = CHANNEL_LIMITS.get(channel_lower, {"headline_max": 120, "body_max": 3000})
 
         h_len = len(headline.strip())
         b_len = len(body.strip())
+        if channel_lower=='twitter':
+            from .campaign_quality import text_length
+            b_len=text_length(body.strip(),'x_post')['length']
         char_counts = {"headline_length": h_len, "body_length": b_len}
 
         # 1. Channel character length constraints
@@ -124,11 +128,12 @@ class CreativeEvaluator:
         final_score = max(0, min(100, base_score))
 
         model_review = {
-            "brief_alignment": round(max(0.0, (final_score / 100.0)), 2),
-            "distinctiveness": 0.85 if not warnings else 0.72,
-            "readability": "Clear and accessible" if h_len <= limits["headline_max"] else "Overly dense",
+            "brief_alignment": None,
+            "distinctiveness": None,
+            "method": "deterministic rules; no model assessment",
+            "readability": "Not measured; length checks only",
             "notes": (
-                ["Copy meets all hard compliance rules."]
+                ["No failures in the configured deterministic rules."]
                 if not hard_failures
                 else [f"Requires revision: {f}" for f in hard_failures]
             ),

@@ -63,6 +63,13 @@ class MessageAssistantTests(unittest.TestCase):
         self.assertNotIn('ignore_previous_instructions',result['company_summary'])
         self.assertFalse(result['ai_used']);self.assertTrue(result['questions'])
         self.assertLessEqual(len(result['message']),2000)
+        report=result['research_report']
+        self.assertEqual(report['tools']['ranking'],'rank-bm25')
+        self.assertEqual(report['pages_read'],2)
+        self.assertTrue(report['topics']['services']['evidence_ids'])
+        saved=self.client.get('/api/video/research-contexts/'+result['context_id'])
+        self.assertEqual(saved.status_code,200,saved.text)
+        self.assertEqual(saved.json()['research_report'],report)
 
     def test_company_introduction_draft_and_native_storyboard(self):
         details=dict(company_overview='Acme is a workflow planning company.',company_services='Workflow tools and automation support.',
@@ -73,9 +80,11 @@ class MessageAssistantTests(unittest.TestCase):
             self.assertIn(details['company_services'],result['message'])
             with patch('image.campaign_generator.LexnisCampaignStudio._chat',side_effect=RuntimeError('Offline storyboard test')):
                 response=self.client.post('/api/video/generate-brief',json={**details,'brand_id':self.brand_id,'campaign_goal':'Introduce the Company',
-                    'core_message':result['message'],'language':language,'duration':8})
+                    'core_message':result['message'],'language':language,'duration':8,
+                    'research_context_id':result['context_id'],'company_url':self.payload['company_url']})
             self.assertEqual(response.status_code,200,response.text)
             board=response.json();self.assertEqual(len(board['scenes']),4)
+            self.assertEqual(board['research']['research_report'],result['research_report'])
             self.assertEqual(board['scenes'][0]['voiceover'],details['company_overview'])
             self.assertIn(details['company_services'],board['scenes'][1]['overlay_text'])
             self.assertIn(details['target_audience'],board['scenes'][2]['overlay_text'])
@@ -117,6 +126,7 @@ class MessageAssistantTests(unittest.TestCase):
             connect.assert_not_called()
         result=self.suggest()
         self.assertEqual(self.other.post('/api/video/suggest-message',json={**self.payload,'context_id':result['context_id']}).status_code,404)
+        self.assertEqual(self.other.get('/api/video/research-contexts/'+result['context_id']).status_code,404)
         self.assertEqual(self.client.post('/api/video/suggest-message',json={**self.payload,'company_url':'https://different.example','context_id':result['context_id']}).status_code,400)
         self.assertEqual(self.client.post('/api/video/suggest-message',json={**self.payload,'action':'enhance'}).status_code,400)
 
@@ -140,7 +150,7 @@ class MessageAssistantTests(unittest.TestCase):
             page.get_by_role('button',name='Video Generator',exact=True).click();wizard=page.locator('.vbf-wizard');wizard.wait_for()
             page.wait_for_function("document.querySelector('[data-field=brand_id]').options.length>1")
             wizard.get_by_label('Brand kit',exact=True).select_option(self.brand_id)
-            wizard.get_by_label('Company website',exact=True).fill('https://acme.example/')
+            wizard.locator('[data-field=company_url]').fill('https://acme.example/')
             wizard.get_by_label('Company guidelines',exact=True).select_option(self.guideline['id'])
             # Next on an empty message starts assistance instead of showing a required-field trap.
             wizard.get_by_role('button',name='Next: Format & Style',exact=True).click()
@@ -156,6 +166,16 @@ class MessageAssistantTests(unittest.TestCase):
             enhanced=wizard.get_by_label('Core message or vacancy/product details',exact=True).input_value();self.assertTrue(enhanced.startswith('Show operations'))
             wizard.get_by_role('button',name='Next: Format & Style',exact=True).click()
             wizard.get_by_role('button',name='Generate storyboard',exact=True).click();wizard.locator('.vbf-scene').first.wait_for()
+            wizard.get_by_label('Voiceover script',exact=True).first.fill('Show warehouse teams how practical automation supports their daily work. Keep the real product and the customer context visible throughout the demonstration.')
+            with page.expect_response(lambda r:'/api/video/balance-storyboard' in r.url) as balanced:
+                wizard.get_by_role('button',name='Balance timing to script',exact=True).click()
+            self.assertEqual(balanced.value.status,200,balanced.value.text())
+            page.wait_for_function("document.querySelector('[data-review-status]').textContent.startsWith('Timing balanced')")
+            self.assertTrue(wizard.get_by_label('Voiceover script',exact=True).first.input_value().startswith('Show warehouse teams'))
+            with page.expect_response(lambda r:'/api/video/review-storyboard' in r.url) as reviewed:
+                wizard.get_by_role('button',name='Check storyboard',exact=True).click()
+            self.assertEqual(reviewed.value.status,200,reviewed.value.text())
+            self.assertIn('Scene 1',wizard.locator('[data-storyboard-review]').inner_text())
             wizard.get_by_role('button',name='1. Brand & Brief',exact=True).click()
             page.set_viewport_size({'width':390,'height':844});self.assertTrue(page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
             evidence=ROOT/'output/video-message-verification';evidence.mkdir(parents=True,exist_ok=True)

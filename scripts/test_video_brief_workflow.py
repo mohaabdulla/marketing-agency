@@ -195,6 +195,9 @@ class VideoBriefWorkflow(unittest.TestCase):
                 self.assertIsNone(archive.testzip())
                 self.assertEqual(archive.read('video/campaign.mp4'),raw.content)
                 self.assertIn('copy/subtitles.srt',archive.namelist());self.assertIn('project.json',archive.namelist())
+                review=json.loads(archive.read('storyboard-review.json'))
+                self.assertEqual(len(review['scenes']),len(self.brief['scenes']))
+                self.assertEqual(review,result['storyboard_review'])
                 self.assertIn(self.brief['scenes'][0]['voiceover'],archive.read('copy/script.txt').decode('utf-8'))
 
     def test_ffmpeg_composition_brand_styles_and_subtitle_toggle(self):

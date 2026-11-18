@@ -51,6 +51,9 @@ def run(args, job=None, timeout=600, executable='ffmpeg'):
     exe = binary(executable)
     if not exe:
         raise ValueError(f'{executable} missing. Install FFmpeg and FFprobe (python scripts/setup_video_tools.py).')
+    # Non-video entry points (campaign exports, fresh guest sessions) also use the media runner.
+    # Resolve and initialize their scratch directory at use time, not only at module import.
+    (DATA / 'work').mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryFile(dir=DATA / 'work') as log:
         process = subprocess.Popen([exe, *map(str, args)], stdin=subprocess.DEVNULL, stdout=log, stderr=log,
                                    shell=False, start_new_session=os.name!='nt',

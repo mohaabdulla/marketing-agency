@@ -3,6 +3,8 @@ import {api,post,esc} from './video-api.js';
 import {fillVoices,fitTimings,previewLine} from './video-narration.js';
 import {frameFit,orientationFor,stockPanel} from './video-footage.js';
 import {storageKey} from './public-session.js';
+import {renderCompanyResearchReport} from './company-research-report.js';
+import {drawScriptReview,drawStoryboardReview} from './storyboard-review.js';
 
 const key=()=>storageKey('lexnis.video.company-intro');
 const IMAGE=(id,index)=>`/api/video/company-intro/${encodeURIComponent(id)}/images/${index}`;
@@ -28,7 +30,7 @@ export class CompanyIntro {
       <progress data-ci-progress max="100" hidden aria-label="Company research progress"></progress>
       <p data-ci-status role="status" aria-live="polite"></p>
       <section data-ci-proposal class="vbf-ci-proposal" hidden>
-        <h4>What we found</h4><dl data-ci-profile class="vbf-ci-profile"></dl>
+        <div data-ci-research-report></div><h4>What we found</h4><dl data-ci-profile class="vbf-ci-profile"></dl>
         <div data-ci-warnings></div>
         <details data-ci-facts-box><summary>Facts used in the script and where they come from</summary><ul data-ci-facts></ul></details>
         <details><summary data-ci-sources-title>Sources</summary><ul data-ci-sources class="vbf-ci-sources"></ul></details>
@@ -37,6 +39,7 @@ export class CompanyIntro {
         <label>What the video will show<textarea data-ci-treatment maxlength="2000"></textarea></label>
         <div data-ci-scenes class="vbf-scenes"></div>
         <p data-ci-total role="status"></p>
+        <button type="button" data-ci-review>Check storyboard</button><p data-ci-review-status role="status"></p><div data-ci-storyboard-review></div><div data-ci-script-review></div>
         <div class="vs-row"><button type="button" data-ci-fit>Fit scene lengths to the narration</button><span class="vbf-fit" data-ci-fit-status role="status" aria-live="polite"></span></div>
         <label>AI narrator (offline voice on this computer)<select data-ci-narrator><option value="">No narration (subtitles only)</option></select></label>
         <p class="vs-note" data-ci-narrator-note></p>
@@ -55,6 +58,7 @@ export class CompanyIntro {
     this.$('[data-ci-approve]').onclick=()=>this.approve();
     this.$('[data-ci-narrator]').onchange=this.$('[data-ci-voiceover]').onchange=()=>{if(this.proposal)this.updateTotal();};
     this.$('[data-ci-fit]').onclick=()=>this.fitToNarration();
+    this.$('[data-ci-review]').onclick=()=>this.reviewStoryboard();
     this.$('[data-ci-treatment]').oninput=()=>{if(this.proposal){this.proposal.treatment=this.$('[data-ci-treatment]').value;this.persist();}};
     host.addEventListener('change',event=>{if(event.target.dataset.ci)this.persist();});
     wizard.root.querySelector('[data-field=brand_id]').addEventListener('change',()=>this.brandHint());
@@ -89,7 +93,7 @@ export class CompanyIntro {
     try{
       if(saved?.proposal_id){
         const proposal=await api('/company-intro/'+saved.proposal_id);
-        if(saved.scenes)proposal.scenes=saved.scenes;if(saved.treatment)proposal.treatment=saved.treatment;
+        if(saved.scenes){proposal.scenes=saved.scenes;proposal.storyboard_review=null;}if(saved.treatment)proposal.treatment=saved.treatment;
         this.show(proposal);
       }
       if(saved?.result)this.showResult(saved.result);
@@ -128,6 +132,7 @@ export class CompanyIntro {
   show(proposal){
     this.proposal=proposal;const ar=proposal.request.language==='ar',dir=ar?'rtl':'ltr';
     this.$('[data-ci-proposal]').hidden=false;this.loadVoices(proposal.request.language);
+    renderCompanyResearchReport(this.$('[data-ci-research-report]'),proposal.research_report);
     const profile=proposal.profile,rows=[['Company',profile.company_name],['In one line',profile.one_line],['Who they are',profile.who_we_are],
       ['What they do',(profile.what_we_do||[]).join(' · ')],['Who they help',profile.who_we_help],['Why choose them',(profile.why_us||[]).join(' · ')]];
     const list=this.$('[data-ci-profile]');list.replaceChildren();
@@ -149,6 +154,8 @@ export class CompanyIntro {
     this.drawScenes();this.refreshAudio();this.persist();
   }
   drawScenes(){
+    drawStoryboardReview(this.$('[data-ci-storyboard-review]'),this.proposal.storyboard_review);
+    this.drawScript();
     const proposal=this.proposal,host=this.$('[data-ci-scenes]'),dir=proposal.request.language==='ar'?'rtl':'ltr';host.replaceChildren();
     const videos=proposal.videos||[],ratio=proposal.request.platform_target||'16:9';
     proposal.scenes.forEach((scene,index)=>{
@@ -199,15 +206,17 @@ export class CompanyIntro {
         const [kind,value]=select.value.split(':');
         scene.image=kind==='image'?+value:null;scene.video=kind==='video'?+value:null;
         if(kind!=='stock')scene.stock=null;
+        this.invalidateReview();
         sync();paint();this.persist();
       };
       stockPanel(card.querySelector('[data-stock]'),{query:scene.stock_query||'',orientation:orientationFor(ratio),minSeconds:()=>(+scene.duration||0)*.75,
         choose:item=>{scene.stock={provider:item.provider,id:item.id,provider_label:item.provider_label,author:item.author,preview_url:item.preview_url,duration:item.duration};
-          scene.image=null;scene.video=null;sync();paint();this.persist();}});
+          scene.image=null;scene.video=null;this.invalidateReview();sync();paint();this.persist();}});
       card.querySelectorAll('[data-scene-field]').forEach(input=>input.oninput=input.onchange=()=>{
         const field=input.dataset.sceneField;
         scene[field]=field==='duration'?+input.value:input.value;
         if(field==='overlay_text')paint();
+        this.invalidateReview();
         this.updateTotal();this.persist();
       });
       host.append(card);
@@ -223,6 +232,28 @@ export class CompanyIntro {
       +(long>=0?` Scene ${long+1} has more narration than viewers can comfortably read in its duration; shorten it or give it more time.`:'');
     this.$('[data-ci-approve]').disabled=this.working||total<6||total>60;
   }
+  drawScript(){
+    drawScriptReview(this.$('[data-ci-script-review]'),this.proposal?.script_review,hook=>{
+      const first=this.proposal.scenes[0];first.overlay_text=hook.overlay_text||first.overlay_text;first.voiceover=hook.voiceover;
+      this.drawScenes();this.invalidateReview();this.persist();
+      this.$('[data-ci-review-status]').textContent='Opening replaced. Check the storyboard again to update the advice.';
+    });
+  }
+  invalidateReview(){if(this.proposal)this.proposal.storyboard_review=null;drawStoryboardReview(this.$('[data-ci-storyboard-review]'),null);this.$('[data-ci-review-status]').textContent='Storyboard edited. Check it again to update the advice.';}
+  async reviewStoryboard(){
+    if(!this.proposal||this.working||this.reviewing)return;
+    this.reviewing=true;const status=this.$('[data-ci-review-status]');status.textContent='Checking the current edit…';
+    const id=this.proposal.proposal_id,identity=JSON.stringify(this.proposal.scenes);
+    const scenes=this.proposal.scenes.map(scene=>Object.fromEntries(['section','overlay_text','voiceover','visual_prompt','duration','motion','background_style','image','video','stock_query'].filter(key=>scene[key]!==undefined).map(key=>[key,scene[key]])));
+    scenes.forEach((scene,index)=>{const stock=this.proposal.scenes[index].stock;if(stock)scene.stock={provider:stock.provider,id:stock.id};});
+    try{
+      const report=await post('/company-intro/'+id+'/review',{scenes});
+      if(this.proposal?.proposal_id!==id||JSON.stringify(this.proposal.scenes)!==identity){status.textContent='The edit changed. Check it again.';return;}
+      this.proposal.storyboard_review=report;drawStoryboardReview(this.$('[data-ci-storyboard-review]'),report);
+      if(report.script){this.proposal.script_review=report.script;this.drawScript();}
+      status.textContent='Advice updated for the current edit.';
+    }catch(error){status.textContent=error.message;}finally{this.reviewing=false;}
+  }
   async fitToNarration(){
     const voice=this.$('[data-ci-narrator]').value,out=this.$('[data-ci-fit-status]'),button=this.$('[data-ci-fit]');
     out.classList.remove('is-warning');
@@ -233,6 +264,7 @@ export class CompanyIntro {
       const fitted=await fitTimings({voice,language:this.proposal.request.language,lines:this.proposal.scenes.map(scene=>scene.voiceover),
         durations:this.proposal.scenes.map(scene=>scene.duration)});
       this.proposal.scenes.forEach((scene,index)=>{scene.duration=fitted.durations[index];});
+      this.invalidateReview();
       this.drawScenes();this.persist();out.textContent=fitted.note;
     }catch(error){out.textContent=error.message;out.classList.add('is-warning');}
     finally{button.disabled=this.working;}

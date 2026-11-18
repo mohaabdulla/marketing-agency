@@ -1,7 +1,9 @@
 import {api,post,esc} from './video-api.js';
 import {storageKey} from './public-session.js';
 import {context} from './app-context.js';
+import {renderCompanyResearchReport} from './company-research-report.js';
 import {CompanyIntro} from './video-company-intro.js';
+import {drawScriptReview,drawStoryboardReview} from './storyboard-review.js';
 import {fillVoices,fitTimings,previewLine} from './video-narration.js';
 
 const key=()=>storageKey('lexnis.video.brief-wizard');
@@ -34,7 +36,7 @@ export class VideoBriefWizard {
           <details><summary>Add company notes (optional)</summary><label>Company notes<textarea data-guideline-notes maxlength="4000" placeholder="Any approved details about the company, product or role…"></textarea></label></details>
           <button type="button" class="primary" data-assist="draft">Research company & suggest message</button>
           <p data-assist-status role="status" aria-live="polite"></p>
-          <section data-suggestion hidden><p data-suggestion-source></p><label>Suggested message<textarea data-suggested maxlength="2000"></textarea></label><button type="button" data-use-suggestion>Use this message</button><div data-source-links></div><ul data-questions></ul></section>
+          <section data-suggestion hidden><p data-suggestion-source></p><label>Suggested message<textarea data-suggested maxlength="2000"></textarea></label><button type="button" data-use-suggestion>Use this message</button><div data-source-links></div><div data-message-research-report></div><ul data-questions></ul></section>
         </div>
         <label data-generic-brief>Core message or vacancy/product details<textarea data-field="core_message" maxlength="2000" required placeholder="Use the suggestion above, or describe your idea in your own words. You can edit everything before rendering."></textarea></label>
         <button type="button" data-assist="enhance" data-generic-brief>AI enhance message</button>
@@ -59,7 +61,8 @@ export class VideoBriefWizard {
           <div data-timeline-preview class="vbf-timeline-preview"><h4 data-preview-overlay></h4><p data-preview-script></p></div>
           <p><small>Planned scene timing and artwork styles. The finished video appears after rendering.</small></p>
           <p data-timing-status role="status"></p>
-        </section><div data-scenes class="vbf-scenes"></div>
+        </section><div class="vs-row"><button type="button" data-review-storyboard>Check storyboard</button><button type="button" data-balance-storyboard>Balance timing to script</button></div>
+        <p data-review-status role="status"></p><div data-storyboard-review></div><div data-script-review></div><div data-scenes class="vbf-scenes"></div>
         <label>AI narrator (offline voice on this computer)<select data-narrator><option value="">No narration (subtitles only)</option></select></label>
         <div class="vs-row"><button type="button" data-fit-narration>Fit scene lengths to the narration</button><span class="vbf-fit" data-fit-status role="status" aria-live="polite"></span></div>
         <div class="vs-pair"><label>Recorded voiceover (replaces the AI narrator)<select data-audio="voiceover_asset_id"><option value="">No voiceover</option></select></label><label>Licensed music track<select data-audio="music_asset_id"><option value="">No music</option></select></label></div>
@@ -81,6 +84,7 @@ export class VideoBriefWizard {
       const scene=this.brief?.scenes[0];if(!scene)return;
       const previous=scene.overlay_text;scene.overlay_text=this.$('[data-hook]').value;
       if(scene.voiceover===previous)scene.voiceover=scene.overlay_text;
+      this.invalidateReview();
       this.drawScenes();this.persist();
     };
     this.root.querySelectorAll('[data-assist]').forEach(button=>button.onclick=()=>this.suggest(button.dataset.assist));
@@ -93,6 +97,8 @@ export class VideoBriefWizard {
     this.root.querySelectorAll('[data-next]').forEach(button=>button.onclick=()=>this.go(this.step+1));
     this.root.querySelectorAll('[data-back]').forEach(button=>button.onclick=()=>this.go(this.step-1));
     this.$('[data-plan]').onclick=()=>this.plan();this.$('[data-render]').onclick=()=>this.render();
+    this.$('[data-review-storyboard]').onclick=()=>this.reviewStoryboard(false);
+    this.$('[data-balance-storyboard]').onclick=()=>this.reviewStoryboard(true);
     this.root.addEventListener('change',event=>{
       if(event.target.dataset.field==='campaign_type')this.syncCompanyIntro();
       if(event.target.dataset.field)this.invalidate();
@@ -155,6 +161,7 @@ export class VideoBriefWizard {
     try{
       const result=await post('/suggest-message',{...sources,core_message:original,action,context_id:action==='enhance'?this.messageContext?.id||null:null});
       if(identity!==JSON.stringify(this.sourceValues())){this.assistNotice('Your company details changed. Request a fresh suggestion.');return;}
+      renderCompanyResearchReport(this.$('[data-message-research-report]'),result.research_report);
       this.messageContext={id:result.context_id};this.suggestionIdentity=identity;
       this.$('[data-suggested]').value=result.message;this.$('[data-suggested]').dir=sources.language==='ar'?'rtl':'ltr';this.$('[data-suggestion]').hidden=false;
       this.$('[data-suggestion-source]').textContent=(result.ai_used?'AI suggestion':'Structured suggestion — no AI inference')+' · '+result.notice;
@@ -189,7 +196,7 @@ export class VideoBriefWizard {
     this.$('[data-preview]').replaceChildren();this.$('[data-exports]').replaceChildren();
     this.notice('Brief changed. Generate a new storyboard before rendering.');
   }
-  values(){const fields=Object.fromEntries([...this.root.querySelectorAll('[data-field]')].map(el=>[el.dataset.field,['duration','resolution'].includes(el.dataset.field)?+el.value:el.dataset.field==='guideline_id'?el.value||null:el.value]));const selected=context();return {...fields,...(selected.client_id&&selected.campaign_id?{client_id:selected.client_id,campaign_id:selected.campaign_id}:{})};}
+  values(){const fields=Object.fromEntries([...this.root.querySelectorAll('[data-field]')].map(el=>[el.dataset.field,['duration','resolution'].includes(el.dataset.field)?+el.value:el.dataset.field==='guideline_id'?el.value||null:el.value]));const selected=context();return {...fields,...(this.messageContext?.id?{research_context_id:this.messageContext.id}:{}),...(selected.client_id&&selected.campaign_id?{client_id:selected.client_id,campaign_id:selected.campaign_id}:{})};}
   unlock(ready){this.root.querySelectorAll('[data-step]').forEach(button=>button.disabled=this.busy||(+button.dataset.step>1&&!ready));}
   go(step){
     if(this.busy||step<0||step>3)return;
@@ -215,7 +222,7 @@ export class VideoBriefWizard {
       await this.refreshGuidelines(saved?.fields?.guideline_id);
       for(const [name,value] of Object.entries(saved?.fields||{})){const el=this.$('[data-field="'+name+'"]');if(el)el.value=value;}
       this.syncCompanyIntro();
-      if(saved?.brief_id){this.brief=await api('/briefs/'+saved.brief_id);if(saved.scenes)this.brief.scenes=saved.scenes;this.drawScenes();this.unlock(true);}
+      if(saved?.brief_id){this.brief=await api('/briefs/'+saved.brief_id);if(saved.scenes){this.brief.scenes=saved.scenes;this.invalidateReview();}this.drawScenes();this.unlock(true);}
       if(saved?.result)this.showResult(saved.result);
       if(saved?.job_id)this.watch(await api('/jobs/'+saved.job_id));
     }catch(error){this.notice(error.message);}
@@ -288,6 +295,8 @@ export class VideoBriefWizard {
   }
   drawScenes(){
     this.stopStoryboard();
+    drawStoryboardReview(this.$('[data-storyboard-review]'),this.brief.storyboard_review);
+    drawScriptReview(this.$('[data-script-review]'),this.brief.script_review);
     this.$('[data-source]').textContent=(this.brief.planning_source==='ai-model'?'AI-generated storyboard.':'Local template storyboard.')+' '+this.brief.warnings.join(' ');
     const host=this.$('[data-scenes]');host.replaceChildren();
     this.brief.scenes.forEach((scene,index)=>{
@@ -311,9 +320,10 @@ export class VideoBriefWizard {
         if(el.dataset.edit==='background_style'){scene.asset_id=null;card.querySelector('[data-scene-image]').value='';}
         if(el.dataset.edit==='overlay_text')placeholder.textContent='Scene '+(index+1)+' · '+scene.overlay_text;
         this.updateTimeline();
+        this.invalidateReview();
         this.persist();
       });
-      card.querySelector('[data-scene-image]').onchange=event=>{scene.asset_id=event.target.value||null;this.updateTimeline();this.persist();};
+      card.querySelector('[data-scene-image]').onchange=event=>{scene.asset_id=event.target.value||null;this.invalidateReview();this.updateTimeline();this.persist();};
       host.append(card);
     });
     this.labelControls(host);this.refreshAssets();this.brief.scenes.forEach((scene,i)=>host.children[i].querySelector('[data-scene-image]').value=scene.asset_id||'');
@@ -331,9 +341,24 @@ export class VideoBriefWizard {
       const fitted=await fitTimings({voice,language:this.brief.request.language,lines:this.brief.scenes.map(scene=>scene.voiceover),
         durations:this.brief.scenes.map(scene=>scene.duration)});
       this.brief.scenes.forEach((scene,index)=>{scene.duration=fitted.durations[index];});
+      this.invalidateReview();
       this.drawScenes();this.persist();this.$('[data-fit-status]').textContent=fitted.note;
     }catch(error){out.textContent=error.message;out.classList.add('is-warning');}
     finally{this.$('[data-fit-narration]').disabled=this.busy;}
+  }
+  invalidateReview(){if(this.brief)this.brief.storyboard_review=null;drawStoryboardReview(this.$('[data-storyboard-review]'),null);this.$('[data-review-status]').textContent='Storyboard edited. Check it again to update the advice.';}
+  async reviewStoryboard(balance){
+    if(!this.brief||this.busy||this.reviewing)return;
+    this.reviewing=true;const status=this.$('[data-review-status]');status.textContent='Checking the current edit…';
+    const identity=JSON.stringify(this.brief.scenes),id=this.brief.brief_id;
+    try{
+      const result=await post(balance?'/balance-storyboard':'/review-storyboard',{brief_id:id,scenes:this.brief.scenes});
+      if(this.brief?.brief_id!==id||JSON.stringify(this.brief.scenes)!==identity){status.textContent='The edit changed. Check it again.';return;}
+      if(balance){this.brief.scenes=result.scenes;this.brief.storyboard_review=result.review;this.drawScenes();}
+      else this.brief.storyboard_review=result;
+      drawStoryboardReview(this.$('[data-storyboard-review]'),this.brief.storyboard_review);
+      status.textContent=balance?'Timing balanced within the selected runtime. Script and visuals were preserved.':'Advice updated for the current edit.';this.persist();
+    }catch(error){status.textContent=error.message;}finally{this.reviewing=false;}
   }
   listen(scene,card){
     return previewLine({voice:this.$('[data-narrator]').value,text:scene.voiceover,language:this.brief.request.language,duration:scene.duration,
@@ -343,7 +368,7 @@ export class VideoBriefWizard {
   loadVoices(language){
     return fillVoices(this.$('[data-narrator]'),language,count=>count?'No narration (subtitles only)':'No narrator voice installed for this language (subtitles only)');
   }
-  setBusy(value){if(value)this.stopStoryboard();this.busy=value;this.root.querySelectorAll('input,select,textarea,[data-back],[data-next],[data-plan],[data-render],[data-upload],[data-guideline-upload],[data-guideline-refresh],[data-use-suggestion],[data-assist],[data-play-storyboard],[data-fit-narration]').forEach(el=>el.disabled=value||this.assisting&&el.hasAttribute('data-assist'));this.unlock(!!this.brief);if(this.brief)this.$('[data-render]').disabled=value||!this.timingsValid;}
+  setBusy(value){if(value)this.stopStoryboard();this.busy=value;this.root.querySelectorAll('input,select,textarea,[data-back],[data-next],[data-plan],[data-render],[data-upload],[data-guideline-upload],[data-guideline-refresh],[data-use-suggestion],[data-assist],[data-play-storyboard],[data-fit-narration],[data-review-storyboard],[data-balance-storyboard]').forEach(el=>el.disabled=value||this.assisting&&el.hasAttribute('data-assist'));this.unlock(!!this.brief);if(this.brief)this.$('[data-render]').disabled=value||!this.timingsValid;}
   async plan(){
     if(this.busy||!this.valid(0)||!this.valid(1))return;
     this.setBusy(true);this.notice('Preparing your brand-guided storyboard…');

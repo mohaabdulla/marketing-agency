@@ -209,7 +209,9 @@ async def execute_campaign(request,*,origin,published_root,base_renderer,resolve
         await offload(validate_motion,paths)
         selected='ar' if request.language=='ar' else 'en'
         archive=tx.stage/'client-agency-kit.zip'
-        await offload(bundle_enterprise_campaign,paths,copies,archive,selected=selected,brand=theme.brand_name)
+        from .campaign_quality import review_campaign
+        quality_review=await offload(review_campaign,copies,frozen.model_dump(),theme)
+        await offload(bundle_enterprise_campaign,paths,copies,archive,selected=selected,brand=theme.brand_name,quality_review=quality_review)
         def url(path):return origin.rstrip('/')+'/renders/'+tx.campaign_id+'/'+Path(path).name
         fields={'primary_image':'image_url','companion_image':'companion_image_url','story_image':'story_url',
                 'landscape_banner':'landscape_url','animation_gif':'animation_url','animation_mp4':'animation_mp4_url'}
@@ -233,7 +235,7 @@ async def execute_campaign(request,*,origin,published_root,base_renderer,resolve
             carousel_urls=[kits['en'][key] for key in ('image_url','companion_image_url','animation_url')],
             arabic_carousel_urls=[kits['ar'][key] for key in ('image_url','companion_image_url','animation_url')],
             arabic_image_url=kits['ar']['image_url'],arabic_companion_image_url=kits['ar']['companion_image_url'],
-            motion=dict(fps=30,kind='rendered-card-animation',native_frames=True),
+            motion=dict(fps=30,kind='rendered-card-animation',native_frames=True),quality_review=quality_review,
             execution=dict(created_at=datetime.now(timezone.utc).isoformat(),visual_source=provenance,agency_context=agency_context or {}))
         # Published metadata contains URLs and brand rules, never private staging filenames.
         def clean(value):

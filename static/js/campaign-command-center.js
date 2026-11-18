@@ -1,6 +1,7 @@
 import {storageKey} from './public-session.js';
 import {context} from './app-context.js';
 import {escapeHtml as escape} from './agency-api.js';
+import {mountCampaignAssistant} from './campaign-assistant.js';
 const requests=new WeakMap();
 window.addEventListener('lexnis:agency-context',()=>{
   const root=document.getElementById('agency-command-center-workspace');
@@ -114,7 +115,7 @@ function renderCommandCenter(container, data, clientId, campaignId) {
           <h1 style="font-size: 1.75rem; font-weight: 800; color: #f8fafc; margin: 0 0 0.5rem 0;">${escape(camp.name)}</h1>
           <div style="display: flex; gap: 1.25rem; font-size: 0.85rem; color: #94a3b8; flex-wrap: wrap;">
             <span>🎯 <b>Objective:</b> ${escape(camp.objective)}</span>
-            <span>💰 <b>Budget:</b> $${Number(camp.budget).toLocaleString()}</span>
+            <span>💰 <b>Budget:</b> ${escape(camp.currency||'BHD')} ${Number(camp.budget).toLocaleString()}</span>
             <span>📈 <b>Primary KPI:</b> ${escape(camp.primary_kpi)}</span>
             <span>🌐 <b>Languages:</b> ${escape((camp.languages || []).join(', ').toUpperCase())}</span>
           </div>
@@ -144,8 +145,10 @@ function renderCommandCenter(container, data, clientId, campaignId) {
         <p>Four visual formats, smooth GIF and MP4 loops, and English and Arabic copy in one client archive.</p>
         <label for="ccc-generation-brief">Campaign brief</label>
         <textarea id="ccc-generation-brief" rows="4" style="display:block;width:100%;box-sizing:border-box;margin:0.5rem 0;padding:0.75rem;background:#1e293b;color:#fff;border:1px solid #475569;border-radius:6px;">${escape([camp.name,camp.objective].filter(Boolean).join('. '))}</textarea>
+        <label for="ccc-generation-direction">Visual direction (editable)</label><textarea id="ccc-generation-direction" rows="2" maxlength="1500" style="display:block;width:100%;box-sizing:border-box;margin:.5rem 0;background:#1e293b;color:#fff;"></textarea>
         <label for="ccc-generation-brand">Active brand kit</label>
         <select id="ccc-generation-brand" disabled style="padding:0.5rem;max-width:100%;"><option value="">Loading brands...</option></select>
+        <div data-campaign-assistant></div>
         <button type="button" id="ccc-generate-kit" class="btn-primary" disabled>Generate full campaign kit</button>
         <button type="button" id="ccc-open-kit" ${data.generated_campaigns?.length ? '' : 'hidden'}>Open latest completed kit</button>
         <p id="ccc-generation-status" role="status" aria-live="polite"></p>
@@ -172,7 +175,7 @@ function renderCommandCenter(container, data, clientId, campaignId) {
       </div>
 
       <!-- MAIN GRID: STRATEGY, PRODUCTION BOARD, RISKS -->
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1.5rem;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 1.5rem;">
         <!-- STRATEGY SUMMARY CARD -->
         <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 1.25rem;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid #1e293b; padding-bottom: 0.5rem;">
@@ -236,12 +239,12 @@ function renderCommandCenter(container, data, clientId, campaignId) {
             <h3 style="margin: 0; font-size: 1rem; font-weight: 700; color: ${risks.length > 0 ? '#ef4444' : '#10b981'};">
               Risk & Rights Audit (${risks.length})
             </h3>
-            <span style="font-size: 0.8rem; color: #64748b;">Autonomous QA</span>
+            <span style="font-size: 0.8rem; color: #64748b;">Automated checks</span>
           </div>
           <div style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 250px; overflow-y: auto;">
             ${risks.length === 0 ? `
               <div style="padding: 1.5rem; text-align: center; color: #10b981; background: rgba(16, 185, 129, 0.05); border-radius: 8px;">
-                ✓ All legal rights, claim citations, and licensing gates cleared.
+                No issues flagged by these checks. Final content and usage rights still need review.
               </div>
             ` : risks.map(r => `
               <div style="background: rgba(239, 68, 68, 0.08); border-left: 3px solid ${r.severity === 'HIGH' ? '#ef4444' : '#f59e0b'}; padding: 0.6rem; border-radius: 0 6px 6px 0; font-size: 0.82rem;">
@@ -267,6 +270,9 @@ function renderCommandCenter(container, data, clientId, campaignId) {
   const output=container.querySelector('#ccc-generated-result');
   const open=container.querySelector('#ccc-open-kit');
   let latest=data.generated_campaigns?.[0]?.campaign_id;
+  let assistedGuidelines='';
+  mountCampaignAssistant(container.querySelector('[data-campaign-assistant]'),{clientId,campaignId,brandSelect:brands,briefInput:container.querySelector('#ccc-generation-brief'),isCurrent:current,
+    onApply:result=>{assistedGuidelines=result.guidelines;container.querySelector('#ccc-generation-direction').value=result.visual_direction;},onInvalidate:()=>{assistedGuidelines='';}});
   async function showKit(result) {
     const kit=await window.hydrateCampaignResult(result);
     if(!current())return;
@@ -303,7 +309,7 @@ function renderCommandCenter(container, data, clientId, campaignId) {
     try {
       const response=await fetch(`/api/agency/clients/${clientId}/campaigns/${campaignId}/generate`,{
         method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({prompt:brief,brand_id:brands.value||null,brand:camp.client_name||camp.name,language:'both',use_search:false})
+        body:JSON.stringify({prompt:brief,theme:container.querySelector('#ccc-generation-direction').value,guidelines:assistedGuidelines,brand_id:brands.value||null,brand:camp.client_name||camp.name,language:'both',use_search:false})
       });
       const result=await response.json();
       if(!response.ok)throw new Error(typeof result.detail==='string'?result.detail:JSON.stringify(result.detail||'Generation failed.'));

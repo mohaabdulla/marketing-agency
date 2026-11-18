@@ -32,6 +32,14 @@ class AdvanceStageRequest(BaseModel):
     target_stage: str
 
 
+from .campaign_assistant import AssistRequest,assist_campaign
+
+
+@router.post('/clients/{client_id}/campaigns/{campaign_id}/assist')
+def campaign_assistance(client_id: Id,campaign_id: Id,body: AssistRequest):
+    return guard(assist_campaign,client_id,campaign_id,body)
+
+
 class CreativeEvalRequest(BaseModel):
     headline: str
     body: str

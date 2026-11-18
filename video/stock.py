@@ -60,11 +60,23 @@ def status():
 
 
 def keywords(text, limit=5, exclude=''):
-    """A short footage query: the first few content words of ``text``, in order. Words of ``exclude``
-    (the company's own name, which no stock library knows) are left out."""
+    """Extract short local YAKE keyphrases; omit layout language and the company's own name."""
     skip = STOP | {word.lower() for word in re.findall(r'[A-Za-z][A-Za-z-]+', exclude or '')}
+    # YAKE extracts local keyphrases without model weights, API calls or client-data uploads.
+    # Keep the existing provider-query filtering so colours and layout instructions do not dominate.
+    cleaned=re.sub(r'#[0-9a-fA-F]{6}\b',' ',text or '')
+    cleaned=re.split(r'\b(?:Brand palette|typography|composition with clear space)\s*:',cleaned,flags=re.I)[0]
+    phrases=[]
+    try:
+        from yake import KeywordExtractor
+        language='ar' if re.search(r'[\u0600-\u06ff]',cleaned) else 'en'
+        phrases=[phrase for phrase,score in KeywordExtractor(lan=language,n=2,top=8,dedup_lim=.8).extract_keywords(cleaned[:2000])]
+    except ImportError:pass
     words = []
-    for word in re.findall(r'[A-Za-z][A-Za-z-]{2,}', text or ''):
+    for word in re.findall(r'[^\W\d_][\w-]{2,}', ' '.join(phrases),re.UNICODE):
+        lowered=word.lower()
+        if lowered not in skip and lowered not in words:words.append(lowered)
+    for word in re.findall(r'[^\W\d_][\w-]{2,}',cleaned,re.UNICODE):
         lowered = word.lower()
         if lowered not in skip and lowered not in words:
             words.append(lowered)
@@ -110,6 +122,7 @@ def _pexels(query, orientation, per_page):
         user = video.get('user') or {}
         results.append(dict(provider='pexels', id=str(video['id']), page_url=video.get('url') or '', preview=video.get('image') or '',
                             duration=float(video.get('duration') or 0), width=int(video.get('width') or 0), height=int(video.get('height') or 0),
+                            description=(video.get('url') or '').rstrip('/').rsplit('/',1)[-1].replace('-',' '),
                             author=user.get('name') or '', author_url=user.get('url') or '', files=files))
     return results
 
@@ -132,6 +145,7 @@ def _pixabay(query, orientation, per_page):
         results.append(dict(provider='pixabay', id=str(hit['id']), page_url=hit.get('pageURL') or '',
                             preview=next((f['thumbnail'] for f in sorted(files, key=lambda f: f['width']) if f['thumbnail']), ''),
                             duration=float(hit.get('duration') or 0), width=biggest['width'], height=biggest['height'], author=user,
+                            description=str(hit.get('tags') or '')[:500],
                             author_url=f'https://pixabay.com/users/{user}-{hit.get("user_id", "")}/' if user else '', files=files))
     return results[:per_page]
 
@@ -199,7 +213,28 @@ def _store_preview(item):
 def public(item):
     return dict(provider=item['provider'], provider_label=PROVIDERS[item['provider']]['label'], id=item['id'],
                 duration=round(item['duration'], 1), width=item['width'], height=item['height'], author=item['author'],
-                page_url=item['page_url'], preview_url=f'/api/video/stock/{item["provider"]}/{item["id"]}/preview')
+                page_url=item['page_url'],description=item.get('description',''),
+                selection_notes=item.get('selection_notes',[]),
+                preview_url=f'/api/video/stock/{item["provider"]}/{item["id"]}/preview')
+
+
+def rank_results(items,query,orientation,min_seconds=0):
+    """Combine actual BM25 caption relevance with measurable format fit, without image-AI claims."""
+    from video.company_research import rank_indices
+    unique={(item['provider'],item['id']):item for item in items}
+    items=[item for item in unique.values() if item.get('duration',0)>=min_seconds]
+    texts=[item.get('description','')+' '+item.get('page_url','').replace('-',' ') for item in items]
+    relevance=dict(rank_indices(query,texts));ranked=[]
+    for i,item in enumerate(items):
+        same=orientation_of(item.get('width'),item.get('height'))==orientation
+        hd=min(item.get('width',0),item.get('height',0))>=720
+        notes=[]
+        if relevance.get(i,0)>0:notes.append('Search words match provider metadata')
+        if same:notes.append('Matches the selected orientation')
+        if hd:notes.append('At least 720 pixels on the short side')
+        score=relevance.get(i,0)+(1 if same else 0)+(.25 if hd else 0)
+        ranked.append((score,{**item,'selection_notes':notes}))
+    return [item for _,item in sorted(ranked,key=lambda row:-row[0])]
 
 
 def search(query, orientation='landscape', min_seconds=0, provider=None, per_page=8):
@@ -229,6 +264,7 @@ def search(query, orientation='landscape', min_seconds=0, provider=None, per_pag
         for item in items:
             atomic(_item_path(item['provider'], item['id']), item)
         found += [item for item in items if item['duration'] >= min_seconds]
+    found=rank_results(found,query,orientation,min_seconds)
     return [dict(public(item), preview_url=public(item)['preview_url'] if _store_preview(item) else None) for item in found]
 
 

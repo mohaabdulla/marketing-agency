@@ -121,28 +121,12 @@ class CampaignOrchestrator:
     """Evaluates campaign state, stage transitions, production readiness, and legal/creative risks."""
 
     def get_campaign_command_center(self, client_id: str, campaign_id: str) -> Dict[str, Any]:
-        campaign = service.get(client_id, campaign_id, "campaigns")
+        from .campaign_context import campaign_context,strategy_summary
+        client,campaign,campaign_records=campaign_context(client_id,campaign_id)
         if not campaign:
             raise NotFound(f"Campaign '{campaign_id}' not found for client '{client_id}'")
 
-        with service.repo.connection() as db:
-            client = service.repo.client(db, client_id)
-
         cdata = campaign.get("data", {})
-
-        # Fetch associated records across the client
-        res = service.list(client_id)
-        all_records = res.get("items", []) if isinstance(res, dict) else (res or [])
-        # Filter records linked to this campaign if campaign_id is referenced, or matching client
-        campaign_records: Dict[str, List[Dict[str, Any]]] = {}
-        for r in all_records:
-            if not isinstance(r, dict):
-                continue
-            k = r.get("kind")
-            rdata = r.get("data", {})
-            r_cid = rdata.get("campaign_id") or rdata.get("campaign")
-            if r_cid == campaign_id or k in {"briefs", "strategies", "brands", "claims", "evidence", "personas"}:
-                campaign_records.setdefault(k, []).append(r)
 
         stage_details = self._compute_stages(campaign, campaign_records)
         risks = self._compute_risks(campaign, campaign_records)
@@ -169,9 +153,10 @@ class CampaignOrchestrator:
                 "client_id": client_id,
                 "client_name": client.get("name", "Unknown Client"),
                 "name": display_name,
-                "objective": cdata.get("objective", "Brand Awareness"),
+                "objective": cdata.get("objective") or 'Not set',
                 "budget": cdata.get("budget", 0),
-                "primary_kpi": cdata.get("primary_kpi", "ROAS"),
+                "primary_kpi": cdata.get("primary_kpi") or 'Not set',
+                "currency": cdata.get('currency','BHD'),
                 "markets": cdata.get("markets", ["Global"]),
                 "languages": cdata.get("languages", ["en", "ar"]),
                 "date_range": {
@@ -181,15 +166,7 @@ class CampaignOrchestrator:
                 "current_stage": current_stage,
                 "progress_percent": progress_pct,
             },
-            "strategy_summary": {
-                "proposition": cdata.get("proposition") or cdata.get("core_message", "Autonomous AI Solutions"),
-                "problem": cdata.get("problem_statement", "Legacy manual marketing workflows are fragmented and slow"),
-                "offer": cdata.get("offer", "Full AI Operating System Demo"),
-                "proof": cdata.get("proof_points", ["100% Local Inference", "Zero Paid AI APIs"]),
-                "cta": cdata.get("cta", "Experience Campaign Studio"),
-                "target_audience": cdata.get("target_audience", "B2B Decision Makers & Engineers"),
-                "channels": cdata.get("channels", ["LinkedIn", "YouTube", "Meta"]),
-            },
+            "strategy_summary": strategy_summary(campaign,campaign_records),
             "stages": [s.to_dict() for s in stage_details],
             "production_board": production_board,
             "risks": [r.to_dict() for r in risks],
@@ -204,6 +181,8 @@ class CampaignOrchestrator:
         details = []
         cdata = campaign.get("data", {})
         active_stage = cdata.get("current_stage", CampaignStage.BRIEF.value)
+        from .campaign_context import approved_targets
+        approved_ids=approved_targets(records)
 
         # Counts from database records
         counts = {
@@ -236,13 +215,13 @@ class CampaignOrchestrator:
                 items = counts["evidence"] + counts["claims"]
                 status = StageStatus.COMPLETE.value if items > 0 else StageStatus.IN_PROGRESS.value
             elif stage == CampaignStage.STRATEGY:
-                status = StageStatus.COMPLETE.value
-                items = 1
+                items = len(records.get('strategies',[]))
+                status = StageStatus.COMPLETE.value if items else StageStatus.NOT_STARTED.value
             elif stage == CampaignStage.BRIEF:
                 items = counts["briefs"]
                 if items > 0:
-                    status = StageStatus.APPROVED.value
-                    approved = items
+                    approved = sum(r['id'] in approved_ids for r in records['briefs'])
+                    status = StageStatus.APPROVED.value if approved==items else StageStatus.IN_PROGRESS.value
                 else:
                     status = StageStatus.IN_PROGRESS.value
                     blockers.append("Creative brief not yet finalized")
@@ -269,7 +248,9 @@ class CampaignOrchestrator:
                 status = StageStatus.NOT_STARTED.value if items == 0 else StageStatus.IN_PROGRESS.value
             elif stage == CampaignStage.APPROVAL:
                 items = counts["approvals"]
-                status = StageStatus.APPROVED.value if items > 0 else StageStatus.AWAITING_APPROVAL.value
+                required={r['id'] for kind in ('briefs','copy','assets') for r in records.get(kind,[])}
+                approved=len(required & approved_ids)
+                status = StageStatus.APPROVED.value if required and required<=approved_ids else StageStatus.AWAITING_APPROVAL.value
             elif stage == CampaignStage.DISTRIBUTION:
                 items = counts["deliverables"]
                 status = StageStatus.NOT_STARTED.value if items == 0 else StageStatus.IN_PROGRESS.value
@@ -302,9 +283,9 @@ class CampaignOrchestrator:
             "scripts_count": len(records.get("scripts", [])),
             "storyboards_count": len(records.get("storyboards", [])),
             "total_assets": len(assets),
-            "images_count": sum(1 for a in assets if a.get("data", {}).get("type") == "image"),
-            "videos_count": sum(1 for a in assets if a.get("data", {}).get("type") == "video"),
-            "audio_count": sum(1 for a in assets if a.get("data", {}).get("type") in {"audio", "voiceover", "music"}),
+            "images_count": sum(1 for a in assets if a.get("data", {}).get("asset_type") in {'image','gif'}),
+            "videos_count": sum(1 for a in assets if a.get("data", {}).get("asset_type") == "video"),
+            "audio_count": sum(1 for a in assets if a.get("data", {}).get("asset_type") == 'audio'),
             "subtitles_count": len(records.get("subtitles", [])),
         }
 
@@ -323,6 +304,10 @@ class CampaignOrchestrator:
         ev_ids = {e["id"] for e in evidence}
         for cl in claims:
             cl_data = cl.get("data", {})
+            if cl.get('effective_status',cl_data.get('status')) not in {'verified','client-approved'}:
+                risks.append(RiskItem(code='CLAIM_REVIEW_REQUIRED',severity='HIGH',stage=CampaignStage.RESEARCH.value,
+                    message=f'Claim "{cl_data.get("text",cl["id"])[:80]}" is not currently verified or client-approved.',
+                    remediation='Review its evidence and record the claim status and reviewer.'))
             srcs = cl_data.get("evidence_ids") or cl_data.get("source_ids") or []
             if not srcs or not any(s in ev_ids for s in srcs):
                 risks.append(RiskItem(
@@ -346,8 +331,14 @@ class CampaignOrchestrator:
 
         # 3. Check Asset Model Licenses
         assets = records.get("assets", [])
+        licenses={record['id']:record for record in records.get('licenses',[])}
         for a in assets:
             adata = a.get("data", {})
+            license_record=licenses.get(adata.get('license_id'))
+            if not license_record or license_record['data'].get('license_type')=='unknown' or license_record.get('effective_status')=='expired':
+                risks.append(RiskItem(code='MEDIA_RIGHTS_REVIEW',severity='HIGH',stage=CampaignStage.PRODUCTION.value,
+                    message=f'Current usage rights are missing, unknown or expired for asset "{a.get("name",a["id"])}".',
+                    remediation='Link a current usage-rights record in Assets & Approvals.'))
             model_id = adata.get("model_id") or adata.get("generator_model")
             if model_id:
                 gate = model_registry.check_license_gate(model_id, "commercial" if is_commercial else "internal_draft")
@@ -381,13 +372,18 @@ class CampaignOrchestrator:
         risks: List[RiskItem]
     ) -> Dict[str, Any]:
         high_risks = [r for r in risks if r.severity == "HIGH"]
-        is_ready = len(high_risks) == 0
+        reasons=[r.message for r in high_risks]
+        indexed={stage.stage:stage for stage in stages}
+        if not indexed['PRODUCTION'].items_count:reasons.append('No campaign media assets are registered yet.')
+        if not indexed['COPY'].items_count:reasons.append('No campaign copy is recorded yet.')
+        if indexed['APPROVAL'].status!='APPROVED':reasons.append('Current versions of the brief, copy and media still need approval.')
+        is_ready = not reasons
         return {
             "ready_for_distribution": is_ready,
-            "blockers_count": len(high_risks),
+            "blockers_count": len(reasons),
             "warnings_count": len([r for r in risks if r.severity == "MEDIUM"]),
             "status": "READY" if is_ready else "BLOCKED",
-            "blocking_reasons": [r.message for r in high_risks],
+            "blocking_reasons": reasons,
         }
 
     def advance_stage(

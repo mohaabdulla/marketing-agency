@@ -1,7 +1,7 @@
 """Offline AI narration for storyboard videos.
 
 Engines, all local and free, discovered at runtime (nothing is downloaded automatically):
-  * Piper (MIT engine; each voice model carries its own licence card) - set PIPER_BIN to the piper
+  * Piper (current OHF engine: GPL-3.0; legacy engine: MIT; voice licences vary) - set PIPER_BIN to the piper
     executable and PIPER_VOICES to a folder of ``*.onnx`` voices with their ``.onnx.json`` configs.
     Piper publishes Arabic voices (for example ar_JO-kareem), so this is the route to Arabic narration.
   * Windows speech (System.Speech) - the voices that ship with Windows; no extra install.

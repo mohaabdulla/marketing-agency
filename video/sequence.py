@@ -75,7 +75,11 @@ def prepare_sequence(request):
         from video.voice import voice
         voice(request.narrator_voice,brief['request']['language'])
     if brief['brand'].get('logo_asset_id'):path_for(brief['brand']['logo_asset_id'])
+    from video.storyboard_coach import review_storyboard
+    scene_data=[scene.model_dump() for scene in scenes]
+    assets={scene['asset_id']:read('assets',scene['asset_id']) for scene in scene_data if scene.get('asset_id')}
     return {**brief,'scenes':[scene.model_dump() for scene in scenes],
+            'storyboard_review':review_storyboard(scene_data,brief['request'],assets),
             'timeline':compile_storyboard(VideoBriefRequest.model_validate(brief['request']),brief['brand'],scenes)}
 
 
@@ -433,6 +437,7 @@ def render_sequence(brief,request,job):
             bundle.writestr('copy/subtitles.srt',to_srt(cues))
             bundle.writestr('copy/subtitles.vtt',to_vtt(cues))
             bundle.writestr('storyboard.json',json.dumps(brief,ensure_ascii=False,indent=2))
+            bundle.writestr('storyboard-review.json',json.dumps(brief.get('storyboard_review',{}),ensure_ascii=False,indent=2))
             bundle.writestr('project.json',project.model_dump_json(indent=2))
             if brief.get('research'):
                 # Claim substantiation for the client: every researched source and the facts drawn from it.
@@ -454,6 +459,7 @@ def render_sequence(brief,request,job):
             has_voiceover=bool(request.voiceover_asset_id),has_music=bool(request.music_asset_id),agency_context=brief.get('agency_context',{}),
             narration=narration and {k:narration[k] for k in ('voice','engine','licence','scenes','word_timing')},quality=qa,
             captions=report.get('captions'),music_mix=mix,advice=advice,credits=[credit['text'] for credit in credits])
+        manifest['storyboard_review']=brief.get('storyboard_review',{})
         atomic(folder/(job.id+'.json'),manifest)
         annotate(result,project_id=project_id,sequence_id=job.id,generation_type='storyboard-sequence')
         return manifest

@@ -48,7 +48,7 @@
     tabs.setAttribute('role','tablist'); tabs.setAttribute('aria-label','Campaign deliverables');
     const panels = {};
     const buttons = [];
-    const titles = [['visuals','Visual Formats Grid'],['motion','Motion Preview'],['copy','Copywriting Hub']];
+    const titles = [['visuals','Visual Formats Grid'],['motion','Motion Preview'],['copy','Copywriting Hub'],['review','Campaign Review']];
     for (const [key,title] of titles) {
       const button = element('button',title); button.type='button'; button.id=id+'-tab-'+key;
       button.setAttribute('role','tab');button.setAttribute('aria-controls',id+'-'+key);button.dataset.deliveryTab=key;
@@ -110,6 +110,20 @@
         panels.copy.append(element('h4','Hashtag strategy'),pills,element('p',writing.hashtag_strategy?.guidance || 'Choose the tags most relevant to this post.'));
         if(writing.copy_source==='template')panels.copy.append(element('p','Template-based copy: review the wording against your approved brief before publishing.','campaign-delivery-status'));
       }
+      const review=data.quality_review;
+      if(review){
+        const localized=review.copy?.[lang];
+        panels.review.append(element('h4','Copy and delivery checks'),element('p',localized?.notice||'Review the final kit before publishing.'));
+        for(const channel of localized?.channels||[])panels.review.append(element('p',`${channel.format}${channel.post?' · post '+channel.post:''}: ${channel.length} / ${channel.limit} (${channel.method})`));
+        const issues=element('ul');for(const issue of localized?.issues||[])issues.append(element('li',issue.message));
+        if(issues.childElementCount)panels.review.append(issues);else panels.review.append(element('p','No issues flagged by the copy checks.'));
+        panels.review.append(element('h4','Brand palette contrast reference'),element('p',review.palette_notice));
+        for(const pair of review.palette||[])panels.review.append(element('p',`${pair.foreground} on ${pair.background}: ${pair.ratio}:1 · ${pair.normal_text?'normal-text reference met':pair.large_text?'large-text reference met':'use another colour for readable text'}`));
+        const label=element('label','Editable alt-text draft'),alt=element('textarea');alt.value=review.accessibility?.alt_text_draft||'';alt.rows=3;
+        label.append(alt);panels.review.append(label,element('p',review.accessibility?.notice||''),buttonFor('Copy alt text',()=>copy(alt.value)));
+        panels.review.append(element('h4','Client hand-off'));
+        for(const step of review.handoff?.next_steps||[])panels.review.append(element('p',step));
+      }else panels.review.append(element('p','This earlier kit has no campaign review report. Generate a new kit to include it.'));
       master.hidden=!(data.bundle_zip_url || kit.bundle_zip_url);
       announce('Showing '+(lang==='ar'?'Arabic':'English')+' deliverables.');
     }

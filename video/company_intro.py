@@ -9,7 +9,6 @@ Website pages and search snippets are untrusted data. They are quoted to the mod
 never followed as instructions. Every fact in the proposal must cite one of the collected sources, and
 the company's own pages outrank third-party search results.
 """
-import concurrent.futures
 import hashlib
 import io
 import json
@@ -22,6 +21,7 @@ from bs4 import BeautifulSoup
 from pydantic import Field, model_validator
 
 from video.projects import Strict
+from video.script_writer import CRAFT
 from video.storage import DATA, atomic, read, uid
 
 FOLDER = 'company-intros'
@@ -172,6 +172,8 @@ def read_page(url):
 
 
 def parse_page(url, raw):
+    from video.company_research import enrich_page
+    enriched=enrich_page(url,raw)
     soup = BeautifulSoup(raw, 'html.parser')
 
     def meta(*names):
@@ -233,41 +235,23 @@ def parse_page(url, raw):
     return dict(url=url, title=title, site_name=_clean(meta('og:site_name', 'application-name'), 100),
                 description=_clean(meta('description', 'og:description', 'twitter:description'), 400),
                 theme_color=meta('theme-color'), language=(html.get('lang', '') if html else '')[:12],
-                headings=headings[:30], paragraphs=paragraphs[:30], text=body, links=list(dict.fromkeys(links))[:200],
+                headings=headings[:30], paragraphs=list(dict.fromkeys([*paragraphs,*enriched['paragraphs']]))[:60], text=enriched['text'] or body, links=list(dict.fromkeys(links))[:200],
+                structured_data=enriched['structured_data'],media_candidates=enriched['media_candidates'],extraction_engine=enriched['extraction_engine'],
                 images=list(dict.fromkeys(images))[:12], videos=videos[:6], sha256=hashlib.sha256(raw).hexdigest(), fetched_at=_now())
 
 
 def crawl(start_url, job=None):
-    home = read_page(start_url)
-    pages = [dict(home, kind='home')]
-    seen = {home['url'].rstrip('/')}
-    for kind, pattern in PAGE_KINDS:
-        if len(pages) >= MAX_PAGES:
-            break
-        if job and job.cancelled():
-            break
-        for target, label in home['links']:
-            path = urlsplit(target).path.lower()
-            if target.rstrip('/') in seen or not re.search(pattern, path + ' ' + label.lower()):
-                continue
-            seen.add(target.rstrip('/'))
-            try:
-                pages.append(dict(read_page(target), kind=kind))
-            except Exception:
-                pass
-            break
-    return pages
+    from video.company_research import crawl_pages
+    return crawl_pages(start_url,read_page,PAGE_KINDS,MAX_PAGES,job)
+
 
 
 def web_search(name, domain, limit=6):
     """Third-party context only; results are labelled and never outrank the company's own pages."""
     from image.campaign_generator import LexnisCampaignStudio
+    from video.company_research import search_results
     query = f'"{name}" {domain}' if name else domain
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        try:
-            results = pool.submit(LexnisCampaignStudio.search_google, query, limit).result(timeout=20)
-        except Exception:
-            return []
+    results=search_results(query,LexnisCampaignStudio.search_google,limit)
     found = []
     for item in results or []:
         url = str(item.get('url') or '')
@@ -327,6 +311,7 @@ def collect_images(pages, folder, limit=MAX_IMAGES):
             name = f'image-{index}.jpg'
             picture.save(folder / name, 'JPEG', quality=90)
             kept.append(dict(index=index, file=name, source_url=url, width=picture.width, height=picture.height, kind='photo',
+                             description=next((m['description'] for p in pages for m in p.get('media_candidates',[]) if m['url']==url),''),
                              low_resolution=min(picture.width, picture.height) < 720))
         except Exception:
             continue
@@ -364,7 +349,7 @@ def collect_videos(pages, folder, limit=MAX_VIDEOS):
             if frame is not None:
                 cv2.imwrite(str(folder / poster), frame, [cv2.IMWRITE_JPEG_QUALITY, 88])
             kept.append(dict(index=index, file=name, poster=poster, source_url=url, width=converted['width'], height=converted['height'],
-                             duration=round(converted['duration'], 2), low_resolution=min(converted['width'], converted['height']) < 720))
+                             duration=round(converted['duration'], 2),description=next((m['description'] for p in pages for m in p.get('media_candidates',[]) if m['url']==url),''),low_resolution=min(converted['width'], converted['height']) < 720))
         except Exception:
             continue
         finally:
@@ -375,11 +360,20 @@ def collect_videos(pages, folder, limit=MAX_VIDEOS):
 # ---------------------------------------------------------------- proposal writing
 
 def evidence_for(pages, search, request, brand_name):
-    budget = {'home': 2200, 'about': 1800, 'services': 1800, 'customers': 1200, 'contact': 500}
+    from video.company_research import build_dossier,relevant_evidence,evidence_text,TOPICS
+    dossier=build_dossier(pages,request.notes)
+    ranked=relevant_evidence(dossier,' '.join(query for _,query in TOPICS.values()),8)
+    guidelines=''
+    if request.guideline_id:
+        from brand.guidelines import get
+        guidelines=get(request.guideline_id)['text'][:1800]
+    budget = {'home': 1000, 'about': 800, 'services': 900, 'customers': 700, 'contact': 400}
     return dict(
-        company_website=[dict(url=p['url'], page=p['kind'], title=p['title'], description=p['description'],
-                              headings=p['headings'][:14], text=p['text'][:budget.get(p['kind'], 1000)]) for p in pages],
+        company_website=[dict(url=p['url'], page=p['kind'], title=p['title'], description=evidence_text(p['description'],400),
+                              headings=[evidence_text(h,140) for h in p['headings'][:14] if evidence_text(h,140)],text=evidence_text(p['text'],budget.get(p['kind'],1000))) for p in pages],
         third_party_search_results=[dict(url=s['url'], title=s['title'], snippet=s['snippet']) for s in search if s['independent']],
+        ranked_evidence=[dict(id=item['id'],quote=item['quote'][:500],source_url=item['source_url']) for item in ranked],
+        research_gaps=dossier['missing_information'],guidelines=guidelines,
         brand_name=brand_name, target_audience=request.target_audience, operator_notes=request.notes[:1500],
         language=request.language, tone=request.tone, platform=request.platform_target, duration_seconds=request.duration)
 
@@ -400,17 +394,21 @@ SYSTEM = ('You are the creative strategist of a marketing agency preparing a com
           '"who_we_help":"","why_us":["max 4 short items"],"call_to_action":""},'
           '"facts":[{"claim":"a specific fact used in the video","source_url":"exact url from the data"}],'
           '"treatment":"2-4 sentences describing the finished video for client approval",'
-          '"scenes":[{"overlay_text":"on-screen headline, max 70 characters","voiceover":"narration for this scene",'
-          '"visual_prompt":"what the viewer sees: setting, subject, camera, mood"}],"questions":["missing details"]}. '
-          'Write exactly five scenes in this order: who we are, what we do, who we help, why choose us, call to action. '
-          'Write profile, treatment and scene text in LANGUAGE. Keep each voiceover within the character limit given for it.')
+          '"scenes":[{"overlay_text":"on-screen headline, 2-7 words","voiceover":"narration for this scene",'
+          '"visual_prompt":"what the viewer sees: subject, action, setting, shot size, camera movement"}],'
+          '"hooks":[{"overlay_text":"","voiceover":"an alternative opening for scene 1"}],"questions":["missing details"]}. '
+          'Write exactly five scenes in this order: who we are, what we do, who we help, why choose us, call to action, '
+          'and three alternative openings in "hooks" that take different angles (the viewer\'s need, an outcome, a striking sourced fact). '
+          'Write profile, treatment and scene text in LANGUAGE. Keep each voiceover within its word budget and character limit. ')
+SYSTEM += CRAFT
 
 
-def ai_proposal(evidence, request, limits):
-    from video.brief_assistant import model_message
+def ai_proposal(evidence, request, limits, budgets=()):
+    from video.script_writer import chat
     language = 'Arabic (native Modern Standard Arabic script)' if request.language == 'ar' else 'English'
-    system = SYSTEM.replace('LANGUAGE', language) + ' Voiceover character limits per scene: ' + json.dumps(limits) + '.'
-    value, provider = model_message(system, evidence)
+    system = (SYSTEM.replace('LANGUAGE', language) + ' Voiceover character limits per scene: ' + json.dumps(limits) + '.'
+              + (' Voiceover word budgets per scene: ' + json.dumps(list(budgets)) + '.' if budgets else ''))
+    value, provider = chat(system, evidence)
     profile, scenes = value.get('profile'), value.get('scenes')
     if not isinstance(profile, dict) or not isinstance(scenes, list) or len(scenes) != len(SECTIONS):
         raise ValueError('Invalid proposal structure')
@@ -482,9 +480,15 @@ def propose(request, pages, search, images, brand, videos=()):
     evidence = evidence_for(pages, search, request, brand.get('brand_name', '') if brand.get('id') else '')
     seconds, limits = scene_budget(request)
     sources = {p['url'] for p in pages} | {s['url'] for s in search}
-    warnings, questions, facts, treatment = [], [], [], ''
+    from video.company_research import build_dossier,supporting_quote,media_match
+    dossier=build_dossier(pages,request.notes)
+    from video.script_writer import polish, word_budget
+    budgets = [word_budget(s, request.language, request.pacing) for s in seconds]
+    warnings, questions, facts, treatment, hooks = [], [], [], '', []
     try:
-        value, provider = ai_proposal(evidence, request, limits)
+        value, provider = ai_proposal(evidence, request, limits, budgets)
+        hooks = [dict(overlay_text=_clean(h.get('overlay_text'), 90), voiceover=_fit(h.get('voiceover'), limits[0]))
+                 for h in value.get('hooks') or [] if isinstance(h, dict) and isinstance(h.get('voiceover'), str) and h['voiceover'].strip()][:3]
         raw = value['profile']
         profile = dict(company_name=_clean(raw.get('company_name') or brand.get('brand_name') or domain, 100),
                        one_line=_clean(raw.get('one_line'), 300), who_we_are=_clean(raw.get('who_we_are'), 600),
@@ -494,8 +498,11 @@ def propose(request, pages, search, images, brand, videos=()):
                        call_to_action=_clean(raw.get('call_to_action'), 160))
         for fact in value.get('facts') or []:
             if isinstance(fact, dict) and isinstance(fact.get('claim'), str) and fact.get('source_url') in sources:
-                facts.append(dict(claim=_clean(fact['claim'], 300), source_url=fact['source_url']))
+                quote=supporting_quote(fact['claim'],fact['source_url'],dossier)
+                if quote:facts.append(dict(claim=_clean(fact['claim'], 300), source_url=fact['source_url'],supporting_quote=quote))
         dropped = sum(1 for f in value.get('facts') or [] if isinstance(f, dict) and f.get('source_url') not in sources)
+        unsupported=sum(1 for f in value.get('facts') or [] if isinstance(f,dict) and f.get('source_url') in sources)-len(facts)
+        if unsupported:warnings.append(f'{unsupported} statement(s) were removed because the cited pages did not contain a supporting quote. Review the narration against the research foundation.')
         if dropped:
             warnings.append(f'{dropped} statement(s) without a matching source were removed from the fact list. Check the script against the sources.')
         questions = [_clean(q, 300) for q in value.get('questions') or [] if isinstance(q, str) and q.strip()][:6]
@@ -512,6 +519,14 @@ def propose(request, pages, search, images, brand, videos=()):
                         'Review and polish every scene before approving.')
         if request.language == 'ar' and not re.search(r'[؀-ۿ]', ' '.join(p['text'][:400] for p in pages)):
             warnings.append('The website is not in Arabic and no AI translator was available; translate the narration before approving.')
+    # Script review and one gated editor revision (video.script_writer); numbers are checked against everything researched.
+    known = ' '.join([*(p.get('text', '') + ' ' + p.get('description', '') for p in pages), request.notes or ''])
+    written, script_review = polish(written, language=request.language, seconds=seconds, pacing=request.pacing,
+                                    evidence=evidence.get('ranked_evidence', []), known_text=known, domain=domain,
+                                    beats=[label for _, label, _, _ in SECTIONS], hooks=hooks)
+    errors = [i for i in script_review['issues'] if i['severity'] == 'error']
+    if errors:
+        warnings.append(f'The script review found {len(errors)} problem(s) to fix before approving; see the script review below.')
     if not profile['what_we_do']:
         questions.append('Which products or services should the video name?' if request.language == 'en' else 'ما المنتجات أو الخدمات التي يجب ذكرها في الفيديو؟')
     if not treatment:
@@ -527,9 +542,14 @@ def propose(request, pages, search, images, brand, videos=()):
                  for_=profile.get('who_we_help'), why=' '.join(profile.get('why_us') or []), cta='')
     scenes = []
     for index, ((key, label_en, label_ar, _), text, duration) in enumerate(zip(SECTIONS, written, seconds)):
-        kind, choice = visuals.pop(0) if visuals and key != 'cta' else (None, None)
+        kind, choice = None,None
         prompt = text['visual_prompt'] or visual_direction(key, request, profile, brand)
         subject = topic['for_' if key == 'for' else key] or ''
+        if visuals and key!='cta':
+            candidates=[next(item for item in (videos if kind=='video' else images) if item['index']==idx) for kind,idx in visuals]
+            ranking=media_match(candidates,f'{subject} {prompt}')
+            selected=ranking[0][0] if ranking else 0
+            kind,choice=visuals.pop(selected)
         scenes.append(dict(section=label_ar if request.language == 'ar' else label_en, overlay_text=text['overlay_text'],
                            voiceover=text['voiceover'], visual_prompt=prompt,
                            duration=duration, motion=motions[index], background_style='minimal' if key == 'cta' else 'brand-gradient',
@@ -542,7 +562,34 @@ def propose(request, pages, search, images, brand, videos=()):
     if any(entry.get('low_resolution') for entry in [*images, *videos]):
         warnings.append('Some website photos or videos are below 720 pixels on the short side and will look soft in HD; prefer stock video or graphics for those scenes.')
     return dict(profile=profile, facts=facts, treatment=treatment, scenes=scenes, questions=questions,
-                warnings=warnings, planning_source=planning)
+                warnings=warnings, planning_source=planning,research_report=dossier,script_review=script_review,
+                storyboard_review=review_edit(dict(request=request.model_dump(),images=images,videos=list(videos)),scenes))
+
+
+def review_edit(proposal,scenes):
+    from video.storyboard_coach import review_storyboard
+    records=[];assets={}
+    for scene in scenes:
+        item=dict(scene)
+        for kind in ('image','video'):
+            index=scene.get(kind)
+            if index is None:continue
+            media=next((m for m in proposal.get('images' if kind=='image' else 'videos',[]) if m['index']==index),None)
+            if media is None:raise ValueError('Choose a visual from this company proposal')
+            item['asset_id']=f'{kind}-{index}';assets[item['asset_id']]={**media,'kind':kind}
+        if scene.get('stock'):
+            item['asset_id']='stock-'+scene['stock']['provider']+'-'+scene['stock']['id']
+        records.append(item)
+    settings={**proposal['request'],'campaign_type':'company_intro','duration':sum(s['duration'] for s in scenes)}
+    report=review_storyboard(records,settings,assets)
+    # The writing review runs on the edited script too (no model call, so it is instant and repeatable).
+    from video.script_writer import review, score, word_budget
+    language,pacing=settings.get('language','en'),settings.get('pacing','balanced')
+    budgets=[word_budget(s['duration'],language,pacing) for s in scenes]
+    known=' '.join([*(e.get('quote','') for e in (proposal.get('research_report') or {}).get('evidence',[])),settings.get('notes','') or ''])
+    issues=review(scenes,language=language,budgets=budgets,evidence_text=known,domain=proposal.get('domain',''))
+    report['script']=dict((proposal.get('script_review') or {}),issues=issues,score=score(issues),word_budgets=budgets,rounds=0,editor=None,fixed=[],notes=[])
+    return report
 
 
 def brand_from_research(profile, pages, request):
@@ -703,7 +750,7 @@ def approve(proposal_id, body):
                                 platform_target=settings.platform_target, tone=settings.tone, language=settings.language,
                                 pacing=settings.pacing, transition=settings.transition, duration=round(cursor, 3),
                                 resolution=settings.resolution)
-    research = dict(proposal_id=proposal_id, sources=proposal['sources'], facts=proposal['facts'],
+    research = dict(proposal_id=proposal_id, sources=proposal['sources'], facts=proposal['facts'],research_report=proposal.get('research_report',{}),
                     images=[{k: i[k] for k in ('index', 'source_url')} for i in proposal['images']],
                     videos=[{k: v[k] for k in ('index', 'source_url')} for v in proposal.get('videos', [])],
                     credits=list({c['text']: c for c in credits}.values()))

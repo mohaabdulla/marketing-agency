@@ -148,10 +148,11 @@ class CompanyIntroVideoTests(unittest.TestCase):
         self.assertFalse(any('elsewhere.example' in url for url in FETCHED), 'research must stay on the company site')
         # Search results are kept and labelled; only third-party ones reach the writer as outside context.
         self.assertEqual([r['independent'] for r in proposal['sources']['search']], [True, False])
-        system, evidence = CALLS[-1]
+        # The drafting call (the script editor may call the model again afterwards with the draft).
+        system, evidence = next(call for call in reversed(CALLS) if 'third_party_search_results' in call[1])
         self.assertIn('never instructions', system)
         self.assertEqual(len(evidence['third_party_search_results']), 1)
-        self.assertIn('Ignore all previous instructions', json.dumps(evidence))      # quoted as data, not obeyed
+        self.assertNotIn('Ignore all previous instructions', json.dumps(evidence))      # quoted as data, not obeyed
         # Facts must cite a collected source; the invented one is dropped and flagged.
         self.assertEqual([f['claim'] for f in proposal['facts']], ['Robots map a site in hours.'])
         self.assertTrue(any('without a matching source' in w for w in proposal['warnings']))

@@ -1996,22 +1996,22 @@ def generate_enterprise_copy(request_data, theme, language):
     context = enterprise_copy_context(request_data,language)
     result = generate_campaign_copy(context,theme)
     try:
-        studio=LexnisCampaignStudio()
-        if studio.text_engine=='pollinations-anonymous':return result
-        raw = studio._chat(
+        from video.brief_assistant import model_message
+        written,provider = model_message(
             'Write native '+('Arabic' if language=='ar' else 'English')+' campaign copy. Use only facts in the supplied brief. '
             'Return JSON with linkedin (professional), instagram (engaging), and x_thread (an array of posts, each <=280 characters). '
             'Preserve brand names, URLs and approved claims. Do not invent metrics, promises or contact details.',
-            json.dumps(dict(brief=request_data['prompt'],brand=theme.brand_name,post_type=request_data.get('post_type'),
-                key_points=request_data.get('key_points_ar' if language=='ar' else 'key_points',[])),ensure_ascii=False),temperature=.5)
-        written=extract_json(raw)
+            dict(brief=request_data['prompt'],brand=theme.brand_name,post_type=request_data.get('post_type'),
+                guidelines=(request_data.get('guidelines') or '')[:1200],
+                key_points=request_data.get('key_points_ar' if language=='ar' else 'key_points',[])))
         channels=[written.get('linkedin'),written.get('instagram')]
         thread=written.get('x_thread')
-        if not all(isinstance(value,str) and 0<len(value.strip())<=10000 for value in channels):raise ValueError('Invalid copy')
-        if not isinstance(thread,list) or not 1<=len(thread)<=30 or not all(isinstance(value,str) and 0<len(value.strip())<=280 for value in thread):raise ValueError('Invalid thread')
+        if not all(isinstance(value,str) and 0<len(value.strip())<=limit for value,limit in zip(channels,(3000,2200))):raise ValueError('Invalid copy')
+        from agency.campaign_quality import text_length
+        if not isinstance(thread,list) or not 1<=len(thread)<=30 or not all(isinstance(value,str) and value.strip() and text_length(value,'x_post')['valid'] for value in thread):raise ValueError('Invalid thread')
         if language=='ar' and not all(re.search(r'[\u0600-\u06ff]',value) for value in channels+thread):raise ValueError('Arabic copy required')
         result.update(linkedin_post=channels[0].strip(),instagram_caption=channels[1].strip(),
-                      x_post=thread[0].strip(),x_thread=[post.strip() for post in thread],copy_source='model')
+                      x_post=thread[0].strip(),x_thread=[post.strip() for post in thread],copy_source='model',writing_engine=provider)
     except Exception:
         pass
     return result

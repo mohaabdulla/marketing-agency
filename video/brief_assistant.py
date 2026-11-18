@@ -4,10 +4,8 @@ import json
 import os
 import re
 import threading
-from datetime import datetime,timezone
 from typing import Literal
 from urllib.parse import urljoin,urlsplit
-from bs4 import BeautifulSoup
 from pydantic import Field,model_validator
 from video.projects import Strict
 from video.storage import DATA,atomic,read,uid
@@ -55,20 +53,11 @@ def fetch_company_page(url):
         if status!=200:raise ValueError('The company website could not be read (HTTP '+str(status)+')')
         if not any(kind in mime.lower() for kind in ('text/html','text/plain')):
             raise ValueError('Use a company webpage, and upload documents as guidelines')
-        soup=BeautifulSoup(raw,'html.parser')
-        title=soup.title.get_text(' ',strip=True)[:200] if soup.title else urlsplit(url).hostname
-        links=[]
-        for link in soup.find_all('a',href=True):
-            target=urljoin(url,link['href'])
-            if urlsplit(target).netloc==urlsplit(url).netloc and re.search(r'about|services|company',link.get_text(' ',strip=True)+' '+target,re.I):
-                if '#' not in target and target!=url:links.append(target)
-        description=soup.find('meta',attrs={'name':re.compile('^description$',re.I)})
-        lead=description.get('content','') if description else ''
-        for tag in soup(['script','style','nav','footer','header','noscript','form','svg']):tag.decompose()
-        text=' '.join((lead+' '+soup.get_text(' ',strip=True)).split())[:10000]
+        from video.company_intro import parse_page
+        page=parse_page(url,raw)
+        text=page['text']
         if len(text)<40:raise ValueError('The website has too little readable text; add guidelines or company notes instead')
-        return dict(url=url,title=title,excerpt=text,sha256=hashlib.sha256(raw).hexdigest(),
-                    fetched_at=datetime.now(timezone.utc).isoformat()),list(dict.fromkeys(links))
+        return {**page,'excerpt':text},[item[0] for item in page['links']]
     raise ValueError('Too many website redirects; paste the final company page address')
 
 
@@ -93,15 +82,17 @@ def collect_context(body):
         if not RESEARCH_SLOTS.acquire(blocking=False):raise ValueError('Company research is busy; retry shortly')
         try:
             try:
-                page,links=fetch_company_page(body.company_url);pages.append(page)
-                if links:
-                    try:pages.append(fetch_company_page(links[0])[0])
-                    except Exception:warnings.append('The additional company page could not be read; the main page was used.')
+                from video.company_research import crawl_pages
+                from video.company_intro import PAGE_KINDS
+                def reader(url):return fetch_company_page(url)[0]
+                pages=crawl_pages(body.company_url,reader,PAGE_KINDS,max_pages=5)
             except Exception:
                 warnings.append('Website research was unavailable. The draft uses the selected brand and supplied guidelines or notes.')
         finally:RESEARCH_SLOTS.release()
     key=uid();folder=DATA/'message-contexts';folder.mkdir(parents=True,exist_ok=True)
-    context=dict(context_id=key,identity=source_identity(body),sources=pages,guideline=guideline,notes=body.guideline_notes,warnings=warnings)
+    from video.company_research import build_dossier
+    context=dict(context_id=key,identity=source_identity(body),brand_id=body.brand_id,company_url=body.company_url,guideline_id=body.guideline_id,
+        sources=pages,guideline=guideline,notes=body.guideline_notes,warnings=warnings,research_report=build_dossier(pages,body.guideline_notes,guideline))
     atomic(folder/(key+'.json'),context)
     return context
 
@@ -113,13 +104,24 @@ def model_message(system,context):
         from video.brand_editing import AI_LOCK
         if AI_LOCK.acquire(blocking=False):
             try:
-                content=json.dumps(context,ensure_ascii=False)
+                output_tokens=1800 if 'company_website' in context or 'story_structure' in context else 850
+                prepared=dict(context)
+                if 'story_structure' in prepared:
+                    prepared['research_evidence']=[{**e,'quote':e['quote'][:300]} for e in context.get('research_evidence',[])[:4]]
+                    prepared['guidelines']=context.get('guidelines','')[:700]
+                if 'company_website' in prepared:
+                    prepared['company_website']=[dict(url=p['url'],page=p['page'],title=p['title'],description=p['description'][:180],headings=p['headings'][:4]) for p in context['company_website']]
+                    prepared['ranked_evidence']=[{**e,'quote':e['quote'][:300]} for e in context.get('ranked_evidence',[])[:6]]
+                    prepared['third_party_search_results']=[]
+                    prepared['guidelines']=context.get('guidelines','')[:900]
+                    prepared['operator_notes']=context.get('operator_notes','')[:600]
+                content=json.dumps(prepared,ensure_ascii=False)
                 with session() as client:
                     with client.post(endpoint()+'/tokenize',json={'content':system+content},timeout=(3,8),stream=True,allow_redirects=False) as response:
                         tokens=bounded_json(response,128*1024).get('tokens',[])
-                    if not tokens or len(tokens)+900>4096:raise ValueError('Context exceeds the local model budget')
+                    if not tokens or len(tokens)+output_tokens+50>4096:raise ValueError('Context exceeds the local model budget')
                     with client.post(endpoint()+'/v1/chat/completions',json=dict(model=os.getenv('LOCAL_TEXT_MODEL','lexnis-qwen3-4b'),
-                        temperature=.3,max_tokens=850,response_format={'type':'json_object'},messages=[dict(role='system',content=system+' /no_think'),dict(role='user',content=content)]),
+                        temperature=.3,max_tokens=output_tokens,response_format={'type':'json_object'},messages=[dict(role='system',content=system+' /no_think'),dict(role='user',content=content)]),
                         timeout=(3,60),stream=True,allow_redirects=False) as response:
                         value=bounded_json(response,128*1024)
                 return json.loads(value['choices'][0]['message']['content']),'local-ai'
@@ -137,6 +139,9 @@ def suggest_message(body):
     if not brand:raise FileNotFoundError('Brand kit not found')
     if body.action=='enhance' and not body.core_message.strip():raise ValueError('Suggest a message first, or enter a few words to enhance')
     context=collect_context(body);ar=body.language=='ar'
+    from video.company_research import relevant_evidence,evidence_text
+    dossier=context.get('research_report',{})
+    ranked=relevant_evidence(dossier,' '.join([body.campaign_type,body.target_audience,'company services customers mission products solutions']),8)
     name=(brand.get('brand_name_ar') or brand['brand_name']) if ar else brand['brand_name']
     templates={
         'company_intro':(f'Create a company introduction video for {name}. Tell viewers who we are, what we do, who we help, and what matters to us. Close by inviting viewers to explore our work or get in touch.',
@@ -169,10 +174,10 @@ def suggest_message(body):
     if body.action=='enhance':lines.append('حافظ على رسالة واحدة واضحة، وتسلسل افتتاحية ثم فائدة ثم دعوة إلى الإجراء، مع نص مقروء.' if ar else 'Keep one clear message: opening hook, benefit, then a call to action. Use readable on-screen text.')
     message='\n\n'.join(lines)[:2000];engine='template'
     questions=(['ما اسم المنتج أو الوظيفة؟','من الجمهور المستهدف وما الخطوة التالية؟'] if ar else ['What is the product or role name?','Who is the target audience, and what should they do next?']) if '[' in message else []
-    evidence=dict(action=body.action,campaign_type=body.campaign_type,language=body.language,tone=body.tone,target_audience=body.target_audience,job_details=body.job_details,
+    evidence=dict(ranked_evidence=[{key:item[key] for key in ('id','quote','source_url')} for item in ranked],research_gaps=dossier.get('missing_information',[]),action=body.action,campaign_type=body.campaign_type,language=body.language,tone=body.tone,target_audience=body.target_audience,job_details=body.job_details,
         company_overview=body.company_overview,company_services=body.company_services,company_values=body.company_values,
         current_message=body.core_message,brand={key:brand.get(key) for key in ('brand_name','brand_name_ar','tagline','primary_hex','accent_hex')},
-        website_excerpts=[dict(url=page['url'],text=page['excerpt'][:1800]) for page in context['sources']],
+        website_excerpts=[dict(url=page['url'],text=evidence_text(page['excerpt'],1800)) for page in context['sources']],
         guidelines=guideline.get('text','')[:2200],guideline_rules=rules,company_notes=context['notes'][:1500])
     system=('Write an editable '+('Arabic' if ar else 'English')+' core message for a company video, suitable for a beginner. '
         'Return JSON {"message":"a clear usable brief, 1-1900 characters","questions":["missing specific details"]}. '
@@ -189,7 +194,7 @@ def suggest_message(body):
         if not isinstance(missing,list) or len(missing)>8 or any(not isinstance(item,str) or len(item)>300 for item in missing):raise ValueError('Invalid questions')
         message=candidate.strip();questions=missing;engine=provider
     except Exception:pass
-    return dict(message=message,engine=engine,ai_used=engine!='template',context_id=context['context_id'],
+    return dict(research_report=dossier,message=message,engine=engine,ai_used=engine!='template',context_id=context['context_id'],
         sources=[{key:page[key] for key in ('url','title','fetched_at')} for page in context['sources']],
         company_summary='\n\n'.join(page['excerpt'][:1000] for page in context['sources']),
         guideline_id=body.guideline_id,guideline_version=guideline.get('version'),questions=questions,warnings=context['warnings'],

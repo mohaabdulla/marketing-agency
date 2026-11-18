@@ -218,9 +218,9 @@ class Footage(unittest.TestCase):
         self.assertEqual(meta['video_codec'], 'h264'); self.assertFalse(meta['has_audio'])   # muted, browser-friendly copy
         poster = self.client.get(f"/api/video/company-intro/{self.proposal['proposal_id']}/videos/0/poster")
         self.assertEqual((poster.status_code, poster.headers['content-type']), (200, 'image/jpeg'))
-        # The website video leads the proposal; photos follow; the closing scene stays a clean brand end card.
+        # Caption relevance may put a photo first; the website clip is used once and the end card stays clean.
         scenes = self.proposal['scenes']
-        self.assertEqual(scenes[0]['video'], 0)
+        self.assertEqual(sum(scene.get('video')==0 for scene in scenes),1)
         self.assertIsNone(scenes[-1]['video']); self.assertIsNone(scenes[-1]['image'])
         self.assertTrue(all(scene.get('stock_query') for scene in scenes))
 
@@ -316,9 +316,13 @@ class Footage(unittest.TestCase):
             intro.get_by_role('button', name='Research company & propose video').click()
             intro.locator('[data-ci-proposal]').wait_for(state='visible', timeout=120000)
             first, second = intro.locator('.vbf-scene').nth(0), intro.locator('.vbf-scene').nth(1)
-            # The company's own footage leads, previewed as video; photos are whole, never logo cards.
-            self.assertEqual(first.get_by_label('Visual', exact=True).input_value(), 'video:0')
+            # The user can replace a relevance-ranked photo with the company's own footage and preview it.
+            first.get_by_label('Visual', exact=True).select_option('video:0')
             first.locator('.vbf-ci-visual video').wait_for(state='attached')
+            with page.expect_response(lambda r:'/review' in r.url and r.request.method=='POST') as review:
+                intro.get_by_role('button',name='Check storyboard',exact=True).click()
+            self.assertEqual(review.value.status,200,review.value.text())
+            self.assertIn('Scene 1',intro.locator('[data-ci-storyboard-review]').inner_text())
             options = second.get_by_label('Visual', exact=True).locator('option').evaluate_all('nodes=>nodes.map(n=>n.textContent)')
             self.assertTrue(any(o.startswith('Website video 1') for o in options) and any(o.startswith('Website photo') for o in options), options)
             panel = second.locator('[data-stock]')

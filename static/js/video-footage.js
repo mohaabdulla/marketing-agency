@@ -50,6 +50,7 @@ export async function stockPanel(panel,{query,orientation,minSeconds,choose}){
         card.setAttribute('aria-label',`Use ${item.provider_label} clip by ${item.author||'unknown creator'}, ${item.duration} seconds`);
         if(item.preview_url){const img=document.createElement('img');img.src=item.preview_url;img.alt='';img.loading='lazy';card.append(img);}
         const meta=document.createElement('span');meta.textContent=`${item.duration} s · ${item.author||'Unknown'} · ${item.provider_label}`;card.append(meta);
+        if(item.selection_notes?.length){const why=document.createElement('small');why.textContent=item.selection_notes.join(' · ');card.append(why);}
         card.onclick=()=>{choose(item);state.textContent=`Chosen: ${item.provider_label} clip by ${item.author||'an unnamed creator'}. It is credited in the client kit.`;};
         grid.append(card);
       }

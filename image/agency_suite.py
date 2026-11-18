@@ -44,9 +44,11 @@ def _fit_x_post(hook, cta, tags, limit=280):
     """The fullest combination of hook, call to action and tags that fits one X post."""
     for parts in ((hook, cta, " ".join(tags)), (hook, cta, " ".join(tags[:1])), (hook, cta), (hook, " ".join(tags[:1])), (hook,)):
         text = " ".join(p for p in parts if p)
-        if len(text) <= limit:
+        from agency.campaign_quality import text_length
+        if text_length(text,'x_post')['length'] <= limit:
             return text
-    return hook[:limit - 1].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
+    from agency.campaign_quality import fit_x_text
+    return fit_x_text(hook,limit)
 
 
 def _generate_campaign_copy_base(req_data, brand_theme=None):
@@ -123,15 +125,15 @@ def _generate_campaign_copy_base(req_data, brand_theme=None):
             points = written["highlights"][:3] or points
         tags = list(dict.fromkeys([brand_tag, *written["hashtags"], *([configured_tag] if configured_tag else [])]))[:10]
         linkedin = "\n\n".join(part for part in (hook, body, "\n".join(f"• {p}" for p in points), cta, " ".join(tags[:5])) if part)
-        instagram = "\n\n".join(part for part in (hook, body, cta, " ".join(tags)) if part)
+        instagram = "\n\n".join(part for part in (hook, body, cta, " ".join(tags[:5])) if part)
         x = _fit_x_post(hook, cta, tags[:2])
         return dict(language="ar" if ar else "en", hook=hook, linkedin_post=linkedin, instagram_caption=instagram, x_post=x,
                     hashtags=tags, cta=cta, copy_source="campaign", posting_recommendation=recommendation,
                     strategy_source="https://www.linkedin.com/business/marketing/blog/linkedin-ads/whats-the-best-time-to-post-on-linkedin")
-    instagram = f"{hook}\n\n{body}\n\n{cta}\n\n" + "\n".join(tags)
+    instagram = f"{hook}\n\n{body}\n\n{cta}\n\n" + "\n".join(tags[:5])
     x = f"{hook} {subject}. {cta} {brand_tag}"
-    if len(x) >= 280:
-        x = x[:276].rstrip() + "…"
+    from agency.campaign_quality import fit_x_text
+    x=fit_x_text(x)
     return dict(language="ar" if ar else "en", hook=hook, linkedin_post=f"{hook}\n\n{body}\n\n" + "\n".join(f"• {p}" for p in points) + f"\n\n{culture}\n\n{cta}",
                 instagram_caption=instagram, x_post=x, hashtags=tags, cta=cta, copy_source="template",
                 posting_recommendation=recommendation,
@@ -141,19 +143,8 @@ def _generate_campaign_copy_base(req_data, brand_theme=None):
 def generate_campaign_copy(req_data, brand_theme=None):
     """Adapt the same approved campaign into channel copy, a thread and hashtag groups."""
     result = _generate_campaign_copy_base(req_data, brand_theme)
-    chunks = []
-    for paragraph in result['linkedin_post'].split('\n\n'):
-        current = ''
-        for word in paragraph.split():
-            # Leave room for thread numbering; split unusually long URLs/tokens safely.
-            for token in [word[i:i+250] for i in range(0, len(word), 250)]:
-                if current and len(current) + len(token) + 1 > 260:
-                    chunks.append(current)
-                    current = ''
-                current = (current + ' ' + token).strip()
-        if current:
-            chunks.append(current)
-    result['x_thread'] = [f'{i+1}/{len(chunks)} {chunk}' for i, chunk in enumerate(chunks)]
+    from agency.campaign_quality import x_thread
+    result['x_thread'] = x_thread(result['linkedin_post'])
     tags = result['hashtags']
     result['hashtag_strategy'] = dict(brand=tags[:1], industry=tags[1:5], discovery=tags[5:],
         guidance='اختر الوسوم المرتبطة بالحملة واستخدم وسم العلامة باستمرار.' if result['language']=='ar'
@@ -354,7 +345,7 @@ DELIVERABLE_NAMES = {
 }
 
 
-def bundle_enterprise_campaign(paths_by_language, copy_by_language, output_path, *, selected='en', brand=''):
+def bundle_enterprise_campaign(paths_by_language, copy_by_language, output_path, *, selected='en', brand='',quality_review=None):
     """Publish one complete bilingual archive atomically, with a verifiable hand-off manifest."""
     if set(paths_by_language) != {'en','ar'} or set(copy_by_language) != {'en','ar'}:
         raise ValueError('The enterprise kit requires English and Arabic deliverables')
@@ -393,6 +384,11 @@ def bundle_enterprise_campaign(paths_by_language, copy_by_language, output_path,
                 for channel, text in documents.items():
                     archive.writestr(f'copy/{language}/{channel}.md',f'# {channel.replace("_"," ").title()}\n\n{text}\n')
             archive.writestr('copywriting.json',json.dumps(copy_by_language,ensure_ascii=False,indent=2))
+            if quality_review is not None:
+                archive.writestr('review/campaign-quality.json',json.dumps(quality_review,ensure_ascii=False,indent=2))
+                archive.writestr('review/client-review-checklist.txt','\n'.join(quality_review['handoff']['next_steps'])+'\n')
+                archive.writestr('copy/alt-text-draft.txt',quality_review['accessibility']['alt_text_draft']+'\n\n'+quality_review['accessibility']['notice'])
+                manifest['quality_review']='review/campaign-quality.json'
             archive.writestr('campaign_manifest.json',json.dumps(manifest,ensure_ascii=False,indent=2))
             # Preserve the familiar selected-language export for existing clients.
             archive.writestr('campaign_copy_and_strategy.txt','\n\n'.join(f'{key.upper()}\n{value}' for key,value in copy_by_language[selected].items()))

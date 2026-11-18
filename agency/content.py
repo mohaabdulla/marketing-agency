@@ -1,6 +1,5 @@
 """Content production: concept matrices, copy checks, scripts to storyboards, and a real
 Video Studio project from a storyboard. Deterministic; no model is called."""
-import difflib
 import html
 import itertools
 import json
@@ -14,7 +13,7 @@ from .production import channel_specs, script_estimate
 
 MATRIX_AXES = ('hook_type', 'benefit', 'pain_point', 'awareness_stage', 'appeal', 'visual_territory', 'offer', 'cta', 'channel')
 MATRIX_LIMIT = 24
-PLACEHOLDER = re.compile(r'\[[^\]\n]{1,40}\]|\{\{[^}\n]{1,40}\}\}|lorem ipsum|\bTBD\b|\bTODO\b|\bXXX+\b|<[a-z_ ]{2,30}>', re.IGNORECASE)
+from .campaign_quality import PLACEHOLDER,similarity,text_length
 URL = re.compile(r'(?:https?://|www\.)\S+', re.IGNORECASE)
 VALID_URL = re.compile(r'^https?://[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[/?#]\S*)?$')
 
@@ -69,7 +68,12 @@ def copy_checks(client_id, campaign_id, fmt, text, headline='', cta='', hashtags
     flags = result['flags']
     sms = sms_encoding(text) if spec.get('encoding') == 'gsm7-or-ucs2' else None
     limit = sms['single_limit'] if sms else spec['max_chars']
-    length = sms['units'] if sms else len(text)
+    measured=text_length(text,fmt)
+    if fmt=='x_post' and measured['valid'] is False and measured['length']<=spec['max_chars']:
+        flags.append(dict(code='invalid_text',severity='block',message='X rejected this text; check for empty text or invalid control characters.'))
+    if fmt=='x_post' and measured['valid'] is None:
+        flags.append(dict(code='counter_unavailable',severity='review',message='Install twitter-text-parser for weighted X post validation.'))
+    length = sms['units'] if sms else measured['length']
     if length > limit:
         hard = spec['limit_type'] == 'hard'
         detail = (f' ({sms["encoding"]}: sent as {sms["parts"]} billed parts of up to {sms["per_part"]})' if sms else '')
@@ -93,14 +97,14 @@ def copy_checks(client_id, campaign_id, fmt, text, headline='', cta='', hashtags
     for other in siblings:
         if other['id'] == exclude_id or other['data']['language'] != language:
             continue
-        ratio = difflib.SequenceMatcher(None, normal, ' '.join(other['data']['text'].casefold().split())).ratio()
+        ratio = similarity(normal,other['data']['text'])
         if ratio >= 0.9:
             flags.append(dict(code='duplicate', severity='review', record_id=other['id'],
                               message=f'Nearly identical to "{other["name"]}" ({ratio:.0%} similar)'))
         elif ratio >= 0.75:
             flags.append(dict(code='similar', severity='review', record_id=other['id'],
                               message=f'Similar to "{other["name"]}" ({ratio:.0%}); make sure the variants test something different'))
-    return dict(flags=flags, characters=len(text), limit=limit, limit_type=spec['limit_type'], format=spec['label'], sms=sms,
+    return dict(flags=flags, characters=len(text), counted_length=length,counting_method=measured['method'],limit=limit, limit_type=spec['limit_type'], format=spec['label'], sms=sms,
                 export_state='review-required' if flags else 'checks-passed', limits_notice=specs['notice'],
                 scope='Deterministic checks only. Tone, accuracy and cultural fit need a human reviewer.')
 
