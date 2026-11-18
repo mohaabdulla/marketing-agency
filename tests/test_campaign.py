@@ -7,9 +7,9 @@ from unittest.mock import patch
 
 from PIL import Image
 from fastapi.testclient import TestClient
-import campaign_generator as engine
+from image import campaign_generator as engine
 from server import app, render_path
-from visual_engine import photo_direction, open_model_image, cloudflare_image, model_setup, LOCAL_MODEL, REALISM_MODEL, local_render_dimensions, photography_conditioning
+from image.visual_engine import photo_direction, open_model_image, cloudflare_image, model_setup, LOCAL_MODEL, REALISM_MODEL, local_render_dimensions, photography_conditioning
 
 
 class CampaignTests(unittest.TestCase):
@@ -68,14 +68,14 @@ class CampaignTests(unittest.TestCase):
             self.assertLessEqual(len(text.split()), 75)
 
     def test_local_model_requires_verified_weights(self):
-        with patch('visual_engine.local_model_ready', return_value=False):
+        with patch('image.visual_engine.local_model_ready', return_value=False):
             self.assertFalse(model_setup(LOCAL_MODEL)['configured'])
-        with patch('visual_engine.local_model_ready', return_value=True):
+        with patch('image.visual_engine.local_model_ready', return_value=True):
             self.assertTrue(model_setup(LOCAL_MODEL)['configured'])
 
     def test_local_model_uses_isolated_runtime(self):
         studio = engine.LexnisCampaignStudio()
-        with patch('campaign_generator.local_image', return_value=(b'local image', True)) as render:
+        with patch('image.campaign_generator.local_image', return_value=(b'local image', True)) as render:
             self.assertEqual(studio._fetch_image_bytes('Blue Tesla', 42, LOCAL_MODEL), (b'local image', True))
             render.assert_called_once()
 
@@ -152,7 +152,7 @@ class CampaignTests(unittest.TestCase):
 
     def test_provider_selection_does_not_fall_through(self):
         studio = engine.LexnisCampaignStudio()
-        with patch('campaign_generator.open_model_image', side_effect=RuntimeError('Unavailable')), patch('campaign_generator.requests.get') as fetch:
+        with patch('image.campaign_generator.open_model_image', side_effect=RuntimeError('Unavailable')), patch('image.campaign_generator.requests.get') as fetch:
             with self.assertRaises(RuntimeError):
                 studio._fetch_image_bytes('photograph', 1, 'hf:Tongyi-MAI/Z-Image-Turbo')
             fetch.assert_not_called()

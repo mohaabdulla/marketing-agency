@@ -26,16 +26,16 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from video_api import router
-from video_storage import DATA, read
-from video_ffmpeg import ffmpeg, probe, binary
-from video_assets import ingest, path_for
-from video_jobs import jobs
-from video_projects import Project, Clip, Canvas, save, migrate_project
-from video_operations import EditOperation, EditPlan, OperationExecutor
-from video_brand_editing import optimize_pacing_and_transitions, polish, checked
-from video_editor import render
-from video_security import VideoRequestLimits
+from video.api import router
+from video.storage import DATA, read
+from video.ffmpeg import ffmpeg, probe, binary
+from video.assets import ingest, path_for
+from video.jobs import jobs
+from video.projects import Project, Clip, Canvas, save, migrate_project
+from video.operations import EditOperation, EditPlan, OperationExecutor
+from video.brand_editing import optimize_pacing_and_transitions, polish, checked
+from video.editor import render
+from video.security import VideoRequestLimits
 
 app = FastAPI()
 app.include_router(router)

@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
-from public_access import _render_destination
+from core.public_access import _render_destination
 
 
 class ChannelCopy(BaseModel):
@@ -96,10 +96,10 @@ async def offload(function,*args,**kwargs):
 
 def prepare_brand(request,resolve_path,stage):
     """Freeze one active kit and logo for every node, including during concurrent edits."""
-    from brand_kits import get_brand,profile_for
+    from brand.kits import get_brand,profile_for
     from fastapi import HTTPException
-    from visual_engine import resolve_brand_theme
-    from campaign_generator import extract_brand_name_from_prompt
+    from image.visual_engine import resolve_brand_theme
+    from image.campaign_generator import extract_brand_name_from_prompt
     profile=dict(request.brand_profile or {})
     if request.brand_profile_json:
         try:parsed=json.loads(request.brand_profile_json)
@@ -131,8 +131,8 @@ def prepare_brand(request,resolve_path,stage):
 
 
 def primary_sources(request,theme,stage,base_renderer,resolve_path):
-    from campaign_generator import render_enterprise_fallback
-    from visual_engine import model_setup
+    from image.campaign_generator import render_enterprise_fallback
+    from image.visual_engine import model_setup
     data={}
     try:
         # An absent cloud token must not bypass an installed local-image worker.
@@ -160,7 +160,7 @@ def primary_sources(request,theme,stage,base_renderer,resolve_path):
 
 
 def motion(path,request,theme,language):
-    from campaign_generator import generate_social_gif
+    from image.campaign_generator import generate_social_gif
     base='primary' if 'welcome' in (request.post_type or '') else 'companion'
     return generate_social_gif(request.prompt,request.post_type or 'general',str(path),base_image=str(path.parent/f'{base}-{language}.jpg'),
                                brand_theme=theme,language=language,motion_fps=30)
@@ -168,7 +168,7 @@ def motion(path,request,theme,language):
 
 def validate_motion(paths):
     from PIL import Image
-    from video_ffmpeg import probe
+    from video.ffmpeg import probe
     for language,items in paths.items():
         meta=probe(items['animation_mp4_url'])
         if (meta['width'],meta['height'])!=(1080,1350) or abs(meta['fps']-30)>.01 or meta['video_codec']!='h264':
@@ -179,8 +179,8 @@ def validate_motion(paths):
 
 
 async def execute_campaign(request,*,origin,published_root,base_renderer,resolve_path,agency_context=None):
-    from campaign_generator import generate_enterprise_copy,generate_companion_image,render_omnichannel_variants
-    from agency_suite import bundle_enterprise_campaign
+    from image.campaign_generator import generate_enterprise_copy,generate_companion_image,render_omnichannel_variants
+    from image.agency_suite import bundle_enterprise_campaign
     if not request.prompt.strip():raise ValueError('A campaign brief is required')
     with RenderTransaction(published_root) as tx:
         frozen,theme,snapshot=await offload(prepare_brand,request,resolve_path,tx.stage)

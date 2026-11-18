@@ -9,7 +9,7 @@ sys.path.insert(0, str(ROOT))
 if __name__ == '__main__':
     from fastapi.testclient import TestClient
     from server import app
-    from visual_engine import REALISM_MODEL
+    from image.visual_engine import REALISM_MODEL
 
     with TestClient(app) as client:
         health = client.get('/api/health').json()

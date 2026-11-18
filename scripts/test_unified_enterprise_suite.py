@@ -29,10 +29,10 @@ from fastapi.testclient import TestClient
 from PIL import Image, ImageDraw
 import numpy as np
 import server
-import campaign_generator as campaign
-import visual_engine as visual
-from agency_suite import DELIVERABLE_NAMES
-from video_ffmpeg import probe
+from image import campaign_generator as campaign
+from image import visual_engine as visual
+from image.agency_suite import DELIVERABLE_NAMES
+from video.ffmpeg import probe
 
 
 class EnterpriseSuite(unittest.TestCase):
@@ -195,7 +195,7 @@ class EnterpriseSuite(unittest.TestCase):
             self.assertEqual(self.client.post('/api/campaign/generate',json=self.payload).status_code,502)
 
     def test_absolute_urls_survive_redaction_but_filesystem_paths_do_not(self):
-        from public_access import _guest, _clean
+        from core.public_access import _guest, _clean
         token=_guest.set(self.workspace)
         try:
             url='http://localhost/renders/public.jpg'
@@ -267,7 +267,7 @@ class EnterpriseSuite(unittest.TestCase):
     def test_transaction_rollback_and_hidden_incomplete_assets(self):
         from agency.enterprise_pipeline import RenderTransaction
         root=self.published_root();before=set(root.iterdir())
-        with self.assertLogs('server',level='ERROR'),patch('agency_suite.bundle_enterprise_campaign',side_effect=OSError('Disk failure')):
+        with self.assertLogs('server',level='ERROR'),patch('image.agency_suite.bundle_enterprise_campaign',side_effect=OSError('Disk failure')):
             stack,_=self.fast_pipeline()
             with stack:
                 response=self.client.post('/api/campaign/generate',json=self.payload)

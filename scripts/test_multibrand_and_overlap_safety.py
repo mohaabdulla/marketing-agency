@@ -21,7 +21,7 @@ import re
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-from visual_engine import (
+from image.visual_engine import (
     ensure_brand_fonts,
     resolve_brand_theme,
     render_agency_card,
@@ -32,7 +32,7 @@ from visual_engine import (
     BrandTheme,
     FONTS_DIR
 )
-from campaign_generator import LexnisCampaignStudio
+from image.campaign_generator import LexnisCampaignStudio
 
 ARTIFACTS_DIR = Path(r"C:\Users\mohamed redha\.gemini\antigravity\brain\8733c859-2c7a-44fb-a3b7-5d0ccfce6a3e")
 OUTPUT_DIR = Path("static/assets")
@@ -406,7 +406,7 @@ def run_verification():
     # TEST 6: Prompt-Only Non-Lexnis Brand Without Uploaded Logo (TabFlow)
     # -------------------------------------------------------------------------
     print("\n[6/6] Verifying Prompt-Only Brand Without Uploaded Logo (TabFlow)...")
-    from campaign_generator import extract_brand_name_from_prompt
+    from image.campaign_generator import extract_brand_name_from_prompt
     tabflow_prompt = "Create a hiring social media post for TabFlow looking for a Senior Machine Learning & Vision Systems Engineer"
     detected_brand = extract_brand_name_from_prompt(tabflow_prompt)
     assert detected_brand == "TabFlow", f"Expected TabFlow, got {detected_brand}"

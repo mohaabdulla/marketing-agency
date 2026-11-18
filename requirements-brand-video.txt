@@ -1,3 +1,0 @@
--r requirements-video-editor.txt
-# Shared PDF parsing. DOCX extraction uses the bounded standard-library ZIP/XML parser.
-pypdf>=6,<7

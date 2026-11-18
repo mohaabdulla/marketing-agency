@@ -2,6 +2,7 @@ import {api,post,esc} from './video-api.js';
 import {storageKey} from './public-session.js';
 import {context} from './app-context.js';
 import {CompanyIntro} from './video-company-intro.js';
+import {fillVoices,fitTimings,previewLine} from './video-narration.js';
 
 const key=()=>storageKey('lexnis.video.brief-wizard');
 export class VideoBriefWizard {
@@ -59,7 +60,9 @@ export class VideoBriefWizard {
           <p><small>Planned scene timing and artwork styles. The finished video appears after rendering.</small></p>
           <p data-timing-status role="status"></p>
         </section><div data-scenes class="vbf-scenes"></div>
-        <div class="vs-pair"><label>Recorded voiceover<select data-audio="voiceover_asset_id"><option value="">No voiceover</option></select></label><label>Licensed music track<select data-audio="music_asset_id"><option value="">No music</option></select></label></div>
+        <label>AI narrator (offline voice on this computer)<select data-narrator><option value="">No narration (subtitles only)</option></select></label>
+        <div class="vs-row"><button type="button" data-fit-narration>Fit scene lengths to the narration</button><span class="vbf-fit" data-fit-status role="status" aria-live="polite"></span></div>
+        <div class="vs-pair"><label>Recorded voiceover (replaces the AI narrator)<select data-audio="voiceover_asset_id"><option value="">No voiceover</option></select></label><label>Licensed music track<select data-audio="music_asset_id"><option value="">No music</option></select></label></div>
         <div class="vs-pair"><label>Voiceover volume<input data-gain="voiceover_volume" type="range" min="0" max="2" step=".05" value="1"></label><label>Music volume<input data-gain="music_volume" type="range" min="0" max="2" step=".05" value=".25"></label></div>
         <button type="button" data-upload>Upload storyboard images or audio</button>
         <p><small>The editable script is not synthesized speech. Select a recorded voiceover to include speech. Scene images are optional; otherwise the renderer uses branded motion graphics.</small></p>
@@ -223,7 +226,9 @@ export class VideoBriefWizard {
     for(const select of this.root.querySelectorAll('[data-audio],[data-scene-image]')){
       const selected=select.value||this.audioDraft?.[select.dataset.audio]||'',isImage=select.hasAttribute('data-scene-image');
       select.replaceChildren(new Option(isImage?'Branded motion artwork':'None',''));
-      for(const asset of this.studio.assets.filter(asset=>asset.kind===(isImage?'image':'audio')))select.add(new Option(asset.name,asset.id));
+      // Scenes take still images or video clips (footage plays muted, in gentle slow motion if slightly short).
+      for(const asset of this.studio.assets.filter(asset=>isImage?['image','video'].includes(asset.kind):asset.kind==='audio'))
+        select.add(new Option(asset.kind==='video'?`${asset.name} (video, ${Math.round(asset.duration||0)} s)`:asset.name,asset.id));
       select.value=selected;
     }
   }
@@ -294,7 +299,9 @@ export class VideoBriefWizard {
         <div class="vs-pair"><label>Duration (seconds)<input data-edit="duration" type="number" min="1" max="60" step=".001" value="${scene.duration}"></label>
         <label>Camera movement<select data-edit="motion">${['zoom-in','zoom-out','pan','still'].map(move=>`<option>${move}</option>`).join('')}</select></label></div>
         <label>Background style<select data-edit="background_style"><option value="brand-gradient">Brand gradient</option><option value="minimal">Minimal</option><option value="geometric">Geometric</option></select></label>
-        <label>Scene image<select data-scene-image><option value="">Branded motion artwork</option></select></label>`;
+        <label>Scene picture or video<select data-scene-image><option value="">Branded motion artwork</option></select></label>
+        <div class="vs-row"><button type="button" data-scene-listen>Listen to narration</button><span class="vbf-fit" data-scene-fit role="status" aria-live="polite"></span></div>`;
+      card.querySelector('[data-scene-listen]').onclick=()=>this.listen(scene,card);
       card.querySelector('[data-edit=motion]').value=scene.motion;
       card.querySelector('[data-edit=background_style]').value=scene.background_style||'brand-gradient';
       const placeholder=card.querySelector('.vbf-placeholder');placeholder.style.background=this.brief.brand.primary_hex;placeholder.style.borderColor=this.brief.brand.secondary_hex;placeholder.textContent='Scene '+(index+1)+' · '+scene.overlay_text;
@@ -310,9 +317,33 @@ export class VideoBriefWizard {
       host.append(card);
     });
     this.labelControls(host);this.refreshAssets();this.brief.scenes.forEach((scene,i)=>host.children[i].querySelector('[data-scene-image]').value=scene.asset_id||'');
-    this.updateTimeline();
+    this.updateTimeline();this.loadVoices(this.brief.request?.language||'en');
+    this.$('[data-fit-narration]').onclick=()=>this.fitToNarration();
   }
-  setBusy(value){if(value)this.stopStoryboard();this.busy=value;this.root.querySelectorAll('input,select,textarea,[data-back],[data-next],[data-plan],[data-render],[data-upload],[data-guideline-upload],[data-guideline-refresh],[data-use-suggestion],[data-assist],[data-play-storyboard]').forEach(el=>el.disabled=value||this.assisting&&el.hasAttribute('data-assist'));this.unlock(!!this.brief);if(this.brief)this.$('[data-render]').disabled=value||!this.timingsValid;}
+  async fitToNarration(){
+    const voice=this.$('[data-narrator]').value,out=this.$('[data-fit-status]'),button=this.$('[data-fit-narration]');
+    const recorded=[...this.root.querySelectorAll('[data-audio]')].find(el=>el.dataset.audio==='voiceover_asset_id')?.value;
+    out.classList.remove('is-warning');
+    if(!this.brief||this.busy)return;
+    if(!voice||recorded){out.textContent='Choose an AI narrator (and no recorded voiceover) to time the scenes to it.';return;}
+    button.disabled=true;out.textContent='Timing each line with the narrator…';
+    try{
+      const fitted=await fitTimings({voice,language:this.brief.request.language,lines:this.brief.scenes.map(scene=>scene.voiceover),
+        durations:this.brief.scenes.map(scene=>scene.duration)});
+      this.brief.scenes.forEach((scene,index)=>{scene.duration=fitted.durations[index];});
+      this.drawScenes();this.persist();this.$('[data-fit-status]').textContent=fitted.note;
+    }catch(error){out.textContent=error.message;out.classList.add('is-warning');}
+    finally{this.$('[data-fit-narration]').disabled=this.busy;}
+  }
+  listen(scene,card){
+    return previewLine({voice:this.$('[data-narrator]').value,text:scene.voiceover,language:this.brief.request.language,duration:scene.duration,
+      output:card.querySelector('[data-scene-fit]'),button:card.querySelector('[data-scene-listen]'),
+      missingVoice:'Choose an AI narrator under the audio settings to hear this line.',isBusy:()=>this.busy});
+  }
+  loadVoices(language){
+    return fillVoices(this.$('[data-narrator]'),language,count=>count?'No narration (subtitles only)':'No narrator voice installed for this language (subtitles only)');
+  }
+  setBusy(value){if(value)this.stopStoryboard();this.busy=value;this.root.querySelectorAll('input,select,textarea,[data-back],[data-next],[data-plan],[data-render],[data-upload],[data-guideline-upload],[data-guideline-refresh],[data-use-suggestion],[data-assist],[data-play-storyboard],[data-fit-narration]').forEach(el=>el.disabled=value||this.assisting&&el.hasAttribute('data-assist'));this.unlock(!!this.brief);if(this.brief)this.$('[data-render]').disabled=value||!this.timingsValid;}
   async plan(){
     if(this.busy||!this.valid(0)||!this.valid(1))return;
     this.setBusy(true);this.notice('Preparing your brand-guided storyboard…');
@@ -328,7 +359,8 @@ export class VideoBriefWizard {
     try{
       const audio=Object.fromEntries([...this.root.querySelectorAll('[data-audio]')].map(el=>[el.dataset.audio,el.value||null]));
       const levels=Object.fromEntries([...this.root.querySelectorAll('[data-gain]')].map(el=>[el.dataset.gain,+el.value]));
-      const job=await post('/render-sequence',{brief_id:this.brief.brief_id,scenes:this.brief.scenes,burn_subtitles:this.$('[data-subtitles]').checked,...audio,...levels});
+      const job=await post('/render-sequence',{brief_id:this.brief.brief_id,scenes:this.brief.scenes,burn_subtitles:this.$('[data-subtitles]').checked,...audio,...levels,
+        narrator_voice:audio.voiceover_asset_id?null:this.$('[data-narrator]').value||null});
       this.watch(job);
     }catch(error){this.notice(error.message);this.setBusy(false);}
   }
@@ -346,8 +378,12 @@ export class VideoBriefWizard {
   }
   showResult(result){
     this.result=result;this.$('[data-preview]').innerHTML=`<video controls playsinline preload="metadata" src="${esc(result.video_url)}" aria-label="Storyboard video preview"></video>`;
-    this.$('[data-exports]').innerHTML=`<a class="vs-button primary" href="${esc(result.mp4_url)}" download>Download MP4</a><a class="vs-button" href="${esc(result.bundle_zip_url)}" download>Download Full Video Kit (.ZIP)</a>`;
-    this.$('[data-progress]').value=100;this.notice(`Video ready · ${result.width}×${result.height} · ${result.fps} fps. Rendered with local motion graphics.`);
+    this.$('[data-exports]').innerHTML=`<a class="vs-button primary" href="${esc(result.mp4_url)}" download>Download MP4</a>`
+      +(result.cover_download_url?`<a class="vs-button" href="${esc(result.cover_download_url)}" download>Download cover image</a>`:'')
+      +`<a class="vs-button" href="${esc(result.bundle_zip_url)}" download>Download Full Video Kit (.ZIP)</a>`;
+    const checks=result.quality?(result.quality.passed?' Automated checks passed.':' '+result.quality.warnings.join(' ')):'';
+    const advice=(result.advice||[]).map(text=>' Suggestion: '+text).join('');
+    this.$('[data-progress]').value=100;this.notice(`Video ready · ${result.width}×${result.height} · ${result.fps} fps.${result.narration?' Narrated by '+result.narration.voice+'.':''}${checks}${advice} Watch it in full before sending it to a client.`);
     this.$('[data-progress-label]').textContent='Render complete.';
   }
 }

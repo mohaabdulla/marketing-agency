@@ -7,7 +7,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from visual_engine import render_lexnis_hiring_card, render_welcome_template_swap
+from image.visual_engine import render_lexnis_hiring_card, render_welcome_template_swap
 
 
 def main():

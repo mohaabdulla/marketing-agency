@@ -8,8 +8,8 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import campaign_generator as campaign
-import visual_engine as visual
+from image import campaign_generator as campaign
+from image import visual_engine as visual
 
 
 class CardPolishTests(unittest.TestCase):

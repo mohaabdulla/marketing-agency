@@ -19,7 +19,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import unittest
 
-from visual_engine import (
+from image.visual_engine import (
     ensure_brand_fonts,
     render_lexnis_logo,
     generate_chevron_field,
@@ -31,7 +31,7 @@ from visual_engine import (
     extract_subject_matte,
     FONTS_DIR
 )
-from campaign_generator import LexnisCampaignStudio
+from image.campaign_generator import LexnisCampaignStudio
 
 
 class TestBrandCompliance(unittest.TestCase):

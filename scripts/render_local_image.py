@@ -17,7 +17,7 @@ def render(request_path):
     print('Checkpoint reader:', reader, flush=True)
     from PIL import Image, ImageStat, ImageOps
     from diffusers import StableDiffusionXLPipeline, StableDiffusionXLImg2ImgPipeline, DPMSolverMultistepScheduler
-    from visual_engine import LOCAL_MODELS, LOCAL_MODEL, REALISM_MODEL, photography_conditioning
+    from image.visual_engine import LOCAL_MODELS, LOCAL_MODEL, REALISM_MODEL, photography_conditioning
 
     request = json.loads(Path(request_path).read_text(encoding='utf-8'))
     started = time.monotonic()

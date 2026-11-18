@@ -7,8 +7,8 @@ from PIL import Image
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
-from visual_engine import composite_template_swap, isolate_logo_mark, load_logo_pil
-from campaign_generator import LexnisCampaignStudio
+from image.visual_engine import composite_template_swap, isolate_logo_mark, load_logo_pil
+from image.campaign_generator import LexnisCampaignStudio
 
 def test_user_scenario():
     uploads_dir = BASE_DIR / "output" / "uploads"

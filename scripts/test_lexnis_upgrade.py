@@ -3,7 +3,7 @@ import numpy as np
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 import re
-from visual_engine import extract_subject_matte, prepare_bidi_text
+from image.visual_engine import extract_subject_matte, prepare_bidi_text
 
 FONTS_DIR = Path("static/fonts")
 

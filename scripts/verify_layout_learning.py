@@ -30,8 +30,8 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from layout_analyzer import TemplateLayoutAnalyzer, TemplateBlueprint, draw_layout_diagnostic_overlay, _compute_iou
-from visual_engine import composite_template_swap, render_reflowed_campaign_visual
+from image.layout_analyzer import TemplateLayoutAnalyzer, TemplateBlueprint, draw_layout_diagnostic_overlay, _compute_iou
+from image.visual_engine import composite_template_swap, render_reflowed_campaign_visual
 
 
 # Ground Truth Calibration Coordinates on 808x1024 Canvas
@@ -74,7 +74,7 @@ def verify_layout_learning(
     print(f" Target Ground Truth:{target_path}")
 
     # 1. Reverse-Engineer Layout Blueprint
-    print("\n[1/6] Reverse-engineering Template Layout Blueprint via layout_analyzer.py...")
+    print("\n[1/6] Reverse-engineering Template Layout Blueprint via image/layout_analyzer.py...")
     analyzer = TemplateLayoutAnalyzer(target_resolution=(808, 1024))
     blueprint = analyzer.analyze(template_path, target_path, use_vlm=False)
 

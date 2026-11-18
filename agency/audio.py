@@ -17,7 +17,7 @@ from .audio_schemas import Subtitles
 
 
 def capabilities():
-    from video_ffmpeg import binary
+    from video.ffmpeg import binary
     directory = Path(os.environ.get('AGENCY_ASR_MODEL_DIR', '')) if os.environ.get('AGENCY_ASR_MODEL_DIR') else None
     installed = bool(directory and all((directory / name).is_file() for name in ('model.bin', 'config.json', 'tokenizer.json')))
     runtime = importlib.util.find_spec('faster_whisper') is not None
@@ -62,7 +62,7 @@ def private_asset(client, path, name, parent, note):
 
 
 def render(client, project_id, task):
-    from video_ffmpeg import ffmpeg, probe, Cancelled as MediaCancelled
+    from video.ffmpeg import ffmpeg, probe, Cancelled as MediaCancelled
     project = service.get(client, project_id, 'audio-projects')
     d = project['data']
     parent, path = source(client, d['asset_id'])
@@ -117,7 +117,7 @@ def captions(data, format):
 
 
 def transcribe(client, asset_id, language, task):
-    from video_ffmpeg import probe, stop_process
+    from video.ffmpeg import probe, stop_process
     if not capabilities()['asr']['available']:
         raise ValueError('Local Whisper runtime and weights must be explicitly installed first')
     item, path = source(client, asset_id)

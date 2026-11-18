@@ -12,13 +12,13 @@ os.environ['VIDEO_DATA_DIR'] = TEMP.name
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw
-from video_assets import ingest, path_for
-from video_engine import Generate, generate, check_generate, promo_timeline, canvas_for
-from video_ffmpeg import ffmpeg
-from video_jobs import Job
-from video_layout import intersection
-from video_measure import frame_at, loudness
-from video_platforms import profile, safe_area
+from video.assets import ingest, path_for
+from video.engine import Generate, generate, check_generate, promo_timeline, canvas_for
+from video.ffmpeg import ffmpeg
+from video.jobs import Job
+from video.layout import intersection
+from video.measure import frame_at, loudness
+from video.platforms import profile, safe_area
 
 
 def still(name='still.png', seed=3, size=(1920, 1080)):
@@ -138,7 +138,7 @@ class CreationTests(unittest.TestCase):
         self.assertEqual(result['qa_report']['counts']['FAIL'], 0)
 
     def test_letter_spaced_text_sits_on_one_baseline(self):
-        from video_captions import CaptionStyle, render_caption_image
+        from video.captions import CaptionStyle, render_caption_image
         image = render_caption_image('Book a demo today', 720, 1280, CaptionStyle(id='cta', name='CTA', tracking=.2, background=None, stroke=None, stroke_width=0))
         alpha = (np.array(image.getchannel('A')) > 128).astype('uint8')
         count, _, stats, _ = cv2.connectedComponentsWithStats(alpha, 8)
@@ -173,8 +173,8 @@ class CreationTests(unittest.TestCase):
         self.assertEqual(len({(c.zoom_start, c.zoom, c.pan) for c in several.clips}), 3)
 
     def test_short_promos_keep_titles_inside_the_requested_duration(self):
-        from video_engine import branded_project, compose_promo
-        from video_editor import primary_layout
+        from video.engine import branded_project, compose_promo
+        from video.editor import primary_layout
         for duration, message in [(1, ''), (3, 'Our company')]:
             request = Generate(mode='image-animation', asset_id=self.image['id'], duration=duration, key_message=message, cta='Contact us')
             check_generate(request)

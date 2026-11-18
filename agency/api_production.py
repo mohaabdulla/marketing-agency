@@ -24,22 +24,24 @@ def validate_video_campaign_context(client_id,campaign_id):
     return dict(client_id=client_id,campaign_id=campaign_id)
 
 
-from video_director import VideoBriefRequest,RenderSequenceRequest
+from video.director import VideoBriefRequest,RenderSequenceRequest
 
 
 @router.post('/clients/{client_id}/campaigns/{campaign_id}/video-brief')
 def campaign_video_brief(client_id: Id,campaign_id: Id,body: VideoBriefRequest):
-    from video_api import video_generate_brief
+    from video.director import generate_video_brief
+    from video.routes.common import guard as video_guard
     validate_video_campaign_context(client_id,campaign_id)
     if body.client_id and (body.client_id!=client_id or body.campaign_id!=campaign_id):
         raise HTTPException(409,'Brief context differs from the selected campaign')
-    return video_generate_brief(body.model_copy(update=dict(client_id=client_id,campaign_id=campaign_id)))
+    return video_guard(generate_video_brief,body.model_copy(update=dict(client_id=client_id,campaign_id=campaign_id)))
 
 
 @router.post('/clients/{client_id}/campaigns/{campaign_id}/video-render',status_code=202)
 def campaign_video_render(client_id: Id,campaign_id: Id,body: RenderSequenceRequest):
-    from video_api import video_render_sequence,guard as video_guard
-    from video_storage import read
+    from video.routes.common import guard as video_guard
+    from video.routes.storyboard import queue_render
+    from video.storage import read
     context=validate_video_campaign_context(client_id,campaign_id)
     if body.brief_id:
         if video_guard(read,'briefs',body.brief_id).get('agency_context')!=context:
@@ -48,7 +50,7 @@ def campaign_video_render(client_id: Id,campaign_id: Id,body: RenderSequenceRequ
         if body.brief.client_id and (body.brief.client_id!=client_id or body.brief.campaign_id!=campaign_id):
             raise HTTPException(409,'Brief context differs from the selected campaign')
         body=body.model_copy(update={'brief':body.brief.model_copy(update=context)})
-    return video_render_sequence(body)
+    return queue_render(body)
 
 
 @router.get('/channel-specs')

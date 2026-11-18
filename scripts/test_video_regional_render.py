@@ -7,20 +7,20 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 TEMP=tempfile.TemporaryDirectory(prefix='lexnis-regional-render-')
 os.environ['VIDEO_DATA_DIR']=TEMP.name
-from video_assets import ingest,path_for,annotate
-from video_editor import render
-from video_projects import Project,Clip,Canvas,ColorPipeline,RegionalGrade
-from video_jobs import Job
-from video_ffmpeg import ffmpeg
-from video_measure import frame_at
-from video_review import set_rubric,RubricRequest,review_record
+from video.assets import ingest,path_for,annotate
+from video.editor import render
+from video.projects import Project,Clip,Canvas,ColorPipeline,RegionalGrade
+from video.jobs import Job
+from video.ffmpeg import ffmpeg
+from video.measure import frame_at
+from video.review import set_rubric,RubricRequest,review_record
 from unittest.mock import patch
 import numpy as np
 
 
 class RealRenderTests(unittest.TestCase):
     def test_graphic_motion_presets_render_and_reveal(self):
-        from video_captions import CaptionStyle,render_caption_image
+        from video.captions import CaptionStyle,render_caption_image
         source=Path(TEMP.name)/'motion-source.mp4'
         ffmpeg(['-f','lavfi','-i','color=c=gray:s=320x240:r=24:d=1.2','-c:v','libx264','-pix_fmt','yuv420p',str(source)])
         asset=ingest(source,source.name)
@@ -61,7 +61,7 @@ class RealRenderTests(unittest.TestCase):
         asset=ingest(source,source.name)
         project=Project(canvas=Canvas(width=320,height=240),clips=[Clip(asset_id=asset['id'],duration=2)],
             color_pipeline=ColorPipeline(source_asset_id=asset['id'],regional=True,subject=RegionalGrade(gamma=1.15,shadows=.08),background=RegionalGrade()))
-        with patch('video_segmentation.cached_mask',return_value=(mask,{'subject_found':True})):
+        with patch('video.segmentation.cached_mask',return_value=(mask,{'subject_found':True})):
             result=render(project,Job('export'),audio=False)
         before=frame_at(path_for(asset['id']),1).astype('float32');after=frame_at(path_for(result['id']),1).astype('float32')
         self.assertGreater(after[90:170,130:190].mean()-before[90:170,130:190].mean(),3)

@@ -1,9 +1,12 @@
 /* Research-driven company introduction: website + web research -> proposal -> approval -> finished video. */
 import {api,post,esc} from './video-api.js';
+import {fillVoices,fitTimings,previewLine} from './video-narration.js';
+import {frameFit,orientationFor,stockPanel} from './video-footage.js';
 import {storageKey} from './public-session.js';
 
 const key=()=>storageKey('lexnis.video.company-intro');
 const IMAGE=(id,index)=>`/api/video/company-intro/${encodeURIComponent(id)}/images/${index}`;
+const VIDEO=(id,index)=>`/api/video/company-intro/${encodeURIComponent(id)}/videos/${index}`;
 
 export class CompanyIntro {
   constructor(wizard,host){
@@ -34,19 +37,24 @@ export class CompanyIntro {
         <label>What the video will show<textarea data-ci-treatment maxlength="2000"></textarea></label>
         <div data-ci-scenes class="vbf-scenes"></div>
         <p data-ci-total role="status"></p>
+        <div class="vs-row"><button type="button" data-ci-fit>Fit scene lengths to the narration</button><span class="vbf-fit" data-ci-fit-status role="status" aria-live="polite"></span></div>
+        <label>AI narrator (offline voice on this computer)<select data-ci-narrator><option value="">No narration (subtitles only)</option></select></label>
+        <p class="vs-note" data-ci-narrator-note></p>
         <div class="vs-pair"><label>Licensed music track (optional)<select data-ci-music><option value="">No music</option></select></label>
-          <label>Recorded voiceover (optional)<select data-ci-voiceover><option value="">No voiceover</option></select></label></div>
+          <label>Recorded voiceover (optional, replaces the AI narrator)<select data-ci-voiceover><option value="">No voiceover</option></select></label></div>
         <label class="vbf-toggle"><input type="checkbox" data-ci-subtitles checked> Burn the narration into the video as subtitles</label>
         <div class="vs-row"><button type="button" class="primary" data-ci-approve>Approve &amp; create video</button><button type="button" data-ci-again>Research again</button></div>
       </section>
       <section data-ci-result hidden><h4>Your company video</h4>
         <progress data-ci-render-progress max="100" value="0" aria-label="Video render progress"></progress><p data-ci-render-status role="status" aria-live="polite"></p>
-        <div data-ci-preview class="vs-preview" hidden></div><div data-ci-exports class="vs-row"></div></section>`;
+        <div data-ci-preview class="vs-preview" hidden></div><div data-ci-quality></div><div data-ci-exports class="vs-row"></div></section>`;
     this.$=s=>host.querySelector(s);
     wizard.labelControls(host);
     this.$('[data-ci-research]').onclick=()=>this.research();
     this.$('[data-ci-again]').onclick=()=>this.research();
     this.$('[data-ci-approve]').onclick=()=>this.approve();
+    this.$('[data-ci-narrator]').onchange=this.$('[data-ci-voiceover]').onchange=()=>{if(this.proposal)this.updateTotal();};
+    this.$('[data-ci-fit]').onclick=()=>this.fitToNarration();
     this.$('[data-ci-treatment]').oninput=()=>{if(this.proposal){this.proposal.treatment=this.$('[data-ci-treatment]').value;this.persist();}};
     host.addEventListener('change',event=>{if(event.target.dataset.ci)this.persist();});
     wizard.root.querySelector('[data-field=brand_id]').addEventListener('change',()=>this.brandHint());
@@ -119,7 +127,7 @@ export class CompanyIntro {
   }
   show(proposal){
     this.proposal=proposal;const ar=proposal.request.language==='ar',dir=ar?'rtl':'ltr';
-    this.$('[data-ci-proposal]').hidden=false;
+    this.$('[data-ci-proposal]').hidden=false;this.loadVoices(proposal.request.language);
     const profile=proposal.profile,rows=[['Company',profile.company_name],['In one line',profile.one_line],['Who they are',profile.who_we_are],
       ['What they do',(profile.what_we_do||[]).join(' · ')],['Who they help',profile.who_we_help],['Why choose them',(profile.why_us||[]).join(' · ')]];
     const list=this.$('[data-ci-profile]');list.replaceChildren();
@@ -142,28 +150,64 @@ export class CompanyIntro {
   }
   drawScenes(){
     const proposal=this.proposal,host=this.$('[data-ci-scenes]'),dir=proposal.request.language==='ar'?'rtl':'ltr';host.replaceChildren();
+    const videos=proposal.videos||[],ratio=proposal.request.platform_target||'16:9';
     proposal.scenes.forEach((scene,index)=>{
       const card=document.createElement('article');card.className='vbf-scene';
-      const choices=[`<option value="">Brand motion graphics</option>`,...proposal.images.map(image=>`<option value="${image.index}">Website photo ${image.index+1}</option>`)].join('');
+      const soft=entry=>entry.low_resolution?' · low resolution':'';
+      const choices=[`<option value="">Brand motion graphics</option>`,
+        videos.length?`<optgroup label="Company website videos">${videos.map(v=>`<option value="video:${v.index}">Website video ${v.index+1} · ${Math.round(v.duration)} s${soft(v)}</option>`).join('')}</optgroup>`:'',
+        proposal.images.length?`<optgroup label="Company website photos">${proposal.images.map(i=>`<option value="image:${i.index}">Website photo ${i.index+1}${soft(i)}</option>`).join('')}</optgroup>`:'',
+        `<option value="stock" data-stock-option hidden>Stock video</option>`].join('');
       card.innerHTML=`<h5>Scene ${index+1} · ${esc(scene.section)}</h5><div class="vbf-ci-visual"></div>
-        <label>Picture<select data-scene-field="image">${choices}</select></label>
+        <label>Visual<select data-scene-visual>${choices}</select></label>
+        <details class="vbf-stock" data-stock></details>
         <label>On-screen headline<textarea data-scene-field="overlay_text" maxlength="180" dir="${dir}"></textarea></label>
         <label>Narration / subtitles<textarea data-scene-field="voiceover" maxlength="450" dir="${dir}"></textarea></label>
         <label>Visual direction<textarea data-scene-field="visual_prompt" maxlength="1000"></textarea></label>
-        <label>Duration (seconds)<input data-scene-field="duration" type="number" min="2" max="30" step="any"></label>`;
+        <label>Duration (seconds)<input data-scene-field="duration" type="number" min="2" max="30" step="any"></label>
+        <div class="vs-row"><button type="button" data-scene-listen>Listen to narration</button><span class="vbf-fit" data-scene-fit role="status" aria-live="polite"></span></div>`;
+      card.querySelector('[data-scene-listen]').onclick=()=>this.listen(scene,card);
       for(const field of ['overlay_text','voiceover','visual_prompt','duration'])card.querySelector(`[data-scene-field=${field}]`).value=scene[field];
-      card.querySelector('[data-scene-field=image]').value=scene.image??'';
-      const visual=card.querySelector('.vbf-ci-visual');
+      const visual=card.querySelector('.vbf-ci-visual'),select=card.querySelector('[data-scene-visual]'),stockOption=select.querySelector('[data-stock-option]');
+      visual.style.aspectRatio=ratio.replace(':',' / ');
+      const sync=()=>{
+        stockOption.hidden=!scene.stock;
+        if(scene.stock)stockOption.textContent=`Stock video · ${scene.stock.provider_label} · ${scene.stock.author||'unnamed creator'}`;
+        select.value=scene.video!=null?`video:${scene.video}`:scene.image!=null?`image:${scene.image}`:scene.stock?'stock':'';
+      };
       const paint=()=>{
         visual.replaceChildren();
-        if(scene.image!==null&&scene.image!==undefined){const img=document.createElement('img');img.src=IMAGE(proposal.proposal_id,scene.image);img.alt=`Website photo ${scene.image+1} for scene ${index+1}`;img.loading='lazy';visual.append(img);}
+        if(scene.video!=null){
+          const video=document.createElement('video');video.src=VIDEO(proposal.proposal_id,scene.video);video.poster=VIDEO(proposal.proposal_id,scene.video)+'/poster';
+          video.muted=true;video.loop=true;video.autoplay=true;video.playsInline=true;video.setAttribute('aria-label',`Website video ${scene.video+1} for scene ${index+1}`);visual.append(video);
+        }else if(scene.stock){
+          if(scene.stock.preview_url){const img=document.createElement('img');img.src=scene.stock.preview_url;img.alt=`${scene.stock.provider_label} clip by ${scene.stock.author||'an unnamed creator'}`;visual.append(img);}
+          const badge=document.createElement('em');badge.textContent=`${scene.stock.provider_label} · ${scene.stock.author||'unnamed creator'} · ${scene.stock.duration} s`;visual.append(badge);
+        }else if(scene.image!=null){
+          const entry=proposal.images.find(i=>i.index===scene.image)||{};
+          const img=document.createElement('img');img.src=IMAGE(proposal.proposal_id,scene.image);img.alt=`Website photo ${scene.image+1} for scene ${index+1}`;img.loading='lazy';
+          // Shown the way the video will frame it: whole on a blurred fill rather than cropped or blown up.
+          if(frameFit(entry.width,entry.height,ratio,proposal.request.resolution)==='contain'){img.style.objectFit='contain';visual.style.backgroundImage=`url("${img.src}")`;visual.classList.add('is-filled');}
+          else{visual.style.backgroundImage='';visual.classList.remove('is-filled');}
+          visual.append(img);
+        }
+        if(scene.image==null){visual.style.backgroundImage='';visual.classList.remove('is-filled');}
         const caption=document.createElement('span');caption.textContent=scene.overlay_text;caption.dir='auto';visual.append(caption);
       };
-      paint();
+      sync();paint();
+      select.onchange=()=>{
+        const [kind,value]=select.value.split(':');
+        scene.image=kind==='image'?+value:null;scene.video=kind==='video'?+value:null;
+        if(kind!=='stock')scene.stock=null;
+        sync();paint();this.persist();
+      };
+      stockPanel(card.querySelector('[data-stock]'),{query:scene.stock_query||'',orientation:orientationFor(ratio),minSeconds:()=>(+scene.duration||0)*.75,
+        choose:item=>{scene.stock={provider:item.provider,id:item.id,provider_label:item.provider_label,author:item.author,preview_url:item.preview_url,duration:item.duration};
+          scene.image=null;scene.video=null;sync();paint();this.persist();}});
       card.querySelectorAll('[data-scene-field]').forEach(input=>input.oninput=input.onchange=()=>{
         const field=input.dataset.sceneField;
-        scene[field]=field==='duration'?+input.value:field==='image'?(input.value===''?null:+input.value):input.value;
-        if(field==='image'||field==='overlay_text')paint();
+        scene[field]=field==='duration'?+input.value:input.value;
+        if(field==='overlay_text')paint();
         this.updateTotal();this.persist();
       });
       host.append(card);
@@ -172,10 +216,37 @@ export class CompanyIntro {
   }
   updateTotal(){
     const total=this.proposal.scenes.reduce((sum,scene)=>sum+(+scene.duration||0),0);
-    const long=this.proposal.scenes.findIndex(scene=>scene.voiceover.length>(+scene.duration||0)*17);
+    // ~15 characters per second is a natural narration pace; the narrator may speed up by at most 30%.
+    const narrated=!!this.$('[data-ci-narrator]').value&&!this.$('[data-ci-voiceover]').value;
+    const long=this.proposal.scenes.findIndex(scene=>scene.voiceover.length>Math.max(0,(+scene.duration||0)-.45)*(narrated?19:17));
     this.$('[data-ci-total]').textContent=`Total length: ${total.toFixed(1)} seconds.`+(total<6||total>60?' Adjust scene durations to a total between 6 and 60 seconds.':'')
       +(long>=0?` Scene ${long+1} has more narration than viewers can comfortably read in its duration; shorten it or give it more time.`:'');
     this.$('[data-ci-approve]').disabled=this.working||total<6||total>60;
+  }
+  async fitToNarration(){
+    const voice=this.$('[data-ci-narrator]').value,out=this.$('[data-ci-fit-status]'),button=this.$('[data-ci-fit]');
+    out.classList.remove('is-warning');
+    if(!this.proposal)return;
+    if(!voice||this.$('[data-ci-voiceover]').value){out.textContent='Choose an AI narrator (and no recorded voiceover) to time the scenes to it.';return;}
+    button.disabled=true;out.textContent='Timing each line with the narrator…';
+    try{
+      const fitted=await fitTimings({voice,language:this.proposal.request.language,lines:this.proposal.scenes.map(scene=>scene.voiceover),
+        durations:this.proposal.scenes.map(scene=>scene.duration)});
+      this.proposal.scenes.forEach((scene,index)=>{scene.duration=fitted.durations[index];});
+      this.drawScenes();this.persist();out.textContent=fitted.note;
+    }catch(error){out.textContent=error.message;out.classList.add('is-warning');}
+    finally{button.disabled=this.working;}
+  }
+  listen(scene,card){
+    return previewLine({voice:this.$('[data-ci-narrator]').value,text:scene.voiceover,language:this.proposal.request.language,duration:scene.duration,
+      output:card.querySelector('[data-scene-fit]'),button:card.querySelector('[data-scene-listen]'),
+      missingVoice:'Choose an AI narrator above to hear this line.',isBusy:()=>this.working});
+  }
+  async loadVoices(language){
+    const voices=await fillVoices(this.$('[data-ci-narrator]'),language,()=>'No narration (subtitles only)');
+    const name=language==='ar'?'Arabic':'English';
+    this.$('[data-ci-narrator-note]').textContent=voices.length?'The narrator reads each scene in time with its subtitles. Listen to the result before sending it to a client.'
+      :`No ${name} narrator voice is installed on this computer, so the video will use subtitles only. Install a Piper ${name} voice (set PIPER_BIN and PIPER_VOICES) or attach a recorded voiceover.`;
   }
   refreshAudio(){
     const audio=this.studio.assets?.filter(asset=>asset.kind==='audio')||[];
@@ -191,8 +262,10 @@ export class CompanyIntro {
     try{
       const music=this.$('[data-ci-music]').value||null,voiceover=this.$('[data-ci-voiceover]').value||null;
       const response=await post(`/company-intro/${this.proposal.proposal_id}/approve`,{treatment:this.$('[data-ci-treatment]').value,
-        scenes:this.proposal.scenes.map(({section,overlay_text,voiceover,visual_prompt,duration,motion,background_style,image})=>({section,overlay_text,voiceover,visual_prompt,duration:+duration,motion,background_style,image:image??null})),
-        burn_subtitles:this.$('[data-ci-subtitles]').checked,music_asset_id:music,voiceover_asset_id:voiceover,music_volume:voiceover&&music?.18:null});
+        scenes:this.proposal.scenes.map(({section,overlay_text,voiceover,visual_prompt,duration,motion,background_style,image,video,stock})=>({section,overlay_text,voiceover,
+          visual_prompt,duration:+duration,motion,background_style,image:image??null,video:video??null,stock:stock?{provider:stock.provider,id:stock.id}:null})),
+        burn_subtitles:this.$('[data-ci-subtitles]').checked,music_asset_id:music,voiceover_asset_id:voiceover,
+        narrator_voice:voiceover?null:this.$('[data-ci-narrator]').value||null});
       this.status('Approved. Rendering your company video…');this.watchRender(response.job);
     }catch(error){this.status(error.message);this.busy(false);}
   }
@@ -215,6 +288,15 @@ export class CompanyIntro {
     this.$('[data-ci-render-status]').textContent=`Rendered ${result.width}×${result.height} at ${result.fps} fps, ${(+result.duration).toFixed(1)} seconds.`;
     const preview=this.$('[data-ci-preview]');preview.hidden=false;
     preview.innerHTML=`<video controls playsinline preload="metadata" src="${esc(result.video_url)}" aria-label="Company introduction video"></video>`;
-    this.$('[data-ci-exports]').innerHTML=`<a class="vs-button primary" href="${esc(result.mp4_url)}" download>Download MP4</a><a class="vs-button" href="${esc(result.bundle_zip_url)}" download>Download client kit (.ZIP) with script, subtitles &amp; sources</a>`;
+    const quality=this.$('[data-ci-quality]');quality.replaceChildren();
+    const lines=[...(result.quality?.warnings||[])];
+    if(result.narration)lines.unshift(`Narrated by ${result.narration.voice}.`);
+    if(result.captions?.cues)lines.push(`${result.captions.cues} subtitles timed to the ${result.narration?'narrator':'scenes'}, placed for ${result.captions.platform?.label||'the platform'}.`);
+    if(result.quality)lines.push(result.quality.passed?'Automated checks passed. '+result.quality.notice:result.quality.notice);
+    for(const text of result.advice||[])lines.push('Suggestion: '+text);
+    for(const text of lines){const p=document.createElement('p');p.className='vs-note';p.textContent=text;quality.append(p);}
+    this.$('[data-ci-exports]').innerHTML=`<a class="vs-button primary" href="${esc(result.mp4_url)}" download>Download MP4</a>`
+      +(result.cover_download_url?`<a class="vs-button" href="${esc(result.cover_download_url)}" download>Download cover image</a>`:'')
+      +`<a class="vs-button" href="${esc(result.bundle_zip_url)}" download>Download client kit (.ZIP) with script, subtitles &amp; sources</a>`;
   }
 }

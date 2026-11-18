@@ -26,13 +26,13 @@ if BROWSER:sys.argv.remove('--browser')
 from fastapi.testclient import TestClient
 from PIL import Image
 import server
-import campaign_generator
-from video_director import VideoBriefRequest,StoryboardScene,synthesize_storyboard
-from video_engine import build_sequence_project
-from video_ffmpeg import ffmpeg,probe
-from video_storage import read
-from video_assets import path_for
-from public_access import _guest
+from image import campaign_generator
+from video.director import VideoBriefRequest,StoryboardScene,synthesize_storyboard
+from video.sequence import build_sequence_project
+from video.ffmpeg import ffmpeg,probe
+from video.storage import read
+from video.assets import path_for
+from core.public_access import _guest
 
 
 class VideoBriefWorkflow(unittest.TestCase):
@@ -63,7 +63,7 @@ class VideoBriefWorkflow(unittest.TestCase):
         assert response.status_code==200,response.text
         cls.audio=response.json()['id']
         def tracked(args,*a,**kw):cls.commands.append(list(args));return ffmpeg(args,*a,**kw)
-        with patch('video_editor.ffmpeg',side_effect=tracked):
+        with patch('video.editor.ffmpeg',side_effect=tracked):
             for burn in (True,False):
                 response=cls.client.post('/api/video/render-sequence',json=dict(brief_id=cls.brief['brief_id'],burn_subtitles=burn,
                     voiceover_asset_id=cls.audio,music_asset_id=cls.audio))
@@ -123,9 +123,9 @@ class VideoBriefWorkflow(unittest.TestCase):
         self.assertEqual(self.client.post('/api/video/generate-brief',json={**self.payload,'campaign_goal':'Service Explainer'}).status_code,422)
 
     def test_compiled_edited_scenes_and_distinct_background_artwork(self):
-        from video_engine import prepare_sequence,sequence_backdrop
-        from video_director import RenderSequenceRequest
-        from video_projects import Canvas
+        from video.sequence import prepare_sequence,sequence_backdrop
+        from video.director import RenderSequenceRequest
+        from video.projects import Canvas
         import hashlib
         scenes=json.loads(json.dumps(self.brief['scenes']))
         scenes[0].update(duration=2.5,overlay_text=self.brief['hook_variations'][1],background_style='minimal')
@@ -145,7 +145,7 @@ class VideoBriefWorkflow(unittest.TestCase):
         self.assertEqual(len(set(hashes)),3)
 
     def test_agency_campaign_production_routes_enforce_context(self):
-        import video_api
+        from video.jobs import jobs
         client=self.client.post('/api/agency/clients',json={'name':'Video production owner'}).json()
         prefix='/api/agency/clients/'+client['id']
         campaigns=[]
@@ -156,7 +156,7 @@ class VideoBriefWorkflow(unittest.TestCase):
         response=self.client.post(base+'/video-brief',json=self.payload)
         self.assertEqual(response.status_code,200,response.text)
         brief=response.json();self.assertEqual(brief['agency_context'],dict(client_id=client['id'],campaign_id=campaigns[0]))
-        with patch.object(video_api.jobs,'submit',return_value=dict(id='0'*32,state='queued',kind='storyboard-sequence')):
+        with patch.object(jobs,'submit',return_value=dict(id='0'*32,state='queued',kind='storyboard-sequence')):
             response=self.client.post(base+'/video-render',json=dict(brief_id=brief['brief_id']))
         self.assertEqual(response.status_code,202,response.text)
         self.assertEqual(self.client.post(prefix+'/campaigns/'+campaigns[1]+'/video-render',json=dict(brief_id=brief['brief_id'])).status_code,409)
@@ -166,7 +166,7 @@ class VideoBriefWorkflow(unittest.TestCase):
         updated={**self.brand,'font_preferences_ar':['Almarai','Cairo','Arial']}
         self.assertEqual(self.client.post('/api/brands',json=updated).status_code,200)
         try:
-            with patch('video_fonts.path',side_effect=lambda name:'/registered/Cairo.ttf' if name=='Cairo' else None):
+            with patch('video.fonts.path',side_effect=lambda name:'/registered/Cairo.ttf' if name=='Cairo' else None):
                 result=self.client.post('/api/video/generate-brief',json=self.payload)
             self.assertEqual(result.status_code,200,result.text)
             self.assertEqual(result.json()['timeline']['typography']['font_family'],'Cairo')
@@ -231,18 +231,19 @@ class VideoBriefWorkflow(unittest.TestCase):
         self.assertEqual(self.other.get(self.renders[0]['bundle_zip_url']).status_code,404)
 
     def test_inline_render_brief_and_missing_tools_checked_before_queue(self):
-        import video_api
-        with patch.object(video_api.jobs,'submit',return_value=dict(id='0'*32,state='queued',kind='storyboard-sequence')) as submit:
+        from video.jobs import jobs
+        from video.routes import common as video_routes
+        with patch.object(jobs,'submit',return_value=dict(id='0'*32,state='queued',kind='storyboard-sequence')) as submit:
             body={**self.payload,'burn_subtitles':False};body['prompt']=body.pop('core_message')
             response=self.client.post('/api/video/render-sequence',json=body)
             self.assertEqual(response.status_code,202,response.text);submit.assert_called_once()
-        with patch.object(video_api,'binary',return_value=None),patch.object(video_api.jobs,'submit') as submit:
+        with patch.object(video_routes,'binary',return_value=None),patch.object(jobs,'submit') as submit:
             response=self.client.post('/api/video/render-sequence',json=dict(brief_id=self.brief['brief_id']))
             self.assertEqual(response.status_code,503);submit.assert_not_called()
 
     def test_all_formats_pacing_cuts_and_frozen_brand_snapshot(self):
         from types import SimpleNamespace
-        from video_director import RenderSequenceRequest
+        from video.director import RenderSequenceRequest
         token=_guest.set(self.workspace)
         try:
             for ratio,size in [('9:16',(720,1280)),('16:9',(1280,720)),('1:1',(720,720))]:

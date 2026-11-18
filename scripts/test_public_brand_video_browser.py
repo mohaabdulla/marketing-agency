@@ -19,7 +19,7 @@ def main():
         tmp=Path(tmp)
         os.environ['VIDEO_DATA_DIR']=str(tmp/'video-tools-work')
         sys.path.insert(0,str(ROOT))
-        from video_ffmpeg import ffmpeg
+        from video.ffmpeg import ffmpeg
         source=tmp/'original.mp4'
         ffmpeg(['-f','lavfi','-i','color=c=0x223344:s=320x240:d=3:r=24','-c:v','libx264','-pix_fmt','yuv420p',str(source)],timeout=30)
         guide=tmp/'brand.md';guide.write_text('Brand: Noor Solar\nPrimary color: #ffffff\nFonts: Arial\nCTA: Book a demo\nRequired disclosure: Sponsored\nAnimation: smooth and subtle\n',encoding='utf-8')

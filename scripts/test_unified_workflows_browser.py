@@ -97,8 +97,9 @@ def main():
                     with Image.open(gif.value.path()) as animation:assert animation.is_animated and animation.info['loop']==0
                     print('PASS: real Image/GIF generation, assistant handoff, downloads and step navigation',flush=True)
                     # Video Generation: the shared upload is visible before opening the editor.
-                    page.get_by_role('button',name='Video Generator',exact=True).click();page.locator('#vg-mode').select_option('image-animation')
-                    page.locator('#vbf-advanced').evaluate('el=>el.open=true')
+                    page.get_by_role('button',name='Video Generator',exact=True).click()
+                    # Individual clips and image animation sit in the brief wizard's collapsed "Advanced" section.
+                    page.locator('#vbf-advanced').evaluate('el=>el.open=true');page.locator('#vg-mode').select_option('image-animation')
                     panel=page.locator('#vg-brand-guidelines');panel.locator('[data-file]').set_input_files(str(invalid))
                     page.wait_for_function("()=>document.querySelector('#vg-brand-guidelines [data-status]').textContent!=='Working…'&&document.querySelector('#vg-brand-guidelines [data-status]').textContent!=='Ready.'")
                     panel.locator('[data-file]').set_input_files(str(guide));panel.locator('[data-confirm]').wait_for();panel.locator('[data-confirm]').click()
@@ -143,6 +144,7 @@ def main():
                     with zipfile.ZipFile(archive.value.path()) as bundle:assert bundle.namelist()
                     page.get_by_role('button',name='Video Generator',exact=True).click();page.locator('#vs-tab-generate').click();assert page.locator('#vg-prompt').input_value()==accepted
                     page.reload(wait_until='domcontentloaded');page.get_by_role('button',name='Video Generator',exact=True).click();page.locator('#vs-tab-generate').click()
+                    page.locator('#vbf-advanced').evaluate('el=>el.open=true')   # collapsed again after a reload
                     assert page.locator('#vg-prompt').input_value()==accepted
                     page.wait_for_function("()=>document.querySelector('#vg-model-info').textContent.includes('Deterministic image animation')")
                     page.wait_for_function("()=>document.querySelector('#vg-brand-guidelines [data-associated]').textContent.includes('Selected for generation')")

@@ -20,15 +20,15 @@ os.environ['VIDEO_DATA_DIR']=TEMP.name
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from PIL import Image
-from video_api import router
-from video_storage import DATA, MAX_UPLOAD, read
-from video_ffmpeg import ffmpeg, probe, binary
-from video_assets import ingest, path_for
-from video_jobs import jobs
-from video_engine import Generate, generate
-from video_projects import Project, Clip, Canvas
-from video_editor import render
-from video_security import VideoRequestLimits
+from video.api import router
+from video.storage import DATA, MAX_UPLOAD, read
+from video.ffmpeg import ffmpeg, probe, binary
+from video.assets import ingest, path_for
+from video.jobs import jobs
+from video.engine import Generate, generate
+from video.projects import Project, Clip, Canvas
+from video.editor import render
+from video.security import VideoRequestLimits
 
 app=FastAPI();app.include_router(router)
 app.add_middleware(VideoRequestLimits)
@@ -74,7 +74,7 @@ class VideoStudioTests(unittest.TestCase):
                 self.assertEqual(self.client.post('/api/video/upload',files={'file':(name,data)}).status_code,400)
         self.assertEqual(self.client.get('/api/video/assets',headers={'Origin':'https://evil.example'}).status_code,403)
         self.assertEqual(self.client.get('/api/video/assets',headers={'Origin':'http://testserver'}).status_code,200)
-        with patch('video_api.MAX_UPLOAD',10):
+        with patch('video.routes.media.MAX_UPLOAD',10):
             self.assertEqual(self.client.post('/api/video/upload',files={'file':('large.png',b'x'*11)}).status_code,413)
         self.assertFalse(list((DATA/'work').glob('tmp*.png')))
 
@@ -89,7 +89,7 @@ class VideoStudioTests(unittest.TestCase):
 
     def test_direct_campaign_import_preserves_original(self):
         import hashlib
-        from video_storage import uid
+        from video.storage import uid
         source=ROOT/'output/renders'/('video-import-test-'+uid()+'.png')
         source.parent.mkdir(parents=True,exist_ok=True)
         Image.new('RGB',(160,100),'#123456').save(source)
@@ -104,7 +104,7 @@ class VideoStudioTests(unittest.TestCase):
             source.unlink(missing_ok=True)
 
     def test_request_limits_before_multipart_parser(self):
-        with patch('video_security.MAX_UPLOAD',10):
+        with patch('video.security.MAX_UPLOAD',10):
             # The middleware's configured limit includes up to one MB of multipart headers.
             response=self.client.post('/api/video/upload',content=b'',headers={'Content-Length':str(2*1024**2)})
             self.assertEqual(response.status_code,413)
@@ -160,7 +160,7 @@ class VideoStudioTests(unittest.TestCase):
     def test_model_gates_and_adapters(self):
         # A developer installing real weights must not turn this rejection test into real inference.
         unavailable=dict(id='cogvideox-2b',modes=['text-to-video'],available=False,reasons=['Test model unavailable'])
-        with patch('video_engine.statuses',return_value=[unavailable]):
+        with patch('video.engine.statuses',return_value=[unavailable]):
             self.assertEqual(self.client.post('/api/video/generate',json={'prompt':'A robot waves','model':'cogvideox-2b'}).status_code,400)
             self.assertEqual(self.client.post('/api/video/generate',json={'prompt':'A robot waves','mode':'image-to-video','model':'cogvideox-2b','asset_id':self.picture['id']}).status_code,400)
         spec=importlib.util.spec_from_file_location('worker',ROOT/'scripts/render_local_video.py');worker=importlib.util.module_from_spec(spec);spec.loader.exec_module(worker)
@@ -178,8 +178,8 @@ class VideoStudioTests(unittest.TestCase):
 
     def test_ai_orchestration_with_mock_worker_and_real_output_validation(self):
         import shutil
-        from video_jobs import Job
-        from video_models import MODELS
+        from video.jobs import Job
+        from video.models import MODELS
         native=DATA/'work/mock-native.mp4'
         ffmpeg(['-f','lavfi','-i','testsrc2=size=720x480:rate=8','-frames:v','49','-c:v','libx264','-pix_fmt','yuv420p',str(native)])
         cache=DATA/'work/mock-cache';(cache/'cogvideox-2b').mkdir(parents=True)
@@ -202,12 +202,12 @@ class VideoStudioTests(unittest.TestCase):
             return Process()
         model=dict(id='cogvideox-2b',**MODELS['cogvideox-2b'],available=True,reasons=[])
         job=Job('mock-ai-contract')
-        with patch('video_engine.statuses',return_value=[model]),patch('video_models.hardware',return_value={'gpu':{'free_gb':8},'ram_gb':15.7}),\
-             patch('video_engine.CACHE',cache),patch('video_engine.spawn_worker',side_effect=fake_spawn),\
-             patch('video_engine.gpu_slot',return_value=nullcontext()),\
+        with patch('video.engine.statuses',return_value=[model]),patch('video.models.hardware',return_value={'gpu':{'free_gb':8},'ram_gb':15.7}),\
+             patch('video.engine.CACHE',cache),patch('video.engine.spawn_worker',side_effect=fake_spawn),\
+             patch('video.engine.gpu_slot',return_value=nullcontext()),\
              patch.object(job,'update',wraps=job.update) as updates:
             result=generate(Generate(prompt='A robot waves',quality='draft'),job)
-            with patch('video_engine.probe',return_value={'width':1,'height':1,'duration':6}):
+            with patch('video.engine.probe',return_value={'width':1,'height':1,'duration':6}):
                 with self.assertRaisesRegex(ValueError,'expected native'):
                     generate(Generate(prompt='A robot waves'),Job('bad-native-contract'))
         self.assertEqual(result['generation_type'],'text-to-video')
@@ -218,11 +218,11 @@ class VideoStudioTests(unittest.TestCase):
         self.assertFalse(list((DATA/'work').glob(job.id+'-*')))
 
     def test_busy_gpu_waits_and_can_be_cancelled(self):
-        from gpu_resources import gpu_slot
-        from video_ffmpeg import Cancelled
+        from core.gpu_resources import gpu_slot
+        from video.ffmpeg import Cancelled
         lock=DATA/'work/contended-gpu.lock'
         ready=DATA/'work/gpu-owner-ready'
-        code="from pathlib import Path;import sys;from gpu_resources import gpu_slot\nwith gpu_slot(lock_path=sys.argv[1]):\n Path(sys.argv[2]).write_text('ready')\n sys.stdin.read(1)"
+        code="from pathlib import Path;import sys;from core.gpu_resources import gpu_slot\nwith gpu_slot(lock_path=sys.argv[1]):\n Path(sys.argv[2]).write_text('ready')\n sys.stdin.read(1)"
         process=subprocess.Popen([sys.executable,'-c',code,str(lock),str(ready)],cwd=ROOT,stdin=subprocess.PIPE,
             creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         try:

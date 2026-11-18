@@ -7,8 +7,8 @@ from PIL import Image
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
-from visual_engine import composite_template_swap
-from campaign_generator import LexnisCampaignStudio, detect_featured_person
+from image.visual_engine import composite_template_swap
+from image.campaign_generator import LexnisCampaignStudio, detect_featured_person
 
 def test_hiring_post_type():
     print("Testing 'We\\'re Hiring' post type adaptation...")

@@ -64,7 +64,7 @@ class UnifiedTests(unittest.TestCase):
             time.sleep(.1)
         self.assertEqual(state['state'],'completed',state)
         output=Path(TEMP.name)/'setup-export.mp4';output.write_bytes(self.a.get('/api/video/download/'+state['result']['id']).content)
-        from video_ffmpeg import ffmpeg
+        from video.ffmpeg import ffmpeg
         frame=Path(TEMP.name)/'setup-frame.png'
         ffmpeg(['-i',str(output),'-ss','0.5','-frames:v','1',str(frame)],timeout=30)
         with Image.open(frame).convert('RGB') as image:

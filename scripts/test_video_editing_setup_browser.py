@@ -18,7 +18,7 @@ os.environ['PW_TEST_SCREENSHOT_NO_FONTS_READY']='1'
 def main():
     with tempfile.TemporaryDirectory(prefix='lexnis-editing-setup-') as folder:
         tmp=Path(folder);os.environ['VIDEO_DATA_DIR']=str(tmp/'tools');sys.path.insert(0,str(ROOT))
-        from video_ffmpeg import ffmpeg
+        from video.ffmpeg import ffmpeg
         source=tmp/'original.mp4';ffmpeg(['-f','lavfi','-i','color=c=0x223344:s=320x240:d=2:r=24','-c:v','libx264','-pix_fmt','yuv420p',str(source)],timeout=30)
         logo=tmp/'company-logo.png';Image.new('RGBA',(160,80),'#e4572e').save(logo)
         bad=tmp/'not-a-logo.svg';bad.write_text('<svg></svg>',encoding='utf-8')

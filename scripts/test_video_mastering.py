@@ -22,17 +22,17 @@ os.environ['VIDEO_DATA_DIR'] = TEMP.name
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from PIL import Image, ImageDraw
-from video_api import router
-from video_security import VideoRequestLimits
-from video_ffmpeg import ffmpeg, probe
-from video_assets import ingest, path_for
-from video_projects import Project, Clip, Canvas
-import video_measure
-import video_presets
-import video_qa
-from video_analysis import analyze_asset
-from video_quick_edit import keep_ranges, punch_in_plan, caption_cues
-from video_captions import caption_qa, DEFAULT_CAPTION_STYLES
+from video.api import router
+from video.security import VideoRequestLimits
+from video.ffmpeg import ffmpeg, probe
+from video.assets import ingest, path_for
+from video.projects import Project, Clip, Canvas
+from video import measure as video_measure
+from video import presets as video_presets
+from video import qa as video_qa
+from video.analysis import analyze_asset
+from video.quick_edit import keep_ranges, punch_in_plan, caption_cues
+from video.captions import caption_qa, DEFAULT_CAPTION_STYLES
 
 app = FastAPI()
 app.include_router(router)
@@ -167,7 +167,7 @@ class EditorialTests(unittest.TestCase):
         self.assertEqual(caption_qa([dict(start=0, end=2, text='Hello, how are you?')], style, 464, 832)[0], [])
 
     def test_transitions_are_not_added_by_default(self):
-        from video_ai_editor import VideoAIEditor
+        from video.ai_editor import VideoAIEditor
         clips = [SimpleNamespace(kind='video', id=str(i), duration=3.0, transition=0.0) for i in range(3)]
         plan = VideoAIEditor.auto_polish(SimpleNamespace(clips=clips), None)
         self.assertFalse([op for op in plan.operations if op.operation_type == 'SET_TRANSITION'])
@@ -217,8 +217,8 @@ class RenderedOutputTests(unittest.TestCase):
                                                                editing_brief=dict(brief))).json()
 
     def edit(self, project, speech=True, **body):
-        with patch('video_quick_edit.speech_status', return_value={'available': speech, 'reason': 'Install the optional local speech runtime and model to generate captions.'}), \
-                patch('video_quick_edit.transcribe', return_value=self.transcript):
+        with patch('video.quick_edit.speech_status', return_value={'available': speech, 'reason': 'Install the optional local speech runtime and model to generate captions.'}), \
+                patch('video.quick_edit.transcribe', return_value=self.transcript):
             response = self.http.post(f'/api/video/projects/{project["id"]}/quick-edit', json=dict(asset_id=self.asset['id'], language='en', **body))
             self.assertEqual(response.status_code, 202, response.text)
             state = wait(self.http, response.json())

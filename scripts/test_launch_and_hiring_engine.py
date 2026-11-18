@@ -7,11 +7,11 @@ from PIL import Image
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
-from visual_engine import (
+from image.visual_engine import (
     render_lexnis_launch_card,
     render_lexnis_hiring_card,
 )
-from campaign_generator import (
+from image.campaign_generator import (
     LexnisCampaignStudio,
     detect_featured_person,
     generate_launch_mission_hook,

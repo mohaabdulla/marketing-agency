@@ -9,7 +9,7 @@ sys.path.insert(0, str(ROOT))
 
 if __name__ == '__main__':
     from PIL import Image, ImageStat
-    from visual_engine import local_image, LOCAL_WEIGHTS, compose_ad
+    from image.visual_engine import local_image, LOCAL_WEIGHTS, compose_ad
 
     prompt = ('Advertising photograph of a deep blue Tesla Model 3 sedan driving on a winding '
               'California coastal road, ocean and cliffs, warm golden sunset, front three quarter '

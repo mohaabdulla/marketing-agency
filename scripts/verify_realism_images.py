@@ -9,7 +9,7 @@ sys.path.insert(0, str(ROOT))
 
 if __name__ == '__main__':
     from PIL import Image, ImageStat
-    from visual_engine import local_image, REALISM_MODEL, compose_ad
+    from image.visual_engine import local_image, REALISM_MODEL, compose_ad
 
     prompt = ('Advertising photograph of a deep blue Tesla Model 3 sedan on a winding coastal '
               'road at golden sunset, ocean cliffs, low front three quarter tracking shot, '
@@ -25,7 +25,7 @@ if __name__ == '__main__':
     (ROOT / 'output' / 'tesla_realism_metadata.json').write_text(json.dumps(metadata, indent=2), encoding='utf-8')
     print('Sample ready for inspection: output/tesla_realism_ad.jpg', flush=True)
     if '--activate' in sys.argv:
-        from visual_engine import RENDER_VERSION
+        from image.visual_engine import RENDER_VERSION
         metadata.update(render_version=RENDER_VERSION, verified_image='output/tesla_realism_ad.jpg')
         (ROOT / '.model-cache' / 'realvisxl-v5' / '.ready').write_text(json.dumps(metadata, indent=2), encoding='utf-8')
         print('Verified photographic engine activated as the automatic default.', flush=True)

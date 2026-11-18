@@ -11,8 +11,8 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 TEMP=tempfile.TemporaryDirectory(prefix='lexnis-storage-')
 os.environ['VIDEO_DATA_DIR']=TEMP.name
-from video_storage import atomic,DATA,uid
-from video_jobs import jobs
+from video.storage import atomic,DATA,uid
+from video.jobs import jobs
 
 
 class StorageTests(unittest.TestCase):

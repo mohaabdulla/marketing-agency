@@ -24,7 +24,7 @@ def get_ffmpeg_binary() -> Optional[str]:
         if c.exists():
             return str(c.resolve())
     try:
-        from video_ffmpeg import binary
+        from video.ffmpeg import binary
         return binary("ffmpeg")
     except Exception:
         pass

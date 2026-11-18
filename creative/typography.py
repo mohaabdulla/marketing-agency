@@ -10,7 +10,7 @@ from .colors import parse_color
 
 # Leverage visual_engine's tested font loading and bidirectional text shaping
 try:
-    from visual_engine import get_font, prepare_bidi_text
+    from image.visual_engine import get_font, prepare_bidi_text
 except ImportError:
     def prepare_bidi_text(t: str) -> str:
         try:

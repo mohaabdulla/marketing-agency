@@ -13,9 +13,9 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from PIL import Image
-import campaign_generator as campaign
-import visual_engine as visual
-import agency_suite
+from image import campaign_generator as campaign
+from image import visual_engine as visual
+from image import agency_suite
 import server
 
 HOUSE_LINES = ("8ms", "99.4", "99.9", "TensorRT", "Edge AI", "Flagship Innovation", "Core Lab", "Global HQ",

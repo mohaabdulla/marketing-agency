@@ -1,15 +1,13 @@
 """Local Text-to-Speech (TTS) and Voiceover Engine for LEXNIS Marketing Agency.
 
-Provides Kokoro-82M and Piper TTS adapters, normalizes pronunciation, enforces commercial licensing,
-and produces broadcast-standard normalized WAV assets.
+The catalogue below keeps the licence gate per model. Speech itself is recorded by the engines
+installed on this computer (see video.voice: Piper voices when configured, otherwise the Windows
+speech voices). The response reports which installed voice actually spoke; when none is installed
+for the language the request fails instead of returning a placeholder tone.
 """
 from __future__ import annotations
 
-import io
-import math
 import re
-import struct
-import wave
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -91,7 +89,7 @@ class TTSEngine:
     """Voiceover synthesis engine with commercial license gating and broadcast normalization."""
 
     def __init__(self, output_dir: Optional[Path] = None):
-        from public_access import scoped
+        from core.public_access import scoped
         self.output_dir = output_dir or scoped(Path(__file__).resolve().parents[1] / "output/agency/audio/tts",'renders')
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -128,8 +126,8 @@ class TTSEngine:
         # 2. Text preprocessing & pronunciation normalization
         clean_text = self._preprocess_text(text)
 
-        # 3. Audio generation (Real Kokoro/Piper or clean mathematical fallback for offline CPU)
-        audio_bytes, duration_sec = self._synthesize_audio(clean_text, voice, speed)
+        # 3. Audio generation with a real local speech engine (never a placeholder tone)
+        audio_bytes, duration_sec, spoken_by = self._synthesize_audio(clean_text, voice, speed)
 
         # 4. Save WAV asset
         filename = f"voice_{voice.voice_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
@@ -144,8 +142,13 @@ class TTSEngine:
             "model_id": voice.model_id,
             "license_id": voice.license_id,
             "duration_seconds": round(duration_sec, 2),
-            "sample_rate": 24000,
+            "sample_rate": 48000,
             "channels": 1,
+            # The catalogue names the requested voice; this is the installed engine that actually spoke.
+            "engine_used": spoken_by["engine"],
+            "voice_used": spoken_by["name"],
+            "voice_licence": spoken_by["licence"],
+            "substituted": spoken_by["engine"] != voice.engine,
             "char_count": len(text),
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -158,36 +161,32 @@ class TTSEngine:
         clean = re.sub(r"\s+", " ", clean).strip()
         return clean
 
-    def _synthesize_audio(self, text: str, voice: VoiceProfile, speed: float) -> Tuple[bytes, float]:
-        """Synthesize audio waveform. If neural weights are absent, generate high-quality timing audio."""
-        # Calculate expected speech duration: ~150 words per minute / 2.5 words per sec
-        word_count = max(1, len(text.split()))
-        duration_sec = max(1.0, (word_count / (2.5 * speed)))
+    @staticmethod
+    def _local_voice(voice: VoiceProfile) -> Dict[str, Any]:
+        """Pick the installed speech voice that best matches a catalogue voice: same language, same
+        engine family when available (Piper), then same gender."""
+        from video import voice as video_voice
+        language = "en" if voice.language == "multilingual" else voice.language
+        candidates = video_voice.voices(language)
+        if not candidates:
+            names = {"ar": "Arabic", "en": "English"}
+            raise ValueError(f"No {names.get(language, language)} speech voice is installed on this computer. "
+                             "Install a Piper voice (set PIPER_BIN and PIPER_VOICES) to record voiceovers.")
+        return sorted(candidates, key=lambda c: (c["engine"] != voice.engine, c["gender"] != voice.gender))[0]
 
-        sample_rate = 24000
-        total_samples = int(sample_rate * duration_sec)
-
-        buf = io.BytesIO()
-        with wave.open(buf, "wb") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(sample_rate)
-
-            # Generate pleasant modulated carrier tone matching cadence
-            pitch = 180.0 if voice.gender == "female" else 115.0
-            data = bytearray()
-            for i in range(total_samples):
-                t = i / sample_rate
-                # Syllabic envelope modulation
-                syllable_env = 0.5 + 0.5 * math.sin(2 * math.pi * 4.0 * t)
-                # Fade in/out
-                fade = min(1.0, min(t / 0.05, (duration_sec - t) / 0.05)) if duration_sec > 0.1 else 1.0
-                sample = int(32767 * 0.35 * fade * syllable_env * math.sin(2 * math.pi * pitch * t))
-                data.extend(struct.pack("<h", max(-32767, min(32767, sample))))
-
-            wf.writeframes(data)
-
-        return buf.getvalue(), duration_sec
+    def _synthesize_audio(self, text: str, voice: VoiceProfile, speed: float) -> Tuple[bytes, float, Dict[str, Any]]:
+        """Record the line with a real local speech engine, then apply the requested speed."""
+        import tempfile
+        from video import voice as video_voice
+        from video.ffmpeg import ffmpeg
+        local = self._local_voice(voice)
+        with tempfile.TemporaryDirectory(prefix="agency-tts-") as work:
+            raw = video_voice.speak(text, local, Path(work) / "line.wav", language=local["language"])
+            out = Path(work) / "voice.wav"
+            tempo = min(2.0, max(0.5, float(speed or 1)))
+            chain = f"atempo={tempo:.3f}," if abs(tempo - 1) > .01 else ""
+            ffmpeg(["-i", str(raw), "-af", chain + "aresample=48000", "-ac", "1", "-c:a", "pcm_s16le", str(out)], timeout=120)
+            return out.read_bytes(), video_voice.wav_seconds(out), local
 
 
 tts_engine = TTSEngine()

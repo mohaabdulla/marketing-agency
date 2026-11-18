@@ -9,9 +9,9 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 os.chdir(ROOT)
-import visual_engine
+from image import visual_engine
 patch.object(visual_engine, "preferred_local_model", return_value=None).start()
-import campaign_generator
+from image import campaign_generator
 patch.object(campaign_generator.LexnisCampaignStudio, "_chat", side_effect=RuntimeError("Offline regression runner")).start()
 real_connect = socket.socket.connect
 

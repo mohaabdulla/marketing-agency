@@ -24,18 +24,24 @@ from PIL import Image
 from fastapi.testclient import TestClient
 
 import agency.research
-import brand_kits
-import video_brief_assistant
-import video_company_intro
-from campaign_generator import LexnisCampaignStudio
+from brand import kits as brand_kits
+from video import brief_assistant as video_brief_assistant
+from video import company_intro as video_company_intro
+from image.campaign_generator import LexnisCampaignStudio
 from server import app
 
 SITE = 'https://acme-robotics.example'
 
 
 def picture(width, height, color):
+    """A photograph stand-in: a textured image around ``color``. Flat fills are rejected as graphics, like logo cards."""
+    import numpy as np
+    rng = np.random.default_rng(sum(color))
+    texture = rng.normal(size=(height // 8, width // 8, 3)).cumsum(axis=0).cumsum(axis=1)
+    texture = (texture - texture.min()) / np.ptp(texture) - .5
+    pixels = np.clip(np.array(color, dtype=float) + texture * 160, 0, 255).astype('uint8')
     buffer = io.BytesIO()
-    Image.new('RGB', (width, height), color).save(buffer, 'JPEG')
+    Image.fromarray(pixels).resize((width, height)).save(buffer, 'JPEG', quality=90)
     return buffer.getvalue()
 
 
@@ -156,8 +162,9 @@ class CompanyIntroVideoTests(unittest.TestCase):
         for scene in proposal['scenes']:
             self.assertLessEqual(len(scene['voiceover']), max(40, int(scene['duration'] * 15)))
             self.assertFalse(scene['voiceover'].endswith(' Acme'))
-        # Photos: the Open Graph image and the team photo; logos, icons and tiny images are skipped.
-        self.assertEqual([i['source_url'].rsplit('/', 1)[1] for i in proposal['images']], ['hero.jpg', 'team.jpg'])
+        # Photos: the in-page team photo, then the Open Graph image (often a logo card, so tried last);
+        # logos, icons and tiny images are skipped.
+        self.assertEqual([i['source_url'].rsplit('/', 1)[1] for i in proposal['images']], ['team.jpg', 'hero.jpg'])
         self.assertIsNone(proposal['scenes'][-1]['image'])                              # end card stays on brand graphics
         image = self.client.get(f"/api/video/company-intro/{proposal['proposal_id']}/images/1")
         self.assertEqual((image.status_code, image.headers['content-type']), (200, 'image/jpeg'))
@@ -263,8 +270,32 @@ class CompanyIntroVideoTests(unittest.TestCase):
             first.get_by_label('Duration (seconds)').fill('60')
             self.assertTrue(intro.get_by_role('button', name='Approve & create video').is_disabled())
             first.get_by_label('Duration (seconds)').fill(str(self.proposal['scenes'][0]['duration']))
+            # An installed offline voice is pre-selected; narrated renders are covered by test_video_narration.py,
+            # so this flow checks the subtitles-only path the fixture's 3-second scenes are written for.
+            narrator = intro.get_by_label('AI narrator (offline voice on this computer)')
+            from video.voice import voices
+            if voices('en'):
+                page.wait_for_function("document.querySelector('[data-ci-narrator]').value!==''")
+                first.get_by_role('button', name='Listen to narration').click()
+                page.wait_for_function("document.querySelector('[data-scene-fit]').textContent.includes('when spoken')", timeout=60000)
+                # "Fit scene lengths to the narration" times every line with the narrator and keeps the total;
+                # the page must show exactly what the timing service returns for the same lines.
+                lines = intro.locator('[data-scene-field=voiceover]').evaluate_all('(nodes)=>nodes.map(n=>n.value)')
+                durations = intro.locator('[data-scene-field=duration]').evaluate_all('(nodes)=>nodes.map(n=>+n.value)')
+                expected = self.client.post('/api/video/voices/fit', json=dict(voice_id=voices('en')[0]['id'], lines=lines, durations=durations))
+                intro.get_by_role('button', name='Fit scene lengths to the narration').click()
+                page.wait_for_function("!['','Timing each line with the narrator…'].includes(document.querySelector('[data-ci-fit-status]').textContent)",
+                                       timeout=60000)
+                if expected.status_code == 200:
+                    shown = intro.locator('[data-scene-field=duration]').evaluate_all('(nodes)=>nodes.map(n=>+n.value)')
+                    self.assertEqual(shown, expected.json()['durations'])
+                    self.assertIn('Total length: 15.0 seconds.', intro.locator('[data-ci-total]').inner_text())
+                else:
+                    self.assertIn(expected.json()['detail'], intro.locator('[data-ci-fit-status]').inner_text())
+            narrator.select_option('')
             intro.get_by_role('button', name='Approve & create video').click()
-            intro.locator('[data-ci-preview] video').wait_for(state='attached', timeout=600000)
+            intro.locator('[data-ci-preview] video').wait_for(state='attached', timeout=180000)
+            self.assertIn('Automated checks', intro.locator('[data-ci-quality]').inner_text())
             self.assertTrue(intro.get_by_role('link', name='Download MP4').is_visible())
             self.assertIn('Rendered 1280×720', intro.locator('[data-ci-render-status]').inner_text())
             page.screenshot(path=str(TEMP / 'company-intro.png'), full_page=False)

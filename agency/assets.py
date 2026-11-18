@@ -55,13 +55,13 @@ def stored_path(stored_name, repo=repository):
 
 def resolve_source(media_url='', video_asset_id=''):
     """Only application-managed media: a generated/uploaded file URL or a Video Studio asset ID."""
-    from public_access import guest, media_path
+    from core.public_access import guest, media_path
     if guest() and not video_asset_id:
         path = media_path(media_url)
         return path, path.name, media_url
     if video_asset_id:
-        import video_assets
-        from video_storage import identifier, read
+        from video import assets as video_assets
+        from video.storage import identifier, read
         try:
             item = read('assets', identifier(video_asset_id))
             return video_assets.path_for(video_asset_id), item['name'], '/api/video/media/' + video_asset_id
@@ -132,7 +132,7 @@ def inspect(path, name):
             raise ValueError('Invalid SRT file')
     if ext in {'.mp4', '.mov', '.webm', '.mp3', '.wav', '.m4a', '.ogg'}:
         try:
-            from video_ffmpeg import probe
+            from video.ffmpeg import probe
             meta = probe(path)
             facts.update(width=meta.get('width') or None, height=meta.get('height') or None,
                          duration_seconds=round(meta['duration'], 3) if meta.get('duration') else None)

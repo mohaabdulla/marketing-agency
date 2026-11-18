@@ -16,9 +16,9 @@ os.environ.update(PUBLIC_TEST_MODE='true',PUBLIC_TEST_DATA_DIR=str(Path(TEMP.nam
 from fastapi.testclient import TestClient
 from PIL import Image
 import server
-from video_quick_edit import keep_ranges,caption_cues,QuickEdit,build
-from video_projects import Project,Clip,Canvas
-from video_ffmpeg import ffmpeg
+from video.quick_edit import keep_ranges,caption_cues,QuickEdit,build
+from video.projects import Project,Clip,Canvas
+from video.ffmpeg import ffmpeg
 
 
 def word(start,end,text):return dict(start=start,end=end,word=text,probability=.95)
@@ -54,7 +54,7 @@ class QuickTests(unittest.TestCase):
         self.assertEqual(self.b.post('/api/video/projects/'+project['id']+'/quick-edit',json=body).status_code,404)
         self.assertEqual(self.a.post('/api/video/projects/'+project['id']+'/quick-edit',json=dict(body,asset_id=logo['id'])).status_code,400)
         transcript=dict(language='en',segments=[dict(words=[word(.1,.6,'A'),word(.6,1.1,'test.'),word(2.1,2.3,'Okay'),word(2.3,2.5,'stop')])])
-        with patch('video_quick_edit.speech_status',return_value={'available':True}),patch('video_quick_edit.transcribe',return_value=transcript):
+        with patch('video.quick_edit.speech_status',return_value={'available':True}),patch('video.quick_edit.transcribe',return_value=transcript):
             response=self.a.post('/api/video/projects/'+project['id']+'/quick-edit',json=body);self.assertEqual(response.status_code,202,response.text);job=response.json()
             for _ in range(600):
                 state=self.a.get('/api/video/jobs/'+job['id']).json()

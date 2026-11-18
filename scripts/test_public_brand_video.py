@@ -18,7 +18,7 @@ os.environ.update(PUBLIC_TEST_MODE='true',PUBLIC_TEST_DATA_DIR=str(Path(TEMP.nam
 from fastapi.testclient import TestClient
 from PIL import Image
 import server
-from video_ffmpeg import ffmpeg, probe
+from video.ffmpeg import ffmpeg, probe
 
 
 class PublicBrandTests(unittest.TestCase):
@@ -137,7 +137,7 @@ class PublicBrandTests(unittest.TestCase):
         imported=self.call('POST','/api/guidelines/from-brand/'+kit['id'],status=201).json()
         self.assertEqual(imported['rules']['primary_colors'],['#123456'])
         self.assertTrue(imported['rules']['logo_asset_id'])
-        from public_access import guest_root
+        from core.public_access import guest_root
         key=self.a.get('/api/session').json()['workspace']
         record=guest_root()/key/'session.json'
         record.write_text(json.dumps(dict(expires=0)))
@@ -279,8 +279,8 @@ class PublicBrandTests(unittest.TestCase):
             self.assertEqual(result['engine'],'local_ai')
             self.assertTrue(any(p=='/v1/chat/completions' for p,_ in calls))
             self.assertEqual(calls[-1][1]['response_format']['type'],'json_schema')
-            import video_brand_editing as e
-            from video_operations import EditPlan,EditOperation
+            from video import brand_editing as e
+            from video.operations import EditPlan,EditOperation
             with self.assertRaises(ValueError):
                 e.checked(e.model(project),EditPlan(operations=[EditOperation(operation_type='SET_COLOR',target_id=project['clips'][0]['id'],parameters={'filter':'movie=C:/secret'})]))
         finally:

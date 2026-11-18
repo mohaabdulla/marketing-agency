@@ -21,13 +21,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
-from visual_engine import (
+from image.visual_engine import (
     model_setup, preferred_local_model, composite_template_swap, sanitize_brand_tag, resolve_brand_theme,
     is_unsafe_welcome_headline,
     save_welcome_animation_layers,
 )
 
-from campaign_generator import LexnisCampaignStudio, CampaignAsset, IMAGE_MODELS, DEFAULT_IMAGE_MODEL, RENDERS_DIR, GENERIC_BRAND_NAMES, extract_brand_name_from_prompt, resolve_featured_person, team_welcome_headline, generate_campaign_post, generate_campaign_copy, render_omnichannel_variants
+from image.campaign_generator import LexnisCampaignStudio, CampaignAsset, IMAGE_MODELS, DEFAULT_IMAGE_MODEL, RENDERS_DIR, GENERIC_BRAND_NAMES, extract_brand_name_from_prompt, resolve_featured_person, team_welcome_headline, generate_campaign_post, generate_campaign_copy, render_omnichannel_variants
 
 app = FastAPI(
     title="Lexnis Campaign Studio API",
@@ -43,9 +43,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from video_api import router as video_router
-import video_guideline_api
-from video_security import VideoRequestLimits
+from video.api import router as video_router
+from video.security import VideoRequestLimits
 app.include_router(video_router)
 app.add_middleware(VideoRequestLimits)
 
@@ -62,24 +61,24 @@ BASE_DIR = Path(__file__).resolve().parent
 # not in the tracked static assets folder, which every generated campaign used to add a ZIP to.
 AGENCY_BUNDLES_DIR = RENDERS_DIR
 RENDERS_DIR.mkdir(parents=True, exist_ok=True)
-from public_access import scoped, guest, media_path, PublicTestingMiddleware
+from core.public_access import scoped, guest, media_path, PublicTestingMiddleware
 UPLOADS_DIR = scoped(BASE_DIR / "output" / "uploads", 'uploads')
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 TEST_ASSETS_DIR = BASE_DIR / "test_assets"
 TEST_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 
-from ui_assets import CampaignStaticFiles
+from core.ui_assets import CampaignStaticFiles
 app.mount("/renders", CampaignStaticFiles(directory=RENDERS_DIR), name="renders")
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 app.mount("/test_assets", StaticFiles(directory=TEST_ASSETS_DIR), name="test_assets")
-from ui_assets import StudioStaticFiles
+from core.ui_assets import StudioStaticFiles
 app.mount("/static", StudioStaticFiles(directory=BASE_DIR / "static"), name="static")
 app.add_middleware(PublicTestingMiddleware)
-from security_headers import SecurityHeaders, StudioRequestLimits, install_validation_handler
+from core.security_headers import SecurityHeaders, StudioRequestLimits, install_validation_handler
 install_validation_handler(app)
 app.add_middleware(StudioRequestLimits)
 app.add_middleware(SecurityHeaders)         # outermost: also covers errors raised by the middleware above
-from guideline_api import router as guideline_router
+from brand.api import router as guideline_router
 
 def failure(error: Exception) -> HTTPException:
     """Turn a handler exception into its response: 4xx errors pass through unchanged, and guests never see internals."""
@@ -97,7 +96,7 @@ def require_image(data: Optional[bytes], label: str) -> None:
 
 
 app.include_router(guideline_router)
-from prompt_assistant import router as prompt_assistant_router
+from creative.assistant import router as prompt_assistant_router
 app.include_router(prompt_assistant_router)
 
 
@@ -135,7 +134,7 @@ def render_path(url: str) -> str:
             return ""
     path = urlsplit(url).path if url else ""
     if path.startswith("/renders/"):
-        from public_access import managed_render
+        from core.public_access import managed_render
         roots=[RENDERS_DIR]
         if hasattr(RENDERS_DIR,'published'):roots.append(RENDERS_DIR.published())
         for root in roots:
@@ -221,7 +220,7 @@ def resolve_request_brand(
 
 def enrich_agency_kit(data, request, theme):
     """Add formats, localized copy and a complete bundle without changing old URLs."""
-    from agency_suite import bundle_campaign
+    from image.agency_suite import bundle_campaign
     request = {"brand_name_ar": (data.get("brand_dna") or {}).get("brand_name_ar", ""),
                "tagline": (data.get("brand_dna") or {}).get("tagline", ""), **request}
     # The channel copy is adapted from the campaign that was actually written, in each language.
@@ -316,13 +315,13 @@ def system_capabilities():
 
 @app.get("/api/brands")
 def brand_kits_list():
-    from brand_kits import list_brands
+    from brand.kits import list_brands
     return {"brands": list_brands()}
 
 
 @app.post("/api/brands", status_code=201)
 def brand_kit_create(req: BrandKitRequest, response: Response):
-    from brand_kits import LOCK, list_brands, write_brands
+    from brand.kits import LOCK, list_brands, write_brands
     import uuid
     if req.id:
         response.status_code = 200
@@ -341,7 +340,7 @@ def brand_kit_create(req: BrandKitRequest, response: Response):
 
 @app.get("/api/brands/{brand_id}")
 def brand_kit_read(brand_id: str):
-    from brand_kits import get_brand
+    from brand.kits import get_brand
     brand = get_brand(brand_id)
     if not brand:
         raise HTTPException(404, "Brand kit not found")
@@ -350,7 +349,7 @@ def brand_kit_read(brand_id: str):
 
 @app.put("/api/brands/{brand_id}")
 def brand_kit_update(brand_id: str, req: BrandKitRequest):
-    from brand_kits import LOCK, list_brands, write_brands
+    from brand.kits import LOCK, list_brands, write_brands
     with LOCK:
         brands = list_brands()
         if not any(b["id"] == brand_id for b in brands):
@@ -367,7 +366,7 @@ def brand_kit_update(brand_id: str, req: BrandKitRequest):
 
 @app.delete("/api/brands/{brand_id}")
 def brand_kit_delete(brand_id: str):
-    from brand_kits import LOCK, list_brands, write_brands
+    from brand.kits import LOCK, list_brands, write_brands
     with LOCK:
         brands = list_brands()
         if not any(b["id"] == brand_id for b in brands):
@@ -383,7 +382,7 @@ class CampaignBundleRequest(BaseModel):
 
 @app.post("/api/campaign/bundle")
 def campaign_bundle(req: CampaignBundleRequest):
-    from agency_suite import bundle_campaign
+    from image.agency_suite import bundle_campaign
     import uuid
     paths = {}
     for key in ("image_url", "companion_image_url", "animation_url", "animation_mp4_url", "story_url", "landscape_url"):
@@ -530,13 +529,13 @@ def serve_index():
     index_path = BASE_DIR / "index.html"
     if not index_path.exists():
         raise HTTPException(status_code=404, detail="index.html not found")
-    from ui_assets import index_response
+    from core.ui_assets import index_response
     return index_response(index_path)
 
 
 @app.get('/api/ui-version')
 def ui_version():
-    from ui_assets import revision
+    from core.ui_assets import revision
     return {'version':revision()}
 
 
@@ -621,7 +620,7 @@ def generate_campaign_endpoint(req: GenerateRequest):
     """Research -> brief -> Instagram copy -> watermark-free visual."""
     try:
         if req.brand_id:
-            from brand_kits import get_brand, profile_for
+            from brand.kits import get_brand, profile_for
             kit = get_brand(req.brand_id)
             if not kit:
                 raise HTTPException(404, "Brand kit not found")
@@ -767,7 +766,7 @@ from agency.enterprise_pipeline import EnterpriseCampaignResult
 
 
 async def run_enterprise_campaign(req: GenerateRequest, request: Request, agency_context=None):
-    from agency_suite import _ffmpeg_executable
+    from image.agency_suite import _ffmpeg_executable
     from agency.enterprise_pipeline import execute_campaign
     if not req.prompt.strip():
         raise HTTPException(422,'A campaign brief is required')
@@ -1002,7 +1001,7 @@ async def upload_visual_endpoint(
     try:
         content_bytes = await file.read(16 * 1024**2 + 1)
         if guest():
-            from public_access import validate_visual
+            from core.public_access import validate_visual
             try:
                 validate_visual(content_bytes,file.filename or "visual.jpg")
             except Exception:
@@ -1138,8 +1137,8 @@ async def upload_guidelines_endpoint(
     if len(upload_list) > 8:
         raise HTTPException(413, 'Upload at most eight guidelines')
     if all(Path(f.filename or '').suffix.lower() in {'.pdf','.docx','.txt','.md','.markdown','.json'} for f in upload_list):
-        from guideline_api import guard as document_guard
-        from brand_guidelines import upload_documents
+        from brand.api import guard as document_guard
+        from brand.guidelines import upload_documents
         docs = []
         for f in upload_list:
             try:
@@ -1159,7 +1158,7 @@ async def upload_guidelines_endpoint(
         if len(content_bytes) > 8 * 1024**2:
             raise HTTPException(413, 'Each guideline must be at most 8 MB')
         if guest() and Path(fname).suffix.lower() in IMAGE_EXTENSIONS:
-            from public_access import validate_visual
+            from core.public_access import validate_visual
             try:
                 validate_visual(content_bytes,fname)
             except Exception:
@@ -1321,7 +1320,7 @@ async def analyze_layout_endpoint(
     the TemplateBlueprint JSON and diagnostic visual overlay URL.
     """
     import time
-    from layout_analyzer import TemplateLayoutAnalyzer, draw_layout_diagnostic_overlay
+    from image.layout_analyzer import TemplateLayoutAnalyzer, draw_layout_diagnostic_overlay
     try:
         img_bytes = None
         if image_file:

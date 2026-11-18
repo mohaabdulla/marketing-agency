@@ -293,7 +293,7 @@ class ScopedRepository:
         self.lock = threading.Lock()
 
     def __getattr__(self, name):
-        from public_access import guest, folder
+        from core.public_access import guest, folder
         key = guest()
         if not key:
             return getattr(self.default, name)

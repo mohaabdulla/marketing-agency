@@ -5,7 +5,7 @@ from PIL import Image, ImageDraw, ImageOps
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from campaign_generator import _load_font
+from image.campaign_generator import _load_font
 
 if __name__ == '__main__':
     figures = [

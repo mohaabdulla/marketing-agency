@@ -143,7 +143,7 @@ def _slate(shot, size, path):
     image = Image.new('RGB', size, (16, 26, 44))
     draw = ImageDraw.Draw(image)
     try:
-        from visual_engine import get_font
+        from image.visual_engine import get_font
         big, small = get_font('Inter', max(28, width // 16), weight='bold'), get_font('Inter', max(18, width // 34))
     except Exception:
         big = small = ImageFont.load_default()
@@ -160,9 +160,9 @@ def _slate(shot, size, path):
 def video_project_from_storyboard(client_id, storyboard_id, agency=service, repo=repository):
     """Create a Video Studio project: shots in order, their stills or clips, on-screen text as titles."""
     from .assets import stored_path
-    import video_assets
-    import video_editor
-    import video_projects
+    from video import assets as video_assets
+    from video import editor as video_editor
+    from video import projects as video_projects
     board, shots = storyboard_shots(client_id, storyboard_id, agency, repo)
     if not shots:
         raise ValueError('This storyboard has no shots yet')

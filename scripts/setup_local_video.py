@@ -9,8 +9,8 @@ import venv
 from fnmatch import fnmatch
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from video_models import MODELS, CACHE, PYTHON
-from video_storage import ROOT
+from video.models import MODELS, CACHE, PYTHON
+from video.storage import ROOT
 
 
 def main():
@@ -25,7 +25,7 @@ def main():
         venv.create(ROOT/'.venv-video', with_pip=True)
         subprocess.run([str(PYTHON),'-m','pip','install','torch==2.6.0','torchvision==0.21.0',
                         '--index-url','https://download.pytorch.org/whl/cu124'],check=True)
-        subprocess.run([str(PYTHON),'-m','pip','install','-r',str(ROOT/'requirements-video.txt')],check=True)
+        subprocess.run([str(PYTHON),'-m','pip','install','-r',str(ROOT/'requirements/video.txt')],check=True)
     if args.model:
         if not args.accept_license:
             raise SystemExit('Review the model card and Apache-2.0 license, then pass --accept-license explicitly')

@@ -37,8 +37,8 @@ import numpy as np
 from PIL import Image, ImageDraw
 from fastapi.testclient import TestClient
 
-import visual_engine
-from visual_engine import (
+from image import visual_engine
+from image.visual_engine import (
     FONTS_DIR,
     composite_template_swap,
     estimate_head_metrics,
@@ -48,7 +48,7 @@ from visual_engine import (
     resolve_brand_theme,
     rgb_to_hex,
 )
-from campaign_generator import (
+from image.campaign_generator import (
     LexnisCampaignStudio,
     detect_brand_name_from_guideline,
     detect_featured_person,
@@ -420,9 +420,11 @@ class BrandedCardTests(unittest.TestCase):
             near = (np.abs(arr - np.array(rgb)).sum(axis=2) < 40).sum()
             self.assertLess(int(near), 20, f"found Lexnis colour {rgb}")
 
-    def test_visual_engine_module_is_the_project_root_file(self):
-        self.assertTrue((ROOT / "visual_engine.py").exists())
-        self.assertEqual(Path(visual_engine.__file__).resolve(), (ROOT / "visual_engine.py").resolve())
+    def test_visual_engine_module_is_the_image_package_file(self):
+        self.assertTrue((ROOT / "image" / "visual_engine.py").exists())
+        self.assertEqual(Path(visual_engine.__file__).resolve(), (ROOT / "image" / "visual_engine.py").resolve())
+        # A leftover top-level copy would let an old `import visual_engine` run stale layout code.
+        self.assertFalse((ROOT / "visual_engine.py").exists())
 
     def test_render_welcome_template_swap_sanitizes_and_clears_head(self):
         """The brief's entry point: long Lexnis headline, no brand -> 'WELCOME TO THE TEAM'."""
@@ -723,9 +725,9 @@ class SubjectSelectionTests(unittest.TestCase):
 class RenderCacheTests(unittest.TestCase):
     def test_cached_renders_are_keyed_on_layout_code(self):
         """Cards cached by older layout code are never served again for the same photo."""
-        import campaign_generator
+        from image import campaign_generator
         self.assertRegex(campaign_generator.LAYOUT_CODE_VERSION, r"^[0-9a-f]{10}$")
-        src = (ROOT / "campaign_generator.py").read_text(encoding="utf-8")
+        src = (ROOT / "image" / "campaign_generator.py").read_text(encoding="utf-8")
         for prefix in ("swap_v6_1080x1350|", "exec_art|", "agency_card_v4|", "ad-v5-vision-aligned|", "ad-v5-ar|"):
             self.assertIn(prefix + "{LAYOUT_CODE_VERSION}|", src, prefix)
 

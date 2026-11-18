@@ -21,7 +21,7 @@ def main():
         tmp = Path(folder)
         os.environ['VIDEO_DATA_DIR'] = str(tmp / 'tools')
         sys.path.insert(0, str(ROOT))
-        from video_ffmpeg import ffmpeg, probe
+        from video.ffmpeg import ffmpeg, probe
         source = tmp / 'original.mp4'
         ffmpeg(['-f', 'lavfi', '-i', 'testsrc2=s=360x640:r=30000/1001', '-f', 'lavfi', '-i', 'sine=frequency=330:sample_rate=44100',
                 '-t', '4', '-af', 'volume=17dB', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', str(source)], timeout=60)
@@ -70,6 +70,8 @@ def main():
                     assert brand.locator('[data-logo-upload]').is_visible()
                     assert quick.locator('section[data-step=assistant] [data-quick-assist-slot]').evaluate('node=>node.children.length>0 && !node.closest("details:not([open])")')
                     assert quick.get_by_text('Brand, purpose & name (optional)').count() == 0
+                    # The presets arrive from /export-presets after the page renders; wait for them under load.
+                    quick.locator('[data-quick-delivery] option').nth(5).wait_for(state='attached')
                     presets = quick.locator('[data-quick-delivery] option').evaluate_all('nodes=>nodes.map(n=>n.value)')
                     assert presets == ['source-master', 'web-youtube', 'vertical-social', 'square-social', 'portrait-feed', 'broadcast-ebu'], presets
                     assert quick.locator('[data-quick-delivery]').input_value() == 'web-youtube'

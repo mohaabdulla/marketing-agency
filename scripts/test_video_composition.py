@@ -14,14 +14,14 @@ TEMP=tempfile.TemporaryDirectory(prefix='lexnis-composition-')
 os.environ['VIDEO_DATA_DIR']=TEMP.name
 import numpy as np
 from PIL import Image
-from video_caption_timing import optimize
-from video_captions import CaptionStyle,render_caption_image,cue_style
-from video_projects import Project,Canvas,Clip
-from video_layout import solve,analyze_frame,intersection,readable_plate
-from video_assets import ingest
-from video_platforms import profile,outside_share
-from brand_guidelines import Rules
-from video_director import LocalSemanticProvider,SemanticPlan,plan_story
+from video.caption_timing import optimize
+from video.captions import CaptionStyle,render_caption_image,cue_style
+from video.projects import Project,Canvas,Clip
+from video.layout import solve,analyze_frame,intersection,readable_plate
+from video.assets import ingest
+from video.platforms import profile,outside_share
+from brand.guidelines import Rules
+from video.director import LocalSemanticProvider,SemanticPlan,plan_story
 
 
 def word(start,end,text,p=.95):return dict(start=start,end=end,word=text,probability=p)
@@ -56,7 +56,7 @@ class TimingTests(unittest.TestCase):
 class LayoutTests(unittest.TestCase):
     def test_dark_brand_ink_gets_a_readable_plate(self):
         from creative.colors import parse_color
-        from video_measure import contrast_ratio
+        from video.measure import contrast_ratio
         style=CaptionStyle(id='cta',name='CTA',fill='#131724',background='#131724ee',font_size_px=26)
         fixed=readable_plate(style,['#131724','#53B849'])
         self.assertEqual(fixed.fill,'#131724')
@@ -127,21 +127,21 @@ class SemanticHTTPTests(unittest.TestCase):
 
     def test_asr_uncertainty_cannot_be_promoted_by_a_confident_llm(self):
         result=SemanticPlan(sentences=[dict(sentence_id='sentence-1',role='recording-instruction',importance=0.,confidence=.99,action='propose-drop',reason='Recording instruction')])
-        with patch('video_brand_editing.ai_status',return_value={'available':True}),patch.object(LocalSemanticProvider,'plan',return_value=result):
+        with patch('video.brand_editing.ai_status',return_value={'available':True}),patch.object(LocalSemanticProvider,'plan',return_value=result):
             plan=plan_story([word(0,.4,'Okay',.5),word(.4,.8,'stop.',.5)],1,{}, {}, {},'aggressive')
         self.assertTrue(plan['candidates'][0]['requires_approval'])
         self.assertLessEqual(plan['candidates'][0]['confidence'],.5)
 
     def test_important_source_fact_still_requires_approval(self):
         result=SemanticPlan(sentences=[dict(sentence_id='sentence-1',role='important',importance=.95,confidence=.99,action='propose-drop',reason='Contradictory model suggestion')])
-        with patch('video_brand_editing.ai_status',return_value={'available':True}),patch.object(LocalSemanticProvider,'plan',return_value=result):
+        with patch('video.brand_editing.ai_status',return_value={'available':True}),patch.object(LocalSemanticProvider,'plan',return_value=result):
             plan=plan_story([word(0,.4,'Retain',.99),word(.4,.8,'facts.',.99)],1,{}, {}, {},'aggressive')
         self.assertTrue(plan['candidates'][0]['requires_approval'])
 
 
 class StandardsTests(unittest.TestCase):
     def test_caption_events_follow_timed_text_limits(self):
-        from video_caption_timing import PROFILES, GAP
+        from video.caption_timing import PROFILES, GAP
         self.assertEqual((round(PROFILES['en']['min_duration'], 3), PROFILES['en']['max_duration'], PROFILES['en']['max_cps']), (.833, 7., 20.))
         words = [word(i * .4, i * .4 + .3, f'word{i}.' if i % 4 == 3 else f'word{i}') for i in range(24)]
         cues, _ = optimize(words, 10.)
@@ -149,7 +149,7 @@ class StandardsTests(unittest.TestCase):
         self.assertTrue(all(c['end'] - c['start'] <= 7. + 1e-6 for c in cues))
 
     def test_paid_meta_placements_use_the_published_ad_margins(self):
-        from video_platforms import choose, profile, safe_area
+        from video.platforms import choose, profile, safe_area
         self.assertEqual(choose('Sponsored Instagram Reels ad', 1080, 1920), 'meta-reels-ads')
         self.assertEqual(choose('Instagram reels, organic', 1080, 1920), 'instagram-reels')
         spec = profile('meta-reels-ads')
@@ -158,7 +158,7 @@ class StandardsTests(unittest.TestCase):
         self.assertEqual(profile('tiktok-ltr')['basis'], 'PRODUCT DEFAULT')
 
     def test_subtitle_files_follow_srt_and_webvtt_rules(self):
-        from video_captions import parse_srt, to_srt, to_vtt
+        from video.captions import parse_srt, to_srt, to_vtt
         srt = (chr(0xFEFF) + '1\r\n00:00:01,000 --> 00:00:02,500 X1:10 X2:20 Y1:5 Y2:9\r\nWe launch in\r\n2026\r\n\r\n'
                '2\r\n00:00:03,000 --> 00:00:04,000\r\nR&D under <10 ms\r\n')
         segments = parse_srt(srt)
@@ -170,7 +170,7 @@ class StandardsTests(unittest.TestCase):
         self.assertEqual([s.text for s in parse_srt(to_srt(segments))], [s.text for s in segments])     # round trip
 
     def test_social_delivery_targets_minus_14_lufs(self):
-        import video_presets
+        from video import presets as video_presets
         for key in ('web-youtube', 'vertical-social', 'square-social', 'portrait-feed'):
             self.assertEqual(video_presets.preset(key)['loudness']['integrated'], -14.0, key)
         self.assertEqual(video_presets.preset('broadcast-ebu')['loudness']['integrated'], -23.0)
@@ -185,7 +185,7 @@ class FinishingTests(unittest.TestCase):
         self.assertTrue(any('·' in line for line in flowed['logical_lines']))   # the old dangling separator
 
     def test_subject_lift_follows_the_backlight_not_only_the_range_floor(self):
-        from video_grade import plan_regional,LOOKS
+        from video.grade import plan_regional,LOOKS
         backlit=dict(before=dict(face_luma=.431,background_luma=.653,backlight_difference=.222))
         even=dict(before=dict(face_luma=.431,background_luma=.47,backlight_difference=.04))
         strong,weak=plan_regional(backlit,'a'*32).subject,plan_regional(even,'a'*32).subject
@@ -199,7 +199,7 @@ class FinishingTests(unittest.TestCase):
         self.assertEqual(bright.gamma,1.)        # already at the top of the range: never pushed further
 
     def test_slight_lift_is_not_reported_as_done(self):
-        import video_quick_edit
+        from video import quick_edit as video_quick_edit
         source=Path(video_quick_edit.__file__).read_text(encoding='utf-8')
         self.assertIn("'FULFILLED' if correction.get('subject_lift_effective', True) else 'PARTIALLY_FULFILLED'",source)
 

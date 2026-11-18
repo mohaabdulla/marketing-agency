@@ -9,7 +9,7 @@ from .schemas import CreativeProject
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-from public_access import scoped
+from core.public_access import scoped
 CREATIVE_STORAGE_DIR = scoped(ROOT_DIR / "output/creative_projects", 'creative_projects')
 CREATIVE_ASSET_DIR = scoped(ROOT_DIR / "output/creative_assets", 'creative_assets')
 

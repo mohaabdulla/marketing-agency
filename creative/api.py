@@ -11,7 +11,7 @@ from .storage import creative_storage
 from .presets import FORMAT_PRESETS, MOTION_PRESETS
 from .exports import CreativeExporter
 from .qa import CreativeQAEngine
-from public_access import scoped, guest, media_path
+from core.public_access import scoped, guest, media_path
 
 router = APIRouter(prefix="/api/creative", tags=["creative"])
 exporter = CreativeExporter()
@@ -193,7 +193,7 @@ def bridge_to_video(req: BridgeToVideoRequest):
         raise HTTPException(404, f"File not found: {req.output_path}")
 
     try:
-        from video_assets import ingest
+        from video.assets import ingest
         name = req.name or file_path.name
         if not Path(name).suffix and file_path.suffix:
             name = f"{name}{file_path.suffix}"

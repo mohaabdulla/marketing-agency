@@ -6,7 +6,7 @@ from PIL import Image
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
-from visual_engine import render_lexnis_hiring_card
+from image.visual_engine import render_lexnis_hiring_card
 
 def run_agency_hiring_test():
     out_dir = BASE_DIR / "output" / "renders"

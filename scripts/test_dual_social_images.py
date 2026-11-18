@@ -19,8 +19,8 @@ from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-import campaign_generator as campaign
-import visual_engine as visual
+from image import campaign_generator as campaign
+from image import visual_engine as visual
 from server import app, render_path
 
 ASSETS = ROOT / "static" / "assets"

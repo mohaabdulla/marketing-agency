@@ -55,7 +55,7 @@ class DocumentVault:
     """Manages document storage, local text extraction, and stable chunking."""
 
     def __init__(self, storage_dir: Optional[Path] = None):
-        from public_access import scoped
+        from core.public_access import scoped
         self.storage_dir = storage_dir or scoped(Path(__file__).resolve().parents[1] / "output/agency/documents",'agency/documents')
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 

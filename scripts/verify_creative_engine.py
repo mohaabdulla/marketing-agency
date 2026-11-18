@@ -22,11 +22,11 @@ from creative.presets import FORMAT_PRESETS, MOTION_PRESETS, MotionPresetBuilder
 from creative.qa import CreativeQAEngine
 from creative.exports import CreativeExporter
 from creative.storage import creative_storage
-from video_models import (
+from video.models import (
     ModelState, VideoModelAdapter, CogVideoXAdapter, Wan21I2VAdapter,
     Wan21T2VAdapter, Wan22TI2VAdapter, get_adapter, statuses, MODELS
 )
-from video_ffmpeg import probe
+from video.ffmpeg import probe
 
 
 class TestCreativeEngine(unittest.TestCase):
@@ -205,8 +205,8 @@ class TestCreativeEngine(unittest.TestCase):
 
     def test_09_strict_local_only_enforcement(self):
         """Verify LEXNIS_LOCAL_ONLY=1 blocks silent cloud fallbacks."""
-        from campaign_generator import LexnisCampaignStudio
-        from visual_engine import cloudflare_image
+        from image.campaign_generator import LexnisCampaignStudio
+        from image.visual_engine import cloudflare_image
 
         studio = LexnisCampaignStudio()
         with patch.dict(os.environ, {"LEXNIS_LOCAL_ONLY": "1"}):
@@ -221,7 +221,7 @@ class TestCreativeEngine(unittest.TestCase):
             self.assertIn("strict local-only mode", str(ctx2.exception))
 
             # 3. _fetch_image_bytes with local model should not silently fallback to flux on error
-            with patch("campaign_generator.local_image", side_effect=RuntimeError("CUDA out of memory")):
+            with patch("image.campaign_generator.local_image", side_effect=RuntimeError("CUDA out of memory")):
                 with self.assertRaises(RuntimeError) as ctx3:
                     studio._fetch_image_bytes("industrial robot", 42, model="local:segmind-vega")
                 self.assertIn("Strict local-only mode is active", str(ctx3.exception))

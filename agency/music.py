@@ -38,7 +38,7 @@ class MusicEngine:
     """Local music generator with licensing enforcement, BPM sync, and broadcast fades."""
 
     def __init__(self, output_dir: Optional[Path] = None):
-        from public_access import scoped
+        from core.public_access import scoped
         self.output_dir = output_dir or scoped(Path(__file__).resolve().parents[1] / "output/agency/audio/music",'renders')
         self.output_dir.mkdir(parents=True, exist_ok=True)
 

@@ -7,9 +7,9 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import cv2
 from PIL import Image,ImageDraw
-from video_measure import frame_at
-from video_grade import light_stats,hue_difference
-from video_ffmpeg import probe
+from video.measure import frame_at
+from video.grade import light_stats,hue_difference
+from video.ffmpeg import probe
 
 
 def main():

@@ -165,7 +165,7 @@ def checks(client_id:Id,body:Scan):
 
 @router.get('/legacy-brands')
 def legacy_brands():
-    from brand_kits import list_brands
+    from brand.kits import list_brands
     return dict(items=guard(list_brands),migration='Copy a selected legacy brand into an explicitly chosen client; originals remain unchanged.')
 
 

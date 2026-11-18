@@ -11,12 +11,12 @@ sys.path.insert(0, str(ROOT))
 TEMP = tempfile.TemporaryDirectory(prefix='lexnis-audio-bus-')
 os.environ['VIDEO_DATA_DIR'] = TEMP.name
 import numpy as np
-from video_assets import ingest, path_for
-from video_ffmpeg import ffmpeg
-from video_editor import render
-from video_projects import Project, Clip, Canvas
-from video_jobs import Job
-from video_measure import audio_quality
+from video.assets import ingest, path_for
+from video.ffmpeg import ffmpeg
+from video.editor import render
+from video.projects import Project, Clip, Canvas
+from video.jobs import Job
+from video.measure import audio_quality
 
 
 class AudioBusTests(unittest.TestCase):

@@ -17,7 +17,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='lexnis-video-browser-') as tmp:
         os.environ['VIDEO_DATA_DIR']=str(Path(tmp)/'store')
         os.environ['AGENCY_DATA_DIR']=str(Path(tmp)/'agency')
-        from video_ffmpeg import ffmpeg
+        from video.ffmpeg import ffmpeg
         source=Path(tmp)/'source.mp4'
         ffmpeg(['-f','lavfi','-i','testsrc2=size=320x180:rate=24','-t','2','-c:v','libx264','-pix_fmt','yuv420p',str(source)])
         from PIL import Image

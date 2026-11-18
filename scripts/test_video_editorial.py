@@ -24,18 +24,18 @@ import numpy as np
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from PIL import Image, ImageDraw
-from video_api import router
-from video_security import VideoRequestLimits
-from video_ffmpeg import ffmpeg
-from video_assets import path_for
-from video_projects import Project
-import video_editorial_qa
-import video_grade
-import video_measure
-import video_platforms
-import video_segmentation
-from video_captions import DEFAULT_CAPTION_STYLES, caption_qa, render_caption_image, track_style, brand_caption_style
-from video_quick_edit import (plan_cuts, punch_in_plan, likely_names, apply_corrections, requested, caption_cues,
+from video.api import router
+from video.security import VideoRequestLimits
+from video.ffmpeg import ffmpeg
+from video.assets import path_for
+from video.projects import Project
+from video import editorial_qa as video_editorial_qa
+from video import grade as video_grade
+from video import measure as video_measure
+from video import platforms as video_platforms
+from video import segmentation as video_segmentation
+from video.captions import DEFAULT_CAPTION_STYLES, caption_qa, render_caption_image, track_style, brand_caption_style
+from video.quick_edit import (plan_cuts, punch_in_plan, likely_names, apply_corrections, requested, caption_cues,
                               AUTO_CUT_CONFIDENCE)
 
 app = FastAPI()
@@ -102,7 +102,7 @@ class PolicyTests(unittest.TestCase):
         self.assertFalse(trusted)
 
     def test_brand_caption_snapshot_and_arabic_logical_line_order(self):
-        from brand_guidelines import Rules
+        from brand.guidelines import Rules
         snapshot, warnings = brand_caption_style(Rules(caption_color='#eecc22',caption_size=58,font_preferences=['Arial']))
         style=track_style(dict(brand_style=snapshot))
         self.assertEqual((style.fill,style.font_size,style.font_name),('#eecc22',58,'Arial'))
@@ -251,7 +251,7 @@ class GuidedEditTests(unittest.TestCase):
         status = dict(available=matting, model='u2netp' if matting else None, privacy='local',
                       reason='Subject-aware background editing is available.' if matting else
                       'Subject-aware background editing requires the optional segmentation model. Run: python scripts/setup_video_matting.py')
-        with patch('video_quick_edit.speech_status', return_value={'available': True, 'reason': ''}), patch('video_quick_edit.transcribe', return_value=transcript), \
+        with patch('video.quick_edit.speech_status', return_value={'available': True, 'reason': ''}), patch('video.quick_edit.transcribe', return_value=transcript), \
                 patch.object(video_segmentation, 'status', return_value=status), patch.object(video_segmentation, 'installed_model', return_value='u2netp' if matting else None), \
                 patch.object(video_segmentation, 'provider', return_value=FixedMatte()):
             response = self.http.post(f'/api/video/projects/{self.project(creative_context=creative_context, person_name="Sara Ali", person_position="Engineer")["id"]}/quick-edit',

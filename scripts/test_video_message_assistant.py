@@ -20,7 +20,7 @@ BROWSER='--browser' in sys.argv
 if BROWSER:sys.argv.remove('--browser')
 from fastapi.testclient import TestClient
 import server
-import video_brief_assistant as assistant
+from video import brief_assistant as assistant
 
 
 def company_page(url,**kwargs):
@@ -71,7 +71,7 @@ class MessageAssistantTests(unittest.TestCase):
             result=self.suggest({**self.payload,**details,'campaign_type':'company_intro','language':language})
             self.assertIn('Acme' if language=='en' else 'أكمي',result['message'])
             self.assertIn(details['company_services'],result['message'])
-            with patch('campaign_generator.LexnisCampaignStudio._chat',side_effect=RuntimeError('Offline storyboard test')):
+            with patch('image.campaign_generator.LexnisCampaignStudio._chat',side_effect=RuntimeError('Offline storyboard test')):
                 response=self.client.post('/api/video/generate-brief',json={**details,'brand_id':self.brand_id,'campaign_goal':'Introduce the Company',
                     'core_message':result['message'],'language':language,'duration':8})
             self.assertEqual(response.status_code,200,response.text)
@@ -132,7 +132,7 @@ class MessageAssistantTests(unittest.TestCase):
             def proxy(route):
                 parsed=urlsplit(route.request.url)
                 if parsed.hostname!='localhost':route.abort();return
-                with patch('agency.research.fetch',side_effect=company_page),patch.object(assistant,'model_message',side_effect=provider),patch('campaign_generator.LexnisCampaignStudio._chat',side_effect=RuntimeError('Offline storyboard test')):
+                with patch('agency.research.fetch',side_effect=company_page),patch.object(assistant,'model_message',side_effect=provider),patch('image.campaign_generator.LexnisCampaignStudio._chat',side_effect=RuntimeError('Offline storyboard test')):
                     response=self.client.request(route.request.method,parsed.path+('?' + parsed.query if parsed.query else ''),content=route.request.post_data_buffer,
                         headers={key:value for key,value in route.request.headers.items() if key in {'content-type','range'}})
                 route.fulfill(status=response.status_code,body=response.content,headers={key:value for key,value in response.headers.items() if key not in {'content-length','content-encoding','transfer-encoding','set-cookie'}})

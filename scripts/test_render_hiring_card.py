@@ -7,7 +7,7 @@ import numpy as np
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
-from visual_engine import (
+from image.visual_engine import (
     render_depth_gradient,
     generate_chevron_field,
     render_lexnis_logo,

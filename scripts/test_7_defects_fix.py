@@ -192,7 +192,7 @@ def sanitize_brand_tag(raw_tag, brand_name="Lexnis"):
 
 
 def run_full_1080x1350_test():
-    from visual_engine import extract_subject_matte, prepare_bidi_text
+    from image.visual_engine import extract_subject_matte, prepare_bidi_text
 
     W, H = 1080, 1350
     sx = W / 808.0
