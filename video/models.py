@@ -178,7 +178,8 @@ class Wan22TI2VAdapter(VideoModelAdapter):
                 model_path,
                 torch_dtype=torch_module.bfloat16,
                 local_files_only=True,
-                use_safetensors=True
+                use_safetensors=True,
+                expand_timesteps=True
             )
         else:
             pipe = diffusers_module.WanPipeline.from_pretrained(
@@ -235,14 +236,14 @@ MODELS = {
         repo='Wan-AI/Wan2.2-TI2V-5B-Diffusers',
         modes=['text-to-video', 'image-to-video'],
         license='Apache-2.0',
-        width=832,
-        height=480,
-        frames=81,
-        fps=16,
-        vram_gb=16,
+        width=1280,
+        height=704,
+        frames=121,
+        fps=24,
+        vram_gb=24,
         ram_gb=32,
         disk_gb=60,
-        note='Dual-mode text and image conditioned 5B model for agile deployment.'
+        note='Vendor 720p profile (1280x704 at 24 fps), at least 24 GB VRAM with offload. Not suitable for the 8 GB laptop.'
     ),
 }
 
@@ -282,7 +283,7 @@ def runtime_status():
             [str(PYTHON), '-c', code],
             capture_output=True,
             text=True,
-            timeout=25,
+            timeout=180,
             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)
         )
         value = (
@@ -349,13 +350,19 @@ def statuses():
         if not installed:
             reasons.append('Model weights are not installed')
 
-        verified = False
+        verified = False;marker={}
         try:
             marker = json.loads((CACHE / key / 'smoke-test.json').read_text(encoding='utf-8'))
             manifest = json.loads((CACHE / key / 'installation.json').read_text(encoding='utf-8'))
             verified = marker.get('revision') == manifest.get('revision') and marker.get('model') == key
         except (OSError, ValueError, KeyError):
             pass
+
+        last_run=None
+        try:
+            last_run=json.loads((CACHE/key/'last-run.json').read_text(encoding='utf-8'))
+            if last_run.get('success') is False and last_run.get('at',0)>marker.get('verified_at',0):verified=False
+        except (OSError,ValueError):pass
 
         # Determine explicit lifecycle state
         if not installed:
@@ -376,6 +383,7 @@ def statuses():
             available=not reasons,
             reasons=reasons,
             verified=verified,
+            last_run=last_run,
             state=state.value
         ))
     return results

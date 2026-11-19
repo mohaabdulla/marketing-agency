@@ -317,7 +317,7 @@ def generate(request, job):
         if request.asset_id:
             payload['image'] = str(path_for(request.asset_id))
         (tmp/'request.json').write_text(json.dumps(payload), encoding='utf-8')
-        environment = {**os.environ, 'HF_HUB_OFFLINE':'1', 'TRANSFORMERS_OFFLINE':'1', 'PYTHONIOENCODING':'utf-8'}
+        environment = {**os.environ, 'HF_HUB_OFFLINE':'1', 'TRANSFORMERS_OFFLINE':'1', 'PYTHONIOENCODING':'utf-8', 'PYTHONFAULTHANDLER':'1'}
         job.update(state='preparing', phase='Loading local model', progress=None)
         with (DATA/'jobs'/(job.id+'.worker.log')).open('w', encoding='utf-8') as log:
             process = spawn_worker([str(PYTHON), '-u', str(ROOT/'scripts/render_local_video.py'), str(tmp/'request.json')],
@@ -325,12 +325,13 @@ def generate(request, job):
                 start_new_session=os.name!='nt',
                 creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
             started, last = time.monotonic(), None
+            inference_limit = 1800 if request.quality == 'draft' else 3600
             try:
                 while process.poll() is None:
                     if job.cancelled():
                         raise Cancelled()
-                    if time.monotonic()-started > 1800:
-                        raise ValueError('AI inference exceeded the 30 minute time limit')
+                    if time.monotonic()-started > inference_limit:
+                        raise ValueError(f'AI inference exceeded the {inference_limit//60} minute time limit')
                     try:
                         progress = json.loads((tmp/'progress.json').read_text())
                         if progress != last:
@@ -344,10 +345,13 @@ def generate(request, job):
                     stop_process(process)
                 process.wait()
         if process.returncode or not (tmp/'native.mp4').is_file():
+            with (DATA/'jobs'/(job.id+'.worker.log')).open('a',encoding='utf-8') as diagnostics:
+                diagnostics.write(f'\nLocal worker exit code: {process.returncode}\n')
+            (CACHE/request.model/'last-run.json').write_text(json.dumps(dict(model=request.model,success=False,at=time.time(),exit_code=process.returncode)),encoding='utf-8')
             details = (DATA/'jobs'/(job.id+'.worker.log')).read_text(encoding='utf-8')
             if 'out of memory' in details.lower():
                 raise ValueError('GPU out of memory. Use Image Animation or a larger GPU.')
-            raise ValueError('Local AI worker failed; see local job diagnostics')
+            raise ValueError(f'Local AI worker failed (exit code {process.returncode}). No substitute clip was generated; see local diagnostics.')
         native = probe(tmp/'native.mp4')
         if (native['width'],native['height']) != (config['width'],config['height']) or abs(native['duration']-config['frames']/config['fps']) > .2:
             raise ValueError('AI worker output does not match the expected native dimensions or duration')
@@ -361,8 +365,9 @@ def generate(request, job):
         project, project_id, warnings = branded_project(project, request)
         result = master(project, job, audio=False)   # every AI output receives the same delivery measurements
         manifest=json.loads((CACHE/request.model/'installation.json').read_text(encoding='utf-8'))
+        (CACHE/request.model/'last-run.json').write_text(json.dumps(dict(model=request.model,revision=manifest['revision'],success=True,at=time.time())),encoding='utf-8')
         return annotate(result, generation_type=request.mode, native_width=config['width'], native_height=config['height'],
-                        inference_profile='staged-int8-text-fp16-video' if payload['low_memory'] else 'fp16-video' if request.model=='cogvideox-2b' else 'bf16-video',
+                        inference_profile=('staged-nf4-text-fp16-video' if os.getenv('VIDEO_TEXT_ENCODER_BITS')=='4' else 'staged-int8-text-fp16-video') if payload['low_memory'] else 'fp16-video' if request.model=='cogvideox-2b' else 'bf16-video',
                         seed=request.seed, model=request.model, revision=manifest['revision'],project_id=project_id,
                         guideline_id=request.guideline_id,guideline_version=request._version,
                         brand_warnings=warnings,creation_prompt=generation_prompt(request))

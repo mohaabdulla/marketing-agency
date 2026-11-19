@@ -5,7 +5,7 @@ import sys
 import time
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from video.models import statuses, CACHE
+from video.models import statuses, CACHE,MODELS
 from video.engine import Generate, generate, check_generate
 from video.assets import ingest, path_for
 from video.storage import uid
@@ -26,7 +26,8 @@ class SmokeProgress:
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--model', choices=['cogvideox-2b','wan21-i2v-480p'])
+    parser.add_argument('--model', choices=MODELS)
+    parser.add_argument('--mode',choices=['text-to-video','image-to-video'])
     parser.add_argument('--image', type=Path, help='Local operator-controlled image for the Wan I2V smoke test')
     parser.add_argument('--run-inference', action='store_true')
     parser.add_argument('--quality', choices=['draft','standard'], default='draft')
@@ -38,7 +39,8 @@ def main():
     if not args.model:
         parser.error('--model is required for real inference')
     source=ingest(args.image,args.image.name)['id'] if args.image else None
-    request=Generate(model=args.model,mode='image-to-video' if args.model.startswith('wan') else 'text-to-video',
+    mode=args.mode or ('image-to-video' if source else 'text-to-video')
+    request=Generate(model=args.model,mode=mode,
                      prompt='A small toy robot waves its arm, realistic studio lighting, slow camera motion.',asset_id=source,quality=args.quality)
     check_generate(request)
     started=time.monotonic()

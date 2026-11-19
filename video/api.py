@@ -6,8 +6,8 @@ same-origin check. server.py includes `router` in the FastAPI app.
 from fastapi import APIRouter, Depends
 
 from core.security_headers import trusted_origin
-from video.routes import brand, editing, footage, media, projects, storyboard
+from video.routes import brand, editing, footage, media, projects, storyboard,production
 
 router = APIRouter(prefix='/api/video', tags=['video'], dependencies=[Depends(trusted_origin)])
-for group in (storyboard, footage, media, projects, editing, brand):
+for group in (storyboard, footage, media, projects, editing, brand,production):
     router.include_router(group.router)

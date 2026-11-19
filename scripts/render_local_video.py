@@ -1,5 +1,7 @@
 """Isolated inference only. Never imported by the web server; never downloads weights."""
 import gc
+import functools
+import inspect
 import json
 import os
 import sys
@@ -7,6 +9,30 @@ from pathlib import Path
 
 os.environ['HF_HUB_OFFLINE'] = '1'
 os.environ['TRANSFORMERS_OFFLINE'] = '1'
+
+
+def configure_tensor_reader(module=None,windows=None):
+    """Use Safetensors' supported positional reader in this Windows child only.
+
+    Safetensors 0.8 mmap + Torch 2.6 can crash in storage slicing on Windows.
+    Configure before importing model libraries so their reader references agree.
+    Older Safetensors without backend selection retain their existing loader.
+    """
+    if windows is None:windows=os.name=='nt'
+    if not windows:return False
+    if module is None:import safetensors as module
+    original=module.safe_open
+    if 'backend' not in inspect.signature(original).parameters:return False
+    backend=os.getenv('VIDEO_SAFETENSORS_BACKEND','pread')
+    if backend not in {'pread','mmap'}:raise ValueError('VIDEO_SAFETENSORS_BACKEND must be pread or mmap')
+    @functools.wraps(original)
+    def reader(*args,**kwargs):
+        # load_file() forwards its own default mmap keyword. The worker's
+        # selected backend must override that too, including video weights.
+        kwargs['backend']=backend
+        return original(*args,**kwargs)
+    module.safe_open=reader
+    return True
 
 
 def build_pipeline(request, torch, diffusers):
@@ -27,7 +53,7 @@ def build_pipeline(request, torch, diffusers):
     elif request['model'] == 'wan21-t2v-480p':
         if request['mode'] != 'text-to-video':
             raise ValueError('Wan T2V is text-only')
-        pipe = getattr(diffusers, 'WanPipeline', diffusers.CogVideoXPipeline).from_pretrained(
+        pipe = diffusers.WanPipeline.from_pretrained(
             request['model_path'], torch_dtype=torch.bfloat16, local_files_only=True, use_safetensors=True
         )
     elif request['model'] == 'wan22-ti2v-5b':
@@ -35,10 +61,10 @@ def build_pipeline(request, torch, diffusers):
             if not request.get('image'):
                 raise ValueError('Wan TI2V requires a starting image in image-to-video mode')
             pipe = diffusers.WanImageToVideoPipeline.from_pretrained(
-                request['model_path'], torch_dtype=torch.bfloat16, local_files_only=True, use_safetensors=True
+                request['model_path'], torch_dtype=torch.bfloat16, local_files_only=True, use_safetensors=True,expand_timesteps=True
             )
         else:
-            pipe = getattr(diffusers, 'WanPipeline', diffusers.CogVideoXPipeline).from_pretrained(
+            pipe = diffusers.WanPipeline.from_pretrained(
                 request['model_path'], torch_dtype=torch.bfloat16, local_files_only=True, use_safetensors=True
             )
     else:
@@ -52,16 +78,23 @@ def build_pipeline(request, torch, diffusers):
 
 
 def encode_cog_prompt(request, torch):
-    """Encode with an 8-bit T5, then release it before loading the video model.
+    """Encode with an 8-bit T5 (optional NF4), then release it before loading the video model.
     The full text encoder and video transformer need not share a 16 GB laptop's RAM.
     Only the text encoder is quantized; video weights keep their original FP16 precision.
     """
     from transformers import T5Tokenizer, T5EncoderModel, BitsAndBytesConfig
     root = Path(request['model_path'])
     tokenizer = T5Tokenizer.from_pretrained(root / 'tokenizer', local_files_only=True)
+    bits=int(os.getenv('VIDEO_TEXT_ENCODER_BITS','8'))
+    if bits not in (4,8):raise ValueError('VIDEO_TEXT_ENCODER_BITS must be 4 or 8')
+    quantization=(BitsAndBytesConfig(load_in_4bit=True,bnb_4bit_quant_type='nf4',bnb_4bit_use_double_quant=True,bnb_4bit_compute_dtype=torch.float16)
+        if bits==4 else BitsAndBytesConfig(load_in_8bit=True))
     encoder = T5EncoderModel.from_pretrained(root / 'text_encoder', local_files_only=True,
-        torch_dtype=torch.float16, low_cpu_mem_usage=True, device_map={'': 0},
-        quantization_config=BitsAndBytesConfig(load_in_8bit=True))
+        # A root CUDA map makes Transformers open each full FP16 shard on the GPU
+        # before quantization. Map T5 modules individually so shards stay on CPU
+        # and only each quantized parameter is placed on CUDA.
+        torch_dtype=torch.float16, low_cpu_mem_usage=True, device_map={'shared': 0,'encoder': 0},
+        quantization_config=quantization)
     try:
         embeddings = []
         for text in [(request['prompt'] + '. ' + request['camera']).strip(), request['negative_prompt'] or '']:
@@ -78,6 +111,7 @@ def encode_cog_prompt(request, torch):
 
 def main():
     request = json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))
+    configure_tensor_reader()
     import torch
     import diffusers
     from diffusers.utils import export_to_video, load_image

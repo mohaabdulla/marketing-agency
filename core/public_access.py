@@ -277,8 +277,8 @@ class PublicTestingMiddleware:
                 with _lock:
                     if key not in self.recovered:
                         from video.jobs import jobs
-                        from video.storage import atomic
-                        with jobs.lock:
+                        from video.storage import atomic, LOCK
+                        with LOCK, jobs.lock:
                             for item in folder('video/jobs').glob('*.json'):
                                 data=json.loads(item.read_text())
                                 if data.get('state') not in {'completed','failed','cancelled'} and data['id'] not in jobs.active:

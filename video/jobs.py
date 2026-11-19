@@ -4,7 +4,7 @@ import threading
 import time
 import traceback
 from contextvars import copy_context
-from video.storage import DATA, atomic, read, uid, listing, cleanup
+from video.storage import DATA, LOCK, atomic, read, uid, listing, cleanup
 from video.ffmpeg import Cancelled
 
 TERMINAL = {'completed', 'failed', 'cancelled'}
@@ -38,7 +38,9 @@ class Jobs:
                 atomic(DATA / 'jobs' / (item['id'] + '.json'), item)
 
     def submit(self, kind, function):
-        with self.lock:
+        # Use storage -> queue order everywhere. Producer transactions already own
+        # the storage lock while reserving work; status polling must use that order too.
+        with LOCK,self.lock:
             if len(self.active) >= 8:
                 raise ValueError('Video queue is full; wait for an existing job')
             job = Job(kind)
@@ -71,8 +73,8 @@ class Jobs:
                 self.active.pop(job.id, None)
 
     def cancel(self, key):
-        item = read('jobs', key)
-        with self.lock:
+        with LOCK,self.lock:
+            item = read('jobs', key)
             if key in self.active:
                 self.active[key].event.set()
                 # State remains running until the subprocess is actually stopped.
@@ -80,7 +82,7 @@ class Jobs:
         return read('jobs', key)
 
     def status(self, key):
-        with self.lock:
+        with LOCK,self.lock:
             item = read('jobs', key)
             if item['state'] not in TERMINAL and key not in self.active:
                 item.update(state='failed', error='The worker stopped before saving a result. Submit this edit again.', updated=time.time())
