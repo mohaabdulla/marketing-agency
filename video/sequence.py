@@ -35,6 +35,54 @@ def frame_fit(meta, canvas):
     return 'blur-fill' if min(image / frame, frame / image) < .64 or enlarge > 1.6 else 'cover'
 
 
+def split_card(scene, canvas):
+    """A still shown as a framed card that is narrow enough (portrait or square) to sit on one side of a
+    landscape frame, leaving the other side for the headline."""
+    if not scene.get('asset_id'):
+        return False
+    meta = read('assets', scene['asset_id'])
+    return (meta['kind'] == 'image' and frame_fit(meta, canvas) == 'blur-fill'
+            and meta.get('width', 0) <= 1.15 * meta.get('height', 0))
+
+
+def low_contrast(logo_path, background_hex):
+    """True when the logo's visible pixels are close in brightness to the background colour."""
+    import numpy as np
+    from PIL import Image
+    with Image.open(logo_path) as image:
+        rgba = image.convert('RGBA')
+    rgba.thumbnail((256, 256))
+    pixels = np.asarray(rgba, dtype=np.float32).reshape(-1, 4)
+    pixels = pixels[pixels[:, 3] > 128]
+    if not len(pixels):
+        return True
+    luma = float((pixels[:, :3] @ np.array([.299, .587, .114], np.float32)).mean())
+    bg = bytes.fromhex(background_hex.lstrip('#'))
+    return abs(luma - (.299 * bg[0] + .587 * bg[1] + .114 * bg[2])) < 70
+
+
+def end_card_logo(brand, scenes, canvas, ratio, headline, top, gap):
+    """The closing card shows the logo large and centred above the call to action (the usual end card of a
+    company film); the small corner logo makes way for it. Only on a motion-graphics end card."""
+    last = scenes[-1]
+    if last.get('asset_id'):
+        return None
+    meta = read('assets', brand['logo_asset_id'])
+    if not meta.get('width') or not meta.get('height'):
+        return None
+    w, h = canvas.width, canvas.height
+    scale = {'16:9': .30, '1:1': .42, '9:16': .55}.get(ratio, .30)
+    lh = w * scale * meta['height'] / meta['width']
+    if lh > h * .26:
+        scale, lh = scale * h * .26 / lh, h * .26
+    _, style, bottom = headline
+    headline_top = 2 * style.y_pct * h - bottom
+    centre = max(top + gap + lh / 2, min(h * .34, headline_top - gap - lh / 2))
+    return Clip(kind='overlay', asset_id=brand['logo_asset_id'], start=last['start'], duration=last['duration'],
+                scale=round(scale, 4), x=.5, y=round(min(1., max(0., (centre - lh / 2) / max(1, h - lh))), 4), fade_in=.6,
+                logo_backplate=low_contrast(path_for(brand['logo_asset_id']), brand['primary_hex']))
+
+
 def footage_timing(meta, needed):
     """Where a video clip starts and how fast it plays so it fills ``needed`` seconds: longer clips skip a
     little of their opening (often a fade); slightly short clips play in gentle slow motion."""
@@ -45,6 +93,52 @@ def footage_timing(meta, needed):
     if speed < MIN_FOOTAGE_SPEED:
         raise ValueError(f'the clip is {available:.1f} s long but the scene needs {needed:.1f} s; choose a longer clip or shorten the scene')
     return 0.0, round(speed - .005, 3)
+
+
+FRAME_RATES = (24, 25, 30)
+
+
+def rate_family(fps):
+    """The delivery rate a source frame rate plays cleanly at: 23.976/24/48 -> 24, 25/50 -> 25, else 30.
+    A multiple of the delivery rate drops whole frames evenly; any other ratio repeats frames unevenly."""
+    for base in (24, 25):
+        if any(abs(fps - base * k * m) < .06 * k for k in (1, 2) for m in (1, 1000 / 1001)):
+            return base
+    return 30
+
+
+def sequence_fps(scenes):
+    """Frame rate for the finished video: the rate most of the footage (by screen time) was shot at, so
+    stock clips play without repeated frames. Stills and motion graphics play cleanly at any rate."""
+    seconds = {}
+    for scene in scenes:
+        meta = read('assets', scene['asset_id']) if scene.get('asset_id') else None
+        if meta and meta['kind'] == 'video' and meta.get('fps'):
+            family = rate_family(meta['fps'])
+            seconds[family] = seconds.get(family, 0) + scene['duration']
+    return max(seconds, key=lambda rate: (seconds[rate], rate)) if seconds else 30
+
+
+def needs_interpolation(meta, speed, fps):
+    """Footage needs new in-between frames when it is slowed down or shot at a rate that does not divide
+    evenly into the video's rate; otherwise repeated frames make movement stutter."""
+    return speed < .98 or rate_family(meta.get('fps') or fps) != fps
+
+
+# Total zoom over a whole scene. Spread across the scene these read as a slow push; the old values ran in one
+# second and then stopped.
+ZOOM_TRAVEL = {'calm': .04, 'balanced': .07, 'fast': .10}
+
+
+def camera_move(motion, pacing):
+    """Zoom/pan settings for a still over its whole scene. 'still' keeps a barely visible drift (a third of
+    the push) so a held end card does not become a frozen frame after moving scenes."""
+    travel = ZOOM_TRAVEL[pacing]
+    if motion in ('pan', 'pan-back'):
+        return MOTIONS[motion]
+    if motion == 'zoom-out':
+        return dict(zoom_start=1 + travel, zoom=1)
+    return dict(zoom_start=1, zoom=1 + (travel / 3 if motion == 'still' else travel))
 
 
 def prepare_sequence(request):
@@ -200,7 +294,7 @@ def build_sequence_project(brief,request,job,work,narration=None,report=None):
     from video.typography import compose
     settings=brief['request'];brand=brief['brand'];ratio=settings['platform_target']
     compiled=compile_storyboard(VideoBriefRequest.model_validate(settings),brand,[StoryboardScene.model_validate(scene) for scene in brief['scenes']])
-    canvas=Canvas(width=compiled['width'],height=compiled['height'],fps=compiled['fps'])
+    canvas=Canvas(width=compiled['width'],height=compiled['height'],fps=sequence_fps(brief['scenes']))
     w,h=canvas.width,canvas.height;scenes=brief['scenes'];clips=[]
     profile=platform_profile(ratio,settings['language'])
     left,top,right,bottom=platforms.safe_area(profile,w,h)
@@ -232,22 +326,35 @@ def build_sequence_project(brief,request,job,work,narration=None,report=None):
                        x=round(min(1.,max(0.,target_x/max(1,w-lw))),4),y=round(min(1.,max(0.,(top+h*.01)/max(1,h-lh))),4),logo_backplate=True)
         logo_left,logo_right,logo_bottom=target_x,target_x+lw,top+h*.01+lh
     name=(brand.get('brand_name_ar') or brand['brand_name']) if settings['language']=='ar' else brand['brand_name']
-    free=(left,logo_left-w*.03) if logo_left is not None and not rtl else (logo_right+w*.03,right) if logo_left is not None else (left,right)
-    name_style=style_for(max(22,round(w*.035)),brand['secondary_hex'],'lower_third',.5,
-                         center=round(min(.8,max(.2,(free[0]+free[1])/2/w)),4),width=round(max(.3,min(.95,(free[1]-free[0])/w)),4))
-    name_box=compose(name,w,h,name_style)[0]['box']
-    name_style=name_style.model_copy(update={'y_pct':round(max(.1,min(.4,(top+h*.01+(name_box[3]-name_box[1])/2)/h)),4)})
-    bar_bottom=max(logo_bottom,name_style.y_pct*h+(name_box[3]-name_box[1])/2)
+    name_style=None;bar_bottom=logo_bottom
+    if not logo_clip:
+        # Without a logo the brand name is the brand mark in the top bar. With one, repeating the name beside
+        # it doubled the branding on every frame.
+        name_style=style_for(max(22,round(w*.035)),brand['secondary_hex'],'lower_third',.5)
+        name_box=compose(name,w,h,name_style)[0]['box']
+        name_style=name_style.model_copy(update={'y_pct':round(max(.1,min(.4,(top+h*.01+(name_box[3]-name_box[1])/2)/h)),4)})
+        bar_bottom=name_style.y_pct*h+(name_box[3]-name_box[1])/2
+    # Split layout (landscape): a portrait or square picture sits as a framed card on one side and the headline
+    # takes the other half, so the text never covers the picture. Arabic reads from the right: text on the right.
+    text_right=settings['language']=='ar'
+    splits=[split_card(scene,canvas) if ratio=='16:9' else False for scene in scenes]
     # Headlines sit at 56% of the height unless that would reach the subtitles; never into the top bar.
     gap=h*.03
     headlines=[]
     for index,scene in enumerate(scenes):
         role='hook' if index==0 else 'cta' if index==len(scenes)-1 else 'headline'
-        style=style_for(min(80,max(28,round(w*.055))),text_color,role,.56)
+        size=min(80,max(28,round(w*.055)))
+        style=(style_for(size,text_color,role,.5,center=.72 if text_right else .28,width=.38) if splits[index]
+               else style_for(size,text_color,role,.56))
         box=compose(scene['overlay_text'],w,h,style)[0]['box'];half=(box[3]-box[1])/2
-        centre=.56*h if caption_top is None else min(.56*h,caption_top-gap-half)
+        target=style.y_pct*h
+        centre=target if caption_top is None else min(target,caption_top-gap-half)
         centre=max(centre,bar_bottom+gap+half)
         headlines.append((role,style.model_copy(update={'y_pct':round(min(.92,max(.1,centre/h)),4)}),centre+half))
+    hero=end_card_logo(brand,scenes,canvas,ratio,headlines[-1],top,gap) if logo_clip else None
+    if hero:
+        # The top-bar logo leaves as the end card's large logo arrives.
+        logo_clip=logo_clip.model_copy(update=dict(duration=round(scenes[-1]['start']+overlap,3),fade_out=.3))
     for index,scene in enumerate(scenes):
         if job.cancelled():raise Cancelled()
         job.update(state='running',phase='Preparing storyboard visuals',progress={'completed_scenes':index,'total_scenes':len(scenes)})
@@ -257,21 +364,30 @@ def build_sequence_project(brief,request,job,work,narration=None,report=None):
             # Real footage carries its own motion: no added camera move, and its sound stays out of the mix.
             trim,speed=footage_timing(meta,length)
             clips.append(Clip(asset_id=asset,duration=length,transition=overlap if index else 0,trim=trim,speed=speed,
-                              fit=frame_fit(meta,canvas),volume=0))
+                              fit=frame_fit(meta,canvas),volume=0,smooth_motion=needs_interpolation(meta,speed,canvas.fps)))
             continue
         if not asset:
             # The accent rule runs between the headline and the subtitles, or is left out when they are close.
             limit=caption_top if caption_top is not None else h*.9
             line=round((headlines[index][2]+limit)/2/h,4) if limit-headlines[index][2]>=gap else None
-            path=work/f'scene-{index}.png';sequence_backdrop(path,canvas,brand,index,scene.get('background_style','brand-gradient'),line)
-            asset=ingest(path,path.name,job)['id']
-        move=MOTIONS[scene['motion']]
-        zoom_delta={'calm':.025,'balanced':.06,'fast':.10}[settings['pacing']]
-        move={**move,'zoom_start':1+zoom_delta if scene['motion']=='zoom-out' else 1,
-              'zoom':1+zoom_delta if scene['motion']!='still' and scene['motion']!='zoom-out' else 1}
-        clips.append(Clip(asset_id=asset,duration=length,transition=overlap if index else 0,zoom_ease=1,
-                          fit=frame_fit(meta,canvas) if meta else 'cover',**move))
-    clips.append(graphic(name,0,settings['duration'],name_style,'lower_third'))
+            # A moving brand backdrop (drifting light and shapes, accent rule drawing in). A camera move on a flat
+            # gradient shows no visible motion, so these scenes used to read as frozen frames.
+            from video import backdrop
+            path=work/f'scene-{index}.mp4'
+            backdrop.render(path,canvas,brand,index,scene.get('background_style','brand-gradient'),line,length)
+            clips.append(Clip(asset_id=ingest(path,path.name,job)['id'],duration=length,transition=overlap if index else 0,volume=0))
+            continue
+        # The camera keeps moving at one steady speed for the whole scene, through the crossfade into the
+        # next one. Moving briefly and then holding reads as a stall followed by a frozen picture.
+        move=camera_move(scene['motion'],settings['pacing'])
+        # Between two framed pictures a dissolve reads as a double exposure; a short push moves one card out
+        # and the next in, as motion-graphics templates do.
+        push=index>0 and splits[index] and splits[index-1] and not text_right
+        clips.append(Clip(asset_id=asset,duration=length,transition=overlap if index else 0,zoom_ease=0,
+                          fit=frame_fit(meta,canvas) if meta else 'cover',card_x=(.3 if text_right else .7) if splits[index] else .5,
+                          transition_type='smooth' if push else 'fade',**move))
+    if name_style:clips.append(graphic(name,0,settings['duration'],name_style,'lower_third'))
+    if hero:clips.append(hero)
     # Headlines enter with a short eased rise (motion intensity stays minimal; see video.motion).
     for scene,(role,style,_) in zip(scenes,headlines):
         clips.append(graphic(scene['overlay_text'],scene['start'],scene['duration'],style,role,motion='slide-up'))
@@ -286,7 +402,7 @@ def build_sequence_project(brief,request,job,work,narration=None,report=None):
     # Speech gets the gentle dialogue chain (high-pass, de-mud EQ, light compression): a narrator's peaks
     # otherwise stop the mix from reaching the -14 LUFS delivery target under the true-peak ceiling.
     project=Project(name=(brand['brand_name']+' — '+settings['campaign_type'])[:120],canvas=canvas,brand_id=brand['id'],
-        clips=clips,normalize_audio=bool(request.voiceover_asset_id or request.music_asset_id),dialogue_polish=bool(request.voiceover_asset_id),
+        clips=clips,motion_intensity='balanced',normalize_audio=bool(request.voiceover_asset_id or request.music_asset_id),dialogue_polish=bool(request.voiceover_asset_id),
         delivery_preset={'9:16':'vertical-social','1:1':'square-social','16:9':'web-youtube'}[ratio],
         brand_rules=dict(brand_name=brand['brand_name'],primary_colors=[brand['primary_hex']],secondary_colors=[brand['secondary_hex']],font_preferences=[brand['font_family']]),
         creative_context=CreativeContext(key_message=settings['core_message'][:1000],objective=settings['campaign_type'],audience=settings.get('target_audience',''),
@@ -379,8 +495,8 @@ def sequence_qa(path,meta,brief,expect_audio,job=None,delivery=None):
     if delivery:
         for check in delivery.get('checks',[]):
             if check['id']=='frozen_frames':
-                # Every storyboard scene is a still image with a slow camera move, which the frozen-picture
-                # detector reads as motionless. Listed for review, not raised as a fault.
+                # A slow camera move on a plain backdrop can fall under the frozen-picture detector's
+                # threshold. Listed for review, not raised as a fault.
                 checks['still_scene_intervals']=check.get('measured') or []
             elif check['status'] in ('WARNING','FAIL') and check['id']!='black_frames':
                 warnings.append(f"{check['label']}: {check.get('detail') or check.get('expected') or check['status'].lower()}")
@@ -414,7 +530,7 @@ def render_sequence(brief,request,job):
         # Mastered like every other export: measured loudness correction plus the delivery checks.
         result=master(project,job,audio=expect_audio,captions_requested=bool(request.burn_subtitles and project.caption_tracks[0]['segments']))
         meta=probe(path_for(result['id']))
-        if (meta['width'],meta['height'])!=(project.canvas.width,project.canvas.height) or abs(meta['fps']-30)>.01 or abs(meta['duration']-brief['request']['duration'])>.12:
+        if (meta['width'],meta['height'])!=(project.canvas.width,project.canvas.height) or abs(meta['fps']-project.canvas.fps)>.01 or abs(meta['duration']-brief['request']['duration'])>.12:
             raise ValueError('Rendered sequence does not match the reviewed storyboard')
         if expect_audio and not meta['has_audio']:
             raise ValueError('Rendered sequence is missing its sound track')

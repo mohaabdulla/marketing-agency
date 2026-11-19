@@ -280,6 +280,29 @@ def image_kind(picture):
     return dict(colors_for_90=needed, top_three_share=round(top, 3), graphic=needed <= 8 or (top >= .6 and needed <= 16))
 
 
+LOGO_PATH = re.compile(r'(^|[/_.\-])(logo|logos|brand|branding|favicon|icon|icons|sprite|badge|wordmark)([/_.\-]|$)', re.I)
+
+
+def is_logo_url(url):
+    """Logo and icon files are usually named for what they are (/brand/name.webp, logo-dark.png).
+    The brand logo already sits in the video's top bar; as a scene picture it fills the frame with a
+    stretched wordmark. Next.js image URLs keep the real path in their url= parameter."""
+    from urllib.parse import parse_qs, unquote, urlsplit
+    parts = urlsplit(url)
+    paths = [parts.path] + [unquote(value) for value in parse_qs(parts.query).get('url', [])]
+    return any(LOGO_PATH.search(path) for path in paths)
+
+
+def transparent_share(image):
+    """Fraction of (nearly) transparent pixels; 0 for pictures without an alpha channel."""
+    if image.mode not in ('RGBA', 'LA', 'PA') and 'transparency' not in image.info:
+        return 0.0
+    alpha = image.convert('RGBA').getchannel('A')
+    alpha.thumbnail((256, 256))
+    histogram = alpha.histogram()
+    return sum(histogram[:16]) / max(1, sum(histogram))
+
+
 def collect_images(pages, folder, limit=MAX_IMAGES):
     """Download the company's own photographs, skipping logos, text cards and icons. Photos shorter than
     720 px are kept but flagged: they look soft when scaled to a 1080p frame."""
@@ -294,12 +317,23 @@ def collect_images(pages, folder, limit=MAX_IMAGES):
             status, mime, raw = fetch(url, max_bytes=8 * 1024**2, public_page=True)
             if status != 200 or not mime.lower().startswith('image/') or 'svg' in mime.lower():
                 continue
+            if is_logo_url(url):
+                continue
             with Image.open(io.BytesIO(raw)) as im:
                 im.load()
                 width, height = im.size
                 if min(width, height) < 480 or not .4 <= width / height <= 2.6:
                     continue
-                picture = im.convert('RGB')
+                if transparent_share(im) > .15:
+                    # A cut-out: a wide one is usually a wordmark logo. Others (a round portrait, a product shot)
+                    # are laid on white using their transparency; dropping the alpha left black corners and a
+                    # jagged edge. The photo/graphic check below still rejects icons and flat artwork.
+                    if width / height > 1.6:
+                        continue
+                    picture = Image.new('RGB', im.size, (255, 255, 255))
+                    picture.paste(im.convert('RGBA'), mask=im.convert('RGBA').getchannel('A'))
+                else:
+                    picture = im.convert('RGB')
             if image_kind(picture)['graphic']:
                 continue
             picture.thumbnail((2048, 2048))
@@ -341,7 +375,10 @@ def collect_videos(pages, folder, limit=MAX_VIDEOS):
             if not meta.get('video_codec') or meta['duration'] < 2 or min(meta['width'], meta['height']) < 360:
                 continue
             name, poster = f'video-{index}.mp4', f'video-{index}.jpg'
-            ffmpeg(['-i', str(source), '-t', str(SITE_VIDEO_SECONDS), '-an', '-vf', "scale='min(1920,iw)':-2:flags=lanczos,fps=30",
+            # The clip keeps its own frame rate: forcing 24/25 fps footage to 30 repeats frames (judder).
+            # The sequence picks its frame rate from the footage it uses (video.sequence.sequence_fps).
+            rate = '' if 1 <= (meta.get('fps') or 0) <= 60 else ',fps=30'
+            ffmpeg(['-i', str(source), '-t', str(SITE_VIDEO_SECONDS), '-an', '-vf', f"scale='min(1920,iw)':-2:flags=lanczos{rate}",
                     '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '19', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', str(folder / name)],
                    timeout=300)
             converted = probe(folder / name)

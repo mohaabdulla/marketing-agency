@@ -23,6 +23,9 @@ class Clip(Strict):
     logo_backplate: bool = False
     # How a still fills the canvas: 'cover' crops it; 'blur-fill' shows it whole over a blurred copy.
     fit: Literal['cover', 'blur-fill'] = 'cover'
+    # Horizontal centre of the framed picture in 'blur-fill' (fraction of the width): .5 centred, or set
+    # to one side so the headline has the other half of the frame (split layout).
+    card_x: float = Field(.5, ge=.2, le=.8)
     id: str = Field(default_factory=uid, pattern=r'^[a-f0-9]{32}$')
     asset_id: str | None = Field(default=None, pattern=r'^[a-f0-9]{32}$')
     kind: Literal['video', 'overlay', 'title', 'audio'] = 'video'
@@ -103,7 +106,8 @@ class Clip(Strict):
 class Canvas(Strict):
     width: int = Field(1280, ge=128, le=1920, multiple_of=2)
     height: int = Field(720, ge=128, le=1920, multiple_of=2)
-    fps: Literal[24, 30] = 24
+    # 25 matches PAL-region stock footage; converting 25 fps to 30 repeats every fifth frame (visible judder).
+    fps: Literal[24, 25, 30] = 24
     fps_mode: Literal['fixed', 'original'] = 'fixed'
 
 

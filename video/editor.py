@@ -114,6 +114,64 @@ def atempo(speed):
     return ','.join(values + [f'atempo={speed}'])
 
 
+def trim_layer(path, width, height):
+    """Crop a full-frame transparent layer (title or subtitle artwork) to its visible pixels, in place.
+    Returns the crop's top-left corner, or None when the file is not full-frame or is empty."""
+    with Image.open(path) as opened:
+        if opened.size != (width, height) or opened.mode != 'RGBA':
+            return None
+        layer = opened.copy()
+    box = layer.getchannel('A').getbbox()
+    if not box:
+        return None
+    x0, y0 = max(0, box[0] - 2), max(0, box[1] - 2)
+    layer.crop((x0, y0, min(width, box[2] + 2), min(height, box[3] + 2))).save(path)
+    return x0, y0
+
+
+def card_layers(source, crop, width, height, size, backdrop_path, card_path):
+    """The two still layers of a framed picture, built once: a blurred cover of the frame, and the whole
+    picture (fitted into ``size`` of the frame) on a soft drop shadow, as an RGBA card."""
+    from PIL import ImageFilter, ImageOps
+    with Image.open(source) as opened:
+        picture = ImageOps.exif_transpose(opened).convert('RGB')
+    if crop:
+        dx, dy = round(picture.width * crop), round(picture.height * crop)
+        picture = picture.crop((dx, dy, picture.width - dx, picture.height - dy))
+    cover = ImageOps.fit(picture, (width, height), Image.Resampling.LANCZOS)
+    cover.filter(ImageFilter.GaussianBlur(max(8, width / 60))).save(backdrop_path)
+    # Fitted inside size x frame, enlarging small pictures as well as reducing large ones.
+    ratio = min(width * size / picture.width, height * size / picture.height)
+    card = picture.resize((max(2, round(picture.width * ratio)), max(2, round(picture.height * ratio))), Image.Resampling.LANCZOS)
+    pad = max(4, round(height * .05))
+    shadow = Image.new('RGBA', (card.width + 2 * pad, card.height + 2 * pad), (0, 0, 0, 0))
+    shadow.paste((0, 0, 0, 140), (pad, pad, pad + card.width, pad + card.height))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(pad / 3))
+    shadow.paste(card, (pad, pad - pad // 4))
+    # Even dimensions for the 4:2:0 conversion.
+    even = Image.new('RGBA', (shadow.width // 2 * 2 + 2, shadow.height // 2 * 2 + 2), (0, 0, 0, 0))
+    even.alpha_composite(shadow)
+    even.save(card_path)
+
+
+def camera_filters(c, anchors, fps, w, h):
+    """A clip's zoom and pan as a sub-pixel crop (perspective filter, bicubic), then one resample to the
+    output size. Same framing rules as before: the window is centred on the zoom anchor, pans across the
+    spare width and never leaves the picture. Without zoom_ease the move runs at one speed for the clip."""
+    from video.tracking import expression
+    frames = max(1, round(c.duration * fps) - 1)
+    step = f'min(1,max(0,in/{max(1, c.zoom_ease * fps):.4f}))' if c.zoom_ease else f'min(1,in/{frames})'
+    ease = f'({step}*{step}*(3-2*{step}))' if c.zoom_ease else step
+    z = f'({c.zoom_start}+({c.zoom}-{c.zoom_start})*{ease})'
+    time = f'(in/{fps:.7f})'
+    zx, zy = expression(anchors, 'x', time, c.zoom_x), expression(anchors, 'y', time, c.zoom_y)
+    x = f'min(max(0,W*({zx})-W/{z}/2+({c.pan})*(W-W/{z})*({step}-0.5)),W-W/{z})'
+    y = f'min(max(0,H*({zy})-H/{z}/2),H-H/{z})'
+    right, bottom = f'{x}+W/{z}', f'{y}+H/{z}'
+    return [f"perspective=x0='{x}':y0='{y}':x1='{right}':y1='{y}':x2='{x}':y2='{bottom}':x3='{right}':y3='{bottom}'"
+            ':interpolation=cubic:eval=frame', f'scale={w}:{h}:flags=lanczos']
+
+
 def render(project, job, container='mp4', audio=True, preview=False):
     from video.storage import read
     layout, duration = primary_layout(project)
@@ -150,21 +208,28 @@ def render(project, job, container='mp4', audio=True, preview=False):
             from video.tracking import expression
             anchors=[p.model_dump() for p in c.reframe_keyframes]
             anchor_x=expression(anchors,'x','t',c.zoom_x);anchor_y=expression(anchors,'y','t',c.zoom_y)
-            # zoompan positions its window on whole pixels: a slow move at output size advances
-            # 0,2,0,2 px and visibly judders. Animated moves are computed on a larger working
-            # frame (stills 3x, video 2x) and resampled once to the output size.
+            # Camera moves use the perspective filter, which samples the picture at fractional pixel
+            # positions (bicubic). zoompan snaps its window to whole pixels, so a slow move advanced in
+            # uneven steps (measured 0.12-0.79 px a frame for a steady 0.47 px move) even on a 3x frame.
+            # The working frame is enlarged by the deepest zoom so the move never magnifies the source.
             moving = c.zoom_start != c.zoom or bool(c.pan) or bool(anchors)
-            oversample = 1 if not moving or preview else max(1, min(3 if still else 2, 5760 // max(w, h)))
-            ww, wh = w * oversample, h * oversample
+            deepest = max(c.zoom_start, c.zoom, 1)
+            oversample = 1 if not moving or preview else min(deepest, 2, 5760 / max(w, h))
+            ww, wh = max(2, round(w * oversample / 2) * 2), max(2, round(h * oversample / 2) * 2)
             filters = [f'setpts=(PTS-STARTPTS)/{c.speed}', f'crop=iw*{1-2*c.crop}:ih*{1-2*c.crop}',
                        # Explicit Rec.709 limited-range SDR working space for every clip.
-                       f'scale={ww}:{wh}:force_original_aspect_ratio=increase:out_color_matrix=bt709:out_range=tv' + (':flags=lanczos' if oversample > 1 else ''),
+                       f'scale={ww}:{wh}:force_original_aspect_ratio=increase:out_color_matrix=bt709:out_range=tv' + (':flags=lanczos' if moving and not preview else ''),
                        f"crop={ww}:{wh}:x='min(max(0,iw*({anchor_x})-{ww}/2),iw-{ww})':y='min(max(0,ih*({anchor_y})-{wh}/2),ih-{wh})'", 'setsar=1', f'fps={fps_arg}']
+            if not still and (getattr(c, 'smooth_motion', False) or getattr(project, 'frame_interpolation', False)):
+                # Frame-rate conversion and slow motion: new in-between frames are built from the source frames.
+                # This replaces the fps filter; after it the frames are already duplicated and nothing is left to
+                # interpolate. Motion-compensated for exports, a cheap blend for previews.
+                mi_mode = 'blend' if preview else 'mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1'
+                filters[-1] = f'minterpolate=fps={fps_arg}:mi_mode={mi_mode}'
             if c.zoom != 1 or c.zoom_start != 1 or c.pan:
-                step=f'min(1,max(0,on/{max(1,c.zoom_ease*fps):.4f}))' if c.zoom_ease else f'on/{max(1,round(c.duration*fps)-1)}'
-                ease=f'({step}*{step}*(3-2*{step}))' if c.zoom_ease else step
-                zx=expression(anchors,'x',f'(on/{fps:.7f})',c.zoom_x);zy=expression(anchors,'y',f'(on/{fps:.7f})',c.zoom_y)
-                filters += [f"zoompan=z='{c.zoom_start}+({c.zoom}-{c.zoom_start})*{ease}':x='min(max(0,iw*({zx})-iw/zoom/2+({c.pan})*(iw-iw/zoom)*({step}-0.5)),iw-iw/zoom)':y='min(max(0,ih*({zy})-ih/zoom/2),ih-ih/zoom)':d=1:s={w}x{h}:fps={fps_arg}"]
+                filters += camera_filters(c, anchors, fps, w, h)
+            elif oversample != 1:
+                filters += [f'scale={w}:{h}:flags=lanczos']
             if c.rotation:
                 filters += [f'rotate={c.rotation}*PI/180:c=black']
             if c.scale != 1 or c.x != .5 or c.y != .5:
@@ -179,9 +244,6 @@ def render(project, job, container='mp4', audio=True, preview=False):
             if getattr(project, 'unified_grade', None) or getattr(project, 'global_denoise', 0.0) > 0:
                 from video.grade import unified_grade_filters
                 filters += unified_grade_filters(getattr(project, 'unified_grade', None), getattr(project, 'global_denoise', 0.0))
-            if getattr(c, 'smooth_motion', False) or getattr(project, 'frame_interpolation', False):
-                mi_mode = 'blend' if preview or not high else 'mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1'
-                filters += [f'minterpolate=fps={fps_arg}:mi_mode={mi_mode}']
             if c.fade_in:
                 filters += [f'fade=t=in:st=0:d={c.fade_in}']
             if c.fade_out:
@@ -241,12 +303,32 @@ def render(project, job, container='mp4', audio=True, preview=False):
             if still and c.fit == 'blur-fill' and video_args[0] == '-map':
                 # Show the whole still over a blurred, slightly dimmed copy of itself instead of
                 # cropping away most of a portrait in a landscape frame (or the reverse).
+                # The picture sits as a framed card with a soft drop shadow, and the blurred backdrop moves
+                # further than the card during a camera move (parallax), which reads as depth rather than a
+                # flat picture being zoomed.
+                # The static layers (blurred backdrop; card with its shadow) are built once as images, so each frame
+                # only moves them. Rebuilding blur and shadow for every frame took ~100 s per 6 s scene.
                 tagged = 'out_color_matrix=bt709:out_range=tv'
+                # A side card (split layout) is a little smaller and sits lower, clear of the corner logo.
+                side = c.card_x != .5
+                drop = round(wh * .06) if side else 0
+                backdrop_png, card_png = tmp / f'fit-{i}-backdrop.png', tmp / f'fit-{i}-card.png'
+                card_layers(src, c.crop, ww, wh, .74 if side else .88, backdrop_png, card_png)
+                inputs[inputs.index(str(src))] = str(backdrop_png)
+                inputs += ['-loop', '1', '-framerate', fps_arg, '-i', str(card_png)]
+                card_input = 2 if not meta.get('has_audio') else 1
+                # The blurred backdrop is moved at half size (blur hides the difference, at a quarter of the cost).
+                hw, hh = max(2, ww // 4 * 2), max(2, wh // 4 * 2)
+                parallax = ''
+                if moving and not preview and not anchors:
+                    d = c.zoom - c.zoom_start
+                    behind = c.model_copy(update=dict(zoom_start=round(1.06 + max(0., -2 * d), 4), zoom=round(1.06 + max(0., 2 * d), 4),
+                                                      pan=max(-1., min(1., c.pan * 1.5)), zoom_ease=c.zoom_ease))
+                    parallax = ',' + ','.join(camera_filters(behind, [], fps, hw, hh))
                 video_args = ['-filter_complex',
-                              f"[0:v]{','.join(filters[:2])},split[fit_a][fit_b];"
-                              f"[fit_b]scale={ww}:{wh}:force_original_aspect_ratio=increase:{tagged},crop={ww}:{wh},gblur=sigma={max(8, ww / 60):.1f},eq=brightness=-0.06:saturation=0.9[fit_bg];"
-                              f"[fit_a]scale={ww}:{wh}:force_original_aspect_ratio=decrease:{tagged}:flags=lanczos[fit_fg];"
-                              f"[fit_bg][fit_fg]overlay=(W-w)/2:(H-h)/2,{','.join(filters[4:])}[vout]", '-map', '[vout]']
+                              f"[0:v]scale={hw}:{hh}:{tagged},format=yuv420p,eq=brightness=-0.12:saturation=0.85,setsar=1,fps={fps_arg}{parallax},scale={ww}:{wh}[fit_bg];"
+                              f"[{card_input}:v]scale=iw:ih:{tagged},format=yuva420p,setsar=1[fit_card];"
+                              f"[fit_bg][fit_card]overlay=W*{c.card_x}-w/2:(H-h)/2+{drop},{','.join(filters[4:])}[vout]", '-map', '[vout]']
             from video.audio import dialogue_filters
             voice=','+','.join(dialogue_filters(project)) if meta.get('has_audio') and dialogue_filters(project) else ''
             ffmpeg(inputs + [*video_args, '-map', '0:a:0' if meta.get('has_audio') else '1:a:0',
@@ -283,8 +365,15 @@ def render(project, job, container='mp4', audio=True, preview=False):
                     plate=Image.new('RGBA',(logo.width+pad*2,logo.height+pad*2),(7,17,28,215))
                     plate.alpha_composite(logo,(pad,pad))
                     source=tmp/f'logo-plate-{n}.png';plate.save(source)
-            args += ['-loop', '1', '-framerate', fps_arg, '-i', str(source)]
-            filters = f'scale={max(2,round(w*c.scale/2)*2)}:-2,format=rgba,colorchannelmixer=aa={c.opacity}'
+            # A looped still is only decoded while it is on screen: it starts at its own time (setpts) and
+            # ends after its duration (eof_action=pass). Looping every layer for the whole video made
+            # the final pass decode and blend ~25 full-frame layers per frame (8+ minutes for 30 s).
+            # Full-frame title artwork is cropped to its visible area, so only that area is blended each frame.
+            offset = (trim_layer(source, w, h) if c.kind == 'title' and c.scale == 1 and not c.rotation
+                      and c.motion in ('none', 'fade', 'slide-up') else None)
+            args += ['-loop', '1', '-framerate', fps_arg, '-t', f'{c.duration + 2 / fps:.4f}', '-i', str(source)]
+            resize = '' if offset else f'scale={max(2,round(w*c.scale/2)*2)}:-2,'
+            filters = f'setpts=PTS+{c.start:.4f}/TB,{resize}format=rgba,colorchannelmixer=aa={c.opacity}'
             if c.rotation:
                 filters += f',rotate={c.rotation}*PI/180:c=none:ow=rotw(iw):oh=roth(ih)'
             if c.fade_in:
@@ -301,6 +390,12 @@ def render(project, job, container='mp4', audio=True, preview=False):
                 x_expr=mx;y_expr=my
             elif c.motion == 'slide-up':
                 y_expr += '+' + entrance(c.start, h, project.motion_intensity)
+            if offset:
+                # Positions of the full-frame artwork (always 0,0 plus any motion), moved to the cropped area.
+                moved = c.graphic_style and c.motion != 'none'
+                x_expr = f'{offset[0]}+({x_expr})' if moved else str(offset[0])
+                y_expr = (f'{offset[1]}+({y_expr})' if moved else
+                          f'{offset[1]}+' + entrance(c.start, h, project.motion_intensity) if c.motion == 'slide-up' else str(offset[1]))
             graph += [f'[{index}:v]{filters}[ov{n}]',
                       f"[{vlabel}][ov{n}]overlay=x='{x_expr}':y='{y_expr}':enable='between(t,{c.start},{c.start+c.duration})':eof_action=pass[vo{n}]"]
             vlabel = f'vo{n}'
@@ -319,14 +414,18 @@ def render(project, job, container='mp4', audio=True, preview=False):
                         cap_img = render_caption_image(s_text, w, h, cue_style(track,seg))
                         cap_path = tmp / f'cap-{t_idx}-{s_idx}.png'
                         cap_img.save(cap_path)
-                        args += ['-loop', '1', '-framerate', fps_arg, '-i', str(cap_path)]
-                        cap_filter, y_expr = 'format=rgba', '0'
+                        args += ['-loop', '1', '-framerate', fps_arg, '-t', f'{s_end - s_start + 2 / fps:.4f}', '-i', str(cap_path)]
+                        cap_filter, y_expr = f'setpts=PTS+{s_start:.4f}/TB,format=rgba', '0'
                         x_expr='0'
                         if track.get('kind') == 'lower-third' and track.get('motion','none')!='none':
                             from video.motion import preset as motion_preset
                             box=cap_img.info['caption_layout']['box']
                             extra,x_expr,y_expr=motion_preset(track['motion'],s_start,s_end,box,w,h,project.motion_intensity)
                             if extra:cap_filter+=','+','.join(extra)
+                        else:
+                            offset = trim_layer(cap_path, w, h)
+                            if offset:
+                                x_expr, y_expr = str(offset[0]), str(offset[1])
                         graph += [f'[{index}:v]{cap_filter}[capov{t_idx}_{s_idx}]',
                                   f"[{vlabel}][capov{t_idx}_{s_idx}]overlay=x='{x_expr}':y='{y_expr}':enable='between(t,{s_start},{s_end})':eof_action=pass[vo_c{t_idx}_{s_idx}]"]
                         vlabel = f'vo_c{t_idx}_{s_idx}'

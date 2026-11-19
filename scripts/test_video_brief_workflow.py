@@ -208,8 +208,8 @@ class VideoBriefWorkflow(unittest.TestCase):
             self.assertEqual(project['caption_tracks'][0]['burn_in'],index==0)
             style=project['caption_tracks'][0]['brand_style'];self.assertEqual(style['font_name'],'Cairo')
             self.assertEqual(style['stroke'],self.brand['primary_hex'])
-            lower=next(c for c in project['clips'] if c['text_role']=='lower_third')
-            self.assertEqual(lower['graphic_style']['fill'],self.brand['accent_hex'])
+            # With a logo, the logo is the brand mark: the brand name is not repeated beside it on every frame.
+            self.assertFalse(any(c.get('text_role')=='lower_third' for c in project['clips']))
             self.assertEqual(project['canvas']['fps'],30)
             self.assertTrue(any(c['kind']=='overlay' and c['asset_id']==self.brief['brand']['logo_asset_id'] for c in project['clips']))
         # The checkbox changes pixels in the encoded file, not just project metadata.
