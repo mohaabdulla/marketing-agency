@@ -158,9 +158,24 @@ class ProducerPipelineTests(unittest.TestCase):
                 self.assertEqual(response.status_code,202,response.text);self.wait(response.json());record=self.get(key)
                 shot=next(s for s in record['shots'] if s['id']==shot_id);take=shot['candidates'][-1]
                 self.assertIn('no diffusion',take['notice'])
+                self.assertIsNone(take['generation_settings']['inference_steps'])
                 response=self.client.post(prefix+'/shots/'+shot_id+'/review',json=dict(expected_version=record['version'],gate=stage,candidate_id=take['id'],
                     reviewer='Test producer',intent_checked=True,continuity_checked=True,readability_checked=True))
                 self.assertEqual(response.status_code,200,response.text);record=response.json()
+        # Rejecting an earlier accepted gate invalidates its entire downstream
+        # chain. The same unchanged files may only be used after explicit re-review.
+        reviewed_shot=record['shots'][0];concept=next(c for c in reviewed_shot['candidates'] if c['pass_name']=='concept')
+        response=self.client.post(prefix+'/shots/'+reviewed_shot['id']+'/review',json=dict(expected_version=record['version'],
+            gate='concept',candidate_id=concept['id'],reviewer='Test producer',approved=False,issue='continuity',note='Recheck consistent appearance across the complete sequence.'))
+        self.assertEqual(response.status_code,200,response.text);record=response.json()
+        self.assertEqual(record['shots'][0]['approvals'],{})
+        blocked=self.client.post(prefix+'/render',json=dict(expected_version=record['version']))
+        self.assertEqual(blocked.status_code,400)
+        for stage in ('concept','continuity','final'):
+            take=next(c for c in reviewed_shot['candidates'] if c['pass_name']==stage)
+            response=self.client.post(prefix+'/shots/'+reviewed_shot['id']+'/review',json=dict(expected_version=record['version'],gate=stage,candidate_id=take['id'],
+                reviewer='Test producer',intent_checked=True,continuity_checked=True,readability_checked=True,note='Re-reviewed against the complete sequence.'))
+            self.assertEqual(response.status_code,200,response.text);record=response.json()
         response=self.client.post(prefix+'/render',json=dict(expected_version=record['version'],variants=['9:16']))
         self.assertEqual(response.status_code,202,response.text);self.wait(response.json());record=self.get(key)
         self.assertEqual(record['render']['native_metadata']['fps'],30)
@@ -271,9 +286,59 @@ class ProducerPipelineTests(unittest.TestCase):
         self.assertTrue(acquired,'Fresh-guest recovery held the queue lock while waiting for storage')
         self.assertEqual(json.loads(recovery_files[0].read_text())['state'],'failed')
 
+    def local_script(self,headline='Join our team',voiceover='Join our team.'):
+        from video.production_schemas import ProductionCreate
+        from video.production_text import plan_script
+        governance=self.create()['governance']
+        body=ProductionCreate.model_validate({**self.payload,'script_text':'','use_local_ai':True,'continuity_notes':'Same blue jacket',
+            'brief':{**self.payload['brief'],'campaign_type':'hiring','tone':'energetic','core_message':'We are hiring designers.'}})
+        scenes=[dict(overlay_text=headline,voiceover=voiceover,visual_prompt='Eye-level team in the real workplace, no lettering or logos.') for _ in range(3)]
+        session=MagicMock();client=session.return_value.__enter__.return_value
+        with patch('agency.local_text.endpoint',return_value='http://127.0.0.1:9999'),patch('agency.local_text.session',session),patch('agency.local_text.bounded_json',
+            side_effect=[dict(tokens=[1]*10),dict(choices=[dict(message=dict(content=json.dumps(dict(scenes=scenes))))])]):
+            result=plan_script(body,governance)
+        sent=client.post.call_args_list[1].kwargs['json']['messages'][1]['content']
+        return result,json.loads(sent)
+
+    def test_12_local_script_includes_full_approved_creative_context(self):
+        (scenes,source,warnings),context=self.local_script()
+        self.assertEqual(source,'local-llama.cpp');self.assertFalse(warnings)
+        self.assertEqual(context['campaign_goal'],'hiring');self.assertEqual(context['tone'],'energetic')
+        self.assertEqual(context['continuity_notes'],'Same blue jacket');self.assertEqual(context['duration_seconds'],6)
+        self.assertEqual(context['aspect_ratio'],'1:1');self.assertEqual(len(scenes),3)
+
+    def test_13_local_script_rejects_unsupported_headlines_banned_words_and_long_narration(self):
+        for headline,voice in [('90% growth','Join our team.'),('guaranteed revenue','Join our team.'),('Join our team',' '.join(['Apply']*20))]:
+            with self.subTest(headline=headline,voice=voice):
+                (scenes,source,warnings),_=self.local_script(headline,voice)
+                self.assertEqual(source,'local-template');self.assertTrue(warnings)
+                self.assertNotIn('90%',str(scenes));self.assertNotIn('guaranteed revenue',str(scenes))
+
+    def test_14_take_rejection_retains_feedback_and_blocks_later_gates(self):
+        record=self.approve_script(self.create());prefix='/api/video/productions/'+record['id'];shot_id=record['shots'][0]['id']
+        response=self.client.post(prefix+'/shots/'+shot_id+'/generate',json=dict(expected_version=record['version'],pass_name='concept'))
+        self.assertEqual(response.status_code,202,response.text);self.wait(response.json());record=self.get(record['id'])
+        candidate=record['shots'][0]['candidates'][-1];original_hash=candidate['file_sha256']
+        approved=self.client.post(prefix+'/shots/'+shot_id+'/review',json=dict(expected_version=record['version'],gate='concept',candidate_id=candidate['id'],
+            reviewer='Producer',intent_checked=True))
+        self.assertEqual(approved.status_code,200,approved.text);record=approved.json()
+        body=dict(expected_version=record['version'],gate='concept',candidate_id=candidate['id'],reviewer='Producer',approved=False,issue='continuity')
+        missing=self.client.post(prefix+'/shots/'+shot_id+'/review',json=body)
+        self.assertEqual(missing.status_code,400)
+        rejected=self.client.post(prefix+'/shots/'+shot_id+'/review',json={**body,'note':'The jacket changes between shots.'})
+        self.assertEqual(rejected.status_code,200,rejected.text);record=rejected.json();shot=record['shots'][0]
+        self.assertNotIn('concept',shot['approvals']);self.assertEqual(shot['candidates'][-1]['file_sha256'],original_hash)
+        review=shot['candidates'][-1]['reviews'][-1]
+        self.assertFalse(review['approved']);self.assertEqual(review['issue'],'continuity');self.assertIn('wardrobe',review['suggestion'])
+        self.assertEqual(record['events'][-1]['detail']['candidate_id'],candidate['id'])
+        blocked=self.client.post(prefix+'/shots/'+shot_id+'/generate',json=dict(expected_version=record['version'],pass_name='continuity'))
+        self.assertEqual(blocked.status_code,400)
+        self.assertIsNone(record['release']);self.assertIsNone(record['render'])
+
     @unittest.skipUnless(BROWSER,'Pass --browser for producer workspace verification')
     def test_07_browser_create_edit_approve_and_legacy_navigation(self):
         from playwright.sync_api import sync_playwright
+        evidence=ROOT/'output/producer-verification';evidence.mkdir(parents=True,exist_ok=True)
         with sync_playwright() as pw:
             browser=pw.chromium.launch(headless=True);context=browser.new_context(viewport={'width':1440,'height':1000});page=context.new_page();errors=[]
             page.on('pageerror',lambda e:errors.append(str(e)))
@@ -288,11 +353,18 @@ class ProducerPipelineTests(unittest.TestCase):
             page.get_by_role('button',name='Video Production',exact=True).click();host=page.locator('#video-production-workspace')
             host.locator('[data-vp=brand_id] option[value="'+self.brand+'"]').wait_for(state='attached')
             host.get_by_label('Production brand kit',exact=True).select_option(self.brand)
+            host.get_by_role('button',name='Use an example brief for this goal',exact=True).click()
+            self.assertIn('Producer Test',host.get_by_label('Core objective and key messages',exact=True).input_value())
+            before=host.get_by_label('Core objective and key messages',exact=True).input_value()
+            host.get_by_role('button',name='Use an example brief for this goal',exact=True).click()
+            self.assertEqual(host.get_by_label('Core objective and key messages',exact=True).input_value(),before)
             host.get_by_label('Core objective and key messages',exact=True).fill('Introduce our warehouse planning tools.')
             host.get_by_label('Optional supplied script',exact=True).fill('Meet our team.\n\nPlan warehouse work.\n\nBook a demo.')
             host.get_by_label('Runtime in seconds',exact=True).fill('6')
             host.get_by_label('Reviewer name',exact=True).fill('Browser producer')
-            host.get_by_role('button',name='Create script and storyboard',exact=True).click()
+            with page.expect_response(lambda r:r.url.endswith('/api/video/productions') and r.request.method=='POST') as created:
+                host.get_by_role('button',name='Create script and storyboard',exact=True).click()
+            production_id=created.value.json()['id']
             host.locator('[data-vp-governance] h3').wait_for(state='visible')
             self.assertIn('Font: Arial',host.locator('[data-vp-governance]').inner_text())
             host.get_by_text('Inspect frozen rules and revision',exact=True).click()
@@ -309,11 +381,42 @@ class ProducerPipelineTests(unittest.TestCase):
             self.assertEqual(second.get_by_label('Props',exact=True).input_value(),'The same tablet stays in every scene')
             with page.expect_response(lambda r:'/shots/' in r.url and r.request.method=='PUT'):
                 second.get_by_role('button',name='Save shot 2',exact=True).click()
-            evidence=ROOT/'output/producer-verification';evidence.mkdir(parents=True,exist_ok=True)
+            first.get_by_label('Wardrobe',exact=True).fill('Unsaved local wardrobe change')
+            prefix='/api/video/productions/'+production_id;current=self.client.get(prefix).json();remote=current['shots'][0]
+            changed=self.client.put(prefix+'/shots/'+remote['id'],json=dict(expected_version=current['version'],shot={**remote['input'],'props':'Approved tablet from another editor'}))
+            self.assertEqual(changed.status_code,200,changed.text)
+            host.get_by_role('button',name='Refresh',exact=True).click()
+            first.locator('[data-draft-status]').filter(has_text='another session').wait_for()
+            self.assertEqual(first.get_by_label('Wardrobe',exact=True).input_value(),'Unsaved local wardrobe change')
+            first.get_by_role('button',name='Save shot 1',exact=True).click()
+            page.wait_for_function("document.querySelector('[data-vp-status]').textContent.includes('changed since')")
+            self.assertEqual(self.client.get(prefix).json()['shots'][0]['input']['props'],'Approved tablet from another editor')
+            page.screenshot(path=str(evidence/'draft-conflict.png'),full_page=True)
+            first.get_by_role('button',name='Discard unsaved edits for shot 1',exact=True).click()
+            self.assertEqual(first.get_by_label('Props',exact=True).input_value(),'Approved tablet from another editor')
+            first.get_by_label('Still-image motion',exact=True).select_option('pan')
+            first.get_by_label('Motion-graphics background',exact=True).select_option('geometric')
+            with page.expect_response(lambda r:'/shots/' in r.url and r.request.method=='PUT'):
+                first.get_by_role('button',name='Save shot 1',exact=True).click()
+            saved_input=self.client.get(prefix).json()['shots'][0]['input']
+            self.assertEqual(saved_input['motion'],'pan');self.assertEqual(saved_input['background_style'],'geometric')
             page.screenshot(path=str(evidence/'shot-planning.png'),full_page=True)
             host.get_by_role('button',name='2. Script',exact=True).click()
             host.get_by_role('button',name='Approve current production script',exact=True).click()
             page.wait_for_function("document.querySelector('[data-vp-status]').textContent.includes('Saved')")
+            host.get_by_role('button',name='4. Generation',exact=True).click()
+            concept=host.locator('[data-review-shot="'+remote['id']+'"][data-review-pass="concept"]')
+            concept.get_by_role('button',name='Generate concept · shot 1',exact=True).click()
+            page.wait_for_function("document.querySelector('[data-review-pass=concept] [data-candidate]').value!==''",timeout=90000)
+            concept.get_by_label('Show rule-of-thirds guides (preview only)',exact=True).check()
+            self.assertTrue(concept.locator('.vp-framing-grid').is_visible())
+            concept.get_by_label('Review feedback',exact=True).fill('Keep the same wardrobe in every shot.')
+            concept.get_by_label('Correction area',exact=True).select_option('continuity')
+            concept.get_by_role('button',name='Reject concept · shot 1',exact=True).click()
+            concept.locator('[data-take-review]').filter(has_text='Rejected by Browser producer').wait_for()
+            self.assertIn('wardrobe',concept.locator('[data-take-preview]').inner_text())
+            page.screenshot(path=str(evidence/'take-review.png'),full_page=True)
+            host.get_by_role('button',name='2. Script',exact=True).click()
             page.set_viewport_size({'width':390,'height':844});self.assertTrue(page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
             page.screenshot(path=str(evidence/'mobile-production.png'),full_page=True)
             page.set_viewport_size({'width':1440,'height':1000})

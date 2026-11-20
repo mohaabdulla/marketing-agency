@@ -178,12 +178,69 @@ def validate_motion(paths):
                 raise ValueError(f'Incorrect GIF loop for {language}')
 
 
+def start_design_research(request,theme):
+    """Market and platform design research for the Design Lab. Only a generic industry label, the platform and the
+    year are searched; the brief and the client's name stay on this computer."""
+    from image.design_review import industry_of,research
+    language='ar' if request.language=='ar' else 'en'
+    return research(industry_of(request.prompt,theme.tagline),'instagram',request.post_type or 'general',language,
+                    use_web=request.use_search is not False)
+
+
+from concurrent.futures import ThreadPoolExecutor
+_DESIGN_POOL=ThreadPoolExecutor(max_workers=2,thread_name_prefix='design-lab')
+DESIGN_REPORT='_design_review.json'
+
+
+def finish_design_lab(research_future,frozen,theme,copies,base,files,selected,folder,photo,url):
+    """Runs after the kit is published: the Design Lab adds its report and renders to the same folder, so the
+    campaign itself is never delayed. The deliverables endpoint shows it as running until the report exists."""
+    report=folder/DESIGN_REPORT
+    try:
+        try:research_result=research_future.result(timeout=300)
+        except Exception:
+            from image.design_review import industry_of,research
+            research_result=research(industry_of(frozen.prompt,theme.tagline),'instagram',frozen.post_type or 'general',selected,use_web=False)
+        from image.design_review import design_lab
+        lab=design_lab(theme=theme,request=frozen.model_dump(),copies=copies,base=base,language=selected,folder=folder,
+                       delivered_image=folder/Path(files['image_url']).name,delivered_gif=folder/Path(files['animation_url']).name,
+                       photo=photo,research_result=research_result)
+        value=design_presentation(lab,url)
+    except Exception as error:
+        import logging
+        logging.getLogger(__name__).exception('Design Lab failed')
+        value=dict(status='unavailable',reason='The design review could not be completed for this kit: '+type(error).__name__)
+    try:
+        temporary=report.with_suffix('.tmp')
+        temporary.write_text(json.dumps(value,ensure_ascii=False),encoding='utf-8')
+        os.replace(temporary,report)
+    except OSError:
+        pass   # the kit was removed while the review ran
+
+
+def design_presentation(lab,url):
+    """The Design Lab report with every local file replaced by its published URL."""
+    lab=json.loads(json.dumps(lab,default=str))
+    for key in ('guideline','improved'):
+        lab[key]['image_url']=url(lab[key].pop('image'))
+    improved=(lab.get('motion') or {}).get('improved')
+    if improved:
+        gif=improved.pop('gif');improved['gif_url']=url(gif)
+        mp4=Path(gif).with_suffix('.mp4')
+        if mp4.is_file():improved['mp4_url']=url(mp4)
+    return dict(lab,status='ready')
+
+
 async def execute_campaign(request,*,origin,published_root,base_renderer,resolve_path,agency_context=None):
     from image.campaign_generator import generate_enterprise_copy,generate_companion_image,render_omnichannel_variants
     from image.agency_suite import bundle_enterprise_campaign
     if not request.prompt.strip():raise ValueError('A campaign brief is required')
     with RenderTransaction(published_root) as tx:
         frozen,theme,snapshot=await offload(prepare_brand,request,resolve_path,tx.stage)
+        from contextvars import copy_context
+        design=getattr(request,'design_review',True)
+        # Research runs alongside the renders; it never holds up or fails the campaign.
+        research_future=_DESIGN_POOL.submit(copy_context().run,start_design_research,frozen,theme) if design else None
         source,en,ar=await joined(
             asyncio.to_thread(primary_sources,frozen,theme,tx.stage,base_renderer,resolve_path),
             asyncio.to_thread(generate_enterprise_copy,frozen.model_dump(),theme,'en'),
@@ -211,6 +268,11 @@ async def execute_campaign(request,*,origin,published_root,base_renderer,resolve
         archive=tx.stage/'client-agency-kit.zip'
         from .campaign_quality import review_campaign
         quality_review=await offload(review_campaign,copies,frozen.model_dump(),theme)
+        design_review=dict(status='running') if research_future else None
+        photo=None
+        if research_future and frozen.uploaded_image_url and frozen.use_uploaded_image:
+            try:photo=resolve_path(frozen.uploaded_image_url)
+            except Exception:photo=None
         await offload(bundle_enterprise_campaign,paths,copies,archive,selected=selected,brand=theme.brand_name,quality_review=quality_review)
         def url(path):return origin.rstrip('/')+'/renders/'+tx.campaign_id+'/'+Path(path).name
         fields={'primary_image':'image_url','companion_image':'companion_image_url','story_image':'story_url',
@@ -235,7 +297,7 @@ async def execute_campaign(request,*,origin,published_root,base_renderer,resolve
             carousel_urls=[kits['en'][key] for key in ('image_url','companion_image_url','animation_url')],
             arabic_carousel_urls=[kits['ar'][key] for key in ('image_url','companion_image_url','animation_url')],
             arabic_image_url=kits['ar']['image_url'],arabic_companion_image_url=kits['ar']['companion_image_url'],
-            motion=dict(fps=30,kind='rendered-card-animation',native_frames=True),quality_review=quality_review,
+            motion=dict(fps=30,kind='rendered-card-animation',native_frames=True),quality_review=quality_review,design_review=design_review,
             execution=dict(created_at=datetime.now(timezone.utc).isoformat(),visual_source=provenance,agency_context=agency_context or {}))
         # Published metadata contains URLs and brand rules, never private staging filenames.
         def clean(value):
@@ -247,6 +309,9 @@ async def execute_campaign(request,*,origin,published_root,base_renderer,resolve
         (tx.stage/'_presentation.json').write_text(json.dumps(clean(presentation),ensure_ascii=False),encoding='utf-8')
         (tx.stage/'_result.json').write_text(result.model_dump_json(),encoding='utf-8')
         tx.commit()
+        if research_future:
+            _DESIGN_POOL.submit(copy_context().run,finish_design_lab,research_future,frozen,theme,copies,base,paths[selected],selected,
+                                tx.target,photo,url)
         return result
 
 
@@ -254,7 +319,12 @@ def presentation_for(published_root,campaign_id):
     if not re.fullmatch(r'[a-f0-9]{32}',campaign_id):raise FileNotFoundError('Campaign not found')
     folder=Path(published_root)/campaign_id
     if not (folder/'_complete.json').is_file():raise FileNotFoundError('Campaign not found')
-    return json.loads((folder/'_presentation.json').read_text(encoding='utf-8'))
+    data=json.loads((folder/'_presentation.json').read_text(encoding='utf-8'))
+    report=folder/DESIGN_REPORT
+    if report.is_file():
+        try:data['design_review']=json.loads(report.read_text(encoding='utf-8'))
+        except ValueError:pass
+    return data
 
 
 def completed_runs(published_root,client_id,campaign_id):

@@ -15,6 +15,10 @@
 .campaign-copy-card{margin-bottom:14px}.campaign-copy-card button{margin:10px 0}.campaign-copy-card pre{white-space:pre-wrap;overflow-wrap:anywhere;font-family:inherit;font-size:14px;line-height:1.8}
 .campaign-hashtags{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.campaign-hashtags button{border-radius:999px;color:#8af0cc;background:#12382f;max-width:100%;overflow-wrap:anywhere;white-space:normal}
 .campaign-delivery .campaign-delivery-master{width:100%;margin-top:22px;background:#54dab2;color:#05271e;font-weight:750;padding:14px}.campaign-delivery-status{color:#afc2d4;font-size:12px;line-height:1.6;margin-top:12px}
+.design-score{font-size:15px!important;font-weight:700;color:#8af0cc!important}.design-table{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0 16px;display:block;overflow-x:auto}
+.design-table th,.design-table td{border-bottom:1px solid #2a4055;padding:6px 8px;text-align:left;vertical-align:top}.design-table th{color:#9fb2c5;font-weight:600}
+.design-table a,.campaign-delivery li a{color:#8af0cc}.design-swatch{display:inline-block;width:14px;height:14px;border-radius:3px;border:1px solid #ffffff55;vertical-align:-2px}
+.design-change{font-size:13px;margin:6px 0}.design-gif{max-width:100%;max-height:540px;object-fit:contain;display:block;margin:8px 0}
 @media(max-width:640px){.campaign-delivery{padding:12px}.campaign-delivery-header{align-items:flex-start;flex-direction:column}.campaign-format-grid{grid-template-columns:1fr}.campaign-format-card img{height:320px}.campaign-delivery-tabs button{flex:1 1 120px}}
 @media(max-width:640px){
   .studio-ambient-glow{width:60vw!important;height:60vw!important}

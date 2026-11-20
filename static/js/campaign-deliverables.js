@@ -48,7 +48,7 @@
     tabs.setAttribute('role','tablist'); tabs.setAttribute('aria-label','Campaign deliverables');
     const panels = {};
     const buttons = [];
-    const titles = [['visuals','Visual Formats Grid'],['motion','Motion Preview'],['copy','Copywriting Hub'],['review','Campaign Review']];
+    const titles = [['visuals','Visual Formats Grid'],['motion','Motion Preview'],['copy','Copywriting Hub'],['review','Campaign Review'],['design','Design Lab']];
     for (const [key,title] of titles) {
       const button = element('button',title); button.type='button'; button.id=id+'-tab-'+key;
       button.setAttribute('role','tab');button.setAttribute('aria-controls',id+'-'+key);button.dataset.deliveryTab=key;
@@ -77,6 +77,85 @@
       return {...kit,...(data.agency_kits?.[languageSelect.value] || {})};
     };
     const buttonFor=(label,action)=>{const button=element('button',label);button.type='button';button.onclick=action;return button;};
+    const swatch=hex=>{const chip=element('span',undefined,'design-swatch');if(/^#[0-9a-f]{6}$/i.test(hex||''))chip.style.background=hex;chip.title=hex||'';return chip;};
+    const link=(text,href)=>{const anchor=element('a',text);if(/^https?:\/\//.test(href||'')){anchor.href=href;anchor.target='_blank';anchor.rel='noopener noreferrer';}return anchor;};
+    /* Design Lab: the guideline version and the research-improved version of the same card, each graded from its
+       pixels, with the research behind every change and the exact departures from the brand guideline. */
+    function drawDesignLab(panel,lab,lang){
+      if(!lab){panel.append(element('p','This kit has no Design Lab report. Generate a new kit to include it.'));return;}
+      if(lab.status==='running'){
+        // The review finishes after the kit is published; check back until its report is ready (up to ~4 minutes).
+        panel.append(element('p','Design Lab is researching the market and grading this design… the kit above is ready to use meanwhile.','campaign-delivery-status'));
+        if(data.campaign_id&&!root.dataset.designPolling){
+          root.dataset.designPolling='1';let tries=0;
+          const poll=async()=>{
+            if(!root.isConnected)return;
+            try{
+              const response=await fetch('/api/campaign/'+encodeURIComponent(data.campaign_id)+'/deliverables');
+              const kit=response.ok?await response.json():null;
+              if(kit?.design_review&&kit.design_review.status!=='running'){data.design_review=kit.design_review;panels.design.replaceChildren();drawDesignLab(panels.design,data.design_review,languageSelect.value);return;}
+            }catch{}
+            if(++tries<48)setTimeout(poll,5000);
+            else{panels.design.replaceChildren(element('p','The Design Lab is taking longer than expected. Reopen this campaign later to see it.','campaign-delivery-status'));}
+          };
+          setTimeout(poll,5000);
+        }
+        return;
+      }
+      if(lab.status!=='ready'){panel.append(element('p',lab.reason||'The design review is not available for this kit.','campaign-delivery-status'));return;}
+      if(lab.language&&lab.language!==lang)panel.append(element('p',`The Design Lab compared the ${lab.language==='ar'?'Arabic':'English'} card.`,'campaign-delivery-status'));
+      const compare=element('div',undefined,'campaign-format-grid design-compare');
+      for(const [key,title,note] of [['guideline','Following the guideline','Same copy and layout, brand colours as specified.'],['improved','Research-improved','Same copy and layout with the changes below.']]){
+        const version=lab[key];if(!version)continue;
+        const card=element('article',undefined,'campaign-format-card');const image=element('img');image.src=resolve(version.image_url);image.alt=title;image.loading='lazy';
+        const score=element('p',`Design score ${version.grade.score} / 100`,'design-score');
+        card.append(element('h4',title),element('p',note),image,score,buttonFor('Download '+title,()=>download(version.image_url,'design-'+key)));compare.append(card);
+      }
+      const change=lab.change||0;
+      panel.append(element('h4','Guideline vs research-improved'),
+        element('p',change>0?`The improved version scores ${change} points higher.`:change<0?`The improved version scores ${-change} points lower; keep the guideline version.`:'Both versions score the same; the guideline version already meets the targets.'),compare);
+      const table=element('table',undefined,'design-table');const head=element('tr');
+      for(const label of ['Criterion','Guideline','Improved','Measured (improved)','Target','Source'])head.append(element('th',label));
+      table.append(head);
+      const improved=Object.fromEntries((lab.improved?.grade?.criteria||[]).map(item=>[item.id,item]));
+      for(const item of lab.guideline?.grade?.criteria||[]){
+        const row=element('tr');const better=improved[item.id];
+        row.append(element('td',item.label),element('td',String(item.score)),element('td',better?String(better.score):'—'),element('td',better?.measured||item.measured),element('td',item.target));
+        const cell=element('td');if(item.source?.url)cell.append(link(item.source.title,item.source.url));row.append(cell);
+        row.title=item.why||'';table.append(row);
+      }
+      panel.append(element('h4','How each version scores'),table);
+      const changes=lab.guideline_changes||[];
+      panel.append(element('h4','Changes to the brand guideline'));
+      if(!changes.length)panel.append(element('p','No colour departs from the guideline.'));
+      for(const item of changes){
+        const row=element('p',undefined,'design-change');
+        row.append(element('span',item.role+': '),swatch(item.guideline),element('span',` ${item.guideline} → `),swatch(item.improved),
+          element('span',` ${item.improved} · ΔE ${item.delta_e} · ${item.within_guideline?'barely visible change':'visible change, needs client approval'}`));
+        panel.append(row);
+      }
+      const research=lab.research||{};
+      panel.append(element('h4','Market and platform research'),
+        element('p',`Industry: ${research.industry||'—'} · Platform: ${research.platform||'—'} · ${research.web_results||0} web results · analysed by ${research.engine||'—'}${research.cached?' (cached this month)':''}`));
+      if(research.note)panel.append(element('p',research.note,'campaign-delivery-status'));
+      const findings=element('ul');
+      for(const finding of research.findings||[]){const item=element('li',finding.claim+' ');item.append(link(finding.title||'source',finding.url));findings.append(item);}
+      panel.append(findings);
+      const reasons=Object.entries(lab.reasons||{});
+      if(reasons.length){const list=element('ul');for(const [move,reason] of reasons)list.append(element('li',`${move.replaceAll('_',' ')}: ${reason}`));panel.append(element('h4','Why each change'),list);}
+      const motion=lab.motion||{};
+      if(motion.delivered||motion.improved){
+        panel.append(element('h4','Motion'));
+        const describe=(name,item)=>element('p',`${name}: ${item.seconds}s loop, ${item.fps||'—'} fps, ${item.loops_forever?'loops forever':'does not loop'}, ${item.size_mb} MB, first frame ${item.still?.score??'—'}/100`);
+        if(motion.delivered)panel.append(describe('Delivered GIF',motion.delivered));
+        if(motion.improved){
+          panel.append(describe('Research-improved GIF',motion.improved.grade));
+          const gif=element('img');gif.src=resolve(motion.improved.gif_url);gif.alt='Research-improved looping GIF';gif.loading='lazy';gif.className='design-gif';
+          panel.append(gif,buttonFor('Download improved GIF',()=>download(motion.improved.gif_url,'design-improved-loop')));
+        }
+      }
+      panel.append(element('p',lab.notice||'','campaign-delivery-status'));
+    }
     function draw() {
       const lang=languageSelect.value,kit=currentKit();
       const writing=data.copywriting_by_language?.[lang] || data.copywriting?.[lang] || kit.copywriting || data.copywriting;
@@ -124,6 +203,7 @@
         panels.review.append(element('h4','Client hand-off'));
         for(const step of review.handoff?.next_steps||[])panels.review.append(element('p',step));
       }else panels.review.append(element('p','This earlier kit has no campaign review report. Generate a new kit to include it.'));
+      drawDesignLab(panels.design,data.design_review,lang);
       master.hidden=!(data.bundle_zip_url || kit.bundle_zip_url);
       announce('Showing '+(lang==='ar'?'Arabic':'English')+' deliverables.');
     }

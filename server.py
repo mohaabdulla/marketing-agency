@@ -436,6 +436,7 @@ class GenerateRequest(BaseModel):
     logo_path: Optional[str] = Field(None, description="Local file path of uploaded custom corporate logo")
     brand_profile_json: Optional[str] = Field(None, description="Serialized JSON of Brand Profile from Stage 1/2")
     brand_profile: Optional[Dict[str, Any]] = Field(None, description="Structured brand profile dict")
+    design_review: bool = Field(True, description="Grade the artwork and render a research-improved version (Design Lab)")
 
 
 class SuggestPromptRequest(BaseModel):

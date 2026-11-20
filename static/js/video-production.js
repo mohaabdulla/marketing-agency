@@ -30,7 +30,7 @@ class VideoProduction {
         <label>Continuity across the whole film<textarea data-vp="continuity_notes" maxlength="1500" rows="2" placeholder="Recurring person, location, wardrobe, props, lighting, and screen direction"></textarea></label>
         <label><input data-vp="use_local_ai" type="checkbox" checked> Ask the configured local script model; use an editable structured draft when it is unavailable</label>
         <div class="vp-toolbar"><label>Upload production guideline<input data-vp-guide-file type="file" accept=".pdf,.txt,.md,.markdown,.json,.docx"></label><button type="button" data-vp-confirm-guide hidden>Confirm extracted production rules</button></div>
-        <pre data-vp-guide-review></pre><button type="button" class="primary" data-vp-create>Create script and storyboard</button><p>Video generation stays local. No hosted script provider is used in this workspace.</p></section>
+        <pre data-vp-guide-review></pre><button type="button" data-vp-example>Use an example brief for this goal</button><button type="button" class="primary" data-vp-create>Create script and storyboard</button><p>Video generation stays local. No hosted script provider is used in this workspace.</p></section>
       <section data-vp-panel="1" hidden><h2>Review the script</h2><div data-vp-script></div><div data-vp-governance></div><button type="button" data-vp-approve-script>Approve current production script</button></section>
       <section data-vp-panel="2" hidden><h2>Direct the shots</h2><p>Save each edited shot, then approve the script again. Accuracy-critical scenes need real footage or an approved still.</p>
         <label>Upload a production reference, footage, logo, or audio<input data-vp-media-file type="file" accept=".png,.jpg,.jpeg,.webp,.mp4,.mov,.webm,.mp3,.wav,.ogg,.m4a,.flac"></label><div data-vp-shots></div></section>
@@ -49,6 +49,7 @@ class VideoProduction {
       <section data-vp-panel="6" hidden><h2>Reviewed client delivery</h2><div data-vp-delivery></div><p>The archive includes master and variants, script and storyboard PDFs, SRT/VTT subtitles, source media, frozen governance, take provenance and review history. Technical checks do not replace watching the complete film.</p></section></div>`;
     this.$=selector=>host.querySelector(selector);
     this.$('[data-vp-create]').onclick=()=>this.run(()=>this.create());this.$('[data-vp-refresh]').onclick=()=>this.run(()=>this.refresh());
+    this.$('[data-vp-example]').onclick=()=>this.run(()=>this.exampleBrief());
     this.$('[data-vp-saved]').onchange=()=>this.run(()=>this.open(this.$('[data-vp-saved]').value));
     host.querySelectorAll('[data-vp-step]').forEach(button=>button.onclick=()=>this.go(+button.dataset.vpStep));
     this.$('[data-vp-approve-script]').onclick=()=>this.run(()=>this.mutate('/approve-script',{reviewer:this.reviewer()},1));
@@ -66,6 +67,25 @@ class VideoProduction {
   }
   labelControls(root){for(const label of root.querySelectorAll('label')){const control=label.querySelector('input,textarea,select');if(control){const text=[...label.childNodes].filter(node=>node.nodeType===Node.TEXT_NODE).map(node=>node.textContent).join(' ').trim();if(text)control.setAttribute('aria-label',text);}}}
   status(text){this.$('[data-vp-status]').textContent=text;}
+  exampleBrief(){
+    const brand=this.$('[data-vp=brand_id]');if(!brand.value)throw new Error('Choose a brand kit before loading an example.');
+    const field=this.$('[data-vp=core_message]');if(field.value.trim())throw new Error('Clear the core message before loading an example. Your current draft has been preserved.');
+    const name=brand.selectedOptions[0].textContent,ar=this.$('[data-vp=language]').value==='ar';
+    const examples=ar?{
+      company_intro:`عرّف الجمهور بشركة ${name} والخدمات المذكورة في المعلومات المعتمدة، ثم ادعُ المشاهدين للتواصل مع الفريق. استخدم الحقائق المؤكدة فقط.`,
+      product_launch:`قدّم المنتج الجديد من ${name} للجمهور المقصود، واشرح فائدته المؤكدة ثم اختم بدعوة واضحة لمعرفة التفاصيل.`,
+      hiring:`قدّم فرصة العمل لدى ${name}، ووضّح المسمى والمسؤوليات والمتطلبات المعتمدة وطريقة التقديم.`,
+      explainer:`اشرح كيف تساعد خدمة ${name} في المهمة الموضحة في المعلومات المعتمدة، ثم وضّح الخطوة التالية للمشاهد.`,
+      brand_announcement:`أعلن خبر ${name}، واشرح التغيير المؤكد وأثره على الجمهور، ثم قدّم الخطوة التالية.`
+    }:{
+      company_intro:`Introduce ${name}, explain the services in the approved company brief and who they help, then invite viewers to contact the team. Use confirmed facts only.`,
+      product_launch:`Introduce the new product from ${name}, show its confirmed benefit for the intended audience, then invite viewers to learn more. Add the approved product details before creating the script.`,
+      hiring:`Introduce the opportunity at ${name}. Add the approved job title, responsibilities, requirements and application method before creating the script.`,
+      explainer:`Explain how the service from ${name} helps with the task described in the approved brief, then show the next step for the viewer.`,
+      brand_announcement:`Announce the confirmed news from ${name}, explain what changes for the audience, then give viewers a clear next step.`
+    };
+    field.value=examples[this.$('[data-vp=campaign_type]').value];field.focus();this.status('Example brief loaded. Replace general directions with approved company or product details before creating the script.');
+  }
   requireSaved(){if(this.shotDrafts.size)throw new Error('Save the edited shots before generating, approving or rendering.');}
   reviewer(){this.requireSaved();const value=this.$('[data-vp-reviewer]').value.trim();if(!value)throw new Error('Enter the reviewer name before approving.');return value;}
   async run(action){if(this.busy)return;this.busy=true;this.host.querySelectorAll('button').forEach(b=>b.disabled=true);try{await action();}catch(error){this.status(error.message);}finally{this.busy=false;this.host.querySelectorAll('button').forEach(b=>b.disabled=false);this.syncSteps();}}
@@ -113,35 +133,45 @@ class VideoProduction {
   drawModels(){const host=this.$('[data-vp-models]');host.replaceChildren();for(const model of this.models){const p=document.createElement('p');p.textContent=model.id+': '+(model.available?'hardware eligible':model.reasons.join('; '))+'. '+model.note+' Verification: '+(model.verified?'smoke test recorded':model.last_run?.success===false?'last local run failed; retry needs verification':'not verified');host.append(p);if(!model.installed){const code=document.createElement('code');code.textContent='python scripts/setup_local_video.py --model '+model.id+' --accept-license';host.append(code);}}}
   drawShots(){
     const host=this.$('[data-vp-shots]');host.replaceChildren();
-    for(const shot of this.record.shots){const input=this.shotDrafts.get(shot.id)||shot.input,card=document.createElement('article');card.className='vp-card';
+    for(const shot of this.record.shots){const draft=this.shotDrafts.get(shot.id),input=draft?.input||shot.input,baseRevision=draft?.revision??shot.input_revision,card=document.createElement('article');card.className='vp-card';
       card.innerHTML=`<h3>Shot ${shot.sequence} · ${shot.id.slice(0,8)}</h3><div class="vp-grid">${[['overlay_text','On-screen headline'],['voiceover','Narration'],['visual_prompt','Visual plate direction'],['subject','Subject'],['action','Action'],['location','Location'],['wardrobe','Wardrobe'],['props','Props'],['camera_angle','Camera angle'],['camera_motion','Camera motion'],['continuity_notes','Shot continuity notes']].map(([key,label])=>`<label>${label}<textarea data-shot-input="${key}" rows="2">${escape(input[key])}</textarea></label>`).join('')}
         <label>Duration<input data-shot-input="duration" type="number" min="1" max="30" step=".1" value="${input.duration}"></label><label>Seed<input data-shot-input="seed" type="number" min="0" max="2147483647" value="${input.seed}"></label>
         <label>Shot generation method<select data-shot-input="method">${['auto','motion-graphics','real-footage','image-animation','text-to-video','image-to-video'].map(v=>`<option ${v===input.method?'selected':''}>${v}</option>`).join('')}</select></label>
         <label>Local video model<select data-shot-input="model">${this.models.length?this.models.map(m=>`<option value="${m.id}" ${m.id===input.model?'selected':''}>${m.id}${m.available?'':' · unavailable'}</option>`).join(''):`<option>${escape(input.model)}</option>`}</select></label>
         <label>Framing<select data-shot-input="framing">${['wide','medium','close-up','detail'].map(v=>`<option ${v===input.framing?'selected':''}>${v}</option>`).join('')}</select></label>
+        <label>Still-image motion<select data-shot-input="motion">${['zoom-in','zoom-out','pan','still'].map(v=>`<option ${v===input.motion?'selected':''}>${v}</option>`).join('')}</select></label>
+        <label>Motion-graphics background<select data-shot-input="background_style">${['brand-gradient','minimal','geometric'].map(v=>`<option ${v===input.background_style?'selected':''}>${v}</option>`).join('')}</select></label>
         <label>Screen direction<select data-shot-input="screen_direction">${['neutral','left-to-right','right-to-left','toward-camera'].map(v=>`<option ${v===input.screen_direction?'selected':''}>${v}</option>`).join('')}</select></label>
         <label>Transition<select data-shot-input="transition"><option ${input.transition==='fade'?'selected':''}>fade</option><option ${input.transition==='cut'?'selected':''}>cut</option></select></label>
         <label>Transition seconds<input data-shot-input="transition_seconds" type="number" min="0" max="1" step=".1" value="${input.transition_seconds}"></label>
         <label>Reference still<select data-shot-input="reference_asset_id"><option value="">None</option>${this.assets.filter(a=>a.kind==='image').map(a=>`<option value="${a.id}" ${a.id===input.reference_asset_id?'selected':''}>${escape(a.name)}</option>`).join('')}</select></label>
         <label>Source footage or still<select data-shot-input="source_asset_id"><option value="">None</option>${this.assets.filter(a=>['image','video'].includes(a.kind)).map(a=>`<option value="${a.id}" ${a.id===input.source_asset_id?'selected':''}>${escape(a.name)}</option>`).join('')}</select></label></div>
-        <label><input data-shot-input="accuracy_critical" type="checkbox" ${input.accuracy_critical?'checked':''}> Accuracy-critical product, screen, person or location</label><button type="button" data-save-shot>Save shot ${shot.sequence}</button>`;
+        <label><input data-shot-input="accuracy_critical" type="checkbox" ${input.accuracy_critical?'checked':''}> Accuracy-critical product, screen, person or location</label><button type="button" data-save-shot>Save shot ${shot.sequence}</button><button type="button" data-discard-shot>Discard unsaved edits for shot ${shot.sequence}</button><p data-draft-status></p>`;
+      if(draft&&baseRevision!==shot.input_revision)card.querySelector('[data-draft-status]').textContent='This shot changed in another session. Your unsaved draft is preserved; discard it to load the current saved revision.';
       const readDraft=()=>{const next={...input};for(const el of card.querySelectorAll('[data-shot-input]')){const k=el.dataset.shotInput;next[k]=el.type==='checkbox'?el.checked:el.type==='number'?+el.value:['reference_asset_id','source_asset_id'].includes(k)?el.value||null:el.value;}return next;};
-      card.addEventListener('input',()=>this.shotDrafts.set(shot.id,readDraft()));card.addEventListener('change',()=>this.shotDrafts.set(shot.id,readDraft()));
-      card.querySelector('[data-save-shot]').onclick=()=>this.run(async()=>{const next=readDraft();this.shotDrafts.delete(shot.id);try{await this.mutate('/shots/'+shot.id,{shot:next},2,'PUT');}catch(error){this.shotDrafts.set(shot.id,next);throw error;}});this.labelControls(card);host.append(card);if(this.models.length)this.modelOptions(card.querySelector('[data-shot-input="model"]'),input.model);
+      const retain=()=>this.shotDrafts.set(shot.id,{input:readDraft(),revision:baseRevision});card.addEventListener('input',retain);card.addEventListener('change',retain);
+      card.querySelector('[data-discard-shot]').onclick=()=>{this.shotDrafts.delete(shot.id);this.drawShots();this.status('Unsaved shot edits discarded. The current saved revision is displayed.');};
+      card.querySelector('[data-save-shot]').onclick=()=>this.run(async()=>{if(baseRevision!==shot.input_revision)throw new Error('This shot changed since you started editing. Discard the unsaved draft before editing the current revision.');const next=readDraft();this.shotDrafts.delete(shot.id);try{await this.mutate('/shots/'+shot.id,{shot:next},2,'PUT');}catch(error){this.shotDrafts.set(shot.id,{input:next,revision:baseRevision});throw error;}});this.labelControls(card);host.append(card);if(this.models.length)this.modelOptions(card.querySelector('[data-shot-input="model"]'),input.model);
     }
   }
   drawTakes(){
     const host=this.$('[data-vp-takes]');host.replaceChildren();
     for(const shot of this.record.shots){const card=document.createElement('article');card.className='vp-card';const title=document.createElement('h3');title.textContent=`Shot ${shot.sequence} · ${shot.input.overlay_text}`;card.append(title);
-      for(const pass of ['concept','continuity','final']){const box=document.createElement('section');box.innerHTML=`<h4>${pass[0].toUpperCase()+pass.slice(1)} pass ${shot.approvals[pass]?'· approved':''}</h4><button type="button" data-generate>Generate ${pass} · shot ${shot.sequence}</button>
+      for(const pass of ['concept','continuity','final']){const box=document.createElement('section');box.dataset.reviewShot=shot.id;box.dataset.reviewPass=pass;box.innerHTML=`<h4>${pass[0].toUpperCase()+pass.slice(1)} pass ${shot.approvals[pass]?'· approved':''}</h4><button type="button" data-generate>Generate ${pass} · shot ${shot.sequence}</button>
         <label>Candidate for ${pass}<select data-candidate><option value="">Select a take</option>${shot.candidates.filter(c=>c.pass_name===pass).map(c=>`<option value="${c.id}">${c.method} · ${c.metadata.width}×${c.metadata.height} · ${c.id.slice(0,8)}</option>`).join('')}</select></label>
-        <div data-take-preview></div><label><input data-intent type="checkbox"> Shot intent checked</label>${pass!=='concept'?'<label><input data-continuity type="checkbox"> Continuity and screen direction checked</label>':''}${pass==='final'?'<label><input data-readability type="checkbox"> Identity text remains separate compositor artwork</label>':''}
-        <button type="button" data-approve>Approve ${pass} · shot ${shot.sequence}</button>`;
-        const select=box.querySelector('[data-candidate]'),preview=box.querySelector('[data-take-preview]');select.onchange=()=>{preview.replaceChildren();const take=shot.candidates.find(c=>c.id===select.value);if(take){const video=document.createElement('video');video.src=take.url;video.controls=true;video.muted=true;video.preload='metadata';const note=document.createElement('p');note.textContent=take.notice+' · seed '+take.seed;preview.append(video,note);}};
-        const latest=shot.candidates.filter(c=>c.pass_name===pass).at(-1);if(latest){select.value=latest.id;select.onchange();}
+        <label><input data-framing-guides type="checkbox"> Show rule-of-thirds guides (preview only)</label><div data-take-preview></div><label><input data-intent type="checkbox"> Shot intent checked</label>${pass!=='concept'?'<label><input data-continuity type="checkbox"> Continuity and screen direction checked</label>':''}${pass==='final'?'<label><input data-readability type="checkbox"> Identity text remains separate compositor artwork</label>':''}
+        <label>Review feedback<textarea data-review-note maxlength="1200" rows="2" placeholder="Describe what works or what needs changing"></textarea></label>
+        <label>Correction area<select data-review-issue>${['intent','continuity','readability','motion','brand','other'].map(issue=>`<option ${issue===(pass==='concept'?'intent':pass==='continuity'?'continuity':'readability')?'selected':''}>${issue}</option>`).join('')}</select></label>
+        <button type="button" data-approve>Approve ${pass} · shot ${shot.sequence}</button><button type="button" data-reject>Reject ${pass} · shot ${shot.sequence}</button>`;
+        const select=box.querySelector('[data-candidate]'),preview=box.querySelector('[data-take-preview]'),guides=box.querySelector('[data-framing-guides]');
+        guides.onchange=()=>{const grid=preview.querySelector('.vp-framing-grid');if(grid)grid.hidden=!guides.checked;};
+        select.onchange=()=>{preview.replaceChildren();const take=shot.candidates.find(c=>c.id===select.value);if(take){const video=document.createElement('video');video.src=take.url;video.controls=true;video.muted=true;video.preload='metadata';const frame=document.createElement('div');frame.className='vp-preview-frame';frame.style.maxWidth=(420*(take.metadata.width/take.metadata.height||16/9))+'px';const grid=document.createElement('div');grid.className='vp-framing-grid';grid.hidden=!guides.checked;grid.setAttribute('aria-hidden','true');frame.append(video,grid);const note=document.createElement('p');note.textContent=take.notice+' · seed '+take.seed;preview.append(frame,note);for(const review of take.reviews||[]){const item=document.createElement('p');item.dataset.takeReview='';item.textContent=(review.approved?'Approved':'Rejected')+' by '+review.reviewer+(review.note?': '+review.note:'')+(review.suggestion?' Next: '+review.suggestion:'');preview.append(item);}}};
+        const latest=shot.candidates.filter(c=>c.pass_name===pass).at(-1),selected=shot.approvals[pass]?.candidate_id||latest?.id;if(selected){select.value=selected;select.onchange();}
         box.querySelector('[data-generate]').onclick=()=>this.run(async()=>{this.requireSaved();const job=await api('/productions/'+this.record.id+'/shots/'+shot.id+'/generate',{expected_version:this.record.version,pass_name:pass});await this.watch(job.id);});
-        box.querySelector('[data-approve]').onclick=()=>this.run(()=>this.mutate('/shots/'+shot.id+'/review',{gate:pass,candidate_id:select.value,reviewer:this.reviewer(),approved:true,
-          intent_checked:box.querySelector('[data-intent]').checked,continuity_checked:!!box.querySelector('[data-continuity]')?.checked,readability_checked:!!box.querySelector('[data-readability]')?.checked},3));card.append(box);
+        const review=approved=>this.run(async()=>{if(!select.value)throw new Error('Select a candidate take before reviewing.');await this.mutate('/shots/'+shot.id+'/review',{gate:pass,candidate_id:select.value,reviewer:this.reviewer(),approved,
+          note:box.querySelector('[data-review-note]').value,issue:approved?null:box.querySelector('[data-review-issue]').value,
+          intent_checked:box.querySelector('[data-intent]').checked,continuity_checked:!!box.querySelector('[data-continuity]')?.checked,readability_checked:!!box.querySelector('[data-readability]')?.checked},3);});
+        box.querySelector('[data-approve]').onclick=()=>review(true);box.querySelector('[data-reject]').onclick=()=>review(false);this.labelControls(box);card.append(box);
       }host.append(card);
     }
   }

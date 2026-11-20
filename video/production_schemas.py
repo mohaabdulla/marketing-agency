@@ -65,6 +65,7 @@ class GateRequest(Versioned):
     reviewer: Reviewer
     note: str = Field('',max_length=1200)
     approved: bool = True
+    issue: Literal['intent','continuity','readability','motion','brand','other'] | None = None
     intent_checked: bool = False
     continuity_checked: bool = False
     readability_checked: bool = False

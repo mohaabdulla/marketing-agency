@@ -247,6 +247,9 @@ def _candidate(record,shot,pass_name,job):
         input_sha256=shot_digest(record,shot),governance_sha256=record['governance']['sha256'],script_sha256=script_digest(record),
         file_sha256=file_hash(path_for(result['id'])),method=method,prompt=prompt,seed=inputs['seed'],model=inputs['model'] if native_revision else None,
         model_revision=native_revision,native_generation=native_profile,created=time.time(),metadata={key:meta.get(key) for key in ('width','height','duration','fps','video_codec','has_audio')},
+        generation_settings=dict(quality='draft' if pass_name=='concept' else 'standard',
+            inference_steps=(20 if pass_name=='concept' else 50) if native_revision else None,
+            inference_profile=result.get('inference_profile')),
         reference_asset_id=inputs['reference_asset_id'],source_asset_id=inputs['source_asset_id'],
         notice='Local diffusion' if native_revision else 'Deterministic local composition; no diffusion inference')
 
@@ -282,11 +285,23 @@ def approve_candidate(key,shot_id,body):
             if body.gate in {'continuity','final'} and not body.continuity_checked:raise ValueError('Review appearance, location, props and screen direction before approving.')
             if body.gate=='final' and not body.readability_checked:raise ValueError('Confirm critical text will be composited separately.')
             shot['approvals'][body.gate]=dict(candidate_id=candidate['id'],input_sha256=candidate['input_sha256'],reviewer=body.reviewer,note=body.note,at=time.time())
-        else:shot['approvals'].pop(body.gate,None)
+        else:
+            if not body.note.strip():raise ValueError('Explain what needs correcting before rejecting the take.')
+            shot['approvals'].pop(body.gate,None)
+        advice={
+            'intent':'Revise the subject and action to show the approved story beat. Use relevant company footage or an approved reference.',
+            'continuity':'Compare wardrobe, location, props and screen direction with the approved parent. Use real footage or an approved still when exact identity matters.',
+            'readability':'Keep wording and logos in compositor layers. Shorten the headline or increase its readable screen time.',
+            'motion':'Reduce competing camera/action instructions. Try a simpler move or use stable real footage.',
+            'brand':'Check the frozen colours, typography and approved logo. Correct identity in the compositor.',
+            'other':'Record the required change in the shot notes, save the shot and review the revised script before a new take.'}
+        review=dict(approved=body.approved,reviewer=body.reviewer,note=body.note.strip(),issue=body.issue,
+            suggestion=advice[body.issue or 'other'] if not body.approved else None,at=time.time())
+        candidate.setdefault('reviews',[]).append(review)
         for later in {'concept':['continuity','final'],'continuity':['final'],'final':[]}[body.gate]:shot['approvals'].pop(later,None)
         _invalidate(record);record['timeline_project_id']=None
         if all('final' in s['approvals'] for s in record['shots']):record['stage']='editing'
-        return _save(record,'shot-review',dict(shot_id=shot_id,gate=body.gate,approved=body.approved,reviewer=body.reviewer,note=body.note))
+        return _save(record,'shot-review',dict(shot_id=shot_id,candidate_id=candidate['id'],gate=body.gate,**review))
 
 
 def reset_timeline(key,body):
